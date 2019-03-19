@@ -1,0 +1,9 @@
+2019-03-19 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* Version 0.1.0
+
+	* Initialize 'sideRETRO' project
+
+	* Configure to autotools format
+
+	* Add tests with framework 'check'
