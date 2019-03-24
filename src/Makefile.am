@@ -6,4 +6,9 @@ noinst_LTLIBRARIES = libsider.la
 
 libsider_la_SOURCES = \
 		sider.c \
-		sider.h
+		sider.h \
+		wrapper.c \
+		wrapper.h \
+		list.c \
+		list.h \
+		types.h
