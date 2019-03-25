@@ -123,7 +123,7 @@ list_remove (List *list, ListElmt *element, void **data)
 	else
 		{
 			if (list->destroy_fun != NULL)
-				list->destroy_fun (data);
+				list->destroy_fun (element->data);
 		}
 
 	free (element);
@@ -156,4 +156,14 @@ list_remove_link (List *list, ListElmt *element)
 	element->prev = NULL;
 	element->next = NULL;
 	list->size--;
+}
+
+void
+list_foreach (List *list, Func func, void *user_data)
+{
+	assert (list != NULL && func != NULL);
+	ListElmt *cur = list->head;
+
+	for (; cur != NULL; cur = cur->next)
+		func (cur->data, user_data);
 }

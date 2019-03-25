@@ -31,6 +31,7 @@ void  list_ins_next      (List *list, ListElmt *element, const void *data);
 void  list_ins_next_link (List *list, ListElmt *element, ListElmt *new_element);
 void  list_remove        (List *list, ListElmt *element, void **data);
 void  list_remove_link   (List *list, ListElmt *element);
+void  list_foreach       (List *list, Func func, void *user_data);
 
 #define list_append(list,data) \
 	(list_ins_next ((list), (list)->tail, (data)))

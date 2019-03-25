@@ -10,7 +10,8 @@ main (void)
 	SRunner *sr = NULL;
 
 	sr = srunner_create (make_sider_suite ());
-	/*srunner_add_suite (sr, make_<SUITE>_suite ());*/
+	srunner_add_suite (sr, make_list_suite ());
+	/*srunner_set_tap (sr, "-");*/
 
 	srunner_run_all (sr, CK_NORMAL);
 	number_failed = srunner_ntests_failed (sr);
