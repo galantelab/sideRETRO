@@ -1,6 +1,8 @@
 #include "config.h"
 
+#include <stdio.h>
 #include <string.h>
+#include <stdarg.h>
 #include "wrapper.h"
 
 char *
@@ -27,6 +29,23 @@ xmalloc (size_t size)
 		{
 		}
 
+	return ret;
+}
+
+int
+xasprintf (char **strp, const char *fmt, ...)
+{
+	int ret = 0;
+	va_list ap;
+
+	va_start (ap, fmt);
+	ret = vasprintf (strp, fmt, ap);
+
+	if (ret < 0)
+		{
+		}
+
+	va_end (ap);
 	return ret;
 }
 
