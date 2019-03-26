@@ -11,4 +11,6 @@ libsider_la_SOURCES = \
 		wrapper.h \
 		list.c \
 		list.h \
-		types.h
+		types.h \
+		hash.c \
+		hash.h
