@@ -133,6 +133,77 @@ START_TEST (test_hash_contains)
 }
 END_TEST
 
+static void
+sum (void *key, void *value, void *user_data)
+{
+	char *keys[] = {"loop1", "loop10", "loop50"};
+	int i = 0;
+
+	for  (; i < sizeof (keys)/sizeof (char *); i++)
+		{
+			if (!strcmp (keys[i], (char *) key))
+				{
+					* (int *) user_data += * (int *) value;
+					break;
+				}
+		}
+}
+
+START_TEST (test_hash_foreach)
+{
+	Hash *hash = hash_new (50, free, NULL);
+	char **keys = xcalloc (100, sizeof (char *));
+	int *values = xcalloc (100, sizeof (int));
+	int i = 0;
+	int total = 0;
+
+	for (i = 0; i < 100; i++)
+		{
+			values[i] = i;
+			xasprintf (&keys[i], "loop%d", i);
+			hash_insert (hash, keys[i], &values[i]);
+		}
+
+	hash_foreach (hash, sum, &total);
+	ck_assert_int_eq (total, 61);
+
+	hash_free (hash);
+	free (keys);
+	free (values);
+}
+END_TEST
+
+START_TEST (test_hash_iter)
+{
+	Hash *hash = hash_new (50, free, NULL);
+	char **keys = xcalloc (100, sizeof (char *));
+	int *values = xcalloc (100, sizeof (int));
+	int i = 0;
+
+	for (i = 0; i < 100; i++)
+		{
+			values[i] = i;
+			xasprintf (&keys[i], "loop%d", i);
+			hash_insert (hash, keys[i], &values[i]);
+		}
+
+	HashIter iter;
+	int *value_ptr;
+	int total = 0;
+
+	hash_iter_init (&iter, hash);
+
+	while (hash_iter_next (&iter, NULL, (void **) &value_ptr))
+		total += *value_ptr;
+
+	ck_assert_int_eq (total, 4950);
+
+	hash_free (hash);
+	free (keys);
+	free (values);
+}
+END_TEST
+
 Suite *
 make_hash_suite (void)
 {
@@ -150,6 +221,9 @@ make_hash_suite (void)
 	tcase_add_test (tc_core, test_hash_replace);
 	tcase_add_test (tc_core, test_hash_remove);
 	tcase_add_test (tc_core, test_hash_contains);
+	tcase_add_test (tc_core, test_hash_foreach);
+	tcase_add_test (tc_core, test_hash_iter);
+	suite_add_tcase (s, tc_core);
 
 	return s;
 }

@@ -7,9 +7,11 @@
 #include "types.h"
 
 typedef uint32_t (*HashFunc) (const void *key);
+typedef void     (*HFunc)    (void *key, void *value, void *user_data);
 
 struct _Hash
 {
+	size_t          version;
 	size_t          buckets;
 
 	HashFunc        hash_fun;
@@ -22,6 +24,16 @@ struct _Hash
 };
 
 typedef struct _Hash Hash;
+
+struct _HashIter
+{
+	size_t    version;
+	size_t    bucket;
+	Hash     *hash;
+	ListElmt *cur;
+};
+
+typedef struct _HashIter HashIter;
 
 #define HASH_SMALL_SIZE  1021
 #define HASH_MEDIUM_SIZE 65521
@@ -40,6 +52,10 @@ int    hash_remove   (Hash *hash, const void *key);
 int    hash_insert   (Hash *hash, const void *key, const void *value);
 void * hash_lookup   (Hash *hash, const void *key);
 int    hash_contains (Hash *hash, const void *key);
+void   hash_foreach  (Hash *hash, HFunc func, void *user_data);
+
+void   hash_iter_init (HashIter *iter, Hash *hash);
+int    hash_iter_next (HashIter *iter, void **key, void **value);
 
 #define hash_size(hash) ((hash)->size)
 

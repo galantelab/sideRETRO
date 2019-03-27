@@ -158,7 +158,7 @@ hash_new (size_t buckets, DestroyNotify destroy_key_fun,
 void
 hash_free (Hash *hash)
 {
-	if (hash = NULL)
+	if (hash == NULL)
 		return;
 
 	size_t i = 0;
@@ -220,6 +220,7 @@ hash_remove (Hash *hash, const void *key)
 			list_remove (list, list_elmt, NULL);
 
 			hash->size--;
+			hash->version++;
 			return 1;
 		}
 
@@ -246,6 +247,7 @@ hash_insert (Hash *hash, const void *key, const void *value)
 	list_append (hash->table[bucket], hash_elmt_new (key, value));
 
 	hash->size++;
+	hash->version++;
 	return 1;
 }
 
@@ -267,4 +269,98 @@ int
 hash_contains (Hash *hash, const void *key)
 {
 	return hash_fetch (hash, key) != NULL;
+}
+
+static inline int
+hash_find_bucket_in_use (Hash *hash, size_t *from)
+{
+	assert (from != NULL);
+	size_t i = *from;
+
+	for (; i < hash->buckets; i++)
+		{
+			List *list = hash->table[i];
+			if (list_size (list) > 0)
+				break;
+		}
+
+	*from = i;
+	return i < hash->buckets;
+}
+
+void
+hash_foreach (Hash *hash, HFunc func, void *user_data)
+{
+	assert (hash != NULL && func != NULL);
+	size_t i = 0;
+
+	while (hash_find_bucket_in_use (hash, &i))
+		{
+			List *list = hash->table[i];
+			ListElmt *cur = list_head (list);
+
+			while (cur != NULL)
+				{
+					HashElmt *hash_elmt = list_data (cur);
+					func (hash_elmt->key, hash_elmt->value, user_data);
+					cur = list_next (cur);
+				}
+
+			i++;
+		}
+}
+
+void
+hash_iter_init (HashIter *iter, Hash *hash)
+{
+	assert (iter != NULL && hash != NULL);
+	memset (iter, 0, sizeof (HashIter));
+
+	size_t i = 0;
+
+	if (hash_find_bucket_in_use (hash, &i))
+		{
+			List *list = hash->table[i];
+			iter->cur = list_head (list);
+		}
+
+	iter->bucket = i;
+	iter->version = hash->version;
+	iter->hash = hash;
+}
+
+int
+hash_iter_next (HashIter *iter, void **key, void **value)
+{
+	assert (iter != NULL);
+	assert (iter->version == iter->hash->version);
+
+	Hash *hash = iter->hash;
+	HashElmt *hash_elmt = NULL;
+	ListElmt *cur = iter->cur;
+
+	if (cur == NULL)
+		{
+			size_t i = iter->bucket + 1;
+
+			if (hash_find_bucket_in_use (hash, &i))
+				{
+					List *list = hash->table[i];
+					iter->bucket = i;
+					cur = list_head (list);
+				}
+			else
+				return 0;
+		}
+
+	hash_elmt = list_data (cur);
+
+	if (key != NULL)
+		*key = hash_elmt->key;
+
+	if (value != NULL)
+		*value = hash_elmt->value;
+
+	iter->cur = list_next (cur);
+	return 1;
 }

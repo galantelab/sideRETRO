@@ -11,6 +11,7 @@ main (void)
 
 	sr = srunner_create (make_sider_suite ());
 	srunner_add_suite (sr, make_list_suite ());
+	srunner_add_suite (sr, make_hash_suite ());
 	/*srunner_set_tap (sr, "-");*/
 
 	srunner_run_all (sr, CK_NORMAL);
