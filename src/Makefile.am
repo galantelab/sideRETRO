@@ -13,4 +13,10 @@ libsider_la_SOURCES = \
 		list.h \
 		types.h \
 		hash.c \
-		hash.h
+		hash.h \
+		log.c \
+		log.h \
+		array.c \
+		array.h \
+		utils.c \
+		utils.h
