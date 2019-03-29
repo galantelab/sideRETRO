@@ -1,3 +1,35 @@
+2019-03-29 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* Version 0.2.0
+
+	* ADD: hash.c: (hash_get_keys/values_as_list/array)
+
+	* free () -> xfree ()
+
+2019-03-28 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: array,utils,log interfaces
+
+2019-03-27 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* FIX: hash.c: (hash_foreach, hash_iter_next): SegFault
+
+2019-03-26 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: wrapper.c: (xasprintf)
+
+	* ADD: hash.[ch]
+
+	* ADD: testing for hash: check_sider_hash.c
+
+2019-03-25 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* FIX: list.c (list_remove): leaks
+
+2019-03-24 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: wrapper, list and types interfaces
+
 2019-03-19 Thiago L. A. Miller <tmiller@mochsl.org.br>
 
 	* Version 0.1.0

@@ -1,3 +1,12 @@
+Version 0.2.0
+
+* Add array, list and hash data structures.
+
+* Add logging interface to manage messages level.
+
+* Wrapping of standard c functions for allocating memory
+  and opening file.
+
 Version 0.1.0
 
 * Initial version. Project was set to work with 'autotools' and
