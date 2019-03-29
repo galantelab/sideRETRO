@@ -110,7 +110,7 @@ list_free (List *list)
 	while (list->size > 0)
 		list_remove (list, list->tail, NULL);
 
-	free (list);
+	xfree (list);
 }
 
 void
@@ -127,7 +127,7 @@ list_remove (List *list, ListElmt *element, void **data)
 				list->destroy_fun (element->data);
 		}
 
-	free (element);
+	xfree (element);
 }
 
 void

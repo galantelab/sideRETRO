@@ -36,7 +36,7 @@ static inline void
 hash_elmt_free (Hash *hash, HashElmt *hash_elmt)
 {
 	hash_elmt_clean (hash, hash_elmt);
-	free (hash_elmt);
+	xfree (hash_elmt);
 }
 
 size_t
@@ -179,8 +179,8 @@ hash_free (Hash *hash)
 			list_free (list);
 		}
 
-	free (hash->table);
-	free (hash);
+	xfree (hash->table);
+	xfree (hash);
 }
 
 static ListElmt *

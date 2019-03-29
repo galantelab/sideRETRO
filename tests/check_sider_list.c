@@ -99,7 +99,7 @@ START_TEST (test_list_remove)
 	ck_assert_int_eq (list_size (l), 1);
 	ck_assert_str_eq (list_data (list_head (l)), "ele");
 
-	free (data);
+	xfree (data);
 	list_free (l);
 }
 END_TEST
@@ -118,8 +118,8 @@ START_TEST (test_list_remove_link)
 	ck_assert_str_eq (list_data (head), "eu");
 	ck_assert_str_eq (list_data (list_head (l)), "tu");
 
-	free (list_data (head));
-	free (head);
+	xfree (list_data (head));
+	xfree (head);
 	list_free (l);
 }
 END_TEST

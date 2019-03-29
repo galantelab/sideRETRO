@@ -55,9 +55,9 @@ START_TEST (test_array_no_free_segment)
 		ck_assert_str_eq (ponga2[i], ponga[i]);
 
 	for (int i = 0; i < ponga_size; i++)
-		free (ponga2[i]);
+		xfree (ponga2[i]);
 
-	free (ponga2);
+	xfree (ponga2);
 }
 END_TEST
 

@@ -101,7 +101,7 @@ START_TEST (test_hash_remove)
 	ck_assert_int_eq (rc, 0);
 	ck_assert_int_eq (hash_size (hash), 0);
 
-	free (str);
+	xfree (str);
 	hash_free (hash);
 }
 END_TEST
@@ -128,8 +128,8 @@ START_TEST (test_hash_contains)
 		}
 
 	hash_free (hash);
-	free (keys);
-	free (values);
+	xfree (keys);
+	xfree (values);
 }
 END_TEST
 
@@ -168,8 +168,8 @@ START_TEST (test_hash_foreach)
 	ck_assert_int_eq (total, 61);
 
 	hash_free (hash);
-	free (keys);
-	free (values);
+	xfree (keys);
+	xfree (values);
 }
 END_TEST
 
@@ -199,8 +199,8 @@ START_TEST (test_hash_iter)
 	ck_assert_int_eq (total, 4950);
 
 	hash_free (hash);
-	free (keys);
-	free (values);
+	xfree (keys);
+	xfree (values);
 }
 END_TEST
 

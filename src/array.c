@@ -33,12 +33,12 @@ array_free (Array *array, int free_segment)
 						array->element_free_func (data[i]);
 				}
 
-			free (data);
+			xfree (data);
 		}
 	else
 		segment = array->pdata;
 
-	free (array);
+	xfree (array);
 	return segment;
 }
 
