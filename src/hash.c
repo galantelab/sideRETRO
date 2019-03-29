@@ -1,6 +1,7 @@
 #include <config.h>
 
 #include <string.h>
+#include <stdint.h>
 #include <assert.h>
 #include "wrapper.h"
 #include "hash.h"
@@ -38,7 +39,7 @@ hash_elmt_free (Hash *hash, HashElmt *hash_elmt)
 	free (hash_elmt);
 }
 
-uint32_t
+size_t
 str_hash (const void *key)
 {
 	/**
@@ -107,7 +108,7 @@ str_hash (const void *key)
 	h *= 0xc2b2ae35;
 	h ^= (h >> 16);
 
-	return h;
+	return (size_t) h;
 }
 
 int
@@ -363,4 +364,76 @@ hash_iter_next (HashIter *iter, void **key, void **value)
 
 	iter->cur = list_next (cur);
 	return 1;
+}
+
+List *
+hash_get_keys_as_list (Hash *hash)
+{
+	assert (hash != NULL);
+
+	HashIter iter;
+	List *keys = NULL;
+	void *key = NULL;
+
+	keys = list_new (NULL);
+	hash_iter_init (&iter, hash);
+
+	while (hash_iter_next (&iter, &key, NULL))
+		list_append (keys, key);
+
+	return keys;
+}
+
+List *
+hash_get_values_as_list (Hash *hash)
+{
+	assert (hash != NULL);
+
+	HashIter iter;
+	List *values = NULL;
+	void *value = NULL;
+
+	values = list_new (NULL);
+	hash_iter_init (&iter, hash);
+
+	while (hash_iter_next (&iter, NULL, &value))
+		list_append (values, value);
+
+	return values;
+}
+
+Array *
+hash_get_keys_as_array (Hash *hash)
+{
+	assert (hash != NULL);
+
+	HashIter iter;
+	Array *keys = NULL;
+	void *key = NULL;
+
+	keys = array_new (NULL);
+	hash_iter_init (&iter, hash);
+
+	while (hash_iter_next (&iter, &key, NULL))
+		array_add (keys, key);
+
+	return keys;
+}
+
+Array *
+hash_get_values_as_array (Hash *hash)
+{
+	assert (hash != NULL);
+
+	HashIter iter;
+	Array *values = NULL;
+	void *value = NULL;
+
+	values = array_new (NULL);
+	hash_iter_init (&iter, hash);
+
+	while (hash_iter_next (&iter, NULL, &value))
+		array_add (values, value);
+
+	return values;
 }

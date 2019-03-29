@@ -14,12 +14,13 @@ struct _Array
 
 typedef struct _Array Array;
 
-#define array_get(array, index) ((array)->pdata)[index]
-
 Array  * array_new  (DestroyNotify element_free_func);
 void  ** array_free (Array *array, int free_segment);
 void     array_add  (Array *array, void *ptr);
 void     array_sort (Array *array, CompareFunc compare_func);
 void     array_uniq (Array *array, CompareFunc compare_func);
+
+#define array_len(array)        ((array)->len)
+#define array_get(array, index) ((array)->pdata[index])
 
 #endif /* array.h */

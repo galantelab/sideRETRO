@@ -42,7 +42,7 @@ array_free (Array *array, int free_segment)
 	return segment;
 }
 
-static size_t
+static inline size_t
 nearest_pow (size_t num)
 {
 	size_t n = 1;

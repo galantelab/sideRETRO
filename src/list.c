@@ -104,7 +104,8 @@ list_ins_prev_link (List *list, ListElmt *element, ListElmt *new_element)
 void
 list_free (List *list)
 {
-	assert (list != NULL);
+	if (list == NULL)
+		return;
 
 	while (list->size > 0)
 		list_remove (list, list->tail, NULL);

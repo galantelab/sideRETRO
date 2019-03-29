@@ -2,12 +2,12 @@
 #define HASH_H
 
 #include <stdlib.h>
-#include <stdint.h>
 #include "list.h"
+#include "array.h"
 #include "types.h"
 
-typedef uint32_t (*HashFunc) (const void *key);
-typedef void     (*HFunc)    (void *key, void *value, void *user_data);
+typedef size_t (*HashFunc) (const void *key);
+typedef void   (*HFunc)    (void *key, void *value, void *user_data);
 
 struct _Hash
 {
@@ -39,8 +39,8 @@ typedef struct _HashIter HashIter;
 #define HASH_MEDIUM_SIZE 65521
 #define HASH_LARGE_SIZE  1048573
 
-uint32_t str_hash  (const void *key);
-int      str_equal (const void *key1, const void *key2);
+size_t str_hash  (const void *key);
+int    str_equal (const void *key1, const void *key2);
 
 Hash * hash_new_full (size_t buckets, HashFunc hash_fun, EqualFun match_fun,
 		DestroyNotify destroy_key_fun, DestroyNotify destroy_value_fun);
@@ -56,6 +56,11 @@ void   hash_foreach  (Hash *hash, HFunc func, void *user_data);
 
 void   hash_iter_init (HashIter *iter, Hash *hash);
 int    hash_iter_next (HashIter *iter, void **key, void **value);
+
+List  * hash_get_keys_as_list    (Hash *hash);
+List  * hash_get_values_as_list  (Hash *hash);
+Array * hash_get_keys_as_array   (Hash *hash);
+Array * hash_get_values_as_array (Hash *hash);
 
 #define hash_size(hash) ((hash)->size)
 

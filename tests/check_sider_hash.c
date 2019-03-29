@@ -204,11 +204,136 @@ START_TEST (test_hash_iter)
 }
 END_TEST
 
+START_TEST (test_hash_get_keys_as_list)
+{
+	Hash *hash = hash_new (10, NULL, NULL);
+	char *pronouns[] = { "I", "you", "he", "she", "it", "we", "they" };
+	int num_elem = sizeof (pronouns)/sizeof (char *);
+	int i = 0;
+
+	for (; i < num_elem; i++)
+		hash_insert (hash, pronouns[i], NULL);
+
+	List *list = hash_get_keys_as_list (hash);
+	ck_assert_ptr_ne (list, NULL);
+	ck_assert_int_eq (list_size (list), num_elem);
+
+	ListElmt *cur = list_head (list);
+	int match = 0;
+
+	for (; cur != NULL; cur = list_next (cur))
+		for (i = 0; i < num_elem; i++)
+			if (list_data (cur) == pronouns[i])
+				match ++;
+
+	ck_assert_int_eq (match, num_elem);
+
+	hash_free (hash);
+	list_free (list);
+}
+END_TEST
+
+START_TEST (test_hash_get_values_as_list)
+{
+	Hash *hash = hash_new (10, free, NULL);
+	char *pronouns[] = { "I", "you", "he", "she", "it", "we", "they" };
+	int num_elem = sizeof (pronouns)/sizeof (char *);
+	int i = 0;
+
+	for (; i < num_elem; i++)
+		{
+			char *key;
+			asprintf (&key, "key%d", i);
+			hash_insert (hash, key, pronouns[i]);
+		}
+
+	List *list = hash_get_values_as_list (hash);
+	ck_assert_ptr_ne (list, NULL);
+	ck_assert_int_eq (list_size (list), num_elem);
+
+	ListElmt *cur = list_head (list);
+	int match = 0;
+
+	for (; cur != NULL; cur = list_next (cur))
+		for (i = 0; i < num_elem; i++)
+			if (list_data (cur) == pronouns[i])
+				match ++;
+
+	ck_assert_int_eq (match, num_elem);
+
+	hash_free (hash);
+	list_free (list);
+}
+END_TEST
+
+START_TEST (test_hash_get_keys_as_array)
+{
+	Hash *hash = hash_new (10, NULL, NULL);
+	char *pronouns[] = { "I", "you", "he", "she", "it", "we", "they" };
+	int num_elem = sizeof (pronouns)/sizeof (char *);
+	int i = 0;
+
+	for (; i < num_elem; i++)
+		hash_insert (hash, pronouns[i], NULL);
+
+	Array *array = hash_get_keys_as_array (hash);
+	ck_assert_ptr_ne (array, NULL);
+	ck_assert_int_eq (array_len (array), num_elem);
+
+	int match = 0;
+	int j = 0;
+
+	for (i = 0; i < num_elem; i++)
+		for (j = 0; j < num_elem; j++)
+			if (array_get (array, i) == pronouns[j])
+				match ++;
+
+	ck_assert_int_eq (match, num_elem);
+
+	hash_free (hash);
+	array_free (array, 1);
+}
+END_TEST
+
+START_TEST (test_hash_get_values_as_array)
+{
+	Hash *hash = hash_new (10, free, NULL);
+	char *pronouns[] = { "I", "you", "he", "she", "it", "we", "they" };
+	int num_elem = sizeof (pronouns)/sizeof (char *);
+	int i = 0;
+
+	for (; i < num_elem; i++)
+		{
+			char *key;
+			asprintf (&key, "key%d", i);
+			hash_insert (hash, key, pronouns[i]);
+		}
+
+	Array *array = hash_get_values_as_array (hash);
+	ck_assert_ptr_ne (array, NULL);
+	ck_assert_int_eq (array_len (array), num_elem);
+
+	int match = 0;
+	int j = 0;
+
+	for (i = 0; i < num_elem; i++)
+		for (j = 0; j < num_elem; j++)
+			if (array_get (array, i) == pronouns[j])
+				match ++;
+
+	ck_assert_int_eq (match, num_elem);
+
+	hash_free (hash);
+	array_free (array, 1);
+}
+END_TEST
+
 Suite *
 make_hash_suite (void)
 {
 	Suite *s;
 	TCase *tc_core;
+	TCase *tc_misc;
 
 	s = suite_create ("Hash");
 
@@ -221,9 +346,17 @@ make_hash_suite (void)
 	tcase_add_test (tc_core, test_hash_replace);
 	tcase_add_test (tc_core, test_hash_remove);
 	tcase_add_test (tc_core, test_hash_contains);
-	tcase_add_test (tc_core, test_hash_foreach);
-	tcase_add_test (tc_core, test_hash_iter);
 	suite_add_tcase (s, tc_core);
+
+	/* Misc test case */
+	tc_misc = tcase_create ("Misc");
+	tcase_add_test (tc_misc, test_hash_foreach);
+	tcase_add_test (tc_misc, test_hash_iter);
+	tcase_add_test (tc_misc, test_hash_get_keys_as_list);
+	tcase_add_test (tc_misc, test_hash_get_values_as_list);
+	tcase_add_test (tc_misc, test_hash_get_keys_as_array);
+	tcase_add_test (tc_misc, test_hash_get_values_as_array);
+	suite_add_tcase (s, tc_misc);
 
 	return s;
 }
