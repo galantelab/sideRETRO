@@ -2,15 +2,8 @@
 
 #include <string.h>
 #include <stdarg.h>
-#include <errno.h>
 #include "log.h"
 #include "wrapper.h"
-
-#define die(fmt,...) \
-	do { \
-		log_fatal (fmt ": %s", ##__VA_ARGS__, strerror (errno)); \
-		abort (); \
-	} while (0)
 
 char *
 xstrdup (const char *str)
@@ -18,7 +11,7 @@ xstrdup (const char *str)
 	char *ret = strdup (str);
 
 	if (ret == NULL)
-		die ("strdup failed");
+		log_errno_fatal ("strdup failed");
 
 	return ret;
 }
@@ -32,7 +25,18 @@ xmalloc (size_t size)
 		ret = malloc (1);
 
 	if (ret == NULL)
-		die ("malloc failed");
+		log_errno_fatal ("malloc failed");
+
+	return ret;
+}
+
+int
+xvasprintf (char **strp, const char *fmt, va_list ap)
+{
+	int ret = vasprintf (strp, fmt, ap);
+
+	if (ret < 0)
+		log_errno_fatal ("vasprintf failed");
 
 	return ret;
 }
@@ -47,7 +51,7 @@ xasprintf (char **strp, const char *fmt, ...)
 	ret = vasprintf (strp, fmt, ap);
 
 	if (ret < 0)
-		die ("asprintf failed");
+		log_errno_fatal ("asprintf failed");
 
 	va_end (ap);
 	return ret;
@@ -62,7 +66,7 @@ xcalloc (size_t nmemb, size_t size)
 		ret = calloc (1, 1);
 
 	if (ret == NULL)
-		die ("calloc failed");
+		log_errno_fatal ("calloc failed");
 
 	return ret;
 }
@@ -76,7 +80,7 @@ xrealloc (void *ptr, size_t size)
 		ret = realloc (ret, 1);
 
 	if (ret == NULL)
-		die ("realloc failed");
+		log_errno_fatal ("realloc failed");
 
 	return ret;
 }
@@ -92,22 +96,16 @@ xfree (void *ptr)
 FILE *
 xfopen (const char *path, const char *mode)
 {
-	while (1)
-		{
-			FILE *fp = fopen (path, mode);
-			if (fp)
-				return fp;
+	FILE *fp = fopen (path, mode);
+	if (fp != NULL)
+		return fp;
 
-			if (errno == EINTR)
-				continue;
-
-			if (*mode && mode[1] == '+')
-				die ("Could not open '%s' for reading and writing", path);
-			else if (*mode == 'w' || *mode == 'a')
-				die ("Could not open '%s' for writing", path);
-			else
-				die ("Could not open '%s' for reading", path);
-		}
+	if (*mode && mode[1] == '+')
+		log_errno_fatal ("Could not open '%s' for reading and writing", path);
+	else if (*mode == 'w' || *mode == 'a')
+		log_errno_fatal ("Could not open '%s' for writing", path);
+	else
+		log_errno_fatal ("Could not open '%s' for reading", path);
 }
 
 void
@@ -117,5 +115,32 @@ xfclose (FILE *fp)
 		return;
 
 	if (fclose (fp) == EOF)
-		die ("Could not close file stream");
+		log_errno_fatal ("Could not close file stream");
+}
+
+FILE *
+xpopen (const char *cmd, const char *mode)
+{
+	FILE *pp = popen (cmd, mode);
+	if (pp != NULL)
+		return pp;
+
+	if (*mode && mode[0] == 'w')
+		log_errno_fatal ("Could not open pipe for writing to '%s'", cmd);
+	else
+		log_errno_fatal ("Could not open pipe for reading from '%s'", cmd);
+}
+
+int
+xpclose (FILE *pp)
+{
+	if (pp == NULL)
+		return EOF;
+
+	int stat = pclose (pp);
+
+	if (stat == EOF)
+		log_errno_fatal ("Could not close pipe");
+
+	return WEXITSTATUS (stat);
 }
