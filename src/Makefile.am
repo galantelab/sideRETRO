@@ -19,4 +19,6 @@ libsider_la_SOURCES = \
 		array.c \
 		array.h \
 		utils.c \
-		utils.h
+		utils.h \
+		sam.c \
+		sam.h

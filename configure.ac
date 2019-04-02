@@ -22,6 +22,9 @@ AC_PROG_INSTALL
 PKG_CHECK_MODULES([CHECK], [check], ,
 	[AC_MSG_WARN([check not found, It will not be possible to run 'make check'])])
 
+AC_SEARCH_LIBS([hts_version], [hts], ,
+	[AC_MSG_ERROR([htslib not found])])
+
 # Checks for header files.
 AC_HEADER_STDC
 AC_HEADER_ASSERT

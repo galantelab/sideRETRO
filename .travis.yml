@@ -5,6 +5,14 @@ compiler:
 before_install:
   - sudo apt-get update
   - sudo apt-get install -y check
+  - git clone --branch 1.9 --single-branch https://github.com/samtools/htslib.git ~/htslib
+  - cd ~/htslib
+  - autoheader && autoconf
+  - ./configure
+  - make
+  - sudo make install
+  - sudo ldconfig
+  - cd $TRAVIS_BUILD_DIR
 before_script:
   - chmod +x autogen.sh
   - ./autogen.sh
@@ -12,3 +20,5 @@ script:
   - ./configure
   - make
   - make check
+after_failure:
+  - cat tests/test-suite.log
