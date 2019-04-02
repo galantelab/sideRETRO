@@ -20,9 +20,7 @@
  * IN THE SOFTWARE.
  */
 
-#include <stdlib.h>
 #include <stdarg.h>
-#include <string.h>
 #include <time.h>
 #include "log.h"
 
