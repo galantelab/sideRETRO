@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <libgen.h>
 #include <ctype.h>
 #include <string.h>
@@ -102,4 +103,33 @@ path_file (const char *path, int rm_ext)
 
 	xfree (path_copy);
 	return file;
+}
+
+int
+xasprintf_concat (char **strp, const char *fmt, ...)
+{
+	if (strp == NULL)
+		return 0;
+
+	char *tmp_str1 = NULL;
+	char *tmp_str2 = NULL;
+	int ret = 0;
+	va_list ap;
+
+	va_start (ap, fmt);
+	tmp_str1 = *strp;
+
+	ret = xvasprintf (strp, fmt, ap);
+
+	if (tmp_str1 != NULL)
+		{
+			tmp_str2 = *strp;
+			ret = xasprintf (strp, "%s%s", tmp_str1, tmp_str2);
+		}
+
+	xfree (tmp_str1);
+	xfree (tmp_str2);
+	va_end (ap);
+
+	return ret;
 }
