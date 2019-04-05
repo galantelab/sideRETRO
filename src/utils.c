@@ -1,6 +1,9 @@
 #include "config.h"
 
 #include <stdio.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #include <stdlib.h>
 #include <stdarg.h>
 #include <libgen.h>
@@ -132,4 +135,45 @@ xasprintf_concat (char **strp, const char *fmt, ...)
 	va_end (ap);
 
 	return ret;
+}
+
+int
+which (const char *cmd)
+{
+	char *paths = NULL;
+	char *path = NULL;
+	char *scratch = NULL;
+	char paths_copy[BUFSIZ];
+	char exec[BUFSIZ];
+	int found = 0;
+
+	paths = secure_getenv ("PATH");
+	if (paths == NULL)
+		return found;
+
+	strncpy (paths_copy, paths, BUFSIZ);
+	path = strtok_r (paths_copy, ":", &scratch);
+
+	while (path != NULL)
+		{
+			struct stat sb;
+			snprintf (exec, BUFSIZ, "%s/%s", path, cmd);
+
+			if (stat (exec, &sb) == 0 && sb.st_mode & S_IXUSR)
+				{
+					found = 1;
+					break;
+				}
+
+			path = strtok_r (NULL, ":", &scratch);
+		}
+
+	return found;
+}
+
+int
+file_exists (const char *file)
+{
+	struct stat sb;
+	return stat (file, &sb) == 0 && sb.st_mode & S_IFREG;
 }

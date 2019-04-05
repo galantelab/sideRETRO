@@ -1,11 +1,14 @@
 #ifndef UTILS_H
 #define UTILS_H
 
-char * chomp     (char *str);
-char * trim      (char *str);
+char * chomp       (char *str);
+char * trim        (char *str);
 
-char * path_dir  (const char *path);
-char * path_file (const char *path, int rm_ext);
+char * path_dir    (const char *path);
+char * path_file   (const char *path, int rm_ext);
+
+int    which       (const char *cmd);
+int    file_exists (const char *file);
 
 int    xasprintf_concat (char **strp, const char *fmt, ...)
 	__attribute__((format (printf, 2, 3)));

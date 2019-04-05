@@ -1,15 +1,15 @@
 #include "config.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <check.h>
 #include "check_sider.h"
 
 #include "../src/log.h"
+#include "../src/utils.h"
 #include "../src/wrapper.h"
 #include "../src/sam.h"
-
-#define HAS_SAMTOOLS (!system ("which samtools 2>&1 > /dev/null"))
 
 static const char *sam_str =
 	"@SQ\tSN:PONGA\tLN:520052\n"
@@ -23,9 +23,9 @@ static const char *sam_str =
 	"ponga7\t4\t*\t0\t0\t*\t*\t0\t0\tATCGATCGAA\t!!!!!!!!!!\tAS:i:0\tXS:i:0\n";
 
 static void
-create_sam (char *filename)
+create_sam_fd (int fd)
 {
-	FILE *fp = xfopen (filename, "w");
+	FILE *fp = xfdopen (fd, "w");
 	fprintf (fp, sam_str);
 	xfclose (fp);
 }
@@ -37,14 +37,15 @@ START_TEST (test_sam_to_bam)
 	char sam_file2[] = "/tmp/ponga_sam-XXXXXX";
 	char bam_file[]  = "/tmp/ponga_bam-XXXXXX";
 
-	mktemp (sam_file1);
-	mktemp (sam_file2);
-	mktemp (bam_file);
+	int sam_fd1 = xmkstemp (sam_file1);
+	int sam_fd2 = xmkstemp (sam_file2);
+	int bam_fd  = xmkstemp (bam_file);
 
-	create_sam (sam_file1);
+	create_sam_fd (sam_fd1);
+
 	ck_assert_int_eq (sam_to_bam (sam_file1, bam_file), 1);
 
-	if (HAS_SAMTOOLS)
+	if (which ("samtools"))
 		{
 			char *cmd1 = NULL;
 			char *cmd2 = NULL;
@@ -61,14 +62,9 @@ START_TEST (test_sam_to_bam)
 			xfree (cmd2);
 		}
 
-	if (unlink (sam_file1) == -1)
-		log_errno_error ("Failed to remove '%s'", sam_file1);
-
-	if (unlink (sam_file2) == -1)
-		log_errno_error ("Failed to remove '%s'", sam_file2);
-
-	if (unlink (bam_file) == -1)
-		log_errno_error ("Failed to remove '%s'", bam_file);
+	xunlink (sam_file1);
+	xunlink (sam_file2);
+	xunlink (bam_file);
 }
 END_TEST
 
@@ -78,15 +74,18 @@ START_TEST (test_sam_to_bam_fp)
 	char sam_file[] = "/tmp/ponga_sam-XXXXXX";
 	char bam_file[] = "/tmp/ponga_bam-XXXXXX";
 
-	mktemp (sam_file);
-	mktemp (bam_file);
+	int sam_fd = xmkstemp (sam_file);
+	int bam_fd = xmkstemp (bam_file);
 
-	create_sam (sam_file);
+	create_sam_fd (sam_fd);
 
 	FILE *fp = xfopen (sam_file, "r");
 	ck_assert_int_eq (sam_to_bam_fp (fp, bam_file), 1);
 
 	xfclose (fp);
+
+	xunlink (sam_file);
+	xunlink (bam_file);
 }
 END_TEST
 

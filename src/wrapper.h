@@ -11,9 +11,12 @@ char * xstrdup    (const char *str);
 void   xfree      (void *ptr);
 
 FILE * xfopen     (const char *path, const char *mode);
+FILE * xfdopen    (int fd, const char *mode);
 void   xfclose    (FILE *fp);
 FILE * xpopen     (const char *cmd, const char *mode);
 int    xpclose    (FILE *pp);
+void   xunlink    (const char *file);
+int    xmkstemp   (char *template);
 
 int    xvasprintf (char **strp, const char *fmt, va_list ap)
 	__attribute__((format (printf, 2, 0)));

@@ -2,6 +2,7 @@
 
 #include <string.h>
 #include <stdarg.h>
+#include <unistd.h>
 #include "log.h"
 #include "wrapper.h"
 
@@ -108,6 +109,21 @@ xfopen (const char *path, const char *mode)
 		log_errno_fatal ("Could not open '%s' for reading", path);
 }
 
+FILE *
+xfdopen (int fd, const char *mode)
+{
+	FILE *fp = fdopen (fd, mode);
+	if (fp != NULL)
+		return fp;
+
+	if (*mode && mode[1] == '+')
+		log_errno_fatal ("Could not open fd '%d' for reading and writing", fd);
+	else if (*mode == 'w' || *mode == 'a')
+		log_errno_fatal ("Could not open fd '%s' for writing", fd);
+	else
+		log_errno_fatal ("Could not open fd '%s' for reading", fd);
+}
+
 void
 xfclose (FILE *fp)
 {
@@ -143,4 +159,20 @@ xpclose (FILE *pp)
 		log_errno_fatal ("Could not close pipe");
 
 	return WEXITSTATUS (stat);
+}
+
+void
+xunlink (const char *file)
+{
+	if (unlink (file) == -1)
+		log_errno_fatal ("Could not remove file '%s'", file);
+}
+
+int
+xmkstemp (char *template)
+{
+	int fd = mkstemp (template);
+	if (fd == -1)
+		log_errno_fatal ("Could not create temporary file '%s'", template);
+	return fd;
 }

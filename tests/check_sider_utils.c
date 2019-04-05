@@ -91,6 +91,26 @@ START_TEST (test_path_file)
 }
 END_TEST
 
+START_TEST (test_which)
+{
+	ck_assert_int_eq (which ("wc"), 1);
+	ck_assert_int_eq (which ("pongadelapenha"), 0);
+}
+END_TEST
+
+START_TEST (test_file_exists)
+{
+	char file[] = "/tmp/pongaXXXXXX";
+
+	int fd = xmkstemp (file);
+
+	ck_assert_int_eq (file_exists (file), 1);
+	ck_assert_int_eq (file_exists ("pongatrongaflofa"), 0);
+
+	xunlink (file);
+}
+END_TEST
+
 Suite *
 make_utils_suite (void)
 {
@@ -106,6 +126,8 @@ make_utils_suite (void)
 	tcase_add_test (tc_core, test_trim);
 	tcase_add_test (tc_core, test_path_dir);
 	tcase_add_test (tc_core, test_path_file);
+	tcase_add_test (tc_core, test_which);
+	tcase_add_test (tc_core, test_file_exists);
 	suite_add_tcase (s, tc_core);
 
 	return s;
