@@ -8,7 +8,7 @@ char * path_dir    (const char *path);
 char * path_file   (const char *path, int rm_ext);
 
 int    which       (const char *cmd);
-int    file_exists (const char *file);
+int    exists      (const char *file);
 
 int    xasprintf_concat (char **strp, const char *fmt, ...)
 	__attribute__((format (printf, 2, 3)));

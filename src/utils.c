@@ -172,7 +172,7 @@ which (const char *cmd)
 }
 
 int
-file_exists (const char *file)
+exists (const char *file)
 {
 	struct stat sb;
 	return stat (file, &sb) == 0 && sb.st_mode & S_IFREG;

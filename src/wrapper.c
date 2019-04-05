@@ -119,9 +119,9 @@ xfdopen (int fd, const char *mode)
 	if (*mode && mode[1] == '+')
 		log_errno_fatal ("Could not open fd '%d' for reading and writing", fd);
 	else if (*mode == 'w' || *mode == 'a')
-		log_errno_fatal ("Could not open fd '%s' for writing", fd);
+		log_errno_fatal ("Could not open fd '%d' for writing", fd);
 	else
-		log_errno_fatal ("Could not open fd '%s' for reading", fd);
+		log_errno_fatal ("Could not open fd '%d' for reading", fd);
 }
 
 void

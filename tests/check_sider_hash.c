@@ -84,7 +84,7 @@ START_TEST (test_hash_remove)
 
 	for (i = 0; i < 20; i++)
 		{
-			xasprintf (&str[i], "loop%d", i);
+			int len = xasprintf (&str[i], "loop%d", i);
 			hash_insert (hash, str[i], str[i]);
 		}
 
@@ -116,7 +116,7 @@ START_TEST (test_hash_contains)
 	for (i = 0; i < 100; i++)
 		{
 			values[i] = i * 10;
-			xasprintf (&keys[i], "loop%d", i);
+			int len = xasprintf (&keys[i], "loop%d", i);
 			hash_insert (hash, keys[i], &values[i]);
 		}
 
@@ -160,7 +160,7 @@ START_TEST (test_hash_foreach)
 	for (i = 0; i < 100; i++)
 		{
 			values[i] = i;
-			xasprintf (&keys[i], "loop%d", i);
+			int len = xasprintf (&keys[i], "loop%d", i);
 			hash_insert (hash, keys[i], &values[i]);
 		}
 
@@ -183,7 +183,7 @@ START_TEST (test_hash_iter)
 	for (i = 0; i < 100; i++)
 		{
 			values[i] = i;
-			xasprintf (&keys[i], "loop%d", i);
+			int len = xasprintf (&keys[i], "loop%d", i);
 			hash_insert (hash, keys[i], &values[i]);
 		}
 
@@ -243,7 +243,7 @@ START_TEST (test_hash_get_values_as_list)
 	for (; i < num_elem; i++)
 		{
 			char *key;
-			asprintf (&key, "key%d", i);
+			int len = xasprintf (&key, "key%d", i);
 			hash_insert (hash, key, pronouns[i]);
 		}
 
@@ -305,7 +305,7 @@ START_TEST (test_hash_get_values_as_array)
 	for (; i < num_elem; i++)
 		{
 			char *key;
-			asprintf (&key, "key%d", i);
+			int len = xasprintf (&key, "key%d", i);
 			hash_insert (hash, key, pronouns[i]);
 		}
 

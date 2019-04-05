@@ -26,7 +26,7 @@ static void
 create_sam_fd (int fd)
 {
 	FILE *fp = xfdopen (fd, "w");
-	fprintf (fp, sam_str);
+	fprintf (fp, sam_str, "");
 	xfclose (fp);
 }
 
@@ -49,13 +49,14 @@ START_TEST (test_sam_to_bam)
 		{
 			char *cmd1 = NULL;
 			char *cmd2 = NULL;
+			int len = 0;
 
-			xasprintf (&cmd1, "samtools view -h %s -o %s 2> /dev/null",
+			len = xasprintf (&cmd1, "samtools view -h %s -o %s 2> /dev/null",
 					bam_file, sam_file2);
-			xasprintf (&cmd2, "diff -q %s %s 2>&1 > /dev/null",
+			len = xasprintf (&cmd2, "diff -q %s %s 2>&1 > /dev/null",
 					sam_file1, sam_file2);
 
-			system (cmd1);
+			ck_assert_int_eq (system (cmd1), 0);
 			ck_assert_int_eq (system (cmd2), 0);
 
 			xfree (cmd1);

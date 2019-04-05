@@ -17,4 +17,5 @@ check_sider_SOURCES = \
 	check_sider_sam.c
 
 check_sider_CFLAGS = $(CHECK_CFLAGS)
-check_sider_LDADD = $(top_builddir)/src/libsider.la $(CHECK_LIBS)
+check_sider_LDADD = $(top_builddir)/src/libsider.la $(top_builddir)/htslib/libhts.a -lz $(CHECK_LIBS)
+check_sider_LDFLAGS = -static
