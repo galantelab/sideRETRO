@@ -36,3 +36,8 @@ stamp-h1
 *.lo
 *.gcno
 *.gcda
+*.valgrind
+*vgcore.*
+*.trs
+src/sider
+tests/check_sider

@@ -22,9 +22,6 @@ AC_PROG_INSTALL
 PKG_CHECK_MODULES([CHECK], [check], ,
 	[AC_MSG_WARN([check not found, It will not be possible to run 'make check'])])
 
-AC_SEARCH_LIBS([hts_version], [hts], ,
-	[AC_MSG_ERROR([htslib not found])])
-
 # Checks for header files.
 AC_HEADER_STDC
 AC_HEADER_ASSERT
@@ -32,6 +29,15 @@ AC_CHECK_HEADERS([check.h])
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_TYPE_SIZE_T
+
+# Add third party library htslib and set the parameters
+# passed to its configure script
+AX_SUBDIRS_CONFIGURE([htslib],
+	[[--disable-bz2],
+	[--disable-lzma],
+	[--disable-gcs],
+	[--disable-libcurl],
+	[--disable-s3]])
 
 AC_CONFIG_FILES([Makefile src/Makefile tests/Makefile])
 AC_OUTPUT

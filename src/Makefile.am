@@ -22,3 +22,7 @@ libsider_la_SOURCES = \
 		utils.h \
 		sam.c \
 		sam.h
+
+libsider_la_LDFLAGS = -all-static
+libsider_la_CPPFLAGS = -I$(top_srcdir)/htslib -L$(top_srcdir)/htslib
+libsider_la_LIBADD = -lhts
