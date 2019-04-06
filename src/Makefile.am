@@ -1,10 +1,15 @@
 bin_PROGRAMS = sider
+
 sider_SOURCES = main.c
 
-sider_LDADD = ./libsider.la $(top_srcdir)/htslib/libhts.a -lz
 sider_LDFLAGS = -static
 
+sider_LDADD = \
+	./libsider.la \
+	$(top_srcdir)/htslib/libhts.a
+
 noinst_LTLIBRARIES = libsider.la
+
 libsider_la_SOURCES = \
 		sider.c \
 		sider.h \
