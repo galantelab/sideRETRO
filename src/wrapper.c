@@ -176,3 +176,32 @@ xmkstemp (char *template)
 		log_errno_fatal ("Could not create temporary file '%s'", template);
 	return fd;
 }
+
+int
+xfprintf (FILE *fp, const char *fmt, ...)
+{
+	int ret = 0;
+	va_list ap;
+
+	va_start (ap, fmt);
+	ret = vfprintf (fp, fmt, ap);
+
+	if (ret < 0)
+		log_errno_fatal ("fprintf failed");
+
+	return ret;
+}
+
+void
+xfputs (const char *str, FILE *fp)
+{
+	if (fputs (str, fp) == EOF)
+		log_errno_fatal ("fputs failed");
+}
+
+void
+xfflush (FILE *fp)
+{
+	if (fflush (fp) == EOF)
+		log_errno_fatal ("fflush failed");
+}
