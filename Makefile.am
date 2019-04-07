@@ -1,6 +1,6 @@
 ACLOCAL_AMFLAGS = -I m4
 
-SUBDIRS = htslib src tests
+SUBDIRS = htslib bwa src tests
 
 check-recursive:
 	$(MAKE) -C tests check

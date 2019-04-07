@@ -26,10 +26,17 @@ AC_SEARCH_LIBS([gzopen], [z], ,
 	[AC_MSG_ERROR([zlib not found. Please, manage to install it.
 		For more details, see: https://github.com/madler/zlib])])
 
+AC_SEARCH_LIBS([pthread_create], [pthread], ,
+	[AC_MSG_ERROR([pthread (libpthread) not found.
+		Please manage to install it])])
+
+AC_SEARCH_LIBS([cos], [m], ,
+	[AC_MSG_ERROR([math (libm) not found])])
+
 # Checks for header files.
 AC_HEADER_STDC
 AC_HEADER_ASSERT
-AC_CHECK_HEADERS([check.h])
+AC_CHECK_HEADERS([check.h zlib.h pthread.h math.h])
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_TYPE_SIZE_T
@@ -41,3 +48,19 @@ AX_SUBDIRS_CONFIGURE([htslib],
 
 AC_CONFIG_FILES([Makefile src/Makefile tests/Makefile])
 AC_OUTPUT
+
+echo \
+"-------------------------------------------------
+
+	${PACKAGE_NAME} Version ${PACKAGE_VERSION}
+
+	Prefix: '${prefix}'.
+	Compiler: '${CC} ${CFLAGS} ${CPPFLAGS}'
+	Libraries: '${LIBS}'
+
+	Now type 'make @<:@<target>@:>@'
+	where the optional <target> is:
+	all       - build all binaries
+	install   - install everything
+
+--------------------------------------------------"

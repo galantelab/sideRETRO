@@ -6,7 +6,9 @@ sider_LDFLAGS = -static
 
 sider_LDADD = \
 	./libsider.la \
-	$(top_srcdir)/htslib/libhts.a
+	$(top_srcdir)/htslib/libhts.a \
+	$(top_srcdir)/bwa/kopen.o \
+	$(top_srcdir)/bwa/libbwa.a
 
 noinst_LTLIBRARIES = libsider.la
 
@@ -27,6 +29,8 @@ libsider_la_SOURCES = \
 		utils.c \
 		utils.h \
 		sam.c \
-		sam.h
+		sam.h \
+		bwa.c \
+		bwa.h
 
 libsider_la_CPPFLAGS = -I$(top_srcdir)/htslib

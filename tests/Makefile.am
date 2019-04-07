@@ -14,7 +14,8 @@ check_sider_SOURCES = \
 	check_sider_hash.c \
 	check_sider_array.c \
 	check_sider_utils.c \
-	check_sider_sam.c
+	check_sider_sam.c \
+	check_sider_bwa.c
 
 check_sider_LDFLAGS = -static
 
@@ -23,4 +24,6 @@ check_sider_CFLAGS = $(CHECK_CFLAGS)
 check_sider_LDADD = \
 	$(top_builddir)/src/libsider.la \
 	$(top_builddir)/htslib/libhts.a \
+	$(top_builddir)/bwa/kopen.o \
+	$(top_builddir)/bwa/libbwa.a \
 	$(CHECK_LIBS)
