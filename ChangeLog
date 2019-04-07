@@ -1,3 +1,45 @@
+2019-04-07 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* Version 0.3.0
+
+	* ADD: local bwa mem interface
+
+	* ADD: xfprintf, xputs, xfflush
+
+	* ADD: build bwa
+
+2019-04-06 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: git submodule bwa v0.7.17
+
+	* FIX: configure.ac: zlib checks
+
+2019-04-05 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* FIX: local htslib building
+
+	* ADD: more sugar wrappers
+
+	* FIX: suit building to htslib submodule
+
+2019-04-03 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: git submodule htslib
+
+2019-04-02 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: sam interface
+
+	* ADD: wrapper.c (xpopen, xpclose)
+
+	* ADD: utils.c (xasprintf_concat)
+
+	* ADD: log.h (log_fatal, log_errno_fatal, log_errno_error)
+
+2019-03-30 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: utils.c (path_dir, path_file)
+
 2019-03-29 Thiago L. A. Miller <tmiller@mochsl.org.br>
 
 	* Version 0.2.0

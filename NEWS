@@ -1,13 +1,21 @@
+Version 0.3.0
+
+* Use 'git submodule' to handle local building of
+  'htslib' and 'bwa'. Those codes are statically
+  linked against our software.
+
+* Add 'bwa mem' and 'sam' wrappers.
+
 Version 0.2.0
 
 * Add array, list and hash data structures.
 
 * Add logging interface to manage messages level.
 
-* Wrapping of standard c functions for allocating memory
-  and opening file.
+* Wrapping of standard c functions for allocating
+  memory and opening file.
 
 Version 0.1.0
 
-* Initial version. Project was set to work with 'autotools' and
-  testing with the framework 'check'.
+* Initial version. Project was set to work with
+  'autotools' and testing with the framework 'check'.

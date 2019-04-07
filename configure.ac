@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.69])
-AC_INIT([sideRETRO], [0.2.0], [https://github.com/galantelab/sideRETRO/issues], [sider])
+AC_INIT([sideRETRO], [0.3.0], [https://github.com/galantelab/sideRETRO/issues], [sider])
 AC_CONFIG_SRCDIR([src/main.c])
 AC_CONFIG_AUX_DIR(config)
 AC_CONFIG_HEADERS([config.h])
