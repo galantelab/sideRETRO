@@ -33,6 +33,8 @@ libsider_la_SOURCES = \
 		bwa.c \
 		bwa.h \
 		align.c \
-		align.h
+		align.h \
+		sam_sort.c \
+		sam_sort.h
 
 libsider_la_CPPFLAGS = -I$(top_srcdir)/htslib
