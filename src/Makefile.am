@@ -37,6 +37,8 @@ libsider_la_SOURCES = \
 		sam_sort.c \
 		sam_sort.h \
 		abnormal.c \
-		abnormal.h
+		abnormal.h \
+		bitree.c \
+		bitree.h
 
 libsider_la_CPPFLAGS = -I$(top_srcdir)/htslib
