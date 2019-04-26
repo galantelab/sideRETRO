@@ -16,7 +16,6 @@ typedef struct _BiTreeNode BiTreeNode;
 struct _BiTree
 {
 	size_t         size;
-	CompareFunc    compare_fun;
 	DestroyNotify  destroy_fun;
 	BiTreeNode    *root;
 };
@@ -39,10 +38,8 @@ enum _BiTreeTraverse
 
 typedef enum _BiTreeTraverse BiTreeTraverse;
 
-typedef void (*BiTFunc) (BiTreeNode *node, void *user_data);
-
 void bitree_traverse (BiTreeTraverse traverse, BiTreeNode *node,
-		BiTFunc func, void *user_data);
+		Func func, void *user_data);
 
 #define bitree_size(tree)    ((tree)->size)
 #define bitree_root(tree)    ((tree)->root)
