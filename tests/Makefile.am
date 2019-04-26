@@ -16,7 +16,8 @@ check_sider_SOURCES = \
 	check_sider_utils.c \
 	check_sider_sam.c \
 	check_sider_bwa.c \
-	check_sider_bitree.c
+	check_sider_bitree.c \
+	check_sider_ibitree.c
 
 check_sider_LDFLAGS = -static
 

@@ -8,16 +8,18 @@
 #include "../src/bitree.h"
 
 static void
-bitree_list_append (BiTreeNode *node, void *user_data)
+catcher (void *data, void *user_data)
 {
 	List *list = user_data;
-	list_append (list, bitree_data (node));
+	list_append (list, data);
 }
 
 START_TEST (test_bitree)
 {
 	BiTree *tree = bitree_new (xfree);
 	List *list = list_new (NULL);
+	ListElmt *cur = NULL;
+	int i = 0;
 
 	bitree_ins_left (tree, NULL, xstrdup ("root"));
 	bitree_ins_left (tree, bitree_root (tree), xstrdup ("left"));
@@ -33,15 +35,12 @@ START_TEST (test_bitree)
 
 	ck_assert_int_eq (bitree_size (tree), 7);
 
-	bitree_traverse (PREORDER, bitree_root (tree),
-			bitree_list_append, list);
+	bitree_traverse (PREORDER, bitree_root (tree), catcher, list);
 	ck_assert_int_eq (list_size (list), 7);
 
+	cur = list_head (list);
 	const char *nodes_preorder[] = {"root", "left", "left_left",
 		"left_right", "right", "right_left", "right_right"};
-
-	int i = 0;
-	ListElmt *cur = list_head (list);
 
 	for (; cur != NULL; cur = list_next (cur), i++)
 		ck_assert_str_eq (list_data (cur), nodes_preorder[i]);
