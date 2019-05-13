@@ -7,7 +7,6 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <libgen.h>
-#include <ctype.h>
 #include <string.h>
 #include "wrapper.h"
 #include "utils.h"
@@ -27,7 +26,7 @@ chomp (char *str)
 }
 
 char *
-trim (char *str)
+trimc (char *str, int c)
 {
 	if (str == NULL)
 		return NULL;
@@ -39,23 +38,29 @@ trim (char *str)
 	if (len == 0)
 		return str;
 
-	for (start = 0; start < len && isspace (str[start]); start++)
+	for (start = 0; start < len && str[start] == c; start++)
 		;
 
-	// All spaces
+	// All 'c' characters
 	if (start == len)
 		{
 			str[0] = '\0';
 			return str;
 		}
 
-	for (end = len - 1; end >= start && isspace (str[end]); end--)
+	for (end = len - 1; end >= start && str[end] == c; end--)
 		;
 
 	memmove (str, str + start, sizeof (char) * (end - start + 1));
 	str[end - start + 1] = '\0';
 
 	return str;
+}
+
+char *
+trim (char *str)
+{
+	return trimc (str, ' ');
 }
 
 char *
