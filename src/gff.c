@@ -11,52 +11,6 @@
 #define GFF_BUFSIZ  128
 #define GFF_ATTRSIZ 8
 
-GffFile *
-gff_open (const char *path, const char *mode)
-{
-	assert (path != NULL && mode != NULL
-			&& *mode != 'w' && *mode != 'a');
-
-	GffFile *gff = NULL;
-	gzFile fp = NULL;
-
-	gff = xcalloc (1, sizeof (GffFile));
-	fp = gzopen (path, mode);
-
-	if (fp == NULL)
-		{
-			if (*mode == 'w' || *mode == 'a')
-				log_errno_fatal ("Could not open '%s' for writing", path);
-			else
-				log_errno_fatal ("Could not open '%s' for reading", path);
-		}
-
-	gff->fp = fp;
-	gff->filename = xstrdup (path);
-	gff->buf = xcalloc (GFF_BUFSIZ, sizeof (char));
-	gff->buf_size = GFF_BUFSIZ;
-
-	return gff;
-}
-
-void
-gff_close (GffFile *gff)
-{
-	if (gff == NULL)
-		return;
-
-	int rc;
-
-	rc = gzclose (gff->fp);
-	if (rc != Z_OK)
-		log_fatal ("Could not close file '%s': %s", gff->filename,
-				gzerror (gff->fp, &rc));
-
-	xfree ((void *) gff->filename);
-	xfree (gff->buf);
-	xfree (gff);
-}
-
 GffEntry *
 gff_entry_new (void)
 {
@@ -166,6 +120,79 @@ gff_getline (GffFile *gff)
 	return 1;
 }
 
+static void
+gff_get_header (GffFile *gff)
+{
+	char *header = NULL;
+	int rc = 0;
+
+	// Catch header '##' and ignore blank lines
+	while ((rc = gff_getline (gff)) &&
+			(gff->buf[0] == '#' || gff->buf[0] == '\n'))
+		{
+			if (gff->buf[0] == '#')
+				header = xstrdup_concat (header, gff->buf);
+			gff->num_line++;
+		}
+
+	// Reached end of file
+	if (!rc)
+		gff->eof = 1;
+	else
+		gff->num_line++;
+
+	gff->header = chomp (header);
+}
+
+GffFile *
+gff_open (const char *path, const char *mode)
+{
+	assert (path != NULL && mode != NULL
+			&& *mode != 'w' && *mode != 'a');
+
+	GffFile *gff = NULL;
+	gzFile fp = NULL;
+
+	gff = xcalloc (1, sizeof (GffFile));
+	fp = gzopen (path, mode);
+
+	if (fp == NULL)
+		{
+			if (*mode == 'w' || *mode == 'a')
+				log_errno_fatal ("Could not open '%s' for writing", path);
+			else
+				log_errno_fatal ("Could not open '%s' for reading", path);
+		}
+
+	gff->fp = fp;
+	gff->filename = xstrdup (path);
+
+	gff->buf = xcalloc (GFF_BUFSIZ, sizeof (char));
+	gff->buf_size = GFF_BUFSIZ;
+
+	gff_get_header (gff);
+	return gff;
+}
+
+void
+gff_close (GffFile *gff)
+{
+	if (gff == NULL)
+		return;
+
+	int rc;
+
+	rc = gzclose (gff->fp);
+	if (rc != Z_OK)
+		log_fatal ("Could not close file '%s': %s", gff->filename,
+				gzerror (gff->fp, &rc));
+
+	xfree ((void *) gff->filename);
+	xfree ((void *) gff->header);
+	xfree (gff->buf);
+	xfree (gff);
+}
+
 int
 gff_read (GffFile *gff, GffEntry *entry)
 {
@@ -175,43 +202,66 @@ gff_read (GffFile *gff, GffEntry *entry)
 	char *token, *subtoken;
 	char *saveptr1, *saveptr2;
 
-	// ignore comments and header
-	while ((rc = gff_getline (gff)) && gff->buf[0] == '#')
-		;
+	token = subtoken = saveptr1 = saveptr2 = NULL;
 
 	// end of file
-	if (!rc)
+	if (gff->eof)
 		return 0;
 
 	gff->buf = chomp (gff->buf);
+	entry->num_line = gff->num_line;
 
 	token = strtok_r (gff->buf, "\t", &saveptr1);
+	if (token == NULL)
+		log_fatal ("missing 'seqname' (field 1) at line %zu", entry->num_line);
+
 	entry->seqname_size = gff_entry_set (&entry->seqname,
 			entry->seqname_size, token);
 
 	token = strtok_r (NULL, "\t", &saveptr1);
+	if (token == NULL)
+		log_fatal ("missing 'source' (field 2) at line %zu", entry->num_line);
+
 	entry->source_size = gff_entry_set (&entry->source,
 			entry->source_size, token);
 
 	token = strtok_r (NULL, "\t", &saveptr1);
+	if (token == NULL)
+		log_fatal ("missing 'feature' (field 3) at line %zu", entry->num_line);
+
 	entry->feature_size = gff_entry_set (&entry->feature,
 			entry->feature_size, token);
 
 	token = strtok_r (NULL, "\t", &saveptr1);
+	if (token == NULL)
+		log_fatal ("missing 'start' (field 4) at line %zu", entry->num_line);
+
 	entry->start = atol (token);
 
 	token = strtok_r (NULL, "\t", &saveptr1);
+	if (token == NULL)
+		log_fatal ("missing 'end' (field 5) at line %zu", entry->num_line);
+
 	entry->end = atol (token);
 
 	token = strtok_r (NULL, "\t", &saveptr1);
+	if (token == NULL)
+		log_fatal ("missing 'score' (field 6) at line %zu", entry->num_line);
+
 	entry->score = strcmp (token, ".")
 		? atof (token)
 		: -1;
 
 	token = strtok_r (NULL, "\t", &saveptr1);
+	if (token == NULL)
+		log_fatal ("missing 'strand' (field 7) at line %zu", entry->num_line);
+
 	entry->strand = *token;
 
 	token = strtok_r (NULL, "\t", &saveptr1);
+	if (token == NULL)
+		log_fatal ("missing 'frame' (field 8) at line %zu", entry->num_line);
+
 	entry->frame = strcmp (token, ".")
 		? atoi (token)
 		: -1 ;
@@ -235,6 +285,9 @@ gff_read (GffFile *gff, GffEntry *entry)
 
 					subtoken = strtok_r (NULL, ";= ", &saveptr2);
 					subtoken = trimc (trim (subtoken), '"');
+					if (subtoken == NULL)
+						log_fatal ("missing value for attribute %d (%s) at line %zu",
+								i, entry->attributes[i].key, entry->num_line);
 
 					entry->attributes[i].value_size = gff_entry_set (&entry->attributes[i].value,
 							entry->attributes[i].value_size, subtoken);
@@ -245,7 +298,20 @@ gff_read (GffFile *gff, GffEntry *entry)
 		}
 
 	entry->num_attributes = i;
-	gff->num_line++;
+
+	/*
+	* get next entry
+	* ignore comments and blank lines
+	*/
+	while ((rc = gff_getline (gff)) &&
+			(gff->buf[0] == '#' || gff->buf[0] == '\n'))
+		gff->num_line++;
+
+	// Reached end of file
+	if (!rc)
+		gff->eof = 1;
+	else
+		gff->num_line++;
 
 	return 1;
 }

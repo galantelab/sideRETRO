@@ -8,9 +8,11 @@ struct _GffFile
 {
 	gzFile        fp;
 	const char   *filename;
+	const char   *header;
 	char         *buf;
 	size_t        buf_size;
 	size_t        num_line;
+	unsigned int  eof:1;
 };
 
 typedef struct _GffFile GffFile;
@@ -41,6 +43,7 @@ struct _GffEntry
 	size_t        attributes_size;
 	size_t        num_attributes;
 	GffAttribute *attributes;
+	size_t        num_line;
 };
 
 typedef struct _GffEntry GffEntry;
