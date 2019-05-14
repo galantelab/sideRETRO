@@ -21,6 +21,22 @@ START_TEST (test_chomp)
 }
 END_TEST
 
+START_TEST (test_trimc)
+{
+	char str_left_padding[] = "###PONGA";
+	char str_right_padding[] = "PONGA###";
+	char str_left_right_padding[] = "####PONGA#####";
+
+	trimc (str_left_padding, '#');
+	trimc (str_right_padding, '#');
+	trimc (str_left_right_padding, '#');
+
+	ck_assert_str_eq (str_left_padding, str_right_padding);
+	ck_assert_str_eq (str_left_padding, str_left_right_padding);
+	ck_assert_str_eq (str_left_padding, "PONGA");
+}
+END_TEST
+
 START_TEST (test_trim)
 {
 	char str_left_padding[] = "   PONGA";
@@ -123,6 +139,7 @@ make_utils_suite (void)
 	tc_core = tcase_create ("Core");
 
 	tcase_add_test (tc_core, test_chomp);
+	tcase_add_test (tc_core, test_trimc);
 	tcase_add_test (tc_core, test_trim);
 	tcase_add_test (tc_core, test_path_dir);
 	tcase_add_test (tc_core, test_path_file);

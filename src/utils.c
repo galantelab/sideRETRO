@@ -113,6 +113,22 @@ path_file (const char *path, int rm_ext)
 	return file;
 }
 
+char *
+xstrdup_concat (char *dest, const char *src)
+{
+	size_t len_dest = 0;
+	size_t len_src = 0;
+
+	len_src = strlen (src);
+	if (dest != NULL)
+		len_dest = strlen (dest);
+
+	dest = xrealloc (dest, sizeof (char) * (len_dest + len_src + 1));
+	memset (dest + sizeof (char) * len_dest, 0, sizeof (char) * len_src);
+
+	return strncat (dest, src, len_dest + len_src);
+}
+
 int
 xasprintf_concat (char **strp, const char *fmt, ...)
 {
