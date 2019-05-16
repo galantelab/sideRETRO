@@ -127,6 +127,34 @@ START_TEST (test_exists)
 }
 END_TEST
 
+START_TEST (test_xstrdup_concat)
+{
+	char *surname = "ponguita";
+	char *full_name = xstrdup ("ponga");
+
+	full_name = xstrdup_concat (full_name, " ");
+	full_name = xstrdup_concat (full_name, surname);
+
+	ck_assert_str_eq (full_name, "ponga ponguita");
+
+	xfree (full_name);
+}
+END_TEST
+
+START_TEST (test_xasprintf_concat)
+{
+	int rc = 0;
+	char *str = xstrdup ("I want");
+
+	rc = xasprintf_concat (&str, " %d potatos", 5);
+	rc = xasprintf_concat (&str, " and %d tomatos", 10);
+
+	ck_assert_str_eq (str, "I want 5 potatos and 10 tomatos");
+
+	xfree (str);
+}
+END_TEST
+
 Suite *
 make_utils_suite (void)
 {
@@ -145,6 +173,8 @@ make_utils_suite (void)
 	tcase_add_test (tc_core, test_path_file);
 	tcase_add_test (tc_core, test_which);
 	tcase_add_test (tc_core, test_exists);
+	tcase_add_test (tc_core, test_xstrdup_concat);
+	tcase_add_test (tc_core, test_xasprintf_concat);
 	suite_add_tcase (s, tc_core);
 
 	return s;
