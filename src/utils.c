@@ -124,7 +124,7 @@ xstrdup_concat (char *dest, const char *src)
 		len_dest = strlen (dest);
 
 	dest = xrealloc (dest, sizeof (char) * (len_dest + len_src + 1));
-	memset (dest + sizeof (char) * len_dest, 0, sizeof (char) * len_src);
+	memset (dest + len_dest, 0, sizeof (char) * (len_src + 1));
 
 	return strncat (dest, src, len_dest + len_src);
 }
