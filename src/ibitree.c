@@ -229,12 +229,12 @@ do_overlap (BiTreeNode *node, long low, long high)
 		: 0;
 }
 
-static int
+static void
 lookup (BiTreeNode *node, long low, long high,
 		Func func, void *user_data, int *acm)
 {
 	if (bitree_is_eob (node))
-		return 0;
+		return;
 
 	/*
 	* If left child of node is present and max of left child is
