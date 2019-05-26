@@ -3,10 +3,13 @@
 #include <assert.h>
 #include "wrapper.h"
 #include "ibitree.h"
+#include "log.h"
 
 #define ibitree_left(node)  ((IBiTreeNode *)bitree_data (bitree_left ((node))))
 #define ibitree_right(node) ((IBiTreeNode *)bitree_data (bitree_right ((node))))
 #define ibitree_data(node)  ((IBiTreeNode *)bitree_data (node))
+
+#define _MAX(a,b) ((a) > (b) ? (a) : (b))
 
 enum _IBiTreePos
 {
@@ -73,14 +76,6 @@ ibitree_node_new (long low, long high, const void *data)
 }
 
 static inline int
-max (int a, int b)
-{
-	return a > b
-		? a
-		: b;
-}
-
-static inline int
 height (const BiTreeNode *node)
 {
 	return bitree_is_eob (node)
@@ -96,6 +91,14 @@ balance_factor (const BiTreeNode *node)
 	return height (bitree_left (node)) - height (bitree_right (node));
 }
 
+static inline long
+max_high (const BiTreeNode *node)
+{
+	return bitree_is_eob (node)
+		? 0
+		: ibitree_data (node)->max;
+}
+
 static void
 left_rotate (BiTreeNode **node)
 {
@@ -106,10 +109,15 @@ left_rotate (BiTreeNode **node)
 	bitree_left (right) = *node;
 
 	//  Update heights
-	ibitree_data (*node)->height = 1 + max (height (bitree_left (*node)),
+	ibitree_data (*node)->height = 1 + _MAX (height (bitree_left (*node)),
 			height (bitree_right (*node)));
-	ibitree_data (right)->height = 1 + max (height (bitree_left (right)),
+	ibitree_data (right)->height = 1 + _MAX (height (bitree_left (right)),
 			height (bitree_right (right)));
+
+	// Update max
+	ibitree_data (right)->max = ibitree_data (*node)->max;
+	ibitree_data (*node)->max = _MAX (ibitree_data (*node)->high,
+			_MAX (max_high (bitree_left (*node)), max_high (bitree_right (*node))));
 
 	// Update root
 	*node = right;
@@ -125,10 +133,15 @@ right_rotate (BiTreeNode **node)
 	bitree_right (left) = *node;
 
 	//  Update heights
-	ibitree_data (*node)->height = 1 + max (height (bitree_left (*node)),
+	ibitree_data (*node)->height = 1 + _MAX (height (bitree_left (*node)),
 			height (bitree_right (*node)));
-	ibitree_data (left)->height = 1 + max (height (bitree_left (left)),
+	ibitree_data (left)->height = 1 + _MAX (height (bitree_left (left)),
 			height (bitree_right (left)));
+
+	// Update max
+	ibitree_data (left)->max = ibitree_data (*node)->max;
+	ibitree_data (*node)->max = _MAX (ibitree_data (*node)->high,
+			_MAX (max_high (bitree_left (*node)), max_high (bitree_right (*node))));
 
 	// Update root
 	*node = left;
@@ -165,7 +178,7 @@ insert (IBiTree *tree, BiTreeNode **node, IBiTreeNode *idata)
 		ibitree_data (*node)->max = idata->high;
 
 	//  Update height of this ancestor node
-	ibitree_data (*node)->height = 1 + max (height (bitree_left (*node)),
+	ibitree_data (*node)->height = 1 + _MAX (height (bitree_left (*node)),
 			height (bitree_right (*node)));
 
 	/*
@@ -180,12 +193,12 @@ insert (IBiTree *tree, BiTreeNode **node, IBiTreeNode *idata)
 			// Left left case
 			right_rotate (node);
 		}
-	else if ((balance < -1) && (idata->low > ibitree_right (*node)->low))
+	else if ((balance < -1) && (idata->low >= ibitree_right (*node)->low))
 		{
 			// right right case
 			left_rotate (node);
 		}
-	else if ((balance > 1) && (idata->low > ibitree_left (*node)->low))
+	else if ((balance > 1) && (idata->low >= ibitree_left (*node)->low))
 		{
 			// Left right case
 			left_rotate (&bitree_left (*node));
@@ -240,8 +253,7 @@ lookup (BiTreeNode *node, long low, long high,
 		}
 
 	// Else interval can only overlap with right subtree
-	if (!bitree_is_eob (bitree_right (node)))
-		lookup (bitree_right (node), low, high, func, user_data, acm);
+	lookup (bitree_right (node), low, high, func, user_data, acm);
 }
 
 int
