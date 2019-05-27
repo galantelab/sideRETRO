@@ -18,6 +18,46 @@ gff_entry_new (void)
 	return entry;
 }
 
+GffEntry *
+gff_entry_copy (const GffEntry *entry)
+{
+	GffEntry *copy = gff_entry_new ();
+	int i = 0;
+
+	copy->seqname = xstrdup (entry->seqname);
+	copy->source = xstrdup (entry->source);
+	copy->feature = xstrdup (entry->feature);
+
+	copy->seqname_size = strlen (entry->seqname) + 1;
+	copy->source_size = strlen (entry->source) + 1;
+	copy->feature_size = strlen (entry->feature) + 1;
+
+	copy->start = entry->start;
+	copy->end = entry->end;
+	copy->score = entry->score;
+	copy->strand = entry->strand;
+	copy->frame = entry->frame;
+
+	copy->num_attributes = entry->num_attributes;
+	copy->attributes_size = entry->num_attributes;
+	copy->attributes = xcalloc (entry->num_attributes,
+			sizeof (GffAttribute));
+
+	for (; i < entry->num_attributes; i++)
+		{
+			copy->attributes[i].key =
+				xstrdup (entry->attributes[i].key);
+			copy->attributes[i].value =
+				xstrdup (entry->attributes[i].value);
+			copy->attributes[i].key_size =
+				strlen (entry->attributes[i].key) + 1;
+			copy->attributes[i].value_size =
+				strlen (entry->attributes[i].value) + 1;
+		}
+
+	return copy;
+}
+
 void
 gff_entry_free (GffEntry *entry)
 {
@@ -191,6 +231,28 @@ gff_close (GffFile *gff)
 	xfree ((void *) gff->header);
 	xfree (gff->buf);
 	xfree (gff);
+}
+
+const char *
+gff_attribute_find (GffEntry *entry, const char *key)
+{
+	assert (entry != NULL && key != NULL);
+
+	const char *value = NULL;
+	const GffAttribute *cur = NULL;
+	int i = 0;
+
+	for (; i < entry->num_attributes; i++)
+		{
+			cur = &entry->attributes[i];
+			if (!strcmp (cur->key, key))
+				{
+					value = cur->value;
+					break;
+				}
+		}
+
+	return value;
 }
 
 int
