@@ -1,3 +1,58 @@
+2019-05-27 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* Version 0.4.0
+
+	* ADD: gff.c (gff_attribute_find, gff_entry_copy)
+
+2019-05-26 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* FIX: ibitree.c (lookup): Change return to void
+
+	* FIX: ibitree.c (rotate_left,rotate_right)
+
+	Fix bug in rotate_left and rotate_right. Update
+	the max attribute after the node rotation.
+
+2019-05-16 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: check_sider_utils.c: (test_xasprintf_concat,test_xstrdup_concat)
+
+	* FIX: utils.c (xstrdup_concat): memset
+
+2019-05-14 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* FIX: gff.c (gff_read): Number of line and fields check
+
+	* ADD: utils.c (xstrdup_concat)
+
+2019-05-13 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: gff.c: GFF/GTF interface
+
+	* ADD: utils.c (trimc)
+
+2019-04-26 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: ibitree.c interface (interval tree)
+
+	* REMOVE: BiFunc, CompareFunc. ADD: bitree_traverse
+
+2019-04-24 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: bitree interface
+
+2019-04-17 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: abnormal.c interface
+
+2019-04-11 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: sam_sort.c from samtools (bam_sort.c)
+
+2019-04-07 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: align interface to combine 'bwa mem' with 'samtools'
+
 2019-04-07 Thiago L. A. Miller <tmiller@mochsl.org.br>
 
 	* Version 0.3.0

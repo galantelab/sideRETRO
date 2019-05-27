@@ -1,3 +1,21 @@
+Version 0.4.0
+
+* Add an 'align' interface to save 'bwa mem'
+  output in 'bwa' format.
+
+* Borrow the 'samtools sort' algorithm and
+  implement it at sam_sort interface.
+
+* Add a 'binary tree' data structure and, on top
+  of it, implement an 'AVL interval tree' to handle
+  searching genomic annotation positons more
+  efficiently.
+
+* Add processing text interface to read 'gff/gtf'
+  file format.
+
+* Initiate 'abnormal' filter algorithm.
+
 Version 0.3.0
 
 * Use 'git submodule' to handle local building of
