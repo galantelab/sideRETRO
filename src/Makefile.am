@@ -41,6 +41,10 @@ libsider_la_SOURCES = \
 		bitree.c \
 		bitree.h \
 		ibitree.c \
-		ibitree.h
+		ibitree.h \
+		gff.c \
+		gff.h \
+		str.c \
+		str.h
 
 libsider_la_CPPFLAGS = -I$(top_srcdir)/htslib

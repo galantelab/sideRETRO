@@ -58,6 +58,35 @@ xasprintf (char **strp, const char *fmt, ...)
 	return ret;
 }
 
+int
+xsnprintf (char *str, size_t size, const char *fmt, ...)
+{
+	int ret = 0;
+	va_list ap;
+
+	va_start (ap, fmt);
+	ret = vsnprintf (str, size, fmt, ap);
+
+	if (ret < 0)
+		log_errno_fatal ("snprintf failed");
+
+	va_end (ap);
+	return ret;
+}
+
+int
+xvsnprintf (char *str, size_t size, const char *fmt, va_list ap)
+{
+	int ret = 0;
+
+	ret = vsnprintf (str, size, fmt, ap);
+
+	if (ret < 0)
+		log_errno_fatal ("vsnprintf failed");
+
+	return ret;
+}
+
 void *
 xcalloc (size_t nmemb, size_t size)
 {

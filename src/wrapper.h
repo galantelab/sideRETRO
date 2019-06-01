@@ -27,7 +27,11 @@ int    xvasprintf (char **strp, const char *fmt, va_list ap)
 	__attribute__((format (printf, 2, 0)));
 int    xasprintf  (char **strp, const char *fmt, ...)
 	__attribute__((format (printf, 2, 3)));
-int    xfprintf (FILE *fp, const char *fmt, ...)
+int    xsnprintf  (char *str, size_t size, const char *fmt, ...)
+	__attribute__((format (printf, 3, 4)));
+int    xvsnprintf (char *str, size_t size, const char *fmt, va_list ap)
+	__attribute__((format (printf, 3, 0)));
+int    xfprintf   (FILE *fp, const char *fmt, ...)
 	__attribute__((format (printf, 2, 3)));
 
 #endif /* wrapper.h */
