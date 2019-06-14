@@ -10,6 +10,10 @@
 #define ibitree_data(node)  ((IBiTreeNode *)bitree_data (node))
 
 #define _MAX(a,b) ((a) > (b) ? (a) : (b))
+#define _MIN(a,b) ((a) > (b) ? (b) : (a))
+
+#define DEFAULT_NODE_OVERLAP_FRAC      0.0000000001
+#define DEFAULT_INTERVAL_OVERLAP_FRAC  0.0000000001
 
 enum _IBiTreePos
 {
@@ -220,18 +224,39 @@ ibitree_insert (IBiTree *tree, long low, long high, const void *data)
 	insert (tree, &bitree_root (tree), idata);
 }
 
-static inline int
-do_overlap (BiTreeNode *node, long low, long high)
+static int
+do_overlap (BiTreeNode *node, long low, long high,
+		float node_overlap_frac, float interval_overlap_frac, int either)
 {
-	return (ibitree_data (node)->low <= high)
-		&& (low <= ibitree_data (node)->high)
-		? 1
-		: 0;
+	// Node window
+	long wn = ibitree_data (node)->high - ibitree_data (node)->low;
+
+	// Interval window
+	long wi = high - low;
+
+	/*
+	* If overlaps wn with wi, then:
+	* wn + wi > max - min, so the in
+	* box (overlapped) is wn + wi - max + min
+	*/
+	long in = wn + wi - _MAX (ibitree_data (node)->high, high)
+		+ _MIN (ibitree_data (node)->low, low);
+
+	/*
+	* Calculate the fraction covered for wn and wi
+	* and test if the in box covers at least those
+	* fractions
+	*/
+	return either
+		? (in >= (int)(wn * node_overlap_frac))
+			|| (in >= (int)(wi * interval_overlap_frac))
+		: (in >= (int)(wn * node_overlap_frac))
+			&& (in >= (int)(wi * interval_overlap_frac));
 }
 
 static void
-lookup (BiTreeNode *node, long low, long high,
-		Func func, void *user_data, int *acm)
+lookup (BiTreeNode *node, long low, long high, float node_overlap_frac,
+		float interval_overlap_frac, int either, Func func, void *user_data, int *acm)
 {
 	if (bitree_is_eob (node))
 		return;
@@ -243,24 +268,40 @@ lookup (BiTreeNode *node, long low, long high,
 	*/
 	if (!bitree_is_eob (bitree_left (node))
 			&& ibitree_left (node)->max >= low)
-		lookup (bitree_left (node), low, high, func, user_data, acm);
+		{
+			lookup (bitree_left (node), low, high, node_overlap_frac,
+					interval_overlap_frac, either, func, user_data, acm);
+		}
 
 	// If given interval overlaps with node
-	if (do_overlap (node, low, high))
+	if (do_overlap (node, low, high, node_overlap_frac,
+				interval_overlap_frac, either))
 		{
 			func (ibitree_data (node)->data, user_data);
 			(*acm)++;
 		}
 
 	// Else interval can only overlap with right subtree
-	lookup (bitree_right (node), low, high, func, user_data, acm);
+	lookup (bitree_right (node), low, high, node_overlap_frac,
+			interval_overlap_frac, either, func, user_data, acm);
 }
 
 int
-ibitree_lookup (IBiTree *tree, long low, long high, Func func, void *user_data)
+ibitree_lookup (IBiTree *tree, long low, long high, float node_overlap_frac,
+		float interval_overlap_frac, int either, Func func, void *user_data)
 {
-	assert (tree != NULL && (high >= low) && func != NULL);
+	assert (tree != NULL && high >= low && func != NULL);
+
+	if (node_overlap_frac < 0)
+		node_overlap_frac = DEFAULT_NODE_OVERLAP_FRAC;
+
+	if (interval_overlap_frac < 0)
+		interval_overlap_frac = DEFAULT_INTERVAL_OVERLAP_FRAC;
+
 	int acm = 0;
-	lookup (bitree_root (tree), low, high, func, user_data, &acm);
+
+	lookup (bitree_root (tree), low, high, node_overlap_frac,
+			interval_overlap_frac, either, func, user_data, &acm);
+
 	return acm;
 }
