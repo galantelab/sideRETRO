@@ -52,7 +52,8 @@ GffFile    * gff_open           (const char *path, const char *mode);
 void         gff_close          (GffFile *gff);
 int          gff_read           (GffFile *gff, GffEntry *entry);
 GffEntry   * gff_entry_new      (void);
-GffEntry   * gff_entry_copy     (const GffEntry *entry);
+GffEntry   * gff_entry_dup      (const GffEntry *from);
+void         gff_entry_copy     (GffEntry *to, const GffEntry *from);
 void         gff_entry_free     (GffEntry *entry);
 const char * gff_attribute_find (GffEntry *entry, const char *key);
 

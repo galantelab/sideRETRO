@@ -18,44 +18,49 @@ gff_entry_new (void)
 	return entry;
 }
 
-GffEntry *
-gff_entry_copy (const GffEntry *entry)
+void
+gff_entry_copy (GffEntry *to, const GffEntry *from)
 {
-	GffEntry *copy = gff_entry_new ();
 	int i = 0;
 
-	copy->seqname = xstrdup (entry->seqname);
-	copy->source = xstrdup (entry->source);
-	copy->feature = xstrdup (entry->feature);
+	to->seqname = xstrdup (from->seqname);
+	to->source = xstrdup (from->source);
+	to->feature = xstrdup (from->feature);
 
-	copy->seqname_size = strlen (entry->seqname) + 1;
-	copy->source_size = strlen (entry->source) + 1;
-	copy->feature_size = strlen (entry->feature) + 1;
+	to->seqname_size = strlen (from->seqname) + 1;
+	to->source_size = strlen (from->source) + 1;
+	to->feature_size = strlen (from->feature) + 1;
 
-	copy->start = entry->start;
-	copy->end = entry->end;
-	copy->score = entry->score;
-	copy->strand = entry->strand;
-	copy->frame = entry->frame;
+	to->start = from->start;
+	to->end = from->end;
+	to->score = from->score;
+	to->strand = from->strand;
+	to->frame = from->frame;
 
-	copy->num_attributes = entry->num_attributes;
-	copy->attributes_size = entry->num_attributes;
-	copy->attributes = xcalloc (entry->num_attributes,
+	to->num_attributes = from->num_attributes;
+	to->attributes_size = from->num_attributes;
+	to->attributes = xcalloc (from->num_attributes,
 			sizeof (GffAttribute));
 
-	for (; i < entry->num_attributes; i++)
+	for (; i < from->num_attributes; i++)
 		{
-			copy->attributes[i].key =
-				xstrdup (entry->attributes[i].key);
-			copy->attributes[i].value =
-				xstrdup (entry->attributes[i].value);
-			copy->attributes[i].key_size =
-				strlen (entry->attributes[i].key) + 1;
-			copy->attributes[i].value_size =
-				strlen (entry->attributes[i].value) + 1;
+			to->attributes[i].key =
+				xstrdup (from->attributes[i].key);
+			to->attributes[i].value =
+				xstrdup (from->attributes[i].value);
+			to->attributes[i].key_size =
+				strlen (from->attributes[i].key) + 1;
+			to->attributes[i].value_size =
+				strlen (from->attributes[i].value) + 1;
 		}
+}
 
-	return copy;
+GffEntry *
+gff_entry_dup (const GffEntry *from)
+{
+	GffEntry *to = gff_entry_new ();
+	gff_entry_copy (to, from);
+	return to;
 }
 
 void
