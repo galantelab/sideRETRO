@@ -17,6 +17,7 @@ String * string_sized_new     (size_t size);
 char   * string_free          (String *s, int free_segment);
 
 String * string_set           (String *s, const char *str);
+String * string_clear         (String *s);
 String * string_concat        (String *s, const char *str);
 
 String * string_printf        (String *s, const char *fmt, ...)

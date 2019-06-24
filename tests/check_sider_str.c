@@ -119,6 +119,20 @@ START_TEST (test_string_free)
 }
 END_TEST
 
+START_TEST (test_string_clear)
+{
+	const char *str = "PONGA";
+	String *s = string_new (str);
+
+	s = string_clear (s);
+
+	ck_assert_int_eq (s->len, 0);
+	ck_assert_int_eq (s->str[0], 0);
+
+	char *s_str = string_free (s, 1);
+}
+END_TEST
+
 Suite *
 make_str_suite (void)
 {
@@ -136,6 +150,8 @@ make_str_suite (void)
 	tcase_add_test (tc_core, test_string_concat);
 	tcase_add_test (tc_core, test_string_printf);
 	tcase_add_test (tc_core, test_string_concat_printf);
+	tcase_add_test (tc_core, test_string_free);
+	tcase_add_test (tc_core, test_string_clear);
 	suite_add_tcase (s, tc_core);
 
 	return s;

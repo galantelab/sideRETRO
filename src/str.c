@@ -36,6 +36,17 @@ string_set (String *s, const char *str)
 }
 
 String *
+string_clear (String *s)
+{
+	assert (s != NULL);
+
+	memset (s->str, 0, s->alloc * sizeof (char));
+	s->len = 0;
+
+	return s;
+}
+
+String *
 string_concat (String *s, const char *str)
 {
 	assert (s != NULL);
