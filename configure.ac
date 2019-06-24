@@ -22,6 +22,9 @@ AC_PROG_INSTALL
 PKG_CHECK_MODULES([CHECK], [check], ,
 	[AC_MSG_WARN([check not found, It will not be possible to run 'make check'])])
 
+AC_SEARCH_LIBS([dlopen], [dl], ,
+	[AC_MSG_ERROR([libdl not found])])
+
 AC_SEARCH_LIBS([gzopen], [z], ,
 	[AC_MSG_ERROR([zlib not found. Please, manage to install it.
 		For more details, see: https://github.com/madler/zlib])])

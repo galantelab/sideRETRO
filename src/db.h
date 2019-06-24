@@ -1,7 +1,7 @@
 #ifndef DB_H
 #define DB_H
 
-#include <sqlite3.h>
+#include "sqlite3.h"
 
 sqlite3 * db_create  (const char *path);
 sqlite3 * db_connect (const char *path);
