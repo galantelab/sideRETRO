@@ -8,6 +8,6 @@
 #define ABNORMAL_CHROMOSOME      2
 #define ABNORMAL_SUPPLEMENTARY   4
 
-void abnormal_filter (const char *input_file, const char *db_path);
+void abnormal_filter (const char *sam_file, const char *gff_file, const char *db_path);
 
 #endif /* abnormal.h */
