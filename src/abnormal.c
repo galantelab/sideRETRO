@@ -266,8 +266,6 @@ dump_if_overlaps_exon (void *data, void *user_data)
 
 	db_insert_overlapping (arg->db, arg->overlapping_stmt,
 			*exon_id, arg->alignment_id);
-
-	arg->exonic_acm++;
 }
 
 static void
@@ -284,6 +282,7 @@ dump_alignment (AbnormalArg *arg, int type)
 	int qlen = 0;
 	int rlen = 0;
 	int acm = 0;
+	int align_type = 0;
 
 	for (cur = list_head (arg->stack); cur != NULL;
 			cur = list_next (cur))
@@ -311,26 +310,35 @@ dump_alignment (AbnormalArg *arg, int type)
 				? arg->hdr->target_name[align->core.mtid]
 				: "*";
 
-			log_debug ("Dump abnormal alignment %s %d %s:%ld",
-					qname, align->core.flag, chr, align->core.pos);
-
-			db_insert_alignment (arg->db, arg->alignment_stmt,
-					++(arg->alignment_id), qname, align->core.flag,
-					chr, align->core.pos + 1, align->core.qual,
-					arg->cigar->str, qlen, rlen, chr_next,
-					align->core.mpos + 1, type);
+			align_type = type;
+			arg->alignment_id++;
 
 			tree = hash_lookup (arg->tree_idx, chr);
 
 			if (tree != NULL)
 				{
 					acm = ibitree_lookup (tree, align->core.pos + 1,
-							align->core.pos + rlen + 1, 0.5, 0.5, 0,
+							align->core.pos + rlen, 0.5, 0.5, 0,
 							dump_if_overlaps_exon, arg);
 
-					log_debug ("Alignment %s %s:%ld type %d overlaps %d exons",
-							qname, chr, align->core.pos + 1, type, acm);
+					if (acm > 0)
+						{
+							align_type |= ABNORMAL_EXONIC;
+							arg->exonic_acm++;
+						}
+
+					log_debug ("Alignment %s %s:%d overlaps %d exons",
+							qname, chr, align->core.pos + 1, acm);
 				}
+
+			log_debug ("Dump abnormal alignment %s %d %s:%d type %d",
+					qname, align->core.flag, chr, align->core.pos + 1, type);
+
+			db_insert_alignment (arg->db, arg->alignment_stmt,
+					arg->alignment_id, qname, align->core.flag,
+					chr, align->core.pos + 1, align->core.qual,
+					arg->cigar->str, qlen, rlen, chr_next,
+					align->core.mpos + 1, align_type);
 		}
 }
 
@@ -360,18 +368,15 @@ dump_if_abnormal (AbnormalArg *arg)
 				{
 					return;
 				}
-		}
-
-	for (cur = list_head (arg->stack); cur != NULL
-			&& type == ABNORMAL_NONE; cur = list_next (cur))
-		{
-			align = list_data (cur);
 
 			/*
 			* - supplementary
 			*/
 			if (align->core.flag & 0x800)
-				type += ABNORMAL_SUPPLEMENTARY;
+				{
+					if (!(type & ABNORMAL_SUPPLEMENTARY))
+						type |= ABNORMAL_SUPPLEMENTARY;
+				}
 
 			/*
 			* - reads at different chromosomes
@@ -379,10 +384,16 @@ dump_if_abnormal (AbnormalArg *arg)
 			*   than ABNORMAL_DISTANCE_CUTOFF
 			*/
 			if (align->core.tid != align->core.mtid)
-				type += ABNORMAL_CHROMOSOME;
+				{
+					if (!(type & ABNORMAL_CHROMOSOME))
+						type |= ABNORMAL_CHROMOSOME;
+				}
 			else if (abs (align->core.pos - align->core.mpos)
 					> ABNORMAL_DISTANCE_CUTOFF)
-				type += ABNORMAL_DISTANCE;
+				{
+					if (!(type & ABNORMAL_DISTANCE))
+						type |= ABNORMAL_DISTANCE;
+				}
 		}
 
 	if (type != ABNORMAL_NONE)

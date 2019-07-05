@@ -7,6 +7,7 @@
 #define ABNORMAL_DISTANCE        1
 #define ABNORMAL_CHROMOSOME      2
 #define ABNORMAL_SUPPLEMENTARY   4
+#define ABNORMAL_EXONIC          8
 
 void abnormal_filter (const char *sam_file, const char *gff_file, const char *db_path);
 
