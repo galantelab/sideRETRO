@@ -29,6 +29,12 @@ db_create_tables (sqlite3 *db)
 		"	ense TEXT NOT NULL,\n"
 		"	UNIQUE (ense));\n"
 		"\n"
+		"DROP TABLE IF EXISTS source;\n"
+		"CREATE TABLE source (\n"
+		"	id INTEGER PRIMARY KEY,\n"
+		"	name TEXT NOT NULL,\n"
+		"	path TEXT NOT NULL);\n"
+		"\n"
 		"DROP TABLE IF EXISTS alignment;\n"
 		"CREATE TABLE alignment (\n"
 		"	id INTEGER PRIMARY KEY,\n"
@@ -42,7 +48,9 @@ db_create_tables (sqlite3 *db)
 		"	rlen INTEGER DEFAULT -1,\n"
 		"	chr_next TEXT NOT NULL,\n"
 		"	pos_next INTEGER NOT NULL,\n"
-		"	type INT DEFAULT 0);\n"
+		"	type INT DEFAULT 0,\n"
+		"	source_id INTEGER NOT NULL,\n"
+		"	FOREIGN KEY (source_id) REFERENCES source(id));\n"
 		"\n"
 		"DROP TABLE IF EXISTS overlapping;\n"
 		"CREATE TABLE overlapping (\n"
@@ -85,6 +93,7 @@ db_create (const char *path)
 void
 db_cache_size (sqlite3 *db, size_t size)
 {
+	log_trace ("Inside %s", __func__);
 	assert (db != NULL && size > 0);
 
 	int rc = 0;
@@ -214,6 +223,8 @@ db_insert_exon (sqlite3 *db, sqlite3_stmt *stmt, int id, const char *gene_name,
 	assert (db != NULL && stmt != NULL && gene_name != NULL && chr != NULL
 			&& strand != NULL && ensg != NULL && ense != NULL);
 
+	sqlite3_mutex_enter (sqlite3_db_mutex (db));
+
 	int rc = 0;
 
 	rc = sqlite3_reset (stmt);
@@ -250,6 +261,64 @@ db_insert_exon (sqlite3 *db, sqlite3_stmt *stmt, int id, const char *gene_name,
 	if (rc != SQLITE_DONE)
 		log_fatal ("Failed to insert exon data: %s",
 				sqlite3_errmsg (db));
+
+	sqlite3_mutex_leave (sqlite3_db_mutex (db));
+}
+
+sqlite3_stmt *
+db_prepare_source_stmt (sqlite3 *db)
+{
+	log_trace ("Inside %s", __func__);
+	assert (db != NULL);
+
+	int rc = 0;
+	sqlite3_stmt *stmt = NULL;
+
+	const char sql[] =
+		"INSERT INTO source (id,name,path) VALUES (?1,?2,?3)\n";
+
+	rc = sqlite3_prepare_v2 (db, sql, -1, &stmt, NULL);
+
+	if (rc != SQLITE_OK)
+		log_fatal ("Failed to prepare source stmt: %s",
+				sqlite3_errmsg (db));
+
+	return stmt;
+}
+
+void
+db_insert_source (sqlite3 *db, sqlite3_stmt *stmt, int id,
+		const char *name, const char *path)
+{
+	log_trace ("Inside %s", __func__);
+	assert (db != NULL && stmt != NULL && name != NULL
+			&& path != NULL);
+
+	sqlite3_mutex_enter (sqlite3_db_mutex (db));
+
+	int rc = 0;
+
+	rc = sqlite3_reset (stmt);
+	if (rc != SQLITE_OK) log_fatal ("%s", sqlite3_errmsg (db));
+
+	rc = sqlite3_clear_bindings (stmt);
+	if (rc != SQLITE_OK) log_fatal ("%s", sqlite3_errmsg (db));
+
+	rc = sqlite3_bind_int (stmt, 1, id);
+	if (rc != SQLITE_OK) log_fatal ("%s", sqlite3_errmsg (db));
+
+	rc = sqlite3_bind_text (stmt, 2, name, -1, SQLITE_TRANSIENT);
+	if (rc != SQLITE_OK) log_fatal ("%s", sqlite3_errmsg (db));
+
+	rc = sqlite3_bind_text (stmt, 3, path, -1, SQLITE_TRANSIENT);
+	if (rc != SQLITE_OK) log_fatal ("%s", sqlite3_errmsg (db));
+
+	rc = sqlite3_step (stmt);
+	if (rc != SQLITE_DONE)
+		log_fatal ("Failed to insert source data: %s",
+				sqlite3_errmsg (db));
+
+	sqlite3_mutex_leave (sqlite3_db_mutex (db));
 }
 
 sqlite3_stmt *
@@ -262,8 +331,8 @@ db_prepare_alignment_stmt (sqlite3 *db)
 	sqlite3_stmt *stmt = NULL;
 
 	const char sql[] =
-		"INSERT INTO alignment (id,qname,flag,chr,pos,mapq,cigar,qlen,rlen,chr_next,pos_next,type)\n"
-		"	VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)";
+		"INSERT INTO alignment (id,qname,flag,chr,pos,mapq,cigar,qlen,rlen,chr_next,pos_next,type,source_id)\n"
+		"	VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)";
 
 	rc = sqlite3_prepare_v2 (db, sql, -1, &stmt, NULL);
 
@@ -277,11 +346,13 @@ db_prepare_alignment_stmt (sqlite3 *db)
 void
 db_insert_alignment (sqlite3 *db, sqlite3_stmt *stmt, int id, const char *qname,
 		int flag, const char *chr, long pos, int mapq, const char *cigar, int qlen,
-		int rlen, const char *chr_next, long pos_next, int type)
+		int rlen, const char *chr_next, long pos_next, int type, int source_id)
 {
 	log_trace ("Inside %s", __func__);
 	assert (db != NULL && stmt != NULL && qname != NULL && chr != NULL
 			&& cigar != NULL && chr_next != NULL);
+
+	sqlite3_mutex_enter (sqlite3_db_mutex (db));
 
 	int rc = 0;
 
@@ -327,10 +398,15 @@ db_insert_alignment (sqlite3 *db, sqlite3_stmt *stmt, int id, const char *qname,
 	rc = sqlite3_bind_int (stmt, 12, type);
 	if (rc != SQLITE_OK) log_fatal ("%s", sqlite3_errmsg (db));
 
+	rc = sqlite3_bind_int (stmt, 13, source_id);
+	if (rc != SQLITE_OK) log_fatal ("%s", sqlite3_errmsg (db));
+
 	rc = sqlite3_step (stmt);
 	if (rc != SQLITE_DONE)
 		log_fatal ("Failed to insert alignment data: %s",
 				sqlite3_errmsg (db));
+
+	sqlite3_mutex_leave (sqlite3_db_mutex (db));
 }
 
 sqlite3_stmt *
@@ -361,6 +437,8 @@ db_insert_overlapping (sqlite3 *db, sqlite3_stmt *stmt,
 	log_trace ("Inside %s", __func__);
 	assert (db != NULL && stmt != NULL);
 
+	sqlite3_mutex_enter (sqlite3_db_mutex (db));
+
 	int rc = 0;
 
 	rc = sqlite3_reset (stmt);
@@ -379,4 +457,6 @@ db_insert_overlapping (sqlite3 *db, sqlite3_stmt *stmt,
 	if (rc != SQLITE_DONE)
 		log_fatal ("Failed to insert overlapping data: %s",
 				sqlite3_errmsg (db));
+
+	sqlite3_mutex_leave (sqlite3_db_mutex (db));
 }
