@@ -226,7 +226,8 @@ ibitree_insert (IBiTree *tree, long low, long high, const void *data)
 
 static int
 do_overlap (BiTreeNode *node, long low, long high,
-		float node_overlap_frac, float interval_overlap_frac, int either)
+		float node_overlap_frac, float interval_overlap_frac,
+		int either, IBiTreeLookupData *ldata)
 {
 	// Node window
 	long wn = ibitree_data (node)->high - ibitree_data (node)->low;
@@ -243,6 +244,20 @@ do_overlap (BiTreeNode *node, long low, long high,
 		+ _MIN (ibitree_data (node)->low, low);
 
 	/*
+	* Fill the IBiTreeLookupData struct
+	*/
+
+	*ldata = (IBiTreeLookupData) {
+		.node_low      = ibitree_data (node)->low,
+		.node_high     = ibitree_data (node)->high,
+		.interval_low  = low,
+		.interval_high = high,
+		.overlap_pos   = _MAX (ibitree_data (node)->low, low),
+		.overlap_len   = in + 1,
+		.data          = ibitree_data (node)->data
+	};
+
+	/*
 	* Calculate the fraction covered for wn and wi
 	* and test if the in box covers at least those
 	* fractions
@@ -256,7 +271,8 @@ do_overlap (BiTreeNode *node, long low, long high,
 
 static void
 lookup (BiTreeNode *node, long low, long high, float node_overlap_frac,
-		float interval_overlap_frac, int either, Func func, void *user_data, int *acm)
+		float interval_overlap_frac, int either, IBiTreeLookupFunc func,
+		void *user_data, int *acm)
 {
 	if (bitree_is_eob (node))
 		return;
@@ -273,11 +289,14 @@ lookup (BiTreeNode *node, long low, long high, float node_overlap_frac,
 					interval_overlap_frac, either, func, user_data, acm);
 		}
 
+	// Alloc the overlap struct
+	IBiTreeLookupData ldata = {};
+
 	// If given interval overlaps with node
 	if (do_overlap (node, low, high, node_overlap_frac,
-				interval_overlap_frac, either))
+				interval_overlap_frac, either, &ldata))
 		{
-			func (ibitree_data (node)->data, user_data);
+			func (&ldata, user_data);
 			(*acm)++;
 		}
 
@@ -288,7 +307,7 @@ lookup (BiTreeNode *node, long low, long high, float node_overlap_frac,
 
 int
 ibitree_lookup (IBiTree *tree, long low, long high, float node_overlap_frac,
-		float interval_overlap_frac, int either, Func func, void *user_data)
+		float interval_overlap_frac, int either, IBiTreeLookupFunc func, void *user_data)
 {
 	assert (tree != NULL && high >= low && func != NULL);
 

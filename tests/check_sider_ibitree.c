@@ -21,10 +21,10 @@ START_TEST (test_ibitree_insert)
 END_TEST
 
 static void
-catcher (void *data, void *user_data)
+catcher (IBiTreeLookupData *ldata, void *user_data)
 {
 	List *list = user_data;
-	list_append (list, data);
+	list_append (list, ldata->data);
 }
 
 START_TEST (test_ibitree_lookup)
