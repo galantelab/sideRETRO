@@ -89,6 +89,31 @@ START_TEST (test_sam_to_bam_fp)
 }
 END_TEST
 
+START_TEST (test_sam_test_sorted_order)
+{
+	char *queryname = "@HD\tVN:1.0\tSO:queryname\n";
+	char *coordinate = "@HD\tVN:1.0\tSO:coordinate\n";
+
+	bam_hdr_t hdr;
+
+	hdr.text = queryname;
+	hdr.l_text = strlen (queryname);
+
+	ck_assert_int_eq (sam_test_sorted_order (&hdr,
+				"queryname"), 1);
+	ck_assert_int_eq (sam_test_sorted_order (&hdr,
+				"coordinate"), 0);
+
+	hdr.text = coordinate;
+	hdr.l_text = strlen (coordinate);
+
+	ck_assert_int_eq (sam_test_sorted_order (&hdr,
+				"coordinate"), 1);
+	ck_assert_int_eq (sam_test_sorted_order (&hdr,
+				"queryname"), 0);
+}
+END_TEST
+
 Suite *
 make_sam_suite (void)
 {
@@ -102,6 +127,7 @@ make_sam_suite (void)
 
 	tcase_add_test (tc_core, test_sam_to_bam);
 	tcase_add_test (tc_core, test_sam_to_bam_fp);
+	tcase_add_test (tc_core, test_sam_test_sorted_order);
 	suite_add_tcase (s, tc_core);
 
 	return s;

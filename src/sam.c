@@ -1,11 +1,11 @@
 #include "config.h"
 
-#include <htslib/sam.h>
 #include <htslib/hts.h>
 #include <htslib/hfile.h>
 #include <fcntl.h>
 #include <assert.h>
 #include "wrapper.h"
+#include "utils.h"
 #include "log.h"
 #include "sam.h"
 
@@ -133,5 +133,27 @@ sam_to_bam (const char *input_file, const char *output_file)
 	success = sam_to_bam_fp (fp, output_file);
 
 	xfclose (fp);
+	return success;
+}
+
+int
+sam_test_sorted_order (const bam_hdr_t *hdr, const char *value)
+{
+	assert (hdr != NULL && value != NULL);
+
+	char *sorted_by = NULL;
+	float version = 0;
+	int success = 0;
+
+	sorted_by = xcalloc (hdr->l_text, sizeof (char));
+
+	if (sscanf (hdr->text, "@HD\tVN:%f\tSO:%s",
+				&version, sorted_by) == 2)
+		{
+			chomp (sorted_by);
+			success = !strcmp (sorted_by, value);
+		}
+
+	xfree (sorted_by);
 	return success;
 }
