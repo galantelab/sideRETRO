@@ -14,6 +14,9 @@ LT_INIT([dlopen])
 
 AM_INIT_AUTOMAKE
 
+# Disable verbose gcc output
+AM_SILENT_RULES([yes])
+
 # Checks for programs.
 AC_PROG_CC_C99
 AC_PROG_INSTALL
