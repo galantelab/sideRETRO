@@ -38,6 +38,7 @@ trimc (char *str, int c)
 	if (len == 0)
 		return str;
 
+	// Leading chars 'c'
 	for (start = 0; start < len && str[start] == c; start++)
 		;
 
@@ -48,6 +49,7 @@ trimc (char *str, int c)
 			return str;
 		}
 
+	// Trailing chars 'c'
 	for (end = len - 1; end >= start && str[end] == c; end--)
 		;
 
@@ -61,6 +63,32 @@ char *
 trim (char *str)
 {
 	return trimc (str, ' ');
+}
+
+char *
+upper (char *s)
+{
+	int i = 0;
+	while (s[i])
+		{
+			if (s[i] >= 'a' && s[i] <= 'z')
+				s[i] -= 32;
+			i++;
+		}
+	return s;
+}
+
+char *
+lower (char *s)
+{
+	int i = 0;
+	while (s[i])
+		{
+			if (s[i] >= 'A' && s[i] <= 'Z')
+				s[i] += 32;
+			i++;
+		}
+	return s;
 }
 
 char *

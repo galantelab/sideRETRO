@@ -5,6 +5,9 @@ char * chomp       (char *str);
 char * trim        (char *str);
 char * trimc       (char *str, int c);
 
+char * upper       (char *s);
+char * lower       (char *s);
+
 char * path_dir    (const char *path);
 char * path_file   (const char *path, int rm_ext);
 

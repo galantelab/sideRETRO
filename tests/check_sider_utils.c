@@ -53,6 +53,20 @@ START_TEST (test_trim)
 }
 END_TEST
 
+START_TEST (test_upper)
+{
+	char str[] = "ponga";
+	ck_assert_str_eq (upper (str), "PONGA");
+}
+END_TEST
+
+START_TEST (test_lower)
+{
+	char str[] = "PONGA";
+	ck_assert_str_eq (lower (str), "ponga");
+}
+END_TEST
+
 START_TEST (test_path_dir)
 {
 	char path[] = "/home/ponga/ponga.txt";
@@ -169,6 +183,8 @@ make_utils_suite (void)
 	tcase_add_test (tc_core, test_chomp);
 	tcase_add_test (tc_core, test_trimc);
 	tcase_add_test (tc_core, test_trim);
+	tcase_add_test (tc_core, test_upper);
+	tcase_add_test (tc_core, test_lower);
 	tcase_add_test (tc_core, test_path_dir);
 	tcase_add_test (tc_core, test_path_file);
 	tcase_add_test (tc_core, test_which);
