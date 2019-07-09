@@ -20,6 +20,7 @@ main (void)
 	srunner_add_suite (sr, make_ibitree_suite ());
 	srunner_add_suite (sr, make_str_suite ());
 	srunner_add_suite (sr, make_db_suite ());
+	srunner_add_suite (sr, make_chr_suite ());
 	/*srunner_set_tap (sr, "-");*/
 
 	srunner_run_all (sr, CK_NORMAL);

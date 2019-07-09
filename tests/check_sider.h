@@ -12,5 +12,6 @@ Suite * make_bitree_suite  (void);
 Suite * make_ibitree_suite (void);
 Suite * make_str_suite     (void);
 Suite * make_db_suite      (void);
+Suite * make_chr_suite     (void);
 
 #endif /* check_sider.h */

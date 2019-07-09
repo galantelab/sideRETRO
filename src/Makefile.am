@@ -49,6 +49,8 @@ libsider_la_SOURCES = \
 		sqlite3.c \
 		sqlite3.h \
 		db.c \
-		db.h
+		db.h \
+		chr.c \
+		chr.h
 
 libsider_la_CPPFLAGS = -I$(top_srcdir)/htslib
