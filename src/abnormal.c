@@ -3,211 +3,100 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <htslib/sam.h>
 #include <assert.h>
+#include "sam.h"
 #include "list.h"
 #include "wrapper.h"
 #include "log.h"
 #include "utils.h"
 #include "str.h"
-#include "hash.h"
-#include "gff.h"
-#include "ibitree.h"
-#include "db.h"
 #include "abnormal.h"
 
-struct _AbnormalArg
+struct _AbnormalFilter
 {
+	int            tid;
+	int            num_threads;
+	const char    *sam_file;
+	ExonTree      *exon_tree;
+	ChrStd        *cs;
+	sqlite3       *db;
+	sqlite3_stmt  *alignment_stmt;
+	int            either;
+	float          node_overlap_frac;
+	float          interval_overlap_frac;
 	samFile       *in;
 	bam_hdr_t     *hdr;
 	bam1_t        *align;
-	sqlite3       *db;
-	sqlite3_stmt  *exon_stmt;
-	sqlite3_stmt  *alignment_stmt;
-	sqlite3_stmt  *overlapping_stmt;
-	Hash          *tree_idx;
 	List          *stack;
 	List          *cache;
 	String        *cigar;
-	int            alignment_id;
-	int            fragment_acm;
-	int            abnormal_acm;
-	int            exonic_acm;
+	long           alignment_id;
+	long           fragment_acm;
+	long           abnormal_acm;
+	long           exonic_acm;
 };
 
-typedef struct _AbnormalArg AbnormalArg;
+typedef struct _AbnormalFilter AbnormalFilter;
 
 static void
-index_dump_gff_file (AbnormalArg *arg, const char *gff_file)
+abnormal_filter_init (AbnormalFilter *argf)
 {
-	log_trace ("Inside %s", __func__);
-
-	GffFile *gff = gff_open (gff_file, "rb");
-	GffEntry *entry = gff_entry_new ();
-
-	Hash *exons_found = hash_new (HASH_MEDIUM_SIZE,
-			xfree, NULL);
-
-	IBiTree *tree = NULL;
-
-	int rc = 0;
-	int table_id = 0;
-	int *alloc_id = NULL;
-	int hash_true = 1;
-
-	const char *gene_name = NULL;
-	const char *gene_id = NULL;
-	const char *exon_id = NULL;
-	const char *transcript_type = NULL;
-	char strand[1];
-
-	while (gff_read (gff, entry))
-		{
-			transcript_type = gff_attribute_find (entry, "transcript_type");
-
-			if (!strcmp (entry->feature, "exon")
-					&& transcript_type != NULL
-					&& !strcmp (transcript_type, "protein_coding"))
-				{
-					gene_name = gff_attribute_find (entry, "gene_name");
-					gene_id = gff_attribute_find (entry, "gene_id");
-					exon_id = gff_attribute_find (entry, "exon_id");
-
-					if (gene_name == NULL || gene_id == NULL || exon_id == NULL)
-						{
-							log_warn ("Missing gene_name|gene_id|exon_id at line %zu",
-								entry->num_line);
-							continue;
-						}
-
-					if (hash_contains (exons_found, exon_id))
-						continue;
-					else
-						hash_insert (exons_found,
-								xstrdup (exon_id), &hash_true);
-
-					log_debug ("Index exon from gene '%s' at %s:%zu-%zu", gene_name,
-							entry->seqname, entry->start, entry->end);
-
-					strand[0] = entry->strand;
-					alloc_id = xcalloc (1, sizeof (int));
-					* (int *) alloc_id = ++table_id;
-
-					tree = hash_lookup (arg->tree_idx, entry->seqname);
-
-					if (tree == NULL)
-						{
-							tree = ibitree_new (xfree);
-							rc = hash_insert (arg->tree_idx,
-									xstrdup (entry->seqname), tree);
-						}
-
-					ibitree_insert (tree, entry->start, entry->end, alloc_id);
-
-					db_insert_exon (arg->db, arg->exon_stmt, table_id,
-							gene_name, entry->seqname, entry->start, entry->end,
-							strand, gene_id, exon_id);
-				}
-		}
-
-	hash_free (exons_found);
-}
-
-static int
-test_sorted_queryname (const bam_hdr_t *hdr)
-{
-	assert (hdr != NULL);
-
-	char *sorted_by = NULL;
-	float version = 0;
-	int success = 0;
-
-	sorted_by = xcalloc (hdr->l_text, sizeof (char));
-
-	if (sscanf (hdr->text, "@HD\tVN:%f\tSO:%s", &version, sorted_by) == 2)
-		{
-			chomp (sorted_by);
-			success = !strcmp (sorted_by, "queryname");
-		}
-
-	xfree (sorted_by);
-	return success;
-}
-
-static AbnormalArg *
-abnormal_arg_new (const char *sam_file, const char *db_path)
-{
-	log_trace ("Inside %s", __func__);
-
-	AbnormalArg *arg = xcalloc (1, sizeof (AbnormalArg));
-
-	arg->in = sam_open (sam_file, "rb");
-	if (arg->in == NULL)
+	argf->in = sam_open (argf->sam_file, "rb");
+	if (argf->in == NULL)
 		log_errno_fatal ("Failed to open '%s' for reading",
-				sam_file);
+				argf->sam_file);
 
-	arg->hdr = sam_hdr_read (arg->in);
-	if (arg->hdr == NULL)
-		log_fatal ("Failed to read sam header");
+	argf->hdr = sam_hdr_read (argf->in);
+	if (argf->hdr == NULL)
+		log_fatal ("Failed to read sam header from '%s'",
+				argf->sam_file);
 
 	// The SAM/BAM file must be sorted by queryname
-	assert (test_sorted_queryname (arg->hdr));
+	assert (sam_test_sorted_order (argf->hdr, "queryname"));
 
-	arg->align = bam_init1 ();
-	if (arg->align == NULL)
-		log_errno_fatal ("Failed to create bam1_t");
+	argf->align = bam_init1 ();
+	if (argf->align == NULL)
+		log_errno_fatal ("Failed to create bam1_t for '%s'",
+				argf->sam_file);
 
-	// Connect to database
-	arg->db = db_create (db_path);
-	arg->exon_stmt = db_prepare_exon_stmt (arg->db);
-	arg->alignment_stmt = db_prepare_alignment_stmt (arg->db);
-	arg->overlapping_stmt = db_prepare_overlapping_stmt (arg->db);
-
-	// Increase the cache size to 1GiB
-	db_cache_size (arg->db, 100000);
-
-	// Begin transaction to speed up
-	db_begin_transaction (arg->db);
+	argf->cigar = string_sized_new (128);
 
 	// Keep all reads from the same fragment
 	// into the list
-	arg->stack = list_new ((DestroyNotify) bam_destroy1);
-	arg->cache = list_new ((DestroyNotify) bam_destroy1);
+	argf->stack = list_new ((DestroyNotify) bam_destroy1);
+	argf->cache = list_new ((DestroyNotify) bam_destroy1);
 
-	arg->cigar = string_sized_new (128);
+	// Init alignment_id to its thread id
+	// Whenever it is needed to update its value,
+	// sum the number of threads - in order to
+	// avoid database insertion chocking and
+	// constraints
+	argf->alignment_id = argf->tid;
 
-	arg->tree_idx = hash_new (HASH_SMALL_SIZE, xfree,
-			(DestroyNotify) ibitree_free);
-
-	return arg;
+	// Zero the accumulators
+	argf->fragment_acm = 0;
+	argf->abnormal_acm = 0;
+	argf->exonic_acm = 0;
 }
 
 static void
-abnormal_arg_free (AbnormalArg *arg)
+abnormal_filter_destroy (AbnormalFilter *argf)
 {
-	assert (arg != NULL);
+	if (argf == NULL)
+		return;
 
-	if (sam_close (arg->in) < 0)
-		log_errno_fatal ("Failed to close input stream");
+	if (sam_close (argf->in) < 0)
+		log_errno_fatal ("Failed to close input stream for '%s'",
+				argf->sam_file);
 
-	bam_hdr_destroy (arg->hdr);
-	bam_destroy1 (arg->align);
+	bam_hdr_destroy (argf->hdr);
+	bam_destroy1 (argf->align);
 
-	list_free (arg->stack);
-	list_free (arg->cache);
+	list_free (argf->stack);
+	list_free (argf->cache);
 
 	char *str = NULL;
-	str = string_free (arg->cigar, 1);
-
-	hash_free (arg->tree_idx);
-
-	db_end_transaction (arg->db);
-	db_finalize (arg->db, arg->exon_stmt);
-	db_finalize (arg->db, arg->alignment_stmt);
-	db_finalize (arg->db, arg->overlapping_stmt);
-	db_close (arg->db);
-
-	xfree (arg);
+	str = string_free (argf->cigar, 1);
 }
 
 static inline void
@@ -256,44 +145,32 @@ inside_fragment (const bam1_t *align, const List *in)
 }
 
 static void
-dump_if_overlaps_exon (void *data, void *user_data)
-{
-	const int *exon_id = data;
-	AbnormalArg *arg = user_data;
-
-	log_debug ("Dump overlapping: exon_id %d, alignment_id %d",
-			*exon_id, arg->alignment_id);
-
-	db_insert_overlapping (arg->db, arg->overlapping_stmt,
-			*exon_id, arg->alignment_id);
-}
-
-static void
-dump_alignment (AbnormalArg *arg, int type)
+dump_alignment (AbnormalFilter *argf, int type)
 {
 	ListElmt *cur = NULL;
-	IBiTree *tree = NULL;
 	bam1_t *align = NULL;
 	uint32_t *cigar = NULL;
 	int n_cigar = 0;
 	const char *chr = NULL;
+	const char *chr_std = NULL;
 	const char *chr_next = NULL;
+	const char *chr_std_next = NULL;
 	const char *qname = NULL;
 	int qlen = 0;
 	int rlen = 0;
 	int acm = 0;
 	int align_type = 0;
 
-	for (cur = list_head (arg->stack); cur != NULL;
+	for (cur = list_head (argf->stack); cur != NULL;
 			cur = list_next (cur))
 		{
 			align = list_data (cur);
 
 			cigar = bam_get_cigar (align);
-			arg->cigar = string_clear (arg->cigar);
+			argf->cigar = string_clear (argf->cigar);
 
 			for (n_cigar = 0; n_cigar < align->core.n_cigar; n_cigar++)
-				arg->cigar = string_concat_printf (arg->cigar, "%d%c",
+				argf->cigar = string_concat_printf (argf->cigar, "%d%c",
 						bam_cigar_oplen (cigar[n_cigar]),
 						bam_cigar_opchr (cigar[n_cigar]));
 
@@ -303,55 +180,62 @@ dump_alignment (AbnormalArg *arg, int type)
 			qname = bam_get_qname (align);
 
 			chr = align->core.tid > -1
-				? arg->hdr->target_name[align->core.tid]
+				? argf->hdr->target_name[align->core.tid]
 				: "*";
 
 			chr_next = align->core.mtid > -1
-				? arg->hdr->target_name[align->core.mtid]
+				? argf->hdr->target_name[align->core.mtid]
 				: "*";
 
+			// Standardize chromosomes
+			chr_std = chr_std_lookup (argf->cs, chr);
+			chr_std_next = chr_std_lookup (argf->cs, chr_next);
+
+			// Reset align_type to type
 			align_type = type;
-			arg->alignment_id++;
 
-			tree = hash_lookup (arg->tree_idx, chr);
+			// Dump overlapping exon with alignment
+			acm = exon_tree_lookup_dump (argf->exon_tree, chr_std,
+					align->core.pos + 1, align->core.pos + rlen,
+					argf->node_overlap_frac, argf->interval_overlap_frac,
+					argf->either, argf->alignment_id);
 
-			if (tree != NULL)
+			if (acm > 0)
 				{
-					acm = ibitree_lookup (tree, align->core.pos + 1,
-							align->core.pos + rlen, 0.5, 0.5, 0,
-							dump_if_overlaps_exon, arg);
-
-					if (acm > 0)
-						{
-							align_type |= ABNORMAL_EXONIC;
-							arg->exonic_acm++;
-						}
-
+					align_type |= ABNORMAL_EXONIC;
+					argf->exonic_acm++;
 					log_debug ("Alignment %s %s:%d overlaps %d exons",
-							qname, chr, align->core.pos + 1, acm);
+							qname, chr_std, align->core.pos + 1, acm);
 				}
 
 			log_debug ("Dump abnormal alignment %s %d %s:%d type %d",
-					qname, align->core.flag, chr, align->core.pos + 1, type);
+					qname, align->core.flag, chr_std, align->core.pos + 1,
+					type);
 
-			db_insert_alignment (arg->db, arg->alignment_stmt,
-					arg->alignment_id, qname, align->core.flag,
-					chr, align->core.pos + 1, align->core.qual,
-					arg->cigar->str, qlen, rlen, chr_next,
-					align->core.mpos + 1, align_type);
+			db_insert_alignment (argf->db, argf->alignment_stmt,
+					argf->alignment_id, qname, align->core.flag,
+					chr_std, align->core.pos + 1, align->core.qual,
+					argf->cigar->str, qlen, rlen, chr_std_next,
+					align->core.mpos + 1, align_type,
+					argf->tid);
+
+			// sum the number of threads - in order to
+			// avoid database insertion chocking and
+			// constraints
+			argf->alignment_id += argf->num_threads;
 		}
 }
 
 static void
-dump_if_abnormal (AbnormalArg *arg)
+dump_if_abnormal (AbnormalFilter *argf)
 {
 	ListElmt *cur = NULL;
 	bam1_t *align = NULL;
 	int type = ABNORMAL_NONE;
 
-	arg->fragment_acm++;
+	argf->fragment_acm++;
 
-	for (cur = list_head (arg->stack); cur != NULL;
+	for (cur = list_head (argf->stack); cur != NULL;
 			cur = list_next (cur))
 		{
 			align = list_data (cur);
@@ -398,72 +282,68 @@ dump_if_abnormal (AbnormalArg *arg)
 
 	if (type != ABNORMAL_NONE)
 		{
-			log_debug ("Dump abnormal fragment of type %d", type);
-			dump_alignment (arg, type);
-			arg->abnormal_acm++;
+			dump_alignment (argf, type);
+			argf->abnormal_acm++;
 		}
 }
 
 void
-abnormal_filter (const char *sam_file,
-		const char *gff_file, const char *db_path)
+abnormal_filter (AbnormalArg *arg)
 {
-	log_trace ("Inside %s", __func__);
-	assert (sam_file != NULL && gff_file != NULL
-			&& db_path != NULL);
+	assert (arg != NULL && arg->sam_file != NULL && arg->db != NULL
+			&& arg->alignment_stmt != NULL && arg->exon_tree && arg->cs
+			&& arg->tid >= 0 && arg->num_threads > 0);
 
 	int rc = 0;
-	AbnormalArg *arg = NULL;
+	AbnormalFilter argf = {};
+	memcpy (&argf, arg, sizeof (AbnormalArg));
 
 	// Opon SAM/BAM
-	// Connect to database
 	// Allocate resources
-	arg = abnormal_arg_new (sam_file, db_path);
-
-	// Index protein coding genes into the database
-	// and its exons into an intervalar tree by
-	// chromosome
-	log_info ("Index annotation file '%s'", gff_file);
-	index_dump_gff_file (arg, gff_file);
+	abnormal_filter_init (&argf);
 
 	log_info ("Searching for abnormal alignments into '%s'",
-			sam_file);
+			argf.sam_file);
 
 	while (1)
 		{
 			// Returns -1 or < -1 in case of
 			// error
-			rc = sam_read1 (arg->in, arg->hdr, arg->align);
+			rc = sam_read1 (argf.in, argf.hdr, argf.align);
 			if (rc < 0)
 				break;
 
-			if (list_size (arg->stack)
-					&& !inside_fragment (arg->align, arg->stack))
+			if (list_size (argf.stack)
+					&& !inside_fragment (argf.align, argf.stack))
 				{
-					dump_if_abnormal (arg);
-					clean (arg->stack, arg->cache);
+					dump_if_abnormal (&argf);
+					clean (argf.stack, argf.cache);
 				}
 
-			push (arg->align, arg->stack, arg->cache);
+			push (argf.align, argf.stack, argf.cache);
 		}
 
 	// Catch if it ocurred an error
 	// in reading from input
 	if (rc < -1)
-		log_fatal ("Failed to read sam alignment");
+		log_fatal ("Failed to read sam alignment from '%s'",
+				argf.sam_file);
 
 	// The stack is filled after the parsing,
 	// so it is late in relation to the file loop.
 	// Therefore, test the last bunch of
 	// alignments
-	dump_if_abnormal (arg);
+	dump_if_abnormal (&argf);
 
 	// Just print the amount of abnormal alignments
-	log_info ("Found %d abnormal alignments\n"
-			"%d abnormal alignments falls inside some exonic region"
-			" (%.2f%)", arg->abnormal_acm, arg->exonic_acm,
-			(float) (arg->exonic_acm * 100) / arg->abnormal_acm);
+	if (argf.abnormal_acm > 0)
+		log_info ("Found %li abnormal alignments for '%s': "
+			"%li abnormal alignments falls inside some exonic region (%.2f%)",
+			argf.abnormal_acm, argf.sam_file, argf.exonic_acm,
+			(float) (argf.exonic_acm * 100) / argf.abnormal_acm);
+	else
+		log_info ("File '%s' has no abnormal alignments", argf.sam_file);
 
 	// Cleanup
-	abnormal_arg_free (arg);
+	abnormal_filter_destroy (&argf);
 }

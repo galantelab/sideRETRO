@@ -20,7 +20,8 @@ check_sider_SOURCES = \
 	check_sider_ibitree.c \
 	check_sider_str.c \
 	check_sider_db.c \
-	check_sider_chr.c
+	check_sider_chr.c \
+	check_sider_exon.c
 
 check_sider_LDFLAGS = -static
 

@@ -28,7 +28,7 @@ void db_insert_alignment (sqlite3 *db, sqlite3_stmt *stmt, int id, const char *n
 		int rlen, const char *chr_next, long pos_next, int type, int source_id);
 
 sqlite3_stmt * db_prepare_overlapping_stmt (sqlite3 *db);
-void db_insert_overlapping (sqlite3 *db, sqlite3_stmt *stmt,
-		int exon_id, int alignment_id);
+void db_insert_overlapping (sqlite3 *db, sqlite3_stmt *stmt, int exon_id,
+	int alignment_id, long pos, long len);
 
 #endif /* db.h */

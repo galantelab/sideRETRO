@@ -51,6 +51,10 @@ libsider_la_SOURCES = \
 		db.c \
 		db.h \
 		chr.c \
-		chr.h
+		chr.h \
+		exon.c \
+		exon.h \
+		thpool.c \
+		thpool.h
 
 libsider_la_CPPFLAGS = -I$(top_srcdir)/htslib

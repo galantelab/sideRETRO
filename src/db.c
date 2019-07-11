@@ -56,6 +56,8 @@ db_create_tables (sqlite3 *db)
 		"CREATE TABLE overlapping (\n"
 		"	exon_id INTEGER NOT NULL,\n"
 		"	alignment_id INTEGER NOT NULL,\n"
+		"	pos INTEGER NOT NULL,\n"
+		"	len INTEGER NOT NULL,\n"
 		"	FOREIGN KEY (exon_id) REFERENCES exon(id),\n"
 		"	FOREIGN KEY (alignment_id) REFERENCES alignment(id),\n"
 		"	PRIMARY KEY (exon_id, alignment_id));";
@@ -419,7 +421,8 @@ db_prepare_overlapping_stmt (sqlite3 *db)
 	sqlite3_stmt *stmt = NULL;
 
 	const char sql[] =
-		"INSERT INTO overlapping (exon_id,alignment_id) VALUES (?1,?2)";
+		"INSERT INTO overlapping (exon_id,alignment_id,pos,len)\n"
+		"	VALUES (?1,?2,?3,?4)";
 
 	rc = sqlite3_prepare_v2 (db, sql, -1, &stmt, NULL);
 
@@ -431,8 +434,8 @@ db_prepare_overlapping_stmt (sqlite3 *db)
 }
 
 void
-db_insert_overlapping (sqlite3 *db, sqlite3_stmt *stmt,
-		int exon_id, int alignment_id)
+db_insert_overlapping (sqlite3 *db, sqlite3_stmt *stmt, int exon_id,
+	int alignment_id, long pos, long len)
 {
 	log_trace ("Inside %s", __func__);
 	assert (db != NULL && stmt != NULL);
@@ -451,6 +454,12 @@ db_insert_overlapping (sqlite3 *db, sqlite3_stmt *stmt,
 	if (rc != SQLITE_OK) log_fatal ("%s", sqlite3_errmsg (db));
 
 	rc = sqlite3_bind_int (stmt, 2, alignment_id);
+	if (rc != SQLITE_OK) log_fatal ("%s", sqlite3_errmsg (db));
+
+	rc = sqlite3_bind_int64 (stmt, 3, pos);
+	if (rc != SQLITE_OK) log_fatal ("%s", sqlite3_errmsg (db));
+
+	rc = sqlite3_bind_int64 (stmt, 4, len);
 	if (rc != SQLITE_OK) log_fatal ("%s", sqlite3_errmsg (db));
 
 	rc = sqlite3_step (stmt);
