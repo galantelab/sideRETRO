@@ -84,7 +84,7 @@ db_create (const char *path)
 
 	if (rc != SQLITE_OK)
 		log_fatal ("Can't create database '%s': %s",
-				sqlite3_errmsg (db));
+				path, sqlite3_errmsg (db));
 
 	log_debug ("Create tables into database '%s'", path);
 	db_create_tables (db);
@@ -104,7 +104,7 @@ db_cache_size (sqlite3 *db, size_t size)
 	char sql[128];
 
 	if (size < DB_DEFAULT_CACHE_SIZE)
-		log_warn ("cache size of %zuKiB is lesser than the default value of %zuKiB",
+		log_warn ("cache size of %zuKiB is lesser than the default value of %uKiB",
 				size, DB_DEFAULT_CACHE_SIZE);
 
 	len = xsnprintf (sql, 128, "PRAGMA cache_size=-%zu", size);
@@ -163,7 +163,7 @@ db_connect (const char *path)
 
 	if (rc != SQLITE_OK)
 		log_fatal ("Can't connect to database '%s': %s",
-				sqlite3_errmsg (db));
+				path, sqlite3_errmsg (db));
 
 	return db;
 }

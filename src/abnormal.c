@@ -338,7 +338,7 @@ abnormal_filter (AbnormalArg *arg)
 	// Just print the amount of abnormal alignments
 	if (argf.abnormal_acm > 0)
 		log_info ("Found %li abnormal alignments for '%s': "
-			"%li abnormal alignments falls inside some exonic region (%.2f%)",
+			"%li abnormal alignments falls inside some exonic region (%.2f%%)",
 			argf.abnormal_acm, argf.sam_file, argf.exonic_acm,
 			(float) (argf.exonic_acm * 100) / argf.abnormal_acm);
 	else
