@@ -27,6 +27,8 @@ check_sider_LDFLAGS = -static
 
 check_sider_CFLAGS = $(CHECK_CFLAGS)
 
+check_sider_CPPFLAGS = -I$(top_srcdir)/htslib
+
 check_sider_LDADD = \
 	$(top_builddir)/src/libsider.la \
 	$(top_builddir)/htslib/libhts.a \
