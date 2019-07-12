@@ -15,5 +15,6 @@ Suite * make_db_suite       (void);
 Suite * make_chr_suite      (void);
 Suite * make_exon_suite     (void);
 Suite * make_abnormal_suite (void);
+Suite * make_gff_suite      (void);
 
 #endif /* check_sider.h */

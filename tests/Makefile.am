@@ -22,7 +22,8 @@ check_sider_SOURCES = \
 	check_sider_db.c \
 	check_sider_chr.c \
 	check_sider_exon.c \
-	check_sider_abnormal.c
+	check_sider_abnormal.c \
+	check_sider_gff.c
 
 check_sider_LDFLAGS = -static
 
