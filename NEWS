@@ -1,3 +1,33 @@
+Version 0.5.0
+
+* Add a 'str' interface to handle string
+  memory manipulation more efficiently.
+
+* 'ibitree' lookup mechanism reshaped: Besides
+  the range to search for, it acceps now node,
+  interval overlapped fractions and the bitwise
+  boolean (AND or OR) for testing if both, node
+  and interval must overlap each other at the
+  same percentage - or if just one being true
+  is enough. Also, 'ibitree' keeps track of the
+  position and length of overlapping regions.
+
+* Add 'thpool' interface for thread pool.
+
+* Add 'SQLite3' library to manage intermediate
+  and possibly final results.
+
+* 'abnormal' filtering is working. It selects
+  the so called abnormal alignments: Thoses
+  alignments, whose each sequenced read of the
+  fragment falls into different chromosomes, or
+  is far way from its mate. Also it catches
+  supplementary alignments. All the results
+  are recorded into the 'SQLite3' database.
+
+* Add 'exon' interface. Its job is seach for
+  abnormal alignments that overlaps some exon.
+
 Version 0.4.0
 
 * Add an 'align' interface to save 'bwa mem'

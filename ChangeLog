@@ -1,3 +1,116 @@
+2019-07-12 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* Version 0.5.0
+
+	* ADD: check_sider_abnormal.c: Test for abnormal.c
+
+	* ADD: check_sider_gff.c: Test for gff.c
+
+2019-07-11 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: exon.c, thpool.c. FIX: abnormal.c
+
+	Add thpool - thread pool interface to handle parallelism. The exon
+	interface came to 'split' more the abnormal routine.
+	The database interface for the table overlapping now includes columns
+	for overlapping position and length.
+
+	* FIX: sam.c: include "htslib/sam.h"
+
+	* FIX: abnormal.c, db.c: -Wformat
+
+2019-07-09 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: utils.c (upper, lower)
+
+	* ADD: chr.c interface
+
+	Add human chromosome standardization - according to gencode
+	pattern: chr1, chrX, chrM etc.
+
+	* ADD: configure.ac (AM_SILENT_RULES([yes]))
+
+	Makefile less verbose! To return to the more verbose pattern:
+	make V=1
+
+2019-07-08 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: ibitree.c (ibitree_lookup)
+
+	Add IBiTreeLookupData struct to hold node and interval ranges, plus the
+	overlapping position and its length.
+
+	* ADD: sam.c (sam_test_sorted_order)
+
+	* FIX: hash.c, list.c: <config.h> -> "config.h"
+
+2019-07-07 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: db.c (db_[prepare,insert]_source)
+
+	Add table source to hold genotype information.
+	Encloses writing functions with mutexes for thread-safety
+
+2019-07-05 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* FIX: abnormal.c (dump_if_abnormal, dump_alignment)
+
+	Fix weird type with chromosome and distance flags at the same fragment.
+	Add flag type for exonic reads
+
+2019-06-30 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: abnormal.c: exonic filter
+
+	Change gene table to exon table in order to simplify insertion and
+	querying. Add exonic filtering based in the interval search tree
+
+2019-06-24 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: sqlite3.c interface
+
+	Include sqlite-amalgamation-3280000 to the source code. This way, it's
+	not necessary to link against libsqlite3.so. According to the official
+	SQLite documentation:
+	"The use of the amalgamation is recommended for all applications"
+
+	* ADD: check_sider_db.c
+
+2019-06-23 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: str.c (string_clear)
+
+	* ADD: gff.c (gff_entry_dup, gff_entry_copy)
+
+	* ADD: db.c interface
+
+	* CHANGE: abnormal.c
+
+	Save all results into SQLite database
+
+2019-06-14 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* CHANGE: ibitree (ibitree_lookup)
+
+	ibitree_lookup () acceps now node_overlap_frac, interval_overlap_frac
+	and either parameters. Those variables permit tunning searching:
+
+	node_overlap_frac = fraction covered of node range when overlapped;
+	interval_overlap_frac = fraction covered of interval range when
+	overlapped;
+
+	either = AND boolean is used by default, so node_overlap_frac AND
+	interval_overlap_frac must be true in overlapping. If either is true, OR
+	boolean is used instead of AND;
+
+2019-06-01 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: str.c interface
+
+	Add string interface and wrapper snprintf, vsnprintf functions. Also
+	include some tests and fix utils.c (xstrdup_concat).
+	Add gff interface to Makefile.am.
+
 2019-05-27 Thiago L. A. Miller <tmiller@mochsl.org.br>
 
 	* Version 0.4.0
