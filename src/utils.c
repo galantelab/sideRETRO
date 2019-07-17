@@ -200,7 +200,8 @@ which (const char *cmd)
 	if (paths == NULL)
 		return found;
 
-	strncpy (paths_copy, paths, BUFSIZ);
+	strncpy (paths_copy, paths, BUFSIZ - 1);
+	paths_copy[BUFSIZ - 1] = '\0';
 	path = strtok_r (paths_copy, ":", &scratch);
 
 	while (path != NULL)
@@ -225,4 +226,31 @@ exists (const char *file)
 {
 	struct stat sb;
 	return stat (file, &sb) == 0 && sb.st_mode & S_IFREG;
+}
+
+void
+mkdir_p (const char *path)
+{
+	/* Adapted from http://stackoverflow.com/a/2336245/119527 */
+	char path_copy[BUFSIZ];
+	char *p;
+
+	strncpy (path_copy, path, BUFSIZ - 1);
+	path_copy[BUFSIZ - 1] = '\0';
+
+	/* Iterate the string */
+	for (p = path_copy + 1; *p; p++)
+		{
+			if (*p == '/')
+				{
+					/* Temporarily truncate */
+					*p = '\0';
+
+					xmkdir (path_copy, S_IRWXU);
+
+					*p = '/';
+				}
+		}
+
+	xmkdir (path_copy, S_IRWXU);
 }

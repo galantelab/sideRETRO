@@ -13,6 +13,7 @@ char * path_file   (const char *path, int rm_ext);
 
 int    which       (const char *cmd);
 int    exists      (const char *file);
+void   mkdir_p     (const char *path);
 
 char * xstrdup_concat   (char *dest, const char *src);
 int    xasprintf_concat (char **strp, const char *fmt, ...)

@@ -1,7 +1,10 @@
 #include "config.h"
 
 #include <stdlib.h>
+#include <unistd.h>
 #include <string.h>
+#include <dirent.h>
+#include <errno.h>
 #include <check.h>
 #include "check_sider.h"
 
@@ -169,6 +172,30 @@ START_TEST (test_xasprintf_concat)
 }
 END_TEST
 
+START_TEST (test_mkdir_p)
+{
+	DIR *dp = NULL;
+	const char *dir = "/tmp/ponga1";
+	const char *dir2 = "/tmp/ponga2";
+	const char *subdir = "/tmp/ponga2/ponga3";
+
+	mkdir_p (dir);
+	mkdir_p (subdir);
+
+	dp = opendir (dir);
+	ck_assert (dp != NULL);
+	closedir (dp);
+
+	dp = opendir (subdir);
+	ck_assert (dp != NULL);
+	closedir (dp);
+
+	rmdir (dir);
+	rmdir (subdir);
+	rmdir (dir2);
+}
+END_TEST
+
 Suite *
 make_utils_suite (void)
 {
@@ -191,6 +218,7 @@ make_utils_suite (void)
 	tcase_add_test (tc_core, test_exists);
 	tcase_add_test (tc_core, test_xstrdup_concat);
 	tcase_add_test (tc_core, test_xasprintf_concat);
+	tcase_add_test (tc_core, test_mkdir_p);
 	suite_add_tcase (s, tc_core);
 
 	return s;
