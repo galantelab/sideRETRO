@@ -23,8 +23,8 @@ struct _AbnormalArg
 	sqlite3       *db;
 	sqlite3_stmt  *alignment_stmt;
 	int            either;
-	float          node_overlap_frac;
-	float          interval_overlap_frac;
+	float          exon_frac;
+	float          alignment_frac;
 };
 
 typedef struct _AbnormalArg AbnormalArg;

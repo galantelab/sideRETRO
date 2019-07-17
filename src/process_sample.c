@@ -95,16 +95,16 @@ process_sample (const char *output_dir, const char *prefix,
 			// Init abnormal_filter arg
 			ab_args[i] = (AbnormalArg)
 			{
-				.tid                    = i + 1,
-				.num_threads            = num_files,
-				.sam_file               = sam_file,
-				.either                 = either,
-				.node_overlap_frac      = exon_frac,
-				.interval_overlap_frac  = alignment_frac,
-				.exon_tree              = exon_tree,
-				.cs                     = cs,
-				.db                     = db,
-				.alignment_stmt         = alignment_stmt
+				.tid             = i + 1,
+				.num_threads     = num_files,
+				.sam_file        = sam_file,
+				.either          = either,
+				.exon_frac       = exon_frac,
+				.alignment_frac  = alignment_frac,
+				.exon_tree       = exon_tree,
+				.cs              = cs,
+				.db              = db,
+				.alignment_stmt  = alignment_stmt
 			};
 
 			log_debug ("Dump source entry '%s'", sam_file);
@@ -170,7 +170,8 @@ print_usage (FILE *fp)
 		"       --silent            Same as '--quiet'\n"
 		"   -d, --debug             Increase verbosity to debug level\n"
 		"   -l, --log-file          Print log messages to a FILE\n"
-		"   -o, --output-dir        Output directory [default:\"%s\"]\n"
+		"   -o, --output-dir        Output directory. Create the directory if it does\n"
+		"                           not exist [default:\"%s\"]\n"
 		"   -p, --prefix            Prefix output files [default:\"%s\"]\n"
 		"   -t, --threads           Number of threads [default:\"%d\"]\n"
 		"   -c, --cache-size        Set SQLite3 cache size in KiB [default: %d]\n"

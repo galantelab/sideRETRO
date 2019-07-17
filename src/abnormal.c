@@ -22,8 +22,8 @@ struct _AbnormalFilter
 	sqlite3       *db;
 	sqlite3_stmt  *alignment_stmt;
 	int            either;
-	float          node_overlap_frac;
-	float          interval_overlap_frac;
+	float          exon_frac;
+	float          alignment_frac;
 	samFile       *in;
 	bam_hdr_t     *hdr;
 	bam1_t        *align;
@@ -197,7 +197,7 @@ dump_alignment (AbnormalFilter *argf, int type)
 			// Dump overlapping exon with alignment
 			acm = exon_tree_lookup_dump (argf->exon_tree, chr_std,
 					align->core.pos + 1, align->core.pos + rlen,
-					argf->node_overlap_frac, argf->interval_overlap_frac,
+					argf->exon_frac, argf->alignment_frac,
 					argf->either, argf->alignment_id);
 
 			if (acm > 0)

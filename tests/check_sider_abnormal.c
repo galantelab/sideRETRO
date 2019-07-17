@@ -123,8 +123,8 @@ test_abnormal_init (TestAbnormal *a)
 		.db = a->db,
 		.alignment_stmt = a->alignment_stmt,
 		.either = 0,
-		.node_overlap_frac = -1,
-		.interval_overlap_frac = -1,
+		.exon_frac  = -1,
+		.alignment_frac = -1,
 	};
 }
 
