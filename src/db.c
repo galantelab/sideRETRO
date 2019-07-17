@@ -6,8 +6,6 @@
 #include "log.h"
 #include "db.h"
 
-#define DB_DEFAULT_CACHE_SIZE 2000
-
 static void
 db_create_tables (sqlite3 *db)
 {
@@ -32,7 +30,6 @@ db_create_tables (sqlite3 *db)
 		"DROP TABLE IF EXISTS source;\n"
 		"CREATE TABLE source (\n"
 		"	id INTEGER PRIMARY KEY,\n"
-		"	name TEXT NOT NULL,\n"
 		"	path TEXT NOT NULL);\n"
 		"\n"
 		"DROP TABLE IF EXISTS alignment;\n"
@@ -277,7 +274,7 @@ db_prepare_source_stmt (sqlite3 *db)
 	sqlite3_stmt *stmt = NULL;
 
 	const char sql[] =
-		"INSERT INTO source (id,name,path) VALUES (?1,?2,?3)\n";
+		"INSERT INTO source (id,path) VALUES (?1,?2)\n";
 
 	rc = sqlite3_prepare_v2 (db, sql, -1, &stmt, NULL);
 
@@ -290,11 +287,10 @@ db_prepare_source_stmt (sqlite3 *db)
 
 void
 db_insert_source (sqlite3 *db, sqlite3_stmt *stmt, int id,
-		const char *name, const char *path)
+		const char *path)
 {
 	log_trace ("Inside %s", __func__);
-	assert (db != NULL && stmt != NULL && name != NULL
-			&& path != NULL);
+	assert (db != NULL && stmt != NULL && path != NULL);
 
 	sqlite3_mutex_enter (sqlite3_db_mutex (db));
 
@@ -309,10 +305,7 @@ db_insert_source (sqlite3 *db, sqlite3_stmt *stmt, int id,
 	rc = sqlite3_bind_int (stmt, 1, id);
 	if (rc != SQLITE_OK) log_fatal ("%s", sqlite3_errmsg (db));
 
-	rc = sqlite3_bind_text (stmt, 2, name, -1, SQLITE_TRANSIENT);
-	if (rc != SQLITE_OK) log_fatal ("%s", sqlite3_errmsg (db));
-
-	rc = sqlite3_bind_text (stmt, 3, path, -1, SQLITE_TRANSIENT);
+	rc = sqlite3_bind_text (stmt, 2, path, -1, SQLITE_TRANSIENT);
 	if (rc != SQLITE_OK) log_fatal ("%s", sqlite3_errmsg (db));
 
 	rc = sqlite3_step (stmt);
