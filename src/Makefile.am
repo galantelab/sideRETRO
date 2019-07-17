@@ -13,8 +13,6 @@ sider_LDADD = \
 noinst_LTLIBRARIES = libsider.la
 
 libsider_la_SOURCES = \
-		sider.c \
-		sider.h \
 		wrapper.c \
 		wrapper.h \
 		list.c \
@@ -55,6 +53,12 @@ libsider_la_SOURCES = \
 		exon.c \
 		exon.h \
 		thpool.c \
-		thpool.h
+		thpool.h \
+		process_sample.c \
+		process_sample.h \
+		io.c \
+		io.h \
+		logger.c \
+		logger.h
 
 libsider_la_CPPFLAGS = -I$(top_srcdir)/htslib
