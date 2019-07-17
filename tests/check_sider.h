@@ -1,7 +1,6 @@
 #ifndef CHECK_SIDER_H
 #define CHECK_SIDER_H
 
-Suite * make_process_sample_suite (void);
 Suite * make_list_suite           (void);
 Suite * make_hash_suite           (void);
 Suite * make_array_suite          (void);
@@ -17,5 +16,6 @@ Suite * make_exon_suite           (void);
 Suite * make_abnormal_suite       (void);
 Suite * make_gff_suite            (void);
 Suite * make_io_suite             (void);
+Suite * make_process_sample_suite (void);
 
 #endif /* check_sider.h */

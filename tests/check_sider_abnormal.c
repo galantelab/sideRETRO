@@ -148,6 +148,7 @@ test_abnormal_destroy (TestAbnormal *a)
 	// Remove temp files
 	xunlink (a->db_path);
 	xunlink (a->sam_path);
+	xunlink (a->gtf_path);
 }
 
 static sqlite3_stmt *
