@@ -9,7 +9,7 @@ main (void)
 	int number_failed = 0;
 	SRunner *sr = NULL;
 
-	sr = srunner_create (make_sider_suite ());
+	sr = srunner_create (make_process_sample_suite ());
 	srunner_add_suite (sr, make_list_suite ());
 	srunner_add_suite (sr, make_hash_suite ());
 	srunner_add_suite (sr, make_array_suite ());
@@ -24,6 +24,7 @@ main (void)
 	srunner_add_suite (sr, make_exon_suite ());
 	srunner_add_suite (sr, make_abnormal_suite ());
 	srunner_add_suite (sr, make_gff_suite ());
+	srunner_add_suite (sr, make_io_suite ());
 	/*srunner_set_tap (sr, "-");*/
 
 	srunner_run_all (sr, CK_NORMAL);

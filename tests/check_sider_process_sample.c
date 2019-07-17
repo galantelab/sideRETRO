@@ -2,7 +2,7 @@
 
 #include <check.h>
 #include "check_sider.h"
-#include "../src/sider.h"
+#include "../src/process_sample.h"
 
 START_TEST (test_sider)
 {
@@ -12,12 +12,12 @@ END_TEST
 
 
 Suite *
-make_sider_suite (void)
+make_process_sample_suite (void)
 {
 	Suite *s;
 	TCase *tc_core;
 
-	s = suite_create ("sideRETRO");
+	s = suite_create ("ProcessSample");
 
 	/* Core test case */
 	tc_core = tcase_create ("Core");

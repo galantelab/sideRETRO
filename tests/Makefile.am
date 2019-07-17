@@ -9,7 +9,6 @@ EXTRA_DIST = test_mem_leaks.sh
 check_sider_SOURCES = \
 	check_sider.h \
 	check_sider_main.c \
-	check_sider_sider.c \
 	check_sider_list.c \
 	check_sider_hash.c \
 	check_sider_array.c \
@@ -23,7 +22,9 @@ check_sider_SOURCES = \
 	check_sider_chr.c \
 	check_sider_exon.c \
 	check_sider_abnormal.c \
-	check_sider_gff.c
+	check_sider_gff.c \
+	check_sider_io.c \
+	check_sider_process_sample.c
 
 check_sider_LDFLAGS = -static
 
