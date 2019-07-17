@@ -20,6 +20,7 @@ int    xpclose    (FILE *pp);
 
 void   xunlink    (const char *file);
 int    xmkstemp   (char *template);
+void   xmkdir     (const char *pathname, int mode);
 
 void   xfputs     (const char *str, FILE *fp);
 

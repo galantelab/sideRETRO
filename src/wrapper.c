@@ -3,6 +3,9 @@
 #include <string.h>
 #include <stdarg.h>
 #include <unistd.h>
+#include <errno.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include "log.h"
 #include "wrapper.h"
 
@@ -233,4 +236,13 @@ xfflush (FILE *fp)
 {
 	if (fflush (fp) == EOF)
 		log_errno_fatal ("fflush failed");
+}
+
+void
+xmkdir (const char *path, int mode)
+{
+	errno = 0;
+	if (mkdir (path, mode) == -1)
+		if (errno != EEXIST)
+			log_errno_fatal ("mkdir failed to create dir '%s'", path);
 }
