@@ -197,7 +197,7 @@ print_usage (FILE *fp)
 		"                           not exist [default:\"%s\"]\n"
 		"   -p, --prefix            Prefix output files [default:\"%s\"]\n"
 		"   -t, --threads           Number of threads [default:\"%d\"]\n"
-		"   -c, --cache-size        Set SQLite3 cache size in KiB [default: %d]\n"
+		"   -c, --cache-size        Set SQLite3 cache size in KiB [default: \"%d\"]\n"
 		"   -f, --exon-frac         Minimum overlap required as a fraction of exon\n"
 		"                           [default:\"%.0e\"; 1 base]\n"
 		"   -F, --alignment-frac    Minimum overlap required as a fraction of\n"
@@ -225,6 +225,14 @@ int
 parse_process_sample_command_opt (int argc, char **argv)
 {
 	assert (argc > 1 && argv != NULL && *argv != NULL);
+
+	// No options or arguments
+	// Print usage
+	if (argc == 2)
+		{
+			print_usage (stdout);
+			return EXIT_SUCCESS;
+		}
 
 	struct option opt[] =
 	{
@@ -268,12 +276,6 @@ parse_process_sample_command_opt (int argc, char **argv)
 	int option_index = 0;
 	int alignment_frac_set = 0;
 	int c, i;
-
-	if (argc == 2)
-		{
-			print_usage (stdout);
-			goto Exit;
-		}
 
 	while ((c = getopt_long (argc, argv, "hqdl:a:o:p:t:c:f:F:eri:", opt, &option_index)) >= 0)
 		{
