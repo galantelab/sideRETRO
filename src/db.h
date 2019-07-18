@@ -20,8 +20,13 @@ void db_insert_exon (sqlite3 *db, sqlite3_stmt *stmt, int id, const char *gene_n
 		const char *chr, long start, long end, const char *strand, const char *ensg,
 		const char *ense);
 
+sqlite3_stmt *db_prepare_batch_stmt (sqlite3 *db);
+void db_insert_batch (sqlite3 *db, sqlite3_stmt *stmt, int id,
+		const char *timestamp);
+
 sqlite3_stmt * db_prepare_source_stmt (sqlite3 *db);
-void db_insert_source (sqlite3 *db, sqlite3_stmt *stmt, int id, const char *path);
+void db_insert_source (sqlite3 *db, sqlite3_stmt *stmt, int id,
+		int batch_id, const char *path);
 
 sqlite3_stmt * db_prepare_alignment_stmt (sqlite3 *db);
 void db_insert_alignment (sqlite3 *db, sqlite3_stmt *stmt, int id, const char *name,

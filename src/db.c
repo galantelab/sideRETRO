@@ -27,10 +27,18 @@ db_create_tables (sqlite3 *db)
 		"	ense TEXT NOT NULL,\n"
 		"	UNIQUE (ense));\n"
 		"\n"
+		"DROP TABLE IF EXISTS batch;\n"
+		"CREATE TABLE batch (\n"
+		"	id INTEGER PRIMARY KEY,\n"
+		"	timestamp TEXT NOT NULL);\n"
+		"\n"
 		"DROP TABLE IF EXISTS source;\n"
 		"CREATE TABLE source (\n"
-		"	id INTEGER PRIMARY KEY,\n"
-		"	path TEXT NOT NULL);\n"
+		"	id INTEGER NOT NULL,\n"
+		"	batch_id INTEGER NOT NULL,\n"
+		"	path TEXT NOT NULL,\n"
+		"	FOREIGN KEY (batch_id) REFERENCES batch(id),\n"
+		"	PRIMARY KEY (id, batch_id));\n"
 		"\n"
 		"DROP TABLE IF EXISTS alignment;\n"
 		"CREATE TABLE alignment (\n"
@@ -265,6 +273,58 @@ db_insert_exon (sqlite3 *db, sqlite3_stmt *stmt, int id, const char *gene_name,
 }
 
 sqlite3_stmt *
+db_prepare_batch_stmt (sqlite3 *db)
+{
+	log_trace ("Inside %s", __func__);
+	assert (db != NULL);
+
+	int rc = 0;
+	sqlite3_stmt *stmt = NULL;
+
+	const char sql[] =
+		"INSERT INTO batch (id,timestamp) VALUES (?1,?2)\n";
+
+	rc = sqlite3_prepare_v2 (db, sql, -1, &stmt, NULL);
+
+	if (rc != SQLITE_OK)
+		log_fatal ("Failed to prepare batch stmt: %s",
+				sqlite3_errmsg (db));
+
+	return stmt;
+}
+
+void
+db_insert_batch (sqlite3 *db, sqlite3_stmt *stmt, int id,
+		const char *timestamp)
+{
+	log_trace ("Inside %s", __func__);
+	assert (db != NULL && stmt != NULL && timestamp != NULL);
+
+	sqlite3_mutex_enter (sqlite3_db_mutex (db));
+
+	int rc = 0;
+
+	rc = sqlite3_reset (stmt);
+	if (rc != SQLITE_OK) log_fatal ("%s", sqlite3_errmsg (db));
+
+	rc = sqlite3_clear_bindings (stmt);
+	if (rc != SQLITE_OK) log_fatal ("%s", sqlite3_errmsg (db));
+
+	rc = sqlite3_bind_int (stmt, 1, id);
+	if (rc != SQLITE_OK) log_fatal ("%s", sqlite3_errmsg (db));
+
+	rc = sqlite3_bind_text (stmt, 2, timestamp, -1, SQLITE_TRANSIENT);
+	if (rc != SQLITE_OK) log_fatal ("%s", sqlite3_errmsg (db));
+
+	rc = sqlite3_step (stmt);
+	if (rc != SQLITE_DONE)
+		log_fatal ("Failed to insert batch data: %s",
+				sqlite3_errmsg (db));
+
+	sqlite3_mutex_leave (sqlite3_db_mutex (db));
+}
+
+sqlite3_stmt *
 db_prepare_source_stmt (sqlite3 *db)
 {
 	log_trace ("Inside %s", __func__);
@@ -274,7 +334,7 @@ db_prepare_source_stmt (sqlite3 *db)
 	sqlite3_stmt *stmt = NULL;
 
 	const char sql[] =
-		"INSERT INTO source (id,path) VALUES (?1,?2)\n";
+		"INSERT INTO source (id,batch_id,path) VALUES (?1,?2,?3)\n";
 
 	rc = sqlite3_prepare_v2 (db, sql, -1, &stmt, NULL);
 
@@ -287,7 +347,7 @@ db_prepare_source_stmt (sqlite3 *db)
 
 void
 db_insert_source (sqlite3 *db, sqlite3_stmt *stmt, int id,
-		const char *path)
+		int batch_id, const char *path)
 {
 	log_trace ("Inside %s", __func__);
 	assert (db != NULL && stmt != NULL && path != NULL);
@@ -305,7 +365,10 @@ db_insert_source (sqlite3 *db, sqlite3_stmt *stmt, int id,
 	rc = sqlite3_bind_int (stmt, 1, id);
 	if (rc != SQLITE_OK) log_fatal ("%s", sqlite3_errmsg (db));
 
-	rc = sqlite3_bind_text (stmt, 2, path, -1, SQLITE_TRANSIENT);
+	rc = sqlite3_bind_int (stmt, 2, batch_id);
+	if (rc != SQLITE_OK) log_fatal ("%s", sqlite3_errmsg (db));
+
+	rc = sqlite3_bind_text (stmt, 3, path, -1, SQLITE_TRANSIENT);
 	if (rc != SQLITE_OK) log_fatal ("%s", sqlite3_errmsg (db));
 
 	rc = sqlite3_step (stmt);

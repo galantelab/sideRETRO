@@ -1,6 +1,7 @@
 #include "config.h"
 
 #include <stdio.h>
+#include <time.h>
 #include <getopt.h>
 #include <assert.h>
 #include "wrapper.h"
@@ -39,13 +40,22 @@ process_sample (const char *output_dir, const char *prefix,
 	log_trace ("Inside %s", __func__);
 
 	sqlite3 *db = NULL;
+	sqlite3_stmt *batch_stmt = NULL;
 	sqlite3_stmt *source_stmt = NULL;
 	sqlite3_stmt *alignment_stmt = NULL;
 	sqlite3_stmt *exon_stmt = NULL;
 	sqlite3_stmt *overlapping_stmt = NULL;
+
 	ExonTree *exon_tree = NULL;
 	ChrStd *cs = NULL;
+
 	threadpool thpool = NULL;
+
+	const int batch_id = 1;
+	char timestamp[32] = {};
+	time_t t = 0;
+	struct tm *lt = NULL;
+
 	const char *sam_file = NULL;
 	const int num_files = array_len (sam_files);
 	char *db_file = NULL;
@@ -56,13 +66,14 @@ process_sample (const char *output_dir, const char *prefix,
 
 	log_info (">>> Process Sample step <<<");
 
-	log_debug ("Create output dir '%s'", output_dir);
+	log_info ("Create output dir '%s'", output_dir);
 	mkdir_p (output_dir);
 
 	// Create and connect to database
 	log_info ("Create and connect to database '%s'", db_file);
 	db = db_create (db_file);
-	source_stmt =  db_prepare_source_stmt (db);
+	batch_stmt = db_prepare_batch_stmt (db);
+	source_stmt = db_prepare_source_stmt (db);
 	alignment_stmt = db_prepare_alignment_stmt (db);
 	exon_stmt = db_prepare_exon_stmt (db);
 	overlapping_stmt = db_prepare_overlapping_stmt (db);
@@ -72,6 +83,17 @@ process_sample (const char *output_dir, const char *prefix,
 
 	// Begin transaction to speed up
 	db_begin_transaction (db);
+
+	// Get current local datetome as timestamp
+	// for batch table
+	t = time (NULL);
+	lt = localtime (&t);
+	timestamp[strftime (timestamp, sizeof (timestamp),
+			"%Y-%m-%d %H:%M:%S", lt)] = '\0';
+
+	// Dump batch entry
+	log_debug ("Dump batch entry %d => %s", batch_id, timestamp);
+	db_insert_batch (db, batch_stmt, batch_id, timestamp);
 
 	// Get chromosome standardization
 	cs = chr_std_new ();
@@ -108,7 +130,7 @@ process_sample (const char *output_dir, const char *prefix,
 			};
 
 			log_debug ("Dump source entry '%s'", sam_file);
-			db_insert_source (db, source_stmt, i + 1, sam_file);
+			db_insert_source (db, source_stmt, i + 1, batch_id, sam_file);
 
 			log_info ("Run abnormal filter for '%s'", sam_file);
 			thpool_add_work (thpool, (void *) abnormal_filter,
@@ -123,6 +145,7 @@ process_sample (const char *output_dir, const char *prefix,
 
 	// Time to clean
 	db_finalize (db, exon_stmt);
+	db_finalize (db, batch_stmt);
 	db_finalize (db, source_stmt);
 	db_finalize (db, alignment_stmt);
 	db_finalize (db, overlapping_stmt);
