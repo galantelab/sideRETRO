@@ -40,8 +40,8 @@ print_usage (FILE *fp)
 		"   -v, --version    Show current version\n"
 		"\n"
 		"Commands\n"
-		"   process-sample\n"
-		"   merge-call\n",
+		"   ps, process-sample\n"
+		"   mc, merge-call\n",
 		PACKAGE_STRING, PACKAGE, PACKAGE);
 }
 
@@ -107,9 +107,9 @@ main (int argc, char *argv[])
 		print_usage (stdout);
 	else if (argv[1][0] == '-')
 		rc = parse_no_command_opt (argc, argv);
-	else if (!strcmp (argv[1], "process-sample"))
+	else if (!strcmp (argv[1], "ps") || !strcmp (argv[1], "process-sample"))
 		rc = parse_process_sample_command_opt (argc, argv);
-	else if (!strcmp (argv[1], "merge-call"))
+	else if (!strcmp (argv[1], "mc") || !strcmp (argv[1], "merge-call"))
 		printf ("** Under construction **\n");
 	else
 		{
