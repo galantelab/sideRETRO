@@ -48,7 +48,7 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 
 	// Create and connect to database
 	log_info ("Connect to database '%s'", db_file);
-	db = db_create (db_file);
+	db = db_connect (db_file);
 	clustering_stmt = db_prepare_clustering_stmt (db);
 
 	// Increase the cache size
