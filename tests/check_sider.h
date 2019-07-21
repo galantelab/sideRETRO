@@ -17,5 +17,6 @@ Suite * make_abnormal_suite       (void);
 Suite * make_gff_suite            (void);
 Suite * make_io_suite             (void);
 Suite * make_process_sample_suite (void);
+Suite * make_dbscan_suite         (void);
 
 #endif /* check_sider.h */

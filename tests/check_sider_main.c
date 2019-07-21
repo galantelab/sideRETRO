@@ -25,6 +25,7 @@ main (void)
 	srunner_add_suite (sr, make_abnormal_suite ());
 	srunner_add_suite (sr, make_gff_suite ());
 	srunner_add_suite (sr, make_io_suite ());
+	srunner_add_suite (sr, make_dbscan_suite ());
 	/*srunner_set_tap (sr, "-");*/
 
 	srunner_run_all (sr, CK_NORMAL);

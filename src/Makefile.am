@@ -59,6 +59,8 @@ libsider_la_SOURCES = \
 		io.c \
 		io.h \
 		logger.c \
-		logger.h
+		logger.h \
+		dbscan.c \
+		dbscan.h
 
 libsider_la_CPPFLAGS = -I$(top_srcdir)/htslib
