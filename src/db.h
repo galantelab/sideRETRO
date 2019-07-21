@@ -37,4 +37,8 @@ sqlite3_stmt * db_prepare_overlapping_stmt (sqlite3 *db);
 void db_insert_overlapping (sqlite3 *db, sqlite3_stmt *stmt, int exon_id,
 	int alignment_id, long pos, long len);
 
+sqlite3_stmt * db_prepare_clustering_stmt (sqlite3 *db);
+void db_insert_clustering (sqlite3 *db, sqlite3_stmt *stmt, int cluster_id,
+	int alignment_id, int label, int neighbors);
+
 #endif /* db.h */

@@ -65,7 +65,16 @@ db_create_tables (sqlite3 *db)
 		"	len INTEGER NOT NULL,\n"
 		"	FOREIGN KEY (exon_id) REFERENCES exon(id),\n"
 		"	FOREIGN KEY (alignment_id) REFERENCES alignment(id),\n"
-		"	PRIMARY KEY (exon_id, alignment_id));";
+		"	PRIMARY KEY (exon_id, alignment_id));\n"
+		"\n"
+		"DROP TABLE IF EXISTS clustering;\n"
+		"CREATE TABLE clustering (\n"
+		"	id INTEGER PRIMARY KEY,\n"
+		"	cluster_id INTEGER NOT NULL,\n"
+		"	alignment_id INTEGER NOT NULL,\n"
+		"	label INTEGER NOT NULL,\n"
+		"	neighbors INTEGER NOT NULL,\n"
+		"	FOREIGN KEY (alignment_id) REFERENCES alignment(id));";
 
 	log_debug ("Database schema:\n%s", sql);
 	rc = sqlite3_exec (db, sql, NULL, NULL, &err_msg);
@@ -521,6 +530,65 @@ db_insert_overlapping (sqlite3 *db, sqlite3_stmt *stmt, int exon_id,
 	rc = sqlite3_step (stmt);
 	if (rc != SQLITE_DONE)
 		log_fatal ("Failed to insert overlapping data: %s",
+				sqlite3_errmsg (db));
+
+	sqlite3_mutex_leave (sqlite3_db_mutex (db));
+}
+
+sqlite3_stmt *
+db_prepare_clustering_stmt (sqlite3 *db)
+{
+	log_trace ("Inside %s", __func__);
+	assert (db != NULL);
+
+	int rc = 0;
+	sqlite3_stmt *stmt = NULL;
+
+	const char sql[] =
+		"INSERT INTO clustering (cluster_id,alignment_id,label,neighbors)\n"
+		"	VALUES (?1,?2,?3,?4)";
+
+	rc = sqlite3_prepare_v2 (db, sql, -1, &stmt, NULL);
+
+	if (rc != SQLITE_OK)
+		log_fatal ("Failed to prepare clustering stmt: %s",
+				sqlite3_errmsg (db));
+
+	return stmt;
+}
+
+void
+db_insert_clustering (sqlite3 *db, sqlite3_stmt *stmt, int cluster_id,
+	int alignment_id, int label, int neighbors)
+{
+	log_trace ("Inside %s", __func__);
+	assert (db != NULL && stmt != NULL);
+
+	sqlite3_mutex_enter (sqlite3_db_mutex (db));
+
+	int rc = 0;
+
+	rc = sqlite3_reset (stmt);
+	if (rc != SQLITE_OK) log_fatal ("%s", sqlite3_errmsg (db));
+
+	rc = sqlite3_clear_bindings (stmt);
+	if (rc != SQLITE_OK) log_fatal ("%s", sqlite3_errmsg (db));
+
+	rc = sqlite3_bind_int (stmt, 1, cluster_id);
+	if (rc != SQLITE_OK) log_fatal ("%s", sqlite3_errmsg (db));
+
+	rc = sqlite3_bind_int (stmt, 2, alignment_id);
+	if (rc != SQLITE_OK) log_fatal ("%s", sqlite3_errmsg (db));
+
+	rc = sqlite3_bind_int (stmt, 3, label);
+	if (rc != SQLITE_OK) log_fatal ("%s", sqlite3_errmsg (db));
+
+	rc = sqlite3_bind_int (stmt, 4, neighbors);
+	if (rc != SQLITE_OK) log_fatal ("%s", sqlite3_errmsg (db));
+
+	rc = sqlite3_step (stmt);
+	if (rc != SQLITE_DONE)
+		log_fatal ("Failed to insert clustering data: %s",
 				sqlite3_errmsg (db));
 
 	sqlite3_mutex_leave (sqlite3_db_mutex (db));
