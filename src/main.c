@@ -10,6 +10,7 @@
 #include "sqlite3.h"
 
 #include "process_sample.h"
+#include "merge_call.h"
 
 static void
 print_version (FILE *fp)
@@ -110,7 +111,7 @@ main (int argc, char *argv[])
 	else if (!strcmp (argv[1], "ps") || !strcmp (argv[1], "process-sample"))
 		rc = parse_process_sample_command_opt (argc, argv);
 	else if (!strcmp (argv[1], "mc") || !strcmp (argv[1], "merge-call"))
-		printf ("** Under construction **\n");
+		rc = parse_merge_call_command_opt (argc, argv);
 	else
 		{
 			fprintf (stderr, "%s: '%s' is not a valid command\n", PACKAGE, argv[1]);
