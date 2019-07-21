@@ -145,9 +145,13 @@ cluster (sqlite3 *db, sqlite3_stmt *clustering_stmt,
 			acm = dbscan_cluster (dbscan, eps, min_pts,
 					dump_clustering, &c);
 
+			c.id += acm;
+
 			log_debug ("Found %d clusters at %s",
 					acm, chr_prev);
 		}
+
+	log_info ("Found %d clusters", c.id);
 
 	xfree (chr_prev);
 	db_finalize (db, query_stmt);
