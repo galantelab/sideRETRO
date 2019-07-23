@@ -24,15 +24,13 @@ prepare_query_stmt (sqlite3 *db)
 	sqlite3_stmt *stmt = NULL;
 
 	const char sql[] =
-		"SELECT id, chr, pos, pos + rlen - 1\n"
-		"FROM alignment\n"
-		"WHERE qname IN (\n"
-		"	SELECT qname\n"
-		"	FROM alignment\n"
-		"	WHERE type & ?1\n"
-		")\n"
-		"AND NOT (type & ?2)\n"
-		"ORDER BY chr ASC, pos ASC;";
+		"SELECT a1.id, a1.chr, a1.pos, a1.pos + a1.rlen - 1\n"
+		"FROM alignment AS a1\n"
+		"INNER JOIN alignment AS a2\n"
+		"	ON a1.qname = a2.qname\n"
+		"WHERE a1.id != a2.id\n"
+		"	AND a2.type & ?1\n"
+		"ORDER BY a1.chr ASC;";
 
 	log_debug ("Query schema:\n%s", sql);
 	rc = sqlite3_prepare_v2 (db, sql, -1, &stmt, NULL);
@@ -42,9 +40,6 @@ prepare_query_stmt (sqlite3 *db)
 				sqlite3_errmsg (db));
 
 	rc = sqlite3_bind_int (stmt, 1, ABNORMAL_EXONIC);
-	if (rc != SQLITE_OK) log_fatal ("%s", sqlite3_errmsg (db));
-
-	rc = sqlite3_bind_int (stmt, 2, ABNORMAL_EXONIC);
 	if (rc != SQLITE_OK) log_fatal ("%s", sqlite3_errmsg (db));
 
 	return stmt;
