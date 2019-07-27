@@ -32,12 +32,8 @@ prepare_query_stmt (sqlite3 *db)
 		"ORDER BY a1.chr ASC;";
 
 	log_debug ("Query schema:\n%s", sql);
-
 	stmt = db_prepare (db, sql);
 	db_bind_int (stmt, 1, ABNORMAL_EXONIC);
-
-	log_debug ("Query schema compiled:\n%s",
-			sqlite3_sql (stmt));
 
 	return stmt;
 }
