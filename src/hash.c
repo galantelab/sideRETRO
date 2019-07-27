@@ -117,6 +117,18 @@ str_equal (const void *key1, const void *key2)
 	return !strcmp ((const char *) key1, (const char *) key2);
 }
 
+size_t
+int_hash (const void *key)
+{
+	return * (const int *) key;
+}
+
+int
+int_equal (const void *key1, const void *key2)
+{
+	return * (const int *) key1 == * (const int *) key2;
+}
+
 static inline size_t
 hash_calculate_bucket (Hash *hash, const void *key)
 {

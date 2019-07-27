@@ -42,6 +42,9 @@ typedef struct _HashIter HashIter;
 size_t str_hash  (const void *key);
 int    str_equal (const void *key1, const void *key2);
 
+size_t int_hash  (const void *key);
+int    int_equal (const void *key1, const void *key2);
+
 Hash * hash_new_full (size_t buckets, HashFunc hash_fun, EqualFun match_fun,
 		DestroyNotify destroy_key_fun, DestroyNotify destroy_value_fun);
 Hash * hash_new (size_t buckets, DestroyNotify destroy_key_fun,
