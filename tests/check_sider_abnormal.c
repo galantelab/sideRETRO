@@ -107,7 +107,7 @@ test_abnormal_init (TestAbnormal *a)
 	create_file (a->sam_path, sam);
 	create_file (a->gtf_path, gtf);
 
-	a->exon_tree = exon_tree_new (a->db, a->exon_stmt,
+	a->exon_tree = exon_tree_new (a->exon_stmt,
 			a->overlapping_stmt, a->cs);
 
 	exon_tree_index_dump (a->exon_tree, a->gtf_path);
@@ -120,7 +120,6 @@ test_abnormal_init (TestAbnormal *a)
 		.sam_file = a->sam_path,
 		.exon_tree = a->exon_tree,
 		.cs = a->cs,
-		.db = a->db,
 		.alignment_stmt = a->alignment_stmt,
 		.either = 0,
 		.exon_frac  = -1,
@@ -134,9 +133,9 @@ test_abnormal_destroy (TestAbnormal *a)
 	if (a == NULL)
 		return;
 
-	db_finalize (a->db, a->exon_stmt);
-	db_finalize (a->db, a->overlapping_stmt);
-	db_finalize (a->db, a->alignment_stmt);
+	db_finalize (a->exon_stmt);
+	db_finalize (a->overlapping_stmt);
+	db_finalize (a->alignment_stmt);
 
 	db_close (a->db);
 	chr_std_free (a->cs);
@@ -154,18 +153,9 @@ test_abnormal_destroy (TestAbnormal *a)
 static sqlite3_stmt *
 prepare_alignment_search (sqlite3 *db)
 {
-	sqlite3_stmt *search_stmt = NULL;
-	int rc = 0;
-
-	sqlite3_prepare_v2 (db,
-			"SELECT qname, chr, type FROM alignment ORDER BY qname ASC, chr ASC",
-			-1, &search_stmt, NULL);
-
-	if (rc != SQLITE_OK)
-		log_fatal ("Failed to prepare search stmt: %s",
-				sqlite3_errmsg (db));
-
-	return search_stmt;
+	const char sql[] =
+		"SELECT qname, chr, type FROM alignment ORDER BY qname ASC, chr ASC";
+	return db_prepare (db, sql);
 }
 
 START_TEST (test_abnormal_filter)
@@ -213,22 +203,22 @@ START_TEST (test_abnormal_filter)
 	search_stmt = prepare_alignment_search (a.db);
 
 	/* TIME TO TEST */
-	for (i = 0; sqlite3_step (search_stmt) == SQLITE_ROW; i++)
+	for (i = 0; db_step (search_stmt) == SQLITE_ROW; i++)
 		{
-			qname = sqlite3_column_text (search_stmt, 0);
+			qname = db_column_text (search_stmt, 0);
 			ck_assert_str_eq (qname, qnames_with_chr[i][0]);
 
-			chr = sqlite3_column_text (search_stmt, 1);
+			chr = db_column_text (search_stmt, 1);
 			ck_assert_str_eq (chr, qnames_with_chr[i][1]);
 
-			type = sqlite3_column_int (search_stmt, 2);
+			type = db_column_int (search_stmt, 2);
 			ck_assert_int_eq (type, types[i]);
 		}
 
 	ck_assert_uint_eq (i, alignment_size);
 
 	// Time to cleanup
-	db_finalize (a.db, search_stmt);
+	db_finalize (search_stmt);
 	test_abnormal_destroy (&a);
 }
 END_TEST

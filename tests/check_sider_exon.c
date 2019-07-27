@@ -122,7 +122,7 @@ test_exon_tree_init (TestExonTree *t)
 
 	create_gtf (t->gtf_path);
 
-	t->exon_tree = exon_tree_new (t->db, t->exon_stmt,
+	t->exon_tree = exon_tree_new (t->exon_stmt,
 			t->overlapping_stmt, t->cs);
 }
 
@@ -132,8 +132,8 @@ test_exon_tree_destroy (TestExonTree *t)
 	if (t == NULL)
 		return;
 
-	db_finalize (t->db, t->exon_stmt);
-	db_finalize (t->db, t->overlapping_stmt);
+	db_finalize (t->exon_stmt);
+	db_finalize (t->overlapping_stmt);
 
 	db_close (t->db);
 	chr_std_free (t->cs);
@@ -183,12 +183,12 @@ START_TEST (test_exon_tree_index_dump)
 	// are the same entries into gtf file
 	search_stmt = prepare_exon_search_stmt (t.db);
 
-	for (i = 0; sqlite3_step (search_stmt) == SQLITE_ROW; i++)
+	for (i = 0; db_step (search_stmt) == SQLITE_ROW; i++)
 		{
-			id = sqlite3_column_int (search_stmt, 0);
-			start = sqlite3_column_int64 (search_stmt, 1);
-			end = sqlite3_column_int64 (search_stmt, 2);
-			exon_id = sqlite3_column_text (search_stmt, 3);
+			id = db_column_int (search_stmt, 0);
+			start = db_column_int64 (search_stmt, 1);
+			end = db_column_int64 (search_stmt, 2);
+			exon_id = db_column_text (search_stmt, 3);
 
 			ck_assert_int_eq (start, gtf_pos[i][0]);
 			ck_assert_int_eq (end, gtf_pos[i][1]);
@@ -205,7 +205,7 @@ START_TEST (test_exon_tree_index_dump)
 		}
 
 	// Cleanup all the mess
-	db_finalize (t.db, search_stmt);
+	db_finalize (search_stmt);
 	test_exon_tree_destroy (&t);
 }
 END_TEST
@@ -213,18 +213,9 @@ END_TEST
 static sqlite3_stmt *
 prepare_overlapping_search_stmt (sqlite3 *db)
 {
-	sqlite3_stmt *search_stmt = NULL;
-	int rc = 0;
-
-	sqlite3_prepare_v2 (db,
-			"SELECT exon_id, alignment_id FROM overlapping ORDER BY exon_id ASC",
-			-1, &search_stmt, NULL);
-
-	if (rc != SQLITE_OK)
-		log_fatal ("Failed to prepare search stmt: %s",
-				sqlite3_errmsg (db));
-
-	return search_stmt;
+	const char sql[] =
+		"SELECT exon_id, alignment_id FROM overlapping ORDER BY exon_id ASC";
+	return db_prepare (db, sql);
 }
 
 START_TEST (test_exon_tree_lookup_dump)
@@ -279,13 +270,13 @@ START_TEST (test_exon_tree_lookup_dump)
 
 	search_stmt = prepare_overlapping_search_stmt (t.db);
 
-	for (i = 0; sqlite3_step (search_stmt) == SQLITE_ROW; i++)
+	for (i = 0; db_step (search_stmt) == SQLITE_ROW; i++)
 		{
-			exon_id = sqlite3_column_int (search_stmt, 0);
+			exon_id = db_column_int (search_stmt, 0);
 			ck_assert_int_eq (exon_id,
 					alignment_id_overlap_exon_id[i][1]);
 
-			alignment_id = sqlite3_column_int (search_stmt, 1);
+			alignment_id = db_column_int (search_stmt, 1);
 			ck_assert_int_eq (alignment_id,
 					alignment_id_overlap_exon_id[i][0]);
 		}
@@ -293,7 +284,7 @@ START_TEST (test_exon_tree_lookup_dump)
 	ck_assert_int_eq (i, alignment_id_overlap_exon_id_size);
 
 	// Cleanup all the mess
-	db_finalize (t.db, search_stmt);
+	db_finalize (search_stmt);
 	test_exon_tree_destroy (&t);
 }
 END_TEST

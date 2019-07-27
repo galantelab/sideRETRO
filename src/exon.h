@@ -9,7 +9,6 @@ struct _ExonTree
 {
 	Hash         *idx;
 	Hash         *cache;
-	sqlite3      *db;
 	sqlite3_stmt *exon_stmt;
 	sqlite3_stmt *overlapping_stmt;
 	ChrStd       *cs;
@@ -18,7 +17,7 @@ struct _ExonTree
 
 typedef struct _ExonTree ExonTree;
 
-ExonTree * exon_tree_new (sqlite3 *db, sqlite3_stmt *exon_stmt,
+ExonTree * exon_tree_new (sqlite3_stmt *exon_stmt,
 		sqlite3_stmt *overlapping_stmt, ChrStd *cs);
 
 void exon_tree_free (ExonTree *exon_tree);

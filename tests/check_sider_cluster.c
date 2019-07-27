@@ -26,7 +26,7 @@ create_db (char *db_path)
 }
 
 static void
-populate_db (sqlite3 *db, sqlite3_stmt *alignment_stmt,
+populate_db (sqlite3_stmt *alignment_stmt,
 		const char **id, int (*pos)[2], int size)
 {
 	int i = 0;
@@ -34,10 +34,10 @@ populate_db (sqlite3 *db, sqlite3_stmt *alignment_stmt,
 
 	for (; i < size; i++)
 		{
-			db_insert_alignment (db, alignment_stmt, ++j, id[i], 66,
+			db_insert_alignment (alignment_stmt, ++j, id[i], 66,
 					"chr1", pos[i][0], 60, "100M", pos[i][1], pos[i][1],
 					"chr1", 1, ABNORMAL_EXONIC, 1);
-			db_insert_alignment (db, alignment_stmt, ++j, id[i], 66,
+			db_insert_alignment (alignment_stmt, ++j, id[i], 66,
 					"chr1", pos[i][0], 60, "100M", pos[i][1], pos[i][1],
 					"chr1", 1, 0, 1);
 		}
@@ -46,19 +46,10 @@ populate_db (sqlite3 *db, sqlite3_stmt *alignment_stmt,
 sqlite3_stmt *
 prepare_query_stmt (sqlite3 *db)
 {
-	sqlite3_stmt *search_stmt = NULL;
-	int rc = 0;
-
-	sqlite3_prepare_v2 (db,
-			"SELECT cluster_id, alignment_id, label, neighbors\n"
-			"FROM clustering ORDER BY alignment_id ASC",
-			-1, &search_stmt, NULL);
-
-	if (rc != SQLITE_OK)
-		log_fatal ("Failed to prepare search stmt: %s",
-				sqlite3_errmsg (db));
-
-	return search_stmt;
+	const char sql[] =
+		"SELECT cluster_id, alignment_id, label, neighbors\n"
+		"FROM clustering ORDER BY alignment_id ASC";
+	return db_prepare (db, sql);
 }
 
 START_TEST (test_cluster)
@@ -106,25 +97,25 @@ START_TEST (test_cluster)
 	alignment_stmt = db_prepare_alignment_stmt (db);
 	clustering_stmt = db_prepare_clustering_stmt (db);
 
-	populate_db (db, alignment_stmt, id, pos, size);
+	populate_db (alignment_stmt, id, pos, size);
 
 	// RUN
-	cluster (db, clustering_stmt, eps, min_pts);
+	cluster (clustering_stmt, eps, min_pts);
 
 	// Let's get the clustering table values
 	search_stmt = prepare_query_stmt (db);
 
 	/* TIME TO TEST */
-	for (i = 0; sqlite3_step (search_stmt) == SQLITE_ROW; i++)
+	for (i = 0; db_step (search_stmt) == SQLITE_ROW; i++)
 		for (j = 0; j < true_size_col; j++)
-			ck_assert_int_eq (sqlite3_column_int (search_stmt, j),
+			ck_assert_int_eq (db_column_int (search_stmt, j),
 					true[i][j]);
 
 	ck_assert_int_eq (i, size);
 
-	db_finalize (db, alignment_stmt);
-	db_finalize (db, clustering_stmt);
-	db_finalize (db, search_stmt);
+	db_finalize (alignment_stmt);
+	db_finalize (clustering_stmt);
+	db_finalize (search_stmt);
 	db_close (db);
 	xunlink (db_file);
 }

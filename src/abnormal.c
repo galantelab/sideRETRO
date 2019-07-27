@@ -19,7 +19,6 @@ struct _AbnormalFilter
 	const char    *sam_file;
 	ExonTree      *exon_tree;
 	ChrStd        *cs;
-	sqlite3       *db;
 	sqlite3_stmt  *alignment_stmt;
 	int            either;
 	float          exon_frac;
@@ -212,7 +211,7 @@ dump_alignment (AbnormalFilter *argf, int type)
 					qname, align->core.flag, chr_std, align->core.pos + 1,
 					type);
 
-			db_insert_alignment (argf->db, argf->alignment_stmt,
+			db_insert_alignment (argf->alignment_stmt,
 					argf->alignment_id, qname, align->core.flag,
 					chr_std, align->core.pos + 1, align->core.qual,
 					argf->cigar->str, qlen, rlen, chr_std_next,
@@ -290,9 +289,9 @@ dump_if_abnormal (AbnormalFilter *argf)
 void
 abnormal_filter (AbnormalArg *arg)
 {
-	assert (arg != NULL && arg->sam_file != NULL && arg->db != NULL
-			&& arg->alignment_stmt != NULL && arg->exon_tree && arg->cs
-			&& arg->tid >= 0 && arg->num_threads > 0);
+	assert (arg != NULL && arg->sam_file != NULL
+			&& arg->alignment_stmt != NULL && arg->exon_tree
+			&& arg->cs && arg->tid >= 0 && arg->num_threads > 0);
 
 	int rc = 0;
 	AbnormalFilter argf = {};

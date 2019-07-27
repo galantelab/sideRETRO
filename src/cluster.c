@@ -10,7 +10,6 @@
 
 struct _Cluster
 {
-	sqlite3      *db;
 	sqlite3_stmt *clustering_stmt;
 	int           id;
 };
@@ -27,20 +26,18 @@ prepare_query_stmt (sqlite3 *db)
 		"SELECT a1.id, a1.chr, a1.pos, a1.pos + a1.rlen - 1\n"
 		"FROM alignment AS a1\n"
 		"INNER JOIN alignment AS a2\n"
-		"	ON a1.qname = a2.qname\n"
+		"	USING (qname)\n"
 		"WHERE a1.id != a2.id\n"
 		"	AND a2.type & ?1\n"
 		"ORDER BY a1.chr ASC;";
 
 	log_debug ("Query schema:\n%s", sql);
-	rc = sqlite3_prepare_v2 (db, sql, -1, &stmt, NULL);
 
-	if (rc != SQLITE_OK)
-		log_fatal ("Failed to prepare query stmt: %s",
-				sqlite3_errmsg (db));
+	stmt = db_prepare (db, sql);
+	db_bind_int (stmt, 1, ABNORMAL_EXONIC);
 
-	rc = sqlite3_bind_int (stmt, 1, ABNORMAL_EXONIC);
-	if (rc != SQLITE_OK) log_fatal ("%s", sqlite3_errmsg (db));
+	log_debug ("Query schema compiled:\n%s",
+			sqlite3_sql (stmt));
 
 	return stmt;
 }
@@ -55,17 +52,17 @@ dump_clustering (Point *p, void *user_data)
 			p->id + c->id, alignment_id, p->label,
 			p->neighbors);
 
-	db_insert_clustering (c->db, c->clustering_stmt,
+	db_insert_clustering (c->clustering_stmt,
 			p->id + c->id, alignment_id, p->label,
 			p->neighbors);
 }
 
 void
-cluster (sqlite3 *db, sqlite3_stmt *clustering_stmt,
+cluster (sqlite3_stmt *clustering_stmt,
 		long eps, int min_pts)
 {
 	log_trace ("Inside %s", __func__);
-	assert (db != NULL && clustering_stmt != NULL
+	assert (clustering_stmt != NULL
 			&& min_pts > 2);
 
 	DBSCAN *dbscan = NULL;
@@ -79,22 +76,22 @@ cluster (sqlite3 *db, sqlite3_stmt *clustering_stmt,
 	int acm = 0;
 
 	Cluster c = {
-		.db = db,
 		.clustering_stmt = clustering_stmt,
 		.id = 0
 	};
 
 	log_debug ("Prepare query stmt");
-	query_stmt = prepare_query_stmt (db);
+	query_stmt = prepare_query_stmt (
+			sqlite3_db_handle (clustering_stmt));
 
 	log_info ("Clustering abnormal alignments");
 
-	while (sqlite3_step (query_stmt) == SQLITE_ROW)
+	while (db_step (query_stmt) == SQLITE_ROW)
 		{
-			id = sqlite3_column_int (query_stmt, 0);
-			chr = sqlite3_column_text (query_stmt, 1);
-			low = sqlite3_column_int64 (query_stmt, 2);
-			high = sqlite3_column_int64 (query_stmt, 3);
+			id = db_column_int (query_stmt, 0);
+			chr = db_column_text (query_stmt, 1);
+			low = db_column_int64 (query_stmt, 2);
+			high = db_column_int64 (query_stmt, 3);
 
 			// First loop - Init dbscan and chr_prev
 			if (chr_prev == NULL)
@@ -149,6 +146,6 @@ cluster (sqlite3 *db, sqlite3_stmt *clustering_stmt,
 	log_info ("Found %d clusters", c.id);
 
 	xfree (chr_prev);
-	db_finalize (db, query_stmt);
+	db_finalize (query_stmt);
 	dbscan_free (dbscan);
 }

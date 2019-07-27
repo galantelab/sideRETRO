@@ -11,15 +11,14 @@
 #define EXON_HASHSIZ 64
 
 ExonTree *
-exon_tree_new (sqlite3 *db, sqlite3_stmt *exon_stmt,
+exon_tree_new (sqlite3_stmt *exon_stmt,
 		sqlite3_stmt *overlapping_stmt, ChrStd *cs)
 {
-	assert (db != NULL && exon_stmt != NULL
-			&& overlapping_stmt != NULL && cs != NULL);
+	assert (exon_stmt != NULL && overlapping_stmt != NULL
+			&& cs != NULL);
 
 	ExonTree *exon_tree = xcalloc (1, sizeof (ExonTree));
 
-	exon_tree->db = db;
 	exon_tree->exon_stmt = exon_stmt;
 	exon_tree->overlapping_stmt = overlapping_stmt;
 
@@ -120,7 +119,7 @@ exon_tree_index_dump (ExonTree *exon_tree,
 					ibitree_insert (tree, entry->start, entry->end,
 							alloc_id);
 
-					db_insert_exon (exon_tree->db, exon_tree->exon_stmt,
+					db_insert_exon (exon_tree->exon_stmt,
 							table_id, gene_name, chr_std, entry->start,
 							entry->end, strand, gene_id, exon_id);
 				}
@@ -141,7 +140,7 @@ dump_if_overlaps_exon (IBiTreeLookupData *ldata,
 			ldata->node_low, ldata->node_high, ldata->interval_low, ldata->interval_high,
 			ldata->overlap_pos, ldata->overlap_pos + ldata->overlap_len - 1);
 
-	db_insert_overlapping (exon_tree->db, exon_tree->overlapping_stmt, *exon_id,
+	db_insert_overlapping (exon_tree->overlapping_stmt, *exon_id,
 			exon_tree->alignment_id, ldata->overlap_pos, ldata->overlap_len);
 }
 

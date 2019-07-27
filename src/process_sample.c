@@ -93,7 +93,7 @@ process_sample (const char *output_dir, const char *prefix,
 
 	// Dump batch entry
 	log_debug ("Dump batch entry %d => %s", batch_id, timestamp);
-	db_insert_batch (db, batch_stmt, batch_id, timestamp);
+	db_insert_batch (batch_stmt, batch_id, timestamp);
 
 	// Get chromosome standardization
 	cs = chr_std_new ();
@@ -102,7 +102,7 @@ process_sample (const char *output_dir, const char *prefix,
 	// and its exons into an intervalar tree by
 	// chromosome
 	log_info ("Index annotation file '%s'", gff_file);
-	exon_tree = exon_tree_new (db, exon_stmt, overlapping_stmt, cs);
+	exon_tree = exon_tree_new (exon_stmt, overlapping_stmt, cs);
 	exon_tree_index_dump (exon_tree, gff_file);
 
 	log_info ("Create thread pool");
@@ -125,12 +125,11 @@ process_sample (const char *output_dir, const char *prefix,
 				.alignment_frac  = alignment_frac,
 				.exon_tree       = exon_tree,
 				.cs              = cs,
-				.db              = db,
 				.alignment_stmt  = alignment_stmt
 			};
 
 			log_debug ("Dump source entry '%s'", sam_file);
-			db_insert_source (db, source_stmt, i + 1, batch_id, sam_file);
+			db_insert_source (source_stmt, i + 1, batch_id, sam_file);
 
 			log_info ("Run abnormal filter for '%s'", sam_file);
 			thpool_add_work (thpool, (void *) abnormal_filter,
@@ -144,11 +143,11 @@ process_sample (const char *output_dir, const char *prefix,
 	db_end_transaction (db);
 
 	// Time to clean
-	db_finalize (db, exon_stmt);
-	db_finalize (db, batch_stmt);
-	db_finalize (db, source_stmt);
-	db_finalize (db, alignment_stmt);
-	db_finalize (db, overlapping_stmt);
+	db_finalize (exon_stmt);
+	db_finalize (batch_stmt);
+	db_finalize (source_stmt);
+	db_finalize (alignment_stmt);
+	db_finalize (overlapping_stmt);
 	db_close (db);
 
 	xfree (db_file);

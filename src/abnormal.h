@@ -20,7 +20,6 @@ struct _AbnormalArg
 	const char    *sam_file;
 	ExonTree      *exon_tree;
 	ChrStd        *cs;
-	sqlite3       *db;
 	sqlite3_stmt  *alignment_stmt;
 	int            either;
 	float          exon_frac;

@@ -46,7 +46,7 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 	/*log_info ("Create output dir '%s'", output_dir);*/
 	/*mkdir_p (output_dir);*/
 
-	// Create and connect to database
+	// Connect to database
 	log_info ("Connect to database '%s'", db_file);
 	db = db_connect (db_file);
 	clustering_stmt = db_prepare_clustering_stmt (db);
@@ -59,13 +59,13 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 
 	// RUN
 	log_info ("Run clustering step for '%s'", db_file);
-	cluster (db, clustering_stmt, epsilon, min_pts);
+	cluster (clustering_stmt, epsilon, min_pts);
 
 	// Commit
 	db_end_transaction (db);
 
 	// Cleanup
-	db_finalize (db, clustering_stmt);
+	db_finalize (clustering_stmt);
 	db_close (db);
 }
 
