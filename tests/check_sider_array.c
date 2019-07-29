@@ -10,7 +10,7 @@
 
 START_TEST (test_array)
 {
-	Array *arr = array_new (free);
+	Array *arr = array_new (xfree);
 	int ponga_size = 5;
 
 	char *ponga[] = {
@@ -35,7 +35,7 @@ END_TEST
 
 START_TEST (test_array_no_free_segment)
 {
-	Array *arr = array_new (free);
+	Array *arr = array_new (xfree);
 	int ponga_size = 5;
 
 	char *ponga[] = {
@@ -69,7 +69,7 @@ cmpstringp (const void *p1, const void *p2)
 
 START_TEST (test_array_uniq)
 {
-	Array *arr = array_new (free);
+	Array *arr = array_new (xfree);
 	int ponga_size = 15;
 
 	char *ponga[] = {
@@ -112,6 +112,155 @@ START_TEST (test_array_uniq)
 }
 END_TEST
 
+START_TEST (test_array_find)
+{
+	Array *arr = array_new (NULL);
+	int ponga_size = 5;
+	int rc = 0;
+	int i = 0;
+	int index_ = 0;
+
+	char *ponga[] = {
+		"Ponga1",
+		"Ponga2",
+		"Ponga3",
+		"Ponga4",
+		"Ponga5"
+	};
+
+	for (i = 0; i < ponga_size; i++)
+		array_add (arr, ponga[i]);
+
+	for (i = 0; i < ponga_size; i++)
+		{
+			rc = array_find (arr, ponga[i], &index_);
+			ck_assert_int_eq (rc, 1);
+			ck_assert_int_eq (index_, i);
+		}
+
+	rc = array_find (arr, "ponga66", &index_);
+	ck_assert_int_eq (rc, 0);
+
+	array_free (arr, 1);
+}
+END_TEST
+
+static int
+str_equal (const void *a, const void *b)
+{
+	return !strcmp (a, b);
+}
+
+START_TEST (test_array_find_with_equal_fun)
+{
+	Array *arr = array_new (xfree);
+	int ponga_size = 5;
+	int rc = 0;
+	int i = 0;
+	int index_ = 0;
+
+	char *ponga[] = {
+		"Ponga1",
+		"Ponga2",
+		"Ponga3",
+		"Ponga4",
+		"Ponga5"
+	};
+
+	for (i = 0; i < ponga_size; i++)
+		array_add (arr, xstrdup (ponga[i]));
+
+	for (i = 0; i < ponga_size; i++)
+		{
+			rc = array_find_with_equal_fun (arr, ponga[i],
+					str_equal, &index_);
+			ck_assert_int_eq (rc, 1);
+			ck_assert_int_eq (index_, i);
+		}
+
+	rc = array_find_with_equal_fun (arr, "ponga66",
+			str_equal, &index_);
+	ck_assert_int_eq (rc, 0);
+
+	array_free (arr, 1);
+}
+END_TEST
+
+START_TEST (test_array_remove)
+{
+	Array *arr = array_new (NULL);
+	int ponga_size = 5;
+	int rc = 0;
+	int i = 0;
+
+	char *ponga[] = {
+		"Ponga1",
+		"Ponga2",
+		"Ponga3",
+		"Ponga4",
+		"Ponga5"
+	};
+
+	for (i = 0; i < ponga_size; i++)
+		array_add (arr, ponga[i]);
+
+	rc = array_remove (arr, "Ponga1");
+	ck_assert_int_eq (rc, 1);
+	ck_assert_int_eq (array_len (arr), ponga_size - 1);
+
+	rc = array_remove (arr, "Ponga3");
+	ck_assert_int_eq (rc, 1);
+	ck_assert_int_eq (array_len (arr), ponga_size - 2);
+
+	rc = array_remove (arr, "Ponga5");
+	ck_assert_int_eq (rc, 1);
+	ck_assert_int_eq (array_len (arr), ponga_size - 3);
+
+	ck_assert_str_eq (array_get (arr, 0), "Ponga2");
+	ck_assert_str_eq (array_get (arr, 1), "Ponga4");
+
+	array_free (arr, 1);
+}
+END_TEST
+
+START_TEST (test_array_remove_index)
+{
+	Array *arr = array_new (NULL);
+	int ponga_size = 5;
+	int i = 0;
+
+	char *ponga[] = {
+		"Ponga1",
+		"Ponga2",
+		"Ponga3",
+		"Ponga4",
+		"Ponga5"
+	};
+
+	for (i = 0; i < ponga_size; i++)
+		array_add (arr, ponga[i]);
+
+	ck_assert (array_remove_index (arr, 10) == NULL);
+
+	ck_assert_str_eq (array_remove_index (arr, 0), ponga[0]);
+	ck_assert_int_eq (array_len (arr), ponga_size - 1);
+
+	ck_assert_str_eq (array_remove_index (arr, 3), ponga[4]);
+	ck_assert_int_eq (array_len (arr), ponga_size - 2);
+
+	ck_assert_str_eq (array_remove_index (arr, 1), ponga[2]);
+	ck_assert_int_eq (array_len (arr), ponga_size - 3);
+
+	ck_assert_str_eq (array_remove_index (arr, 0), ponga[1]);
+	ck_assert_int_eq (array_len (arr), ponga_size - 4);
+
+	ck_assert_str_eq (array_remove_index (arr, 0), ponga[3]);
+	ck_assert_int_eq (array_len (arr), ponga_size - 5);
+
+	array_free (arr, 1);
+}
+END_TEST
+
 Suite *
 make_array_suite (void)
 {
@@ -126,6 +275,10 @@ make_array_suite (void)
 
 	tcase_add_test (tc_core, test_array);
 	tcase_add_test (tc_core, test_array_uniq);
+	tcase_add_test (tc_core, test_array_find);
+	tcase_add_test (tc_core, test_array_find_with_equal_fun);
+	tcase_add_test (tc_core, test_array_remove);
+	tcase_add_test (tc_core, test_array_remove_index);
 	suite_add_tcase (s, tc_core);
 
 	/* Free test case */

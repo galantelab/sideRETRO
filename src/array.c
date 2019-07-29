@@ -79,6 +79,77 @@ array_add (Array *array, void *ptr)
 	array->pdata [array->len++] = ptr;
 }
 
+int
+array_find_with_equal_fun (Array *array, const void *needle,
+		EqualFun equal_fun, int *index_)
+{
+	assert (array != NULL && equal_fun != NULL && index_ != NULL);
+
+	int i = 0;
+	for (; i < array->len; i++)
+		{
+			if (equal_fun (needle, array->pdata[i]))
+				{
+					*index_ = i;
+					return 1;
+				}
+		}
+
+	return 0;
+}
+
+static int
+pointer_equal (const void *a, const void *b)
+{
+	return a == b;
+}
+
+int
+array_find (Array *array, const void *needle, int *index_)
+{
+	return array_find_with_equal_fun (array, needle,
+			pointer_equal, index_);
+}
+
+void *
+array_remove_index (Array *array, int index_)
+{
+	assert (array != NULL && index_ >= 0);
+
+	if (index_ >= array->len)
+		return NULL;
+
+	int i = 0;
+	void *data = array->pdata[index_];
+
+	if (array->element_free_func != NULL)
+		array->element_free_func (data);
+
+	for (i = index_ + 1; i < array->len; i++)
+		array->pdata[i - 1] = array->pdata[i];
+
+	array->pdata[i - 1] = NULL;
+	array->len--;
+
+	return data;
+}
+
+int
+array_remove (Array *array, void *data)
+{
+	assert (array != NULL);
+
+	int index_ = 0;
+
+	if (array_find (array, data, &index_))
+		{
+			array_remove_index (array, index_);
+			return 1;
+		}
+
+	return 0;
+}
+
 void
 array_sort (Array *array, CompareFunc compare_func)
 {

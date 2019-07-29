@@ -20,6 +20,13 @@ void     array_add  (Array *array, void *ptr);
 void     array_sort (Array *array, CompareFunc compare_func);
 void     array_uniq (Array *array, CompareFunc compare_func);
 
+int     array_find                (Array *array, const void *needle, int *index_);
+int     array_find_with_equal_fun (Array *array, const void *needle,
+		EqualFun equal_fun, int *index_);
+
+int    array_remove       (Array *array, void *data);
+void * array_remove_index (Array *array, int index_);
+
 #define array_len(array)        ((array)->len)
 #define array_get(array, index) ((array)->pdata[index])
 
