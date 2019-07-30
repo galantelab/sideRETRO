@@ -12,6 +12,7 @@
 #include "wrapper.h"
 #include "array.h"
 #include "cluster.h"
+#include "db_merge.h"
 #include "merge_call.h"
 
 #define DEFAULT_CACHE_SIZE     DB_DEFAULT_CACHE_SIZE
@@ -19,6 +20,7 @@
 #define DEFAULT_OUTPUT_DIR     "."
 #define DEFAULT_LOG_SILENT     0
 #define DEFAULT_LOG_LEVEL      LOG_INFO
+#define DEFAULT_IN_PLACE       0
 #define DEFAULT_EPS            300
 #define DEFAULT_MIN_PTS        10
 #define DEFAULT_LOG_FILE       NULL
@@ -26,33 +28,62 @@
 
 static void
 merge_call (const char *output_dir, const char *prefix, Array *db_files,
-		int cache_size, int epsilon, int min_pts)
+		const char *output_file, int cache_size, int epsilon, int min_pts)
 {
 	log_trace ("Inside %s", __func__);
 
 	sqlite3 *db = NULL;
 	sqlite3_stmt *clustering_stmt = NULL;
-
-	const char *db_file = NULL;
-	const int num_files = array_len (db_files);
-	int i = 0;
+	char *db_file = NULL;
 
 	log_info (">>> Merge Call step <<<");
 
+	log_info ("Create output dir '%s'", output_dir);
+	mkdir_p (output_dir);
+
 	// Merge all databases
-	// db_file =  db_merge ();
-	db_file = array_get (db_files, 0);
+	if (output_file != NULL)
+		{
+			// Use first database
+			db_file = xstrdup (output_file);
 
-	/*log_info ("Create output dir '%s'", output_dir);*/
-	/*mkdir_p (output_dir);*/
+			log_info ("Connect to database '%s'", db_file);
 
-	// Connect to database
-	log_info ("Connect to database '%s'", db_file);
-	db = db_connect (db_file);
-	clustering_stmt = db_prepare_clustering_stmt (db);
+			// Connect to database
+			db = db_connect (db_file);
+		}
+	else
+		{
+			// Assemble database output filename
+			xasprintf_concat (&db_file, "%s/%s.db",
+					output_dir, prefix);
+
+			log_info ("Create and connect to database '%s'", db_file);
+
+			// Create a new database
+			db = db_create (db_file);
+		}
 
 	// Increase the cache size
 	db_cache_size (db, cache_size);
+
+	// Create clustering statement
+	clustering_stmt = db_prepare_clustering_stmt (db);
+
+	// If there are files to merge with ...
+	if (array_len (db_files))
+		{
+			// Begin transaction to speed up
+			db_begin_transaction (db);
+
+			// Time to merge them all!
+			log_info ("Merge all files with '%s'", db_file);
+			db_merge (db, array_len (db_files),
+					(char **) array_data (db_files));
+
+			// Commit
+			db_end_transaction (db);
+		}
 
 	// Begin transaction to speed up
 	db_begin_transaction (db);
@@ -65,6 +96,7 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 	db_end_transaction (db);
 
 	// Cleanup
+	xfree (db_file);
 	db_finalize (clustering_stmt);
 	db_close (db);
 }
@@ -102,6 +134,8 @@ print_usage (FILE *fp)
 		"   -o, --output-dir        Output directory. Create the directory if it does\n"
 		"                           not exist [default:\"%s\"]\n"
 		"   -p, --prefix            Prefix output files [default:\"%s\"]\n"
+		"   -I, --in-place          Merge all databases with the first one of the list,\n"
+		"                           instead of creating a new file\n"
 		"   -c, --cache-size        Set SQLite3 cache size in KiB [default: \"%d\"]\n"
 		"   -e, --epsilon           DBSCAN: Maximum distance between two alignments\n"
 		"                           inside a cluster [default: \"%d\"]\n"
@@ -139,6 +173,7 @@ parse_merge_call_command_opt (int argc, char **argv)
 		{"quiet",           no_argument,       0, 'q'},
 		{"silent",          no_argument,       0, 'q'},
 		{"debug",           no_argument,       0, 'd'},
+		{"in-place",        no_argument,       0, 'I'},
 		{"log-file",        required_argument, 0, 'l'},
 		{"output-dir",      required_argument, 0, 'o'},
 		{"prefix",          required_argument, 0, 'p'},
@@ -153,12 +188,16 @@ parse_merge_call_command_opt (int argc, char **argv)
 	int         silent         = DEFAULT_LOG_SILENT;
 	int         log_level      = DEFAULT_LOG_LEVEL;
 	int         cache_size     = DEFAULT_CACHE_SIZE;
+	int         in_place       = DEFAULT_IN_PLACE;
 	int         epsilon        = DEFAULT_EPS;
 	int         min_pts        = DEFAULT_MIN_PTS;
 	const char *output_dir     = DEFAULT_OUTPUT_DIR;
 	const char *prefix         = DEFAULT_PREFIX;
 	const char *log_file       = DEFAULT_LOG_FILE;
 	const char *input_file     = DEFAULT_INPUT_FILE;
+
+	char *output_file = NULL;
+	int index_ = 0;
 
 	Array *db_files = array_new (xfree);
 	Logger *logger = NULL;
@@ -167,7 +206,7 @@ parse_merge_call_command_opt (int argc, char **argv)
 	int option_index = 0;
 	int c, i;
 
-	while ((c = getopt_long (argc, argv, "hqdl:o:p:c:e:m:i:", opt, &option_index)) >= 0)
+	while ((c = getopt_long (argc, argv, "hqdIl:o:p:c:e:m:i:", opt, &option_index)) >= 0)
 		{
 			switch (c)
 				{
@@ -185,6 +224,11 @@ parse_merge_call_command_opt (int argc, char **argv)
 				case 'd':
 					{
 						log_level = LOG_DEBUG;
+						break;
+					}
+				case 'I':
+					{
+						in_place = 1;
 						break;
 					}
 				case 'l':
@@ -287,8 +331,22 @@ parse_merge_call_command_opt (int argc, char **argv)
 
 	/*Final settings*/
 
+	// Copy the name of possible output file, if the
+	// user chose --in-place
+	if (in_place)
+		{
+			// Copy first file to use it as the final
+			// database
+			output_file = xstrdup (array_get (db_files, 0));
+
+			// Remove all repetitive output_file from list
+			while (array_find_with_equal_fun (db_files,
+						output_file, equalstring, &index_))
+				array_remove_index (db_files, index_);
+		}
+
 	// Avoid to include repetitive files
-	array_uniq (db_files, (CompareFunc) strcmp);
+	array_uniq (db_files, cmpstringp);
 
 	// If it's silent and no log file
 	// was passsed, then set log_level
@@ -303,10 +361,12 @@ parse_merge_call_command_opt (int argc, char **argv)
 	logger = logger_new (log_file, log_level, silent, 1);
 
 	// RUN FOOLS
-	merge_call (output_dir, prefix, db_files, cache_size, epsilon, min_pts);
+	merge_call (output_dir, prefix, db_files, output_file,
+			cache_size, epsilon, min_pts);
 
 Exit:
 	logger_free (logger);
 	array_free (db_files, 1);
+	xfree (output_file);
 	return rc;
 }
