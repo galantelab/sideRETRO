@@ -1,6 +1,11 @@
 #ifndef UTILS_H
 #define UTILS_H
 
+int equalstring    (const void *a, const void *b);
+int casequalstring (const void *a, const void *b);
+int cmpstringp     (const void *p1, const void *p2);
+int casecmpstringp (const void *p1, const void *p2);
+
 char * chomp       (char *str);
 char * trim        (char *str);
 char * trimc       (char *str, int c);

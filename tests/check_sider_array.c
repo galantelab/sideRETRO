@@ -5,6 +5,7 @@
 #include <check.h>
 #include "check_sider.h"
 
+#include "../src/utils.h"
 #include "../src/wrapper.h"
 #include "../src/array.h"
 
@@ -60,12 +61,6 @@ START_TEST (test_array_no_free_segment)
 	xfree (ponga2);
 }
 END_TEST
-
-static int
-cmpstringp (const void *p1, const void *p2)
-{
-	return strcmp (* (char * const *) p1, * (char * const *) p2);
-}
 
 START_TEST (test_array_uniq)
 {
@@ -145,12 +140,6 @@ START_TEST (test_array_find)
 }
 END_TEST
 
-static int
-str_equal (const void *a, const void *b)
-{
-	return !strcmp (a, b);
-}
-
 START_TEST (test_array_find_with_equal_fun)
 {
 	Array *arr = array_new (xfree);
@@ -173,13 +162,13 @@ START_TEST (test_array_find_with_equal_fun)
 	for (i = 0; i < ponga_size; i++)
 		{
 			rc = array_find_with_equal_fun (arr, ponga[i],
-					str_equal, &index_);
+					equalstring, &index_);
 			ck_assert_int_eq (rc, 1);
 			ck_assert_int_eq (index_, i);
 		}
 
 	rc = array_find_with_equal_fun (arr, "ponga66",
-			str_equal, &index_);
+			equalstring, &index_);
 	ck_assert_int_eq (rc, 0);
 
 	array_free (arr, 1);
