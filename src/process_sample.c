@@ -459,7 +459,7 @@ parse_process_sample_command_opt (int argc, char **argv)
 	*/
 
 	// Avoid to include repetitive files
-	array_uniq (sam_files, (CompareFunc) strcmp);
+	array_uniq (sam_files, cmpstringp);
 
 	// If it's silent and no log file
 	// was passsed, then set log_level
