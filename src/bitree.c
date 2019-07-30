@@ -117,10 +117,8 @@ bitree_preorder (BiTreeNode *node, Func func, void *user_data)
 	if (!bitree_is_eob (node))
 		{
 			func (node->data, user_data);
-			if (!bitree_is_eob (bitree_left (node)))
-				bitree_preorder (bitree_left (node), func, user_data);
-			if (!bitree_is_eob (bitree_right (node)))
-				bitree_preorder (bitree_right (node), func, user_data);
+			bitree_preorder (bitree_left (node), func, user_data);
+			bitree_preorder (bitree_right (node), func, user_data);
 		}
 }
 
@@ -129,11 +127,9 @@ bitree_inorder (BiTreeNode *node, Func func, void *user_data)
 {
 	if (!bitree_is_eob (node))
 		{
-			if (!bitree_is_eob (bitree_left (node)))
-				bitree_preorder (bitree_left (node), func, user_data);
+			bitree_inorder (bitree_left (node), func, user_data);
 			func (node->data, user_data);
-			if (!bitree_is_eob (bitree_right (node)))
-				bitree_preorder (bitree_right (node), func, user_data);
+			bitree_inorder (bitree_right (node), func, user_data);
 		}
 }
 
@@ -142,10 +138,8 @@ bitree_postorder (BiTreeNode *node, Func func, void *user_data)
 {
 	if (!bitree_is_eob (node))
 		{
-			if (!bitree_is_eob (bitree_left (node)))
-				bitree_preorder (bitree_left (node), func, user_data);
-			if (!bitree_is_eob (bitree_right (node)))
-				bitree_preorder (bitree_right (node), func, user_data);
+			bitree_postorder (bitree_left (node), func, user_data);
+			bitree_postorder (bitree_right (node), func, user_data);
 			func (node->data, user_data);
 		}
 }

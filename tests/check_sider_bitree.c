@@ -17,7 +17,9 @@ catcher (void *data, void *user_data)
 START_TEST (test_bitree)
 {
 	BiTree *tree = bitree_new (xfree);
-	List *list = list_new (NULL);
+	List *list1 = list_new (NULL);
+	List *list2 = list_new (NULL);
+	List *list3 = list_new (NULL);
 	ListElmt *cur = NULL;
 	int i = 0;
 
@@ -35,17 +37,42 @@ START_TEST (test_bitree)
 
 	ck_assert_int_eq (bitree_size (tree), 7);
 
-	bitree_traverse (PREORDER, bitree_root (tree), catcher, list);
-	ck_assert_int_eq (list_size (list), 7);
+	// Test preorder
+	bitree_traverse (PREORDER, bitree_root (tree), catcher, list1);
+	ck_assert_int_eq (list_size (list1), 7);
 
-	cur = list_head (list);
+	cur = list_head (list1);
 	const char *nodes_preorder[] = {"root", "left", "left_left",
 		"left_right", "right", "right_left", "right_right"};
 
-	for (; cur != NULL; cur = list_next (cur), i++)
+	for (i = 0; cur != NULL; cur = list_next (cur), i++)
 		ck_assert_str_eq (list_data (cur), nodes_preorder[i]);
 
-	list_free (list);
+	// Test inorder
+	bitree_traverse (INORDER, bitree_root (tree), catcher, list2);
+	ck_assert_int_eq (list_size (list2), 7);
+
+	cur = list_head (list2);
+	const char *nodes_inorder[] = {"left_left", "left", "left_right",
+		"root", "right_left", "right", "right_right"};
+
+	for (i = 0; cur != NULL; cur = list_next (cur), i++)
+		ck_assert_str_eq (list_data (cur), nodes_inorder[i]);
+
+	// Test postorder
+	bitree_traverse (POSTORDER, bitree_root (tree), catcher, list3);
+	ck_assert_int_eq (list_size (list3), 7);
+
+	cur = list_head (list3);
+	const char *nodes_postorder[] = {"left_left", "left_right", "left",
+		"right_left", "right_right", "right", "root"};
+
+	for (i = 0; cur != NULL; cur = list_next (cur), i++)
+		ck_assert_str_eq (list_data (cur), nodes_postorder[i]);
+
+	list_free (list1);
+	list_free (list2);
+	list_free (list3);
 	bitree_free (tree);
 }
 END_TEST
