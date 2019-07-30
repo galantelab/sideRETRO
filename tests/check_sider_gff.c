@@ -49,6 +49,7 @@ START_TEST (test_gff_read)
 	// Our heroes!
 	GffFile *fp = NULL;
 	GffEntry *e = NULL;
+	GffEntry *dup = NULL;
 
 	// Create gtf file
 	char gtf_path[] = "/tmp/ponga.gtf.XXXXXX";
@@ -98,7 +99,21 @@ START_TEST (test_gff_read)
 	ck_assert_int_eq (e->num_line, gtf_num_lines);
 	ck_assert_int_eq (i, gtf_size);
 
+	dup = gff_entry_dup (e);
+
+	ck_assert_str_eq (dup->seqname, e->seqname);
+	ck_assert_str_eq (dup->feature, e->feature);
+
+	ck_assert_int_eq (dup->start, e->start);
+	ck_assert_int_eq (dup->end, e->end);
+
+	ck_assert_str_eq (gff_attribute_find (dup, "gene_id"),
+			gff_attribute_find (e, "gene_id"));
+	ck_assert_str_eq (gff_attribute_find (dup, "transcript_id"),
+			gff_attribute_find (e, "transcript_id"));
+
 	// Cleanup
+	gff_entry_free (dup);
 	gff_entry_free (e);
 	gff_close (fp);
 	xunlink (gtf_path);
