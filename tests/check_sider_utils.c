@@ -11,6 +11,51 @@
 #include "../src/wrapper.h"
 #include "../src/utils.h"
 
+START_TEST (test_equalstring)
+{
+	const char str1[] = "string test 1";
+	const char str2[] = "string test 2";
+	const char str3[] = "string test 1";
+
+	ck_assert_int_eq (equalstring (str1, str2), 0);
+	ck_assert_int_eq (equalstring (str1, str3), 1);
+}
+END_TEST
+
+START_TEST (test_casequalstring)
+{
+	const char str1[] = "STRING TEST 1";
+	const char str2[] = "string test 2";
+	const char str3[] = "string test 1";
+
+	ck_assert_int_eq (casequalstring (str1, str2), 0);
+	ck_assert_int_eq (casequalstring (str1, str3), 1);
+}
+END_TEST
+
+START_TEST (test_cmpstringp)
+{
+	const char *str1 = "alpha";
+	const char *str2 = "beta";
+	const char *str3 = "gamma";
+
+	ck_assert_int_lt (cmpstringp (&str1, &str2), 0);
+	ck_assert_int_gt (cmpstringp (&str3, &str2), 0);
+	ck_assert_int_eq (cmpstringp (&str2, &str2), 0);
+}
+END_TEST
+
+START_TEST (test_casecmpstringp)
+{
+	const char *str1 = "ALPHA";
+	const char *str2 = "alpha";
+	const char *str3 = "GAMMA";
+
+	ck_assert_int_eq (casecmpstringp (&str1, &str2), 0);
+	ck_assert_int_gt (casecmpstringp (&str3, &str2), 0);
+}
+END_TEST
+
 START_TEST (test_chomp)
 {
 	char str[] = "PONGA";
@@ -207,6 +252,10 @@ make_utils_suite (void)
 	/* Core test case */
 	tc_core = tcase_create ("Core");
 
+	tcase_add_test (tc_core, test_equalstring);
+	tcase_add_test (tc_core, test_casequalstring);
+	tcase_add_test (tc_core, test_cmpstringp);
+	tcase_add_test (tc_core, test_casecmpstringp);
 	tcase_add_test (tc_core, test_chomp);
 	tcase_add_test (tc_core, test_trimc);
 	tcase_add_test (tc_core, test_trim);
