@@ -28,6 +28,7 @@ int    array_remove       (Array *array, void *data);
 void * array_remove_index (Array *array, int index_);
 
 #define array_len(array)        ((array)->len)
+#define array_data(array)       ((array)->pdata)
 #define array_get(array, index) ((array)->pdata[index])
 
 #endif /* array.h */
