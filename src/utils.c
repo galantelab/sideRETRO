@@ -8,6 +8,7 @@
 #include <stdarg.h>
 #include <libgen.h>
 #include <string.h>
+#include <signal.h>
 #include "wrapper.h"
 #include "utils.h"
 
@@ -277,4 +278,16 @@ mkdir_p (const char *path)
 		}
 
 	xmkdir (path_copy, S_IRWXU);
+}
+
+void
+setup_signal (int sig, void (*handler)(int))
+{
+	struct sigaction action;
+
+	action.sa_handler = handler;
+	sigemptyset (&action.sa_mask);
+	action.sa_flags = 0;
+
+	xsigaction (sig, &action, NULL);
 }

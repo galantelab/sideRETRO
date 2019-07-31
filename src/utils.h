@@ -24,4 +24,6 @@ char * xstrdup_concat   (char *dest, const char *src);
 int    xasprintf_concat (char **strp, const char *fmt, ...)
 	__attribute__((format (printf, 2, 3)));
 
+void setup_signal (int sig, void (*handler)(int));
+
 #endif /* utils.h */
