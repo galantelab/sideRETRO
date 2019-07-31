@@ -19,5 +19,6 @@ Suite * make_io_suite             (void);
 Suite * make_process_sample_suite (void);
 Suite * make_dbscan_suite         (void);
 Suite * make_cluster_suite        (void);
+Suite * make_wrapper_suite        (void);
 
 #endif /* check_sider.h */
