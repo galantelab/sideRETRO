@@ -328,6 +328,34 @@ START_TEST (test_hash_get_values_as_array)
 }
 END_TEST
 
+START_TEST (test_hash_int)
+{
+	Hash *h = NULL;
+	int i = 0;
+	int *n = NULL;
+
+	h = hash_new_full (HASH_SMALL_SIZE,
+			int_hash, int_equal, NULL, xfree);
+
+	for (i = 0; i < 100; i++)
+		{
+			n = xcalloc (1, sizeof (int));
+			*n = i;
+			hash_insert (h, n, n);
+		}
+
+	ck_assert_int_eq (hash_size (h), 100);
+
+	for (i = 0; i < 100; i++)
+		{
+			n = hash_lookup (h, &i);
+			ck_assert_int_eq (*n, i);
+		}
+
+	hash_free (h);
+}
+END_TEST
+
 Suite *
 make_hash_suite (void)
 {
@@ -346,6 +374,7 @@ make_hash_suite (void)
 	tcase_add_test (tc_core, test_hash_replace);
 	tcase_add_test (tc_core, test_hash_remove);
 	tcase_add_test (tc_core, test_hash_contains);
+	tcase_add_test (tc_core, test_hash_int);
 	suite_add_tcase (s, tc_core);
 
 	/* Misc test case */
