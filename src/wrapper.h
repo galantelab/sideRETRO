@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <signal.h>
 
 void * xmalloc    (size_t size);
 void * xcalloc    (size_t nmemb, size_t size);
@@ -21,6 +22,8 @@ int    xpclose    (FILE *pp);
 void   xunlink    (const char *file);
 int    xmkstemp   (char *template);
 void   xmkdir     (const char *pathname, int mode);
+void   xsigaction (int sig, const struct sigaction *restrict act,
+		struct sigaction *restrict oact);
 
 void   xfputs     (const char *str, FILE *fp);
 

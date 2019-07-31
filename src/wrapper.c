@@ -246,3 +246,11 @@ xmkdir (const char *path, int mode)
 		if (errno != EEXIST)
 			log_errno_fatal ("mkdir failed to create dir '%s'", path);
 }
+
+void
+xsigaction (int sig, const struct sigaction *restrict act,
+		struct sigaction *restrict oact)
+{
+	if (sigaction (sig, act, oact) == -1)
+		log_errno_fatal ("sigaction failed");
+}
