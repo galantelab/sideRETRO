@@ -5,9 +5,11 @@
 #include <string.h>
 #include <dirent.h>
 #include <errno.h>
+#include <signal.h>
 #include <check.h>
 #include "check_sider.h"
 
+#include "../src/log.h"
 #include "../src/wrapper.h"
 #include "../src/utils.h"
 
@@ -241,6 +243,41 @@ START_TEST (test_mkdir_p)
 }
 END_TEST
 
+static void
+test_sigint (int sig)
+{
+	ck_assert_int_eq (sig, SIGINT);
+}
+
+static void
+test_sigterm (int sig)
+{
+	ck_assert_int_eq (sig, SIGTERM);
+}
+
+static void
+test_sigquit (int sig)
+{
+	ck_assert_int_eq (sig, SIGQUIT);
+}
+
+START_TEST (test_setup_signal)
+{
+	setup_signal (SIGINT, test_sigint);
+	setup_signal (SIGQUIT, test_sigquit);
+	setup_signal (SIGTERM, test_sigterm);
+
+	if (raise (SIGINT))
+		log_errno_fatal ("raise failed");
+
+	if (raise (SIGQUIT))
+		log_errno_fatal ("raise failed");
+
+	if (raise (SIGTERM))
+		log_errno_fatal ("raise failed");
+}
+END_TEST
+
 Suite *
 make_utils_suite (void)
 {
@@ -268,6 +305,7 @@ make_utils_suite (void)
 	tcase_add_test (tc_core, test_xstrdup_concat);
 	tcase_add_test (tc_core, test_xasprintf_concat);
 	tcase_add_test (tc_core, test_mkdir_p);
+	tcase_add_test (tc_core, test_setup_signal);
 	suite_add_tcase (s, tc_core);
 
 	return s;

@@ -10,7 +10,15 @@
 #include "check_sider.h"
 
 #include "../src/log.h"
+#include "../src/utils.h"
 #include "../src/wrapper.h"
+
+static void
+handle_sigabrt (int sig)
+{
+	if (sig == SIGABRT)
+		exit (1);
+}
 
 START_TEST (test_xmalloc)
 {
@@ -277,10 +285,45 @@ START_TEST (test_xfprintf)
 }
 END_TEST
 
+static void
+dummy_sigterm_handler (int sig)
+{
+	ck_assert_int_eq (SIGTERM, sig);
+	// Do nothing
+}
+
+START_TEST (test_xsigaction)
+{
+	struct sigaction action;
+
+	action.sa_handler = dummy_sigterm_handler;
+	sigemptyset (&action.sa_mask);
+	action.sa_flags = 0;
+
+	xsigaction (SIGTERM, &action, NULL);
+
+	if (raise (SIGTERM) == -1)
+		log_errno_fatal ("raise failed");
+}
+END_TEST
+
+START_TEST (test_xsigaction_abort)
+{
+	struct sigaction action;
+
+	action.sa_handler = NULL;
+	sigemptyset (&action.sa_mask);
+	action.sa_flags = 0;
+
+	xsigaction (123456789, &action, NULL);
+}
+END_TEST
+
 Suite *
 make_wrapper_suite (void)
 {
 	log_set_quiet (1);
+	setup_signal (SIGABRT, handle_sigabrt);
 
 	Suite *s;
 	TCase *tc_core;
@@ -307,16 +350,18 @@ make_wrapper_suite (void)
 	tcase_add_test (tc_core, test_xmkdir);
 	tcase_add_test (tc_core, test_xasprintf);
 	tcase_add_test (tc_core, test_xfprintf);
+	tcase_add_test (tc_core, test_xsigaction);
 
-	tcase_add_test_raise_signal (tc_abort, test_xfopen_rw_abort, 6);
-	tcase_add_test_raise_signal (tc_abort, test_xfopen_w_abort, 6);
-	tcase_add_test_raise_signal (tc_abort, test_xfopen_r_abort, 6);
-	tcase_add_test_raise_signal (tc_abort, test_xfdopen_rw_abort, 6);
-	tcase_add_test_raise_signal (tc_abort, test_xfdopen_w_abort, 6);
-	tcase_add_test_raise_signal (tc_abort, test_xfdopen_r_abort, 6);
+	tcase_add_exit_test (tc_abort, test_xfopen_rw_abort, 1);
+	tcase_add_exit_test (tc_abort, test_xfopen_w_abort, 1);
+	tcase_add_exit_test (tc_abort, test_xfopen_r_abort, 1);
+	tcase_add_exit_test (tc_abort, test_xfdopen_rw_abort, 1);
+	tcase_add_exit_test (tc_abort, test_xfdopen_w_abort, 1);
+	tcase_add_exit_test (tc_abort, test_xfdopen_r_abort, 1);
+	tcase_add_exit_test (tc_abort, test_xmkdir_abort, 1);
+	tcase_add_exit_test (tc_abort, test_xsigaction_abort, 1);
 	tcase_add_test (tc_abort, test_xpopen_r_abort);
 	tcase_add_test (tc_abort, test_xpopen_w_abort);
-	tcase_add_test_raise_signal (tc_abort, test_xmkdir_abort, 6);
 
 	suite_add_tcase (s, tc_core);
 	suite_add_tcase (s, tc_abort);
