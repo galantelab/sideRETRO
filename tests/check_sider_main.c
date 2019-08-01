@@ -28,6 +28,7 @@ main (void)
 	srunner_add_suite (sr, make_dbscan_suite ());
 	srunner_add_suite (sr, make_cluster_suite ());
 	srunner_add_suite (sr, make_wrapper_suite ());
+	srunner_add_suite (sr, make_db_merge_suite ());
 	/*srunner_set_tap (sr, "-");*/
 
 	srunner_run_all (sr, CK_NORMAL);
