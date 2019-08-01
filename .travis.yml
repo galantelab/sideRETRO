@@ -17,7 +17,7 @@ script:
   - make check CFLAGS='-O0 --coverage'
 after_success:
   - lcov --directory . --capture --output-file cov.info
-  - lcov --remove cov.info '*tests*' '*sqlite3*' '*log*' '*db.c' -o cov.info
+  - lcov --remove cov.info '*tests*' '*sqlite3*' '*log*' -o cov.info
   - lcov --list cov.info
   - coveralls-lcov cov.info
 after_failure:
