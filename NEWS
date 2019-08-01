@@ -1,3 +1,22 @@
+Version 0.6.0
+
+* Add DBSCAN algorithm - Density-Based Spatial
+  Clustering of Applications with Noise. Its
+  purpose is making an one-dimensional
+  groupping of all reads per chromosome.
+
+* Add CLI - Command Line Interface - based
+  in subcommands: For now, there are two
+  subcommands: processing-sample (alias
+  ps) and merge-call (alias mc).
+
+* Add low-level wrappers on SQLite3 functions
+  in order to avoid so many testing against
+  each statement.
+
+* Improve testing coverage with gcov, lcov
+  and COVERALLS platform.
+
 Version 0.5.0
 
 * Add a 'str' interface to handle string
@@ -26,7 +45,7 @@ Version 0.5.0
   are recorded into the 'SQLite3' database.
 
 * Add 'exon' interface. Its job is seach for
-  abnormal alignments that overlaps some exon.
+  abnormal alignments that overlap some exon.
 
 Version 0.4.0
 

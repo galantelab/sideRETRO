@@ -1,3 +1,153 @@
+2019-08-01 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* Version 0.6.0
+
+	* ADD: check_sider_db_merge.c: Test db_merge.c
+
+2019-07-31 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: check_sider_db.c: Test low-level and schema
+
+	* ADD: check_sider_{utils,wrapper}.c: signal test
+
+	* ADD: utils.c (setup_signal)
+
+	Add setup_signal function to facilitate signal handling
+
+	* ADD: wrapper.c (xsigaction)
+
+	* ADD: check_sider_hash.c (test_hash_int)
+
+2019-07-30 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: check_sider_wrapper.c
+
+	Add tests for wrapper interface
+
+	* ADD: check_sider_utils.c (equalstring, cmpstringp)
+
+	* ADD: COVERALLS support via TravisCI
+
+	* FIX: check_sider_cluster.c coverage
+
+2019-07-29 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* FIX: bitree.c (bitree_traverse)
+
+	Fix bitree inorder, preorder, postorder traverse
+
+	* ADD: gff.c tests (gff_entry_dup)
+
+	* ADD: merge_call.c: option --in-place
+
+	* FIX: process_sample.c (cmpstringp)
+
+	* ADD: array.c (array_data)
+
+	* ADD: utils.c (cmpstringp, equalstring)
+
+	* ADD: array.c (find, remove)
+
+	Add array_find, array_find_with_equal_fun, array_remove and
+	array_remove_index
+
+2019-07-27 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* REMOVE: cluster.c (prepare_query_stmt)
+
+	Remove unnecessary log_debug showing the sql statement compiled
+
+	* ADD: db_merge.c interface
+
+	Add db_merge function to merge all batchs into one SQLite3 database. The
+	function aims to append new values without breaking foreign key
+	constraints. The table 'exon' cannot hold duplicate values, so all
+	values of the first database is inserted, whereas the following
+	databases values are inserted if they are not present in the merged
+	table
+
+	* ADD: hash.c (int_hash, int_equal)
+
+	* CHANGE: dbc: More wrappers on SQLite3
+
+	Add low-level wrappers on SQLite3 functions in order to avoid so many
+	testing against each statement. Now the sqlite3_stmt methods wrappers
+	can be called just with its 'class' - no need to pass sqlite3 object as
+	well
+
+2019-07-23 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* FIX: cluster.c (prepare_query_stmt)
+
+	Change SQL select statement, in order to catch the reads which
+	falls into an exonic region and whose mate, as well, falls into an
+	exonic region
+
+	* ADD: check_sider_cluster.c testing  for cluster.c
+
+2019-07-21 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* FIX: merge_call.c (merge_call): db_connect
+
+	* ADD: cluster.c (cluster): Print number of clusters
+
+	* ADD: merge-call command
+
+	* ADD: cluster.c interface
+
+	Add 'cluster' to handle DBSCAN calling
+
+2019-07-20 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: db.c (db_{prepare,insert}_clustering)
+
+	Add table 'clustering' to database in order to keep organized the
+	possibilities of retrocopies found
+
+	* ADD: dbscan.c interface
+
+	* Add DBSCAN (Density-Based Spatial Clustering of Applications with Noise)
+
+2019-07-18 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* FIX: process_sample.c (parse_process_sample ..)
+
+	Test for arguments and options just at the beggining of the function
+
+	* ADD: main.c (main): Short alias to subcommands
+
+	* ADD: db.c (db_create_tables): New table 'batch'
+
+	Add a new table called 'batch', in order to keep a grouping relation
+	among all SAM/BAM files processed at process-sample step
+
+2019-07-17 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: CLI interface based in subcommands
+
+	In db.c, remove the column 'name' from table 'source', so it requires
+	only one id and the alignment file path.
+	Finally, begin to implement CLI interface based in subcommands. For now
+	there is only one subcommand working: 'process-sample'
+
+	* ADD: logger.c interface
+
+	logger interface handles log.c attributes, so it allocs mutex and open
+	log file - dealing with the file pointer as well.
+
+	* FIX: check_sider_abnormal.c: Remove gtf tempfile
+
+	* ADD: utils.c (mkdir_p): Works similar to mkdir -p
+
+	* ADD: wrapper.c (xmkdir)
+
+	* ADD: io.c interface to handle input file
+
+	Also fix tests for check_sider_process_sample.c - It was renamed from
+	check_sider_sider.c
+
+	* RENAME: sider.c -> process_sample.c
+
 2019-07-12 Thiago L. A. Miller <tmiller@mochsl.org.br>
 
 	* Version 0.5.0
