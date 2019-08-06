@@ -5,8 +5,6 @@
 #include "chr.h"
 #include "exon.h"
 
-#define ABNORMAL_DISTANCE_CUTOFF 10000
-
 enum _AbnormalType
 {
 	ABNORMAL_NONE          = 0,
@@ -27,6 +25,7 @@ struct _AbnormalArg
 	ChrStd        *cs;
 	sqlite3_stmt  *alignment_stmt;
 	int            queryname_sorted;
+	int            max_distance;
 	int            either;
 	float          exon_frac;
 	float          alignment_frac;

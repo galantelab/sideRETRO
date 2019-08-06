@@ -24,6 +24,7 @@ struct _AbnormalFilter
 	ChrStd        *cs;
 	sqlite3_stmt  *alignment_stmt;
 	int            queryname_sorted;
+	int            max_distance;
 	int            either;
 	float          exon_frac;
 	float          alignment_frac;
@@ -101,7 +102,8 @@ abnormal_filter_destroy (AbnormalFilter *argf)
 }
 
 static inline int
-abnormal_classifier (const bam1_t *align, AbnormalType *type)
+abnormal_classifier (const bam1_t *align, int max_distance,
+		AbnormalType *type)
 {
 	/*
 	* abnormal alignment must be:
@@ -122,14 +124,14 @@ abnormal_classifier (const bam1_t *align, AbnormalType *type)
 	/*
 	* - reads at different chromosomes
 	* - or distance between the pairs is bigger
-	*   than ABNORMAL_DISTANCE_CUTOFF
+	*   than max_distance
 	*/
 	if (align->core.tid != align->core.mtid)
 		{
 			*type |= ABNORMAL_CHROMOSOME;
 		}
 	else if (abs (align->core.pos - align->core.mpos)
-			> ABNORMAL_DISTANCE_CUTOFF)
+			> max_distance)
 		{
 			*type |= ABNORMAL_DISTANCE;
 		}
@@ -228,7 +230,7 @@ dump_stack_if_abnormal (AbnormalFilter *argf, const List *stack)
 		{
 			align = list_data (cur);
 
-			if (!abnormal_classifier (align, &rtype))
+			if (!abnormal_classifier (align, argf->max_distance, &rtype))
 				return;
 
 			type |= rtype;
@@ -385,7 +387,7 @@ parse_unsorted_sam (AbnormalFilter *argf)
 		{
 			argf->alignment_acm++;
 
-			if (!abnormal_classifier (argf->align, &type))
+			if (!abnormal_classifier (argf->align, argf->max_distance, &type))
 				{
 					name = xstrdup (bam_get_qname (argf->align));
 					list_append (blacklist_ids, name);

@@ -139,6 +139,7 @@ test_abnormal_init (TestAbnormal *a, const char *sam)
 		.exon_tree = a->exon_tree,
 		.cs = a->cs,
 		.alignment_stmt = a->alignment_stmt,
+		.max_distance = 10000,
 		.either = 0,
 		.exon_frac  = -1,
 		.alignment_frac = -1,

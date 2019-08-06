@@ -17,24 +17,27 @@
 #include "abnormal.h"
 #include "process_sample.h"
 
-#define DEFAULT_CACHE_SIZE     DB_DEFAULT_CACHE_SIZE
-#define DEFAULT_THREADS        1
-#define DEFAULT_EXON_FRAC      1e-09
-#define DEFAULT_ALIGNMENT_FRAC 1e-09
-#define DEFAULT_EITHER         0
-#define DEFAULT_RECIPROCAL     0
-#define DEFAULT_PREFIX         "out"
-#define DEFAULT_OUTPUT_DIR     "."
-#define DEFAULT_LOG_SILENT     0
-#define DEFAULT_LOG_LEVEL      LOG_INFO
-#define DEFAULT_LOG_FILE       NULL
-#define DEFAULT_GFF_FILE       NULL
-#define DEFAULT_INPUT_FILE     NULL
+#define DEFAULT_MAX_DISTANCE    10000
+#define DEFAULT_CACHE_SIZE      DB_DEFAULT_CACHE_SIZE
+#define DEFAULT_THREADS         1
+#define DEFAULT_SORTED          0
+#define DEFAULT_EXON_FRAC       1e-09
+#define DEFAULT_ALIGNMENT_FRAC  1e-09
+#define DEFAULT_EITHER          0
+#define DEFAULT_RECIPROCAL      0
+#define DEFAULT_PREFIX          "out"
+#define DEFAULT_OUTPUT_DIR      "."
+#define DEFAULT_LOG_SILENT      0
+#define DEFAULT_LOG_LEVEL       LOG_INFO
+#define DEFAULT_LOG_FILE        NULL
+#define DEFAULT_GFF_FILE        NULL
+#define DEFAULT_INPUT_FILE      NULL
 
 static void
 process_sample (const char *output_dir, const char *prefix,
 		const Array *sam_files, const char *gff_file,
-		int threads, int cache_size, float exon_frac,
+		int threads, int cache_size, int sorted,
+		int max_distance, float exon_frac,
 		float alignment_frac, int either)
 {
 	log_trace ("Inside %s", __func__);
@@ -117,15 +120,17 @@ process_sample (const char *output_dir, const char *prefix,
 			// Init abnormal_filter arg
 			ab_args[i] = (AbnormalArg)
 			{
-				.tid             = i + 1,
-				.num_threads     = num_files,
-				.sam_file        = sam_file,
-				.either          = either,
-				.exon_frac       = exon_frac,
-				.alignment_frac  = alignment_frac,
-				.exon_tree       = exon_tree,
-				.cs              = cs,
-				.alignment_stmt  = alignment_stmt
+				.tid              = i + 1,
+				.num_threads      = num_files,
+				.sam_file         = sam_file,
+				.either           = either,
+				.exon_frac        = exon_frac,
+				.alignment_frac   = alignment_frac,
+				.exon_tree        = exon_tree,
+				.cs               = cs,
+				.alignment_stmt   = alignment_stmt,
+				.queryname_sorted = sorted,
+				.max_distance     = max_distance
 			};
 
 			log_debug ("Dump source entry '%s'", sam_file);
@@ -166,11 +171,10 @@ print_usage (FILE *fp)
 	fprintf (fp,
 		"%s\n"
 		"\n"
-		"Usage: %s process-sample [-h] [-q] [-d] [-l FILE] [-o DIR]\n"
-		"       %*c                [-p STR] [-t INT] [-c INT]\n"
-		"       %*c                [-f FLOAT] [-F FLOAT | -r]\n"
-		"       %*c                [-e] [-i FILE] -a FILE\n"
-		"       %*c                <FILE> ...\n"
+		"Usage: %s process-sample [-h] [-q] [-d] [-s] [-l FILE] [-o DIR]\n"
+		"       %*c                [-p STR] [-t INT] [-c INT] [-m INT]\n"
+		"       %*c                [-f FLOAT] [-F FLOAT | -r] [-e]\n"
+		"       %*c                [-i FILE] -a FILE <FILE> ...\n"
 		"\n"
 		"Arguments:\n"
 		"   One or more alignment files SAM/BAM\n"
@@ -197,6 +201,10 @@ print_usage (FILE *fp)
 		"   -p, --prefix            Prefix output files [default:\"%s\"]\n"
 		"   -t, --threads           Number of threads [default:\"%d\"]\n"
 		"   -c, --cache-size        Set SQLite3 cache size in KiB [default: \"%d\"]\n"
+		"   -s, --sorted            Assume all reads are grouped by queryname, even if\n"
+		"                           there is no SAM/BAM header tag 'SO:queryname'\n"
+		"   -m, --max-distance      Maximum distance allowed between paired-end reads\n"
+		"                           [default:\"%d\"]\n"
 		"   -f, --exon-frac         Minimum overlap required as a fraction of exon\n"
 		"                           [default:\"%.0e\"; 1 base]\n"
 		"   -F, --alignment-frac    Minimum overlap required as a fraction of\n"
@@ -208,9 +216,9 @@ print_usage (FILE *fp)
 		"                           alignment. If '-f' is 0.5, then '-F' will be set to\n"
 		"                           0.5 as well\n"
 		"\n",
-		PACKAGE_STRING, PACKAGE, pkg_len, ' ', pkg_len, ' ', pkg_len, ' ', pkg_len, ' ',
+		PACKAGE_STRING, PACKAGE, pkg_len, ' ', pkg_len, ' ', pkg_len, ' ',
 		DEFAULT_OUTPUT_DIR, DEFAULT_PREFIX, DEFAULT_THREADS, DEFAULT_CACHE_SIZE,
-		DEFAULT_EXON_FRAC, DEFAULT_ALIGNMENT_FRAC);
+		DEFAULT_MAX_DISTANCE, DEFAULT_EXON_FRAC, DEFAULT_ALIGNMENT_FRAC);
 }
 
 static void
@@ -244,7 +252,9 @@ parse_process_sample_command_opt (int argc, char **argv)
 		{"output-dir",      required_argument, 0, 'o'},
 		{"prefix",          required_argument, 0, 'p'},
 		{"threads",         required_argument, 0, 't'},
+		{"max-distance",    required_argument, 0, 'm'},
 		{"cache-size",      required_argument, 0, 'c'},
+		{"sorted",          no_argument,       0, 's'},
 		{"exon-frac",       required_argument, 0, 'f'},
 		{"alignment-frac",  required_argument, 0, 'F'},
 		{"either",          no_argument,       0, 'e'},
@@ -257,6 +267,8 @@ parse_process_sample_command_opt (int argc, char **argv)
 	int         silent         = DEFAULT_LOG_SILENT;
 	int         log_level      = DEFAULT_LOG_LEVEL;
 	int         threads        = DEFAULT_THREADS;
+	int         sorted         = DEFAULT_SORTED;
+	int         max_distance   = DEFAULT_MAX_DISTANCE;
 	int         cache_size     = DEFAULT_CACHE_SIZE;
 	int         either         = DEFAULT_EITHER;
 	int         reciprocal     = DEFAULT_RECIPROCAL;
@@ -276,7 +288,7 @@ parse_process_sample_command_opt (int argc, char **argv)
 	int alignment_frac_set = 0;
 	int c, i;
 
-	while ((c = getopt_long (argc, argv, "hqdl:a:o:p:t:c:f:F:eri:", opt, &option_index)) >= 0)
+	while ((c = getopt_long (argc, argv, "hqdsl:a:o:p:t:m:c:f:F:eri:", opt, &option_index)) >= 0)
 		{
 			switch (c)
 				{
@@ -324,6 +336,16 @@ parse_process_sample_command_opt (int argc, char **argv)
 				case 'c':
 					{
 						cache_size = atoi (optarg);
+						break;
+					}
+				case 'm':
+					{
+						max_distance = atoi (optarg);
+						break;
+					}
+				case 's':
+					{
+						sorted = 1;
 						break;
 					}
 				case 'f':
@@ -454,6 +476,13 @@ parse_process_sample_command_opt (int argc, char **argv)
 			rc = EXIT_FAILURE; goto Exit;
 		}
 
+	// Validate max_distance >= 0
+	if (max_distance < 0)
+		{
+			fprintf (stderr, "%s: --max-distance must be a positive value\n", PACKAGE);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
 	/*
 	* Final settings
 	*/
@@ -477,7 +506,8 @@ parse_process_sample_command_opt (int argc, char **argv)
 	* RUN FOOLS
 	*/
 	process_sample (output_dir, prefix, sam_files, gff_file, threads,
-			cache_size, exon_frac, alignment_frac, either);
+			cache_size, sorted, max_distance, exon_frac, alignment_frac,
+			either);
 
 Exit:
 	logger_free (logger);
