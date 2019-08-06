@@ -319,13 +319,13 @@ parse_merge_call_command_opt (int argc, char **argv)
 
 	if (epsilon < 0)
 		{
-			fprintf (stderr, "%s: --epsilon must be greater or equal to 0", PACKAGE);
+			fprintf (stderr, "%s: --epsilon must be greater or equal to 0\n", PACKAGE);
 			rc = EXIT_FAILURE; goto Exit;
 		}
 
 	if (min_pts < 3)
 		{
-			fprintf (stderr, "%s: --min_pts must be greater than 2", PACKAGE);
+			fprintf (stderr, "%s: --min_pts must be greater than 2\n", PACKAGE);
 			rc = EXIT_FAILURE; goto Exit;
 		}
 

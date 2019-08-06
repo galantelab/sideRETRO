@@ -19,7 +19,6 @@ typedef struct _Cluster Cluster;
 static sqlite3_stmt *
 prepare_query_stmt (sqlite3 *db)
 {
-	int rc = 0;
 	sqlite3_stmt *stmt = NULL;
 
 	const char sql[] =
