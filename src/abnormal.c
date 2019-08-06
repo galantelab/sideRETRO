@@ -4,8 +4,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include "htslib/bgzf.h"
+#include "htslib/hfile.h"
 #include "sam.h"
 #include "list.h"
+#include "hash.h"
 #include "wrapper.h"
 #include "log.h"
 #include "utils.h"
@@ -20,17 +23,16 @@ struct _AbnormalFilter
 	ExonTree      *exon_tree;
 	ChrStd        *cs;
 	sqlite3_stmt  *alignment_stmt;
+	int            queryname_sorted;
 	int            either;
 	float          exon_frac;
 	float          alignment_frac;
 	samFile       *in;
 	bam_hdr_t     *hdr;
 	bam1_t        *align;
-	List          *stack;
-	List          *cache;
 	String        *cigar;
 	long           alignment_id;
-	long           fragment_acm;
+	long           alignment_acm;
 	long           abnormal_acm;
 	long           exonic_acm;
 };
@@ -40,30 +42,33 @@ typedef struct _AbnormalFilter AbnormalFilter;
 static void
 abnormal_filter_init (AbnormalFilter *argf)
 {
+	// Open SAM/BAM file
 	argf->in = sam_open (argf->sam_file, "rb");
 	if (argf->in == NULL)
 		log_errno_fatal ("Failed to open '%s' for reading",
 				argf->sam_file);
 
+	// Get the header
 	argf->hdr = sam_hdr_read (argf->in);
 	if (argf->hdr == NULL)
 		log_fatal ("Failed to read sam header from '%s'",
 				argf->sam_file);
 
-	// The SAM/BAM file must be sorted by queryname
-	assert (sam_test_sorted_order (argf->hdr, "queryname"));
-
+	// Alloc alignment fields struct
 	argf->align = bam_init1 ();
 	if (argf->align == NULL)
 		log_errno_fatal ("Failed to create bam1_t for '%s'",
 				argf->sam_file);
 
-	argf->cigar = string_sized_new (128);
+	// If the user did not say the file is sorted,
+	// then test if the header ponts to that
+	if (!argf->queryname_sorted
+			&& sam_test_sorted_order (argf->hdr, "queryname"))
+		argf->queryname_sorted = 1;
 
-	// Keep all reads from the same fragment
-	// into the list
-	argf->stack = list_new ((DestroyNotify) bam_destroy1);
-	argf->cache = list_new ((DestroyNotify) bam_destroy1);
+	// Alloc String cigar to avoid
+	// free and realloc often
+	argf->cigar = string_sized_new (128);
 
 	// Init alignment_id to its thread id
 	// Whenever it is needed to update its value,
@@ -73,7 +78,7 @@ abnormal_filter_init (AbnormalFilter *argf)
 	argf->alignment_id = argf->tid;
 
 	// Zero the accumulators
-	argf->fragment_acm = 0;
+	argf->alignment_acm = 0;
 	argf->abnormal_acm = 0;
 	argf->exonic_acm = 0;
 }
@@ -91,11 +96,154 @@ abnormal_filter_destroy (AbnormalFilter *argf)
 	bam_hdr_destroy (argf->hdr);
 	bam_destroy1 (argf->align);
 
-	list_free (argf->stack);
-	list_free (argf->cache);
-
 	char *str = NULL;
 	str = string_free (argf->cigar, 1);
+}
+
+static inline int
+abnormal_classifier (const bam1_t *align, AbnormalType *type)
+{
+	/*
+	* abnormal alignment must be:
+	* - paired-end
+	* - mapped
+	* - mate mapped
+	*/
+	if (!(align->core.flag & 0x1)
+			|| (align->core.flag & 0x4)
+			|| (align->core.flag & 0x8))
+		{
+			return 0;
+		}
+
+	// Default value
+	*type = ABNORMAL_NONE;
+
+	/*
+	* - reads at different chromosomes
+	* - or distance between the pairs is bigger
+	*   than ABNORMAL_DISTANCE_CUTOFF
+	*/
+	if (align->core.tid != align->core.mtid)
+		{
+			*type |= ABNORMAL_CHROMOSOME;
+		}
+	else if (abs (align->core.pos - align->core.mpos)
+			> ABNORMAL_DISTANCE_CUTOFF)
+		{
+			*type |= ABNORMAL_DISTANCE;
+		}
+
+	/*
+	* - supplementary
+	*/
+	if (align->core.flag & 0x800)
+		{
+			*type |= ABNORMAL_SUPPLEMENTARY;
+		}
+
+	return 1;
+}
+
+static void
+dump_alignment (AbnormalFilter *argf, const bam1_t *align,
+		AbnormalType type)
+{
+	uint32_t *cigar = NULL;
+	int n_cigar = 0;
+	const char *chr = NULL;
+	const char *chr_std = NULL;
+	const char *chr_next = NULL;
+	const char *chr_std_next = NULL;
+	const char *qname = NULL;
+	int qlen = 0;
+	int rlen = 0;
+	int acm = 0;
+
+	cigar = bam_get_cigar (align);
+	argf->cigar = string_clear (argf->cigar);
+
+	for (n_cigar = 0; n_cigar < align->core.n_cigar; n_cigar++)
+		argf->cigar = string_concat_printf (argf->cigar, "%d%c",
+				bam_cigar_oplen (cigar[n_cigar]),
+				bam_cigar_opchr (cigar[n_cigar]));
+
+	qlen = bam_cigar2qlen (align->core.n_cigar, cigar);
+	rlen = bam_cigar2rlen (align->core.n_cigar, cigar);
+
+	qname = bam_get_qname (align);
+
+	chr = align->core.tid > -1
+		? argf->hdr->target_name[align->core.tid]
+		: "*";
+
+	chr_next = align->core.mtid > -1
+		? argf->hdr->target_name[align->core.mtid]
+		: "*";
+
+	// Standardize chromosomes
+	chr_std = chr_std_lookup (argf->cs, chr);
+	chr_std_next = chr_std_lookup (argf->cs, chr_next);
+
+	// Dump overlapping exon with alignment
+	acm = exon_tree_lookup_dump (argf->exon_tree, chr_std,
+			align->core.pos + 1, align->core.pos + rlen,
+			argf->exon_frac, argf->alignment_frac,
+			argf->either, argf->alignment_id);
+
+	if (acm > 0)
+		{
+			type |= ABNORMAL_EXONIC;
+			argf->exonic_acm++;
+			log_debug ("Alignment %s %s:%d overlaps %d exons",
+					qname, chr_std, align->core.pos + 1, acm);
+		}
+
+	log_debug ("Dump abnormal alignment %s %d %s:%d type %d",
+			qname, align->core.flag, chr_std, align->core.pos + 1,
+			type);
+
+	db_insert_alignment (argf->alignment_stmt,
+			argf->alignment_id, qname, align->core.flag,
+			chr_std, align->core.pos + 1, align->core.qual,
+			argf->cigar->str, qlen, rlen, chr_std_next,
+			align->core.mpos + 1, type, argf->tid);
+
+	// sum the number of threads - in order to
+	// avoid database insertion chocking and
+	// constraints
+	argf->alignment_id += argf->num_threads;
+}
+
+static inline void
+dump_stack_if_abnormal (AbnormalFilter *argf, const List *stack)
+{
+	const ListElmt *cur = NULL;
+	const bam1_t *align = NULL;
+	AbnormalType rtype = ABNORMAL_NONE;
+	AbnormalType type = ABNORMAL_NONE;
+
+	for (cur = list_head (stack); cur != NULL;
+			cur = list_next (cur))
+		{
+			align = list_data (cur);
+
+			if (!abnormal_classifier (align, &rtype))
+				return;
+
+			type |= rtype;
+		}
+
+	if (type != ABNORMAL_NONE)
+		{
+			for (cur = list_head (stack); cur != NULL;
+					cur = list_next (cur))
+				{
+					align = list_data (cur);
+					dump_alignment (argf, align, type);
+					argf->abnormal_acm++;
+				}
+		}
 }
 
 static inline void
@@ -144,146 +292,162 @@ inside_fragment (const bam1_t *align, const List *in)
 }
 
 static void
-dump_alignment (AbnormalFilter *argf, int type)
+parse_sorted_sam (AbnormalFilter *argf)
 {
-	ListElmt *cur = NULL;
-	bam1_t *align = NULL;
-	uint32_t *cigar = NULL;
-	int n_cigar = 0;
-	const char *chr = NULL;
-	const char *chr_std = NULL;
-	const char *chr_next = NULL;
-	const char *chr_std_next = NULL;
-	const char *qname = NULL;
-	int qlen = 0;
-	int rlen = 0;
-	int acm = 0;
-	int align_type = 0;
+	// Keep all reads from the same fragment
+	// into the list
+	List *stack = list_new ((DestroyNotify) bam_destroy1);
+	List *cache = list_new ((DestroyNotify) bam_destroy1);
 
-	for (cur = list_head (argf->stack); cur != NULL;
-			cur = list_next (cur))
+	int rc = 0;
+
+	while ((rc = sam_read1 (argf->in, argf->hdr, argf->align)) >= 0)
 		{
-			align = list_data (cur);
+			argf->alignment_acm++;
 
-			cigar = bam_get_cigar (align);
-			argf->cigar = string_clear (argf->cigar);
-
-			for (n_cigar = 0; n_cigar < align->core.n_cigar; n_cigar++)
-				argf->cigar = string_concat_printf (argf->cigar, "%d%c",
-						bam_cigar_oplen (cigar[n_cigar]),
-						bam_cigar_opchr (cigar[n_cigar]));
-
-			qlen = bam_cigar2qlen (align->core.n_cigar, cigar);
-			rlen = bam_cigar2rlen (align->core.n_cigar, cigar);
-
-			qname = bam_get_qname (align);
-
-			chr = align->core.tid > -1
-				? argf->hdr->target_name[align->core.tid]
-				: "*";
-
-			chr_next = align->core.mtid > -1
-				? argf->hdr->target_name[align->core.mtid]
-				: "*";
-
-			// Standardize chromosomes
-			chr_std = chr_std_lookup (argf->cs, chr);
-			chr_std_next = chr_std_lookup (argf->cs, chr_next);
-
-			// Reset align_type to type
-			align_type = type;
-
-			// Dump overlapping exon with alignment
-			acm = exon_tree_lookup_dump (argf->exon_tree, chr_std,
-					align->core.pos + 1, align->core.pos + rlen,
-					argf->exon_frac, argf->alignment_frac,
-					argf->either, argf->alignment_id);
-
-			if (acm > 0)
+			if (list_size (stack)
+					&& !inside_fragment (argf->align, stack))
 				{
-					align_type |= ABNORMAL_EXONIC;
-					argf->exonic_acm++;
-					log_debug ("Alignment %s %s:%d overlaps %d exons",
-							qname, chr_std, align->core.pos + 1, acm);
+					dump_stack_if_abnormal (argf, stack);
+					clean (stack, cache);
 				}
 
-			log_debug ("Dump abnormal alignment %s %d %s:%d type %d",
-					qname, align->core.flag, chr_std, align->core.pos + 1,
-					type);
-
-			db_insert_alignment (argf->alignment_stmt,
-					argf->alignment_id, qname, align->core.flag,
-					chr_std, align->core.pos + 1, align->core.qual,
-					argf->cigar->str, qlen, rlen, chr_std_next,
-					align->core.mpos + 1, align_type,
-					argf->tid);
-
-			// sum the number of threads - in order to
-			// avoid database insertion chocking and
-			// constraints
-			argf->alignment_id += argf->num_threads;
+			push (argf->align, stack, cache);
 		}
+
+	// Catch if it ocurred an error
+	// in reading from input
+	if (rc < -1)
+		log_errno_fatal ("Failed to read sam alignment from '%s'",
+				argf->sam_file);
+
+	// The stack is filled after the parsing,
+	// so it is late in relation to the file loop.
+	// Therefore, test the last bunch of
+	// alignments
+	dump_stack_if_abnormal (argf, stack);
+
+	// Clean
+	list_free (stack);
+	list_free (cache);
 }
 
 static void
-dump_if_abnormal (AbnormalFilter *argf)
+sam_rewind (samFile *in, bam_hdr_t **hdr)
 {
-	ListElmt *cur = NULL;
-	bam1_t *align = NULL;
-	int type = ABNORMAL_NONE;
+	int rc = 0;
 
-	argf->fragment_acm++;
+	rc = in->is_bgzf
+		? bgzf_seek (in->fp.bgzf, 0L, SEEK_SET)
+		: hseek (in->fp.hfile, 0L, SEEK_SET);
 
-	for (cur = list_head (argf->stack); cur != NULL;
-			cur = list_next (cur))
+	if (rc < 0)
+		log_errno_fatal ("Failed to rewind SAM/BAM file");
+
+	bam_hdr_destroy (*hdr);
+	*hdr = sam_hdr_read (in);
+
+	if (*hdr == NULL)
+		log_fatal ("Failed to read sam header in rewinding");
+}
+
+static void
+purge_blacklist (const char *name, Hash *ids)
+{
+	if (hash_remove (ids, name))
+		log_debug ("Remove blacklisted alignment '%s'",
+				name);
+}
+
+static void
+parse_unsorted_sam (AbnormalFilter *argf)
+{
+	int rc = 0;
+	const char *name = NULL;
+	AbnormalType type = 0;
+	AbnormalType *type_copy = NULL;
+	Hash *abnormal_ids = NULL;
+	List *blacklist_ids = NULL;
+
+	// All abnormal alignments are keeped
+	// into a hash if the BAM/SAM is not sorted
+	// by queryname
+	abnormal_ids = hash_new (HASH_LARGE_SIZE,
+			xfree, xfree);
+
+	// Keep all alignments, whose at least
+	// one read not pass the constraints
+	blacklist_ids = list_new (xfree);
+
+	log_debug ("Index all fragment ids from '%s'", argf->sam_file);
+
+	while ((rc = sam_read1 (argf->in, argf->hdr, argf->align)) >= 0)
 		{
-			align = list_data (cur);
+			argf->alignment_acm++;
 
-			/*
-			* abnormal alignment must be:
-			* - paired-end
-			* - mapped
-			* - mate mapped
-			*/
-			if (!(align->core.flag & 0x1)
-					|| (align->core.flag & 0x4)
-					|| (align->core.flag & 0x8))
+			if (!abnormal_classifier (argf->align, &type))
 				{
-					return;
+					name = xstrdup (bam_get_qname (argf->align));
+					list_append (blacklist_ids, name);
 				}
+			else if (type != ABNORMAL_NONE)
+				{
+					type_copy = hash_lookup (abnormal_ids,
+							bam_get_qname (argf->align));
 
-			/*
-			* - supplementary
-			*/
-			if (align->core.flag & 0x800)
-				{
-					if (!(type & ABNORMAL_SUPPLEMENTARY))
-						type |= ABNORMAL_SUPPLEMENTARY;
-				}
+					if (type_copy == NULL)
+						{
+							name = xstrdup (bam_get_qname (argf->align));
+							type_copy = xcalloc (1, sizeof (AbnormalType));
+							hash_insert (abnormal_ids, name, type_copy);
+						}
 
-			/*
-			* - reads at different chromosomes
-			* - or distance between the pairs is bigger
-			*   than ABNORMAL_DISTANCE_CUTOFF
-			*/
-			if (align->core.tid != align->core.mtid)
-				{
-					if (!(type & ABNORMAL_CHROMOSOME))
-						type |= ABNORMAL_CHROMOSOME;
-				}
-			else if (abs (align->core.pos - align->core.mpos)
-					> ABNORMAL_DISTANCE_CUTOFF)
-				{
-					if (!(type & ABNORMAL_DISTANCE))
-						type |= ABNORMAL_DISTANCE;
+					*type_copy |= type;
 				}
 		}
 
-	if (type != ABNORMAL_NONE)
+	// Catch if it ocurred an error
+	// in reading from input
+	if (rc < -1)
+		log_errno_fatal ("Failed to read sam alignment from '%s'",
+				argf->sam_file);
+
+	// Read file twice in order to catch all
+	// supplementary alignments
+	sam_rewind (argf->in, &argf->hdr);
+
+	log_debug ("Remove blacklisted fragments from '%s'",
+			argf->sam_file);
+
+	// Remove blacklisted alignments
+	list_foreach (blacklist_ids, (Func) purge_blacklist,
+			abnormal_ids);
+
+	log_debug ("Catch all indexed abnormal fragments from '%s'",
+			argf->sam_file);
+
+	// Get all reads from indexed fragments
+	while ((rc = sam_read1 (argf->in, argf->hdr, argf->align)) >= 0)
 		{
-			dump_alignment (argf, type);
-			argf->abnormal_acm++;
+			type_copy = hash_lookup (abnormal_ids,
+					bam_get_qname (argf->align));
+
+			if (type_copy != NULL)
+				{
+					dump_alignment (argf, argf->align, *type_copy);
+					argf->abnormal_acm++;
+				}
 		}
+
+	// Catch if it ocurred an error
+	// in reading from input
+	if (rc < -1)
+		log_errno_fatal ("Failed to read sam alignment from '%s'",
+				argf->sam_file);
+
+	// Clean
+	hash_free (abnormal_ids);
+	list_free (blacklist_ids);
 }
 
 void
@@ -304,40 +468,25 @@ abnormal_filter (AbnormalArg *arg)
 	log_info ("Searching for abnormal alignments into '%s'",
 			argf.sam_file);
 
-	while (1)
+	// Let's make this work!
+	if (argf.queryname_sorted)
 		{
-			// Returns -1 or < -1 in case of
-			// error
-			rc = sam_read1 (argf.in, argf.hdr, argf.align);
-			if (rc < 0)
-				break;
-
-			if (list_size (argf.stack)
-					&& !inside_fragment (argf.align, argf.stack))
-				{
-					dump_if_abnormal (&argf);
-					clean (argf.stack, argf.cache);
-				}
-
-			push (argf.align, argf.stack, argf.cache);
+			log_info ("Parsing 'sorted file' mode");
+			parse_sorted_sam (&argf);
+		}
+	else
+		{
+			log_info ("Parsing 'unsorted file' mode");
+			parse_unsorted_sam (&argf);
 		}
 
-	// Catch if it ocurred an error
-	// in reading from input
-	if (rc < -1)
-		log_fatal ("Failed to read sam alignment from '%s'",
-				argf.sam_file);
-
-	// The stack is filled after the parsing,
-	// so it is late in relation to the file loop.
-	// Therefore, test the last bunch of
-	// alignments
-	dump_if_abnormal (&argf);
+	log_info ("Processed %li alignments for '%s'",
+			argf.alignment_acm, argf.sam_file);
 
 	// Just print the amount of abnormal alignments
 	if (argf.abnormal_acm > 0)
 		log_info ("Found %li abnormal alignments for '%s': "
-			"%li abnormal alignments falls inside some exonic region (%.2f%%)",
+			"%li abnormal alignments fall inside some exonic region (%.2f%%)",
 			argf.abnormal_acm, argf.sam_file, argf.exonic_acm,
 			(float) (argf.exonic_acm * 100) / argf.abnormal_acm);
 	else

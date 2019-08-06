@@ -7,11 +7,16 @@
 
 #define ABNORMAL_DISTANCE_CUTOFF 10000
 
-#define ABNORMAL_NONE            0
-#define ABNORMAL_DISTANCE        1
-#define ABNORMAL_CHROMOSOME      2
-#define ABNORMAL_SUPPLEMENTARY   4
-#define ABNORMAL_EXONIC          8
+enum _AbnormalType
+{
+	ABNORMAL_NONE          = 0,
+	ABNORMAL_DISTANCE      = 1,
+	ABNORMAL_CHROMOSOME    = 2,
+	ABNORMAL_SUPPLEMENTARY = 4,
+	ABNORMAL_EXONIC        = 8
+};
+
+typedef enum _AbnormalType AbnormalType;
 
 struct _AbnormalArg
 {
@@ -21,6 +26,7 @@ struct _AbnormalArg
 	ExonTree      *exon_tree;
 	ChrStd        *cs;
 	sqlite3_stmt  *alignment_stmt;
+	int            queryname_sorted;
 	int            either;
 	float          exon_frac;
 	float          alignment_frac;
