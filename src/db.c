@@ -238,17 +238,8 @@ db_create_tables (sqlite3 *db)
 	log_trace ("Inside %s", __func__);
 
 	const char sql[] =
-		"DROP TABLE IF EXISTS exon;\n"
-		"CREATE TABLE exon (\n"
-		"	id INTEGER PRIMARY KEY,\n"
-		"	gene_name TEXT NOT NULL,\n"
-		"	chr TEXT NOT NULL,\n"
-		"	start INTEGER NOT NULL,\n"
-		"	end INTEGER NOT NULL,\n"
-		"	strand TEXT NOT NULL,\n"
-		"	ensg TEXT NOT NULL,\n"
-		"	ense TEXT NOT NULL,\n"
-		"	UNIQUE (ense));\n"
+		"DROP TABLE IF EXISTS schema;\n"
+		"CREATE TABLE schema (version REAL NOT NULL);\n"
 		"\n"
 		"DROP TABLE IF EXISTS batch;\n"
 		"CREATE TABLE batch (\n"
@@ -262,6 +253,18 @@ db_create_tables (sqlite3 *db)
 		"	path TEXT NOT NULL,\n"
 		"	FOREIGN KEY (batch_id) REFERENCES batch(id),\n"
 		"	PRIMARY KEY (id, batch_id));\n"
+		"\n"
+		"DROP TABLE IF EXISTS exon;\n"
+		"CREATE TABLE exon (\n"
+		"	id INTEGER PRIMARY KEY,\n"
+		"	gene_name TEXT NOT NULL,\n"
+		"	chr TEXT NOT NULL,\n"
+		"	start INTEGER NOT NULL,\n"
+		"	end INTEGER NOT NULL,\n"
+		"	strand TEXT NOT NULL,\n"
+		"	ensg TEXT NOT NULL,\n"
+		"	ense TEXT NOT NULL,\n"
+		"	UNIQUE (ense));\n"
 		"\n"
 		"DROP TABLE IF EXISTS alignment;\n"
 		"CREATE TABLE alignment (\n"
@@ -303,6 +306,23 @@ db_create_tables (sqlite3 *db)
 	db_exec (db, sql);
 }
 
+static void
+db_insert_schema_version (sqlite3 *db)
+{
+	log_trace ("Inside %s", __func__);
+	assert (db != NULL);
+
+	sqlite3_stmt *stmt = NULL;
+
+	stmt = db_prepare (db,
+			"INSERT INTO schema (version) VALUES (?1)");
+
+	db_bind_double (stmt, 1, DB_SCHEMA_VERSION);
+	db_step (stmt);
+
+	db_finalize (stmt);
+}
+
 sqlite3 *
 db_create (const char *path)
 {
@@ -316,6 +336,10 @@ db_create (const char *path)
 
 	log_debug ("Create tables into database '%s'", path);
 	db_create_tables (db);
+
+	log_debug ("Insert schema version 'v%.1f' into database '%s'",
+			DB_SCHEMA_VERSION, path);
+	db_insert_schema_version (db);
 
 	return db;
 }
@@ -356,6 +380,33 @@ db_end_transaction (sqlite3 *db)
 	db_exec (db, "END TRANSACTION");
 }
 
+static void
+db_check_schema_version (sqlite3 *db)
+{
+	log_trace ("Inside %s", __func__);
+	assert (db != NULL);
+
+	sqlite3_stmt *stmt = NULL;
+	double version = 0;
+
+	stmt = db_prepare (db,
+			"SELECT version FROM schema LIMIT 1");
+
+	if (db_step (stmt) == SQLITE_ROW)
+		version = db_column_double (stmt, 0);
+	else
+		log_fatal ("Failed to request schema version");
+
+	if (version > DB_SCHEMA_VERSION)
+		log_fatal ("Schema version 'v%.1f' at database '%s' is ahead the current version 'v%.1f' of '%s'",
+				version, sqlite3_db_filename (db, "main"), DB_SCHEMA_VERSION, PACKAGE_STRING);
+	else if (version < DB_SCHEMA_VERSION)
+		log_fatal ("Schema version 'v%.1f' at database '%s' is behind the current version 'v%.1f' of '%s'",
+				version, sqlite3_db_filename (db, "main"), DB_SCHEMA_VERSION, PACKAGE_STRING);
+
+	db_finalize (stmt);
+}
+
 sqlite3 *
 db_connect (const char *path)
 {
@@ -363,7 +414,12 @@ db_connect (const char *path)
 	assert (path != NULL);
 
 	sqlite3 *db = NULL;
+
+	log_debug ("Connect to database '%s'", path);
 	db = db_open (path, SQLITE_OPEN_READWRITE);
+
+	log_debug ("Check database schema version for '%s'", path);
+	db_check_schema_version (db);
 
 	return db;
 }

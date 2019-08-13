@@ -6,7 +6,6 @@
 #include <check.h>
 #include "check_sider.h"
 
-#include "../src/log.h"
 #include "../src/utils.h"
 #include "../src/wrapper.h"
 #include "../src/db.h"
@@ -107,16 +106,6 @@ START_TEST (test_db_step_abort)
 			"CREATE TABLE ponga (id INTEGER)");
 	db_step (stmt);
 	db_step (stmt);
-}
-END_TEST
-
-START_TEST (test_db_finalize_abort)
-{
-	sqlite3 *db = db_open (":memory:", SQLITE_OPEN_READWRITE);
-	sqlite3_stmt *stmt = NULL;
-	sqlite3_prepare_v2 (db,
-			"CREATE TABLE ponga, PLEASE (id INTEGER)", -1, &stmt, NULL);
-	db_finalize (stmt);
 }
 END_TEST
 
@@ -221,9 +210,6 @@ START_TEST (test_db_schema)
 	sqlite3 *db = create_db (db_path);
 	db_close (db);
 
-	db = db_connect (db_path);
-	db_close (db);
-
 	db = db_create (db_path);
 
 	sqlite3_stmt *batch_stmt = db_prepare_batch_stmt (db);
@@ -261,7 +247,6 @@ END_TEST
 Suite *
 make_db_suite (void)
 {
-	log_set_quiet (1);
 	setup_signal (SIGABRT, handle_sigabrt);
 
 	Suite *s;
@@ -286,7 +271,6 @@ make_db_suite (void)
 	tcase_add_exit_test (tc_abort, test_db_exec_abort, 1);
 	tcase_add_exit_test (tc_abort, test_db_prepare_abort, 1);
 	tcase_add_exit_test (tc_abort, test_db_step_abort, 1);
-	tcase_add_exit_test (tc_abort, test_db_finalize_abort, 1);
 	tcase_add_exit_test (tc_abort, test_db_reset_abort, 1);
 	tcase_add_exit_test (tc_abort, test_db_bind_int_abort, 1);
 	tcase_add_exit_test (tc_abort, test_db_bind_int64_abort, 1);

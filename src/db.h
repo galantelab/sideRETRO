@@ -5,6 +5,9 @@
 #include <stdint.h>
 #include "sqlite3.h"
 
+/* Database schema version */
+#define DB_SCHEMA_VERSION 0.1
+
 #define DB_DEFAULT_CACHE_SIZE 2000
 
 /* Low-level functions */
