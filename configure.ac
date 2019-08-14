@@ -9,10 +9,11 @@ AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_MACRO_DIRS([m4])
 AC_USE_SYSTEM_EXTENSIONS
 
+AM_INIT_AUTOMAKE(-Wall -Werror)
+AM_PROG_AR
+
 LT_PREREQ([2.2])
 LT_INIT([dlopen])
-
-AM_INIT_AUTOMAKE
 
 # Disable verbose gcc output
 AM_SILENT_RULES([yes])
