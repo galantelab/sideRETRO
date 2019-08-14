@@ -1,3 +1,36 @@
+2019-08-14 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* Version 0.7.0
+
+2019-08-13 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: configure.ac (AM_INIT_AUTOMAKE)
+
+	AM_INIT_AUTOMAKE(-Wall -Werror) and AM_PROG_AR macros
+
+	* FIX: check_sider_*.c: Move log_set_quiet to main
+
+	* ADD: db.c (db_{insert,check}_schema_version)
+
+	Add a new table 'schema' with a single column called 'version'. Its
+	function is keep track of the database schema state in a versioned way
+
+2019-08-06 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: process_sample.c: max_distance, sorted
+
+	Add CLI options --max-distance, --sorted. The former for getting a
+	cutoff of maximum distance allowed between paired-end reads, and the
+	last for considering all files queryname sorted
+
+	* FIX: check_sider_abnormal.c (sam_{un}sorted)
+
+	* FIX: cluster.c, merge_call.c: Remove typos
+
+	* CHANGE: abnormal.c (parse_{sorted,unsorted}_sam)
+
+	Change abnormal interface to handle sorted and unsorted SAM/BAM files
+
 2019-08-01 Thiago L. A. Miller <tmiller@mochsl.org.br>
 
 	* Version 0.6.0

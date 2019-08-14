@@ -1,3 +1,18 @@
+Version 0.7.0
+
+* Change abnormal interface to handle sorted
+  and unsorted SAM/BAM files.
+
+* processing-sample subcommand automatically
+  detects if the alignment file is queryname
+  sorted or not and then choose the right
+  abnormal interface.
+
+* Add a new table 'schema' with a single column
+  called 'version'. Its function is to keep
+  track of the database schema state in a
+  versioned way.
+
 Version 0.6.0
 
 * Add DBSCAN algorithm - Density-Based Spatial
