@@ -6,9 +6,9 @@
 #include <check.h>
 #include "check_sider.h"
 
-#include "../src/log.h"
 #include "../src/utils.h"
 #include "../src/wrapper.h"
+#include "../src/log.h"
 #include "../src/bwa.h"
 
 #define BWA "../bwa/bwa"
@@ -112,7 +112,6 @@ remove_idx (const char *base)
 
 START_TEST (test_bwa_mem)
 {
-	log_set_quiet (1);
 	bwa_mem_log_set_level (0);
 
 	char fasta_file[] = "/tmp/ponga.fa.XXXXXX";

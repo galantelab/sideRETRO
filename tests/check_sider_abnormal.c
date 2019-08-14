@@ -7,7 +7,6 @@
 #include <check.h>
 #include "check_sider.h"
 
-#include "../src/log.h"
 #include "../src/wrapper.h"
 #include "../src/utils.h"
 #include "../src/db.h"
@@ -179,8 +178,6 @@ prepare_alignment_search (sqlite3 *db)
 
 START_TEST (test_abnormal_filter_sorted)
 {
-	log_set_quiet (1);
-
 	// Init AbnormalArg struct and create database
 	// and sam files
 	TestAbnormal a;
@@ -244,8 +241,6 @@ END_TEST
 
 START_TEST (test_abnormal_filter_unsorted)
 {
-	log_set_quiet (1);
-
 	// Init AbnormalArg struct and create database
 	// and sam files
 	TestAbnormal a;

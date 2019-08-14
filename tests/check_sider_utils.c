@@ -9,8 +9,8 @@
 #include <check.h>
 #include "check_sider.h"
 
-#include "../src/log.h"
 #include "../src/wrapper.h"
+#include "../src/log.h"
 #include "../src/utils.h"
 
 START_TEST (test_equalstring)

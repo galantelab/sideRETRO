@@ -5,7 +5,6 @@
 #include <check.h>
 #include "check_sider.h"
 
-#include "../src/log.h"
 #include "../src/utils.h"
 #include "../src/wrapper.h"
 #include "../src/sam.h"
@@ -31,7 +30,6 @@ create_sam_fd (int fd)
 
 START_TEST (test_sam_to_bam)
 {
-	log_set_quiet (1);
 	char sam_file1[] = "/tmp/ponga_sam-XXXXXX";
 	char sam_file2[] = "/tmp/ponga_sam-XXXXXX";
 	char bam_file[]  = "/tmp/ponga_bam-XXXXXX";
@@ -70,7 +68,6 @@ END_TEST
 
 START_TEST (test_sam_to_bam_fp)
 {
-	log_set_quiet (1);
 	char sam_file[] = "/tmp/ponga_sam-XXXXXX";
 	char bam_file[] = "/tmp/ponga_bam-XXXXXX";
 

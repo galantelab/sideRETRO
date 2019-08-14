@@ -7,8 +7,8 @@
 #include <check.h>
 #include "check_sider.h"
 
-#include "../src/log.h"
 #include "../src/wrapper.h"
+#include "../src/log.h"
 #include "../src/hash.h"
 #include "../src/ibitree.h"
 #include "../src/utils.h"
@@ -147,7 +147,6 @@ test_exon_tree_destroy (TestExonTree *t)
 
 START_TEST (test_exon_tree_index_dump)
 {
-	log_set_quiet (1);
 
 	// Init ExonTree struct and create database
 	// and gtf files
@@ -220,7 +219,6 @@ prepare_overlapping_search_stmt (sqlite3 *db)
 
 START_TEST (test_exon_tree_lookup_dump)
 {
-	log_set_quiet (1);
 
 	// Init ExonTree struct and create database
 	// and gtf files

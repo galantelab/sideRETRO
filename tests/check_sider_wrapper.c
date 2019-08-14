@@ -9,8 +9,8 @@
 #include <check.h>
 #include "check_sider.h"
 
-#include "../src/log.h"
 #include "../src/utils.h"
+#include "../src/log.h"
 #include "../src/wrapper.h"
 
 static void
@@ -322,7 +322,6 @@ END_TEST
 Suite *
 make_wrapper_suite (void)
 {
-	log_set_quiet (1);
 	setup_signal (SIGABRT, handle_sigabrt);
 
 	Suite *s;

@@ -4,7 +4,6 @@
 #include <check.h>
 #include "check_sider.h"
 
-#include "../src/log.h"
 #include "../src/wrapper.h"
 #include "../src/db.h"
 #include "../src/db_merge.h"
@@ -54,8 +53,6 @@ END_TEST
 Suite *
 make_db_merge_suite (void)
 {
-	log_set_quiet (1);
-
 	Suite *s;
 	TCase *tc_core;
 

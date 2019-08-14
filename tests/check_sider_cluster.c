@@ -7,7 +7,6 @@
 #include <check.h>
 #include "check_sider.h"
 
-#include "../src/log.h"
 #include "../src/abnormal.h"
 #include "../src/wrapper.h"
 #include "../src/utils.h"
@@ -54,7 +53,6 @@ prepare_query_stmt (sqlite3 *db)
 
 START_TEST (test_cluster)
 {
-	log_set_quiet (1);
 	char db_file[] = "/tmp/ponga.db.XXXXXX";
 
 	sqlite3 *db = NULL;
