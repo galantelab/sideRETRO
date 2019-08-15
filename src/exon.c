@@ -56,7 +56,6 @@ exon_tree_index_dump (ExonTree *exon_tree,
 
 	IBiTree *tree = NULL;
 
-	int rc = 0;
 	long table_id = 0;
 	long *alloc_id = NULL;
 
@@ -112,7 +111,7 @@ exon_tree_index_dump (ExonTree *exon_tree,
 					if (tree == NULL)
 						{
 							tree = ibitree_new (xfree);
-							rc = hash_insert (exon_tree->idx,
+							hash_insert (exon_tree->idx,
 									xstrdup (chr_std), tree);
 						}
 

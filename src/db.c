@@ -227,7 +227,7 @@ db_column_text (sqlite3_stmt *stmt, int i)
 	if (sqlite3_column_type (stmt, i) != SQLITE_TEXT)
 		log_fatal ("Failed sqlite3_column_text at %d: Wrong type", i);
 
-	return sqlite3_column_text (stmt, i);
+	return (const char *) sqlite3_column_text (stmt, i);
 }
 
 /* db management functions */
@@ -447,8 +447,6 @@ db_insert_exon (sqlite3_stmt *stmt, int id, const char *gene_name,
 			&& strand != NULL && ensg != NULL && ense != NULL);
 
 	sqlite3_mutex_enter (sqlite3_db_mutex (sqlite3_db_handle (stmt)));
-
-	int rc = 0;
 
 	db_reset (stmt);
 	db_clear_bindings (stmt);

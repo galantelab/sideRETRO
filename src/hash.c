@@ -201,7 +201,6 @@ hash_fetch (Hash *hash, const void *key)
 	assert (hash != NULL && key != NULL);
 
 	size_t bucket = 0;
-	size_t i = 0;
 
 	bucket = hash_calculate_bucket (hash, key);
 	ListElmt *cur = list_head (hash->table[bucket]);

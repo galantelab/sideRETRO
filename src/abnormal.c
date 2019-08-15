@@ -97,8 +97,7 @@ abnormal_filter_destroy (AbnormalFilter *argf)
 	bam_hdr_destroy (argf->hdr);
 	bam_destroy1 (argf->align);
 
-	char *str = NULL;
-	str = string_free (argf->cigar, 1);
+	string_free (argf->cigar, 1);
 }
 
 static inline int
@@ -459,7 +458,6 @@ abnormal_filter (AbnormalArg *arg)
 			&& arg->alignment_stmt != NULL && arg->exon_tree
 			&& arg->cs && arg->tid >= 0 && arg->num_threads > 0);
 
-	int rc = 0;
 	AbnormalFilter argf = {};
 	memcpy (&argf, arg, sizeof (AbnormalArg));
 
