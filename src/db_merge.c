@@ -300,7 +300,7 @@ db_merge (sqlite3 *db, int argc, char **argv)
 	for (i = 0; i < argc; i++)
 		{
 			log_info ("Merge database '%s'", argv[i]);
-			sqlite3 *db2 = db_connect (argv[i]);
+			db2 = db_connect (argv[i]);
 
 			// Calculate de max id for all tables
 			// to be merged
