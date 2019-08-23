@@ -8,21 +8,16 @@
 
 START_TEST (test_hash_new)
 {
-	Hash *hash = hash_new_full (HASH_MEDIUM_SIZE, str_hash,
-			str_equal, free, free);
-
-	ck_assert_ptr_ne (hash, NULL);
-	ck_assert_ptr_ne (hash->table, NULL);
-	ck_assert_int_eq (hash->size, 0);
-	ck_assert_int_eq (hash->buckets, HASH_MEDIUM_SIZE);
-
+	Hash *hash = hash_new_full (str_hash, str_equal,
+			free, free);
+	hash_free (NULL);
 	hash_free (hash);
 }
 END_TEST
 
 START_TEST (test_hash_insert)
 {
-	Hash *hash = hash_new (10, NULL, free);
+	Hash *hash = hash_new (NULL, free);
 
 	hash_insert (hash, "eu", xstrdup ("Thiago"));
 	hash_insert (hash, "tu", xstrdup ("Fernanda"));
@@ -36,7 +31,7 @@ END_TEST
 
 START_TEST (test_hash_lookup)
 {
-	Hash *hash = hash_new (10, NULL, free);
+	Hash *hash = hash_new (NULL, free);
 
 	hash_insert (hash, "eu", xstrdup ("Thiago"));
 	hash_insert (hash, "tu", xstrdup ("Fernanda"));
@@ -52,7 +47,7 @@ END_TEST
 
 START_TEST (test_hash_replace)
 {
-	Hash *hash = hash_new (10, NULL, free);
+	Hash *hash = hash_new (NULL, free);
 	int *num_alloc = xcalloc (1, sizeof (int));
 	int num;
 	int rc;
@@ -75,7 +70,7 @@ END_TEST
 
 START_TEST (test_hash_remove)
 {
-	Hash *hash = hash_new (10, free, NULL);
+	Hash *hash = hash_new (free, NULL);
 	int i = 0;
 	int rc;
 	char **str;
@@ -108,7 +103,7 @@ END_TEST
 
 START_TEST (test_hash_contains)
 {
-	Hash *hash = hash_new (50, free, NULL);
+	Hash *hash = hash_new (free, NULL);
 	char **keys = xcalloc (100, sizeof (char *));
 	int *values = xcalloc (100, sizeof (int));
 	int i = 0;
@@ -151,7 +146,7 @@ sum (void *key, void *value, void *user_data)
 
 START_TEST (test_hash_foreach)
 {
-	Hash *hash = hash_new (50, free, NULL);
+	Hash *hash = hash_new (free, NULL);
 	char **keys = xcalloc (100, sizeof (char *));
 	int *values = xcalloc (100, sizeof (int));
 	int i = 0;
@@ -175,7 +170,7 @@ END_TEST
 
 START_TEST (test_hash_iter)
 {
-	Hash *hash = hash_new (50, free, NULL);
+	Hash *hash = hash_new (free, NULL);
 	char **keys = xcalloc (100, sizeof (char *));
 	int *values = xcalloc (100, sizeof (int));
 	int i = 0;
@@ -206,7 +201,7 @@ END_TEST
 
 START_TEST (test_hash_get_keys_as_list)
 {
-	Hash *hash = hash_new (10, NULL, NULL);
+	Hash *hash = hash_new (NULL, NULL);
 	char *pronouns[] = { "I", "you", "he", "she", "it", "we", "they" };
 	int num_elem = sizeof (pronouns)/sizeof (char *);
 	int i = 0;
@@ -235,7 +230,7 @@ END_TEST
 
 START_TEST (test_hash_get_values_as_list)
 {
-	Hash *hash = hash_new (10, free, NULL);
+	Hash *hash = hash_new (free, NULL);
 	char *pronouns[] = { "I", "you", "he", "she", "it", "we", "they" };
 	int num_elem = sizeof (pronouns)/sizeof (char *);
 	int i = 0;
@@ -268,7 +263,7 @@ END_TEST
 
 START_TEST (test_hash_get_keys_as_array)
 {
-	Hash *hash = hash_new (10, NULL, NULL);
+	Hash *hash = hash_new (NULL, NULL);
 	char *pronouns[] = { "I", "you", "he", "she", "it", "we", "they" };
 	int num_elem = sizeof (pronouns)/sizeof (char *);
 	int i = 0;
@@ -297,7 +292,7 @@ END_TEST
 
 START_TEST (test_hash_get_values_as_array)
 {
-	Hash *hash = hash_new (10, free, NULL);
+	Hash *hash = hash_new (free, NULL);
 	char *pronouns[] = { "I", "you", "he", "she", "it", "we", "they" };
 	int num_elem = sizeof (pronouns)/sizeof (char *);
 	int i = 0;
@@ -334,8 +329,7 @@ START_TEST (test_hash_int)
 	int i = 0;
 	int *n = NULL;
 
-	h = hash_new_full (HASH_SMALL_SIZE,
-			int_hash, int_equal, NULL, xfree);
+	h = hash_new_full (int_hash, int_equal, NULL, xfree);
 
 	for (i = 0; i < 100; i++)
 		{
@@ -352,6 +346,26 @@ START_TEST (test_hash_int)
 			ck_assert_int_eq (*n, i);
 		}
 
+	hash_free (h);
+}
+END_TEST
+
+START_TEST (test_hash_many_insertions)
+{
+	Hash *h = NULL;
+	char *key = NULL;
+	int size = 1e4;
+	int i = 0;
+
+	h = hash_new (xfree, NULL);
+
+	for (; i < size; i++)
+		{
+			xasprintf (&key, "ponga%d", i);
+			hash_insert (h, key, key);
+		}
+
+	ck_assert_int_eq (hash_size (h), size);
 	hash_free (h);
 }
 END_TEST
@@ -375,6 +389,7 @@ make_hash_suite (void)
 	tcase_add_test (tc_core, test_hash_remove);
 	tcase_add_test (tc_core, test_hash_contains);
 	tcase_add_test (tc_core, test_hash_int);
+	tcase_add_test (tc_core, test_hash_many_insertions);
 	suite_add_tcase (s, tc_core);
 
 	/* Misc test case */

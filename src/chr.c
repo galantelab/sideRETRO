@@ -11,8 +11,7 @@
 ChrStd *
 chr_std_new (void)
 {
-	ChrStd *cs = hash_new (CHR_HASHSIZ,
-			NULL, NULL);
+	ChrStd *cs = hash_new (NULL, NULL);
 
 	/*
 	* Standardize human chromosome

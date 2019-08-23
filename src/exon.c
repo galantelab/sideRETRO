@@ -8,8 +8,6 @@
 #include "chr.h"
 #include "exon.h"
 
-#define EXON_HASHSIZ 64
-
 ExonTree *
 exon_tree_new (sqlite3_stmt *exon_stmt,
 		sqlite3_stmt *overlapping_stmt, ChrStd *cs)
@@ -24,11 +22,10 @@ exon_tree_new (sqlite3_stmt *exon_stmt,
 
 	exon_tree->cs = cs;
 
-	exon_tree->idx = hash_new (EXON_HASHSIZ, xfree,
+	exon_tree->idx = hash_new (xfree,
 			(DestroyNotify) ibitree_free);
 
-	exon_tree->cache = hash_new (HASH_MEDIUM_SIZE,
-			xfree, NULL);
+	exon_tree->cache = hash_new (xfree, NULL);
 
 	return exon_tree;
 }

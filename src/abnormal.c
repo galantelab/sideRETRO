@@ -373,8 +373,7 @@ parse_unsorted_sam (AbnormalFilter *argf)
 	// All abnormal alignments are keeped
 	// into a hash if the BAM/SAM is not sorted
 	// by queryname
-	abnormal_ids = hash_new (HASH_LARGE_SIZE,
-			xfree, xfree);
+	abnormal_ids = hash_new (xfree, xfree);
 
 	// Keep all alignments, whose at least
 	// one read not pass the constraints

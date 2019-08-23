@@ -1,49 +1,70 @@
 #include "config.h"
 
 #include <string.h>
-#include <stdint.h>
 #include <assert.h>
 #include "wrapper.h"
 #include "hash.h"
 
-struct _HashElmt
+#define GLOBAL_DEPTH 3
+#define LOCAL_DEPTH  3
+#define BUCKET_SIZE  20
+
+enum _HashColor
 {
-	void *key;
-	void *value;
+	HASH_BUCKET_WHITE,
+	HASH_BUCKET_BLACK
 };
 
-typedef struct _HashElmt HashElmt;
+typedef enum _HashColor HashColor;
 
-static inline HashElmt *
-hash_elmt_new (const void *key, const void *value)
+struct _Record
 {
-	HashElmt *hash_elmt = xcalloc (1, sizeof (HashElmt));
-	hash_elmt->key = (void *) key;
-	hash_elmt->value = (void *) value;
-	return hash_elmt;
-}
+	void     *key;
+	void     *value;
+	uint32_t  hash;
+};
 
-static inline void
-hash_elmt_clean (Hash *hash, HashElmt *hash_elmt)
+typedef struct _Record Record;
+
+struct _Bucket
 {
-	if (hash->destroy_key_fun != NULL)
-		hash->destroy_key_fun (hash_elmt->key);
-	if (hash->destroy_value_fun != NULL)
-		hash->destroy_value_fun (hash_elmt->value);
-}
+	size_t     depth;
+	size_t     size;
+	HashColor  color;
+	Record    *records;
+};
 
-static inline void
-hash_elmt_free (Hash *hash, HashElmt *hash_elmt)
+typedef struct _Bucket Bucket;
+
+struct _Hash
 {
-	hash_elmt_clean (hash, hash_elmt);
-	xfree (hash_elmt);
-}
+	size_t          version;
+	size_t          size;
 
-size_t
+	HashFunc        hash_fun;
+	EqualFun        match_fun;
+	DestroyNotify   destroy_key_fun;
+	DestroyNotify   destroy_value_fun;
+
+	size_t          global_depth;
+	size_t          buckets;
+	Bucket        **directory;
+};
+
+struct _RealIter
+{
+	size_t  version;
+	size_t  bucket;
+	size_t  record;
+	Hash   *hash;
+};
+
+typedef struct _RealIter RealIter;
+
+uint32_t
 str_hash (const void *key)
 {
-	/**
-	*
+	/*
 	* copyright (c) 2014 joseph werle <joseph.werle@gmail.com>
 	*/
 	uint32_t len = strlen ((char *) key);
@@ -108,7 +129,7 @@ str_hash (const void *key)
 	h *= 0xc2b2ae35;
 	h ^= (h >> 16);
 
-	return (size_t) h;
+	return h;
 }
 
 int
@@ -117,7 +138,7 @@ str_equal (const void *key1, const void *key2)
 	return !strcmp ((const char *) key1, (const char *) key2);
 }
 
-size_t
+uint32_t
 int_hash (const void *key)
 {
 	return * (const int *) key;
@@ -126,32 +147,71 @@ int_hash (const void *key)
 int
 int_equal (const void *key1, const void *key2)
 {
-	return * (const int *) key1 == * (const int *) key2;
+	return * ((const int *) key1) == * ((const int *) key2);
 }
 
-static inline size_t
-hash_calculate_bucket (Hash *hash, const void *key)
+static inline void
+hash_record_destroy (Hash *hash, Record *record)
 {
-	return (hash->hash_fun (key) * 11) % hash->buckets;
+	if (hash->destroy_key_fun != NULL)
+		hash->destroy_key_fun (record->key);
+	if (hash->destroy_value_fun != NULL)
+		hash->destroy_value_fun (record->value);
+}
+
+static Bucket *
+hash_bucket_new (void)
+{
+	Bucket *bucket = NULL;
+	size_t depth = LOCAL_DEPTH;
+	size_t size = BUCKET_SIZE + 1;
+
+	bucket = xcalloc (1, sizeof (Bucket));
+	bucket->records = xcalloc (size, sizeof (Record));
+	bucket->depth = depth;
+	bucket->color = HASH_BUCKET_WHITE;
+
+	return bucket;
+}
+
+static void
+hash_bucket_free (Hash *hash, Bucket *bucket)
+{
+	Record *records = bucket->records;
+	size_t i = 0;
+
+	for (; i < bucket->size; i++)
+		hash_record_destroy (hash, &records[i]);
+
+	xfree (records);
+	xfree (bucket);
+}
+
+static inline int
+hash_bucket_is_full (Bucket *bucket)
+{
+	return bucket->size > BUCKET_SIZE;
 }
 
 Hash *
-hash_new_full (size_t buckets, HashFunc hash_fun, EqualFun match_fun,
+hash_new_full (HashFunc hash_fun, EqualFun match_fun,
 		DestroyNotify destroy_key_fun, DestroyNotify destroy_value_fun)
 {
-	assert (buckets > 0 && hash_fun != NULL
-			&& match_fun != NULL);
+	assert (hash_fun != NULL && match_fun != NULL);
 
 	Hash *hash = NULL;
+	size_t buckets = 1 << GLOBAL_DEPTH;
 	size_t i = 0;
 
 	hash = xcalloc (1, sizeof (Hash));
-	hash->table = xcalloc (buckets, sizeof (List *));
+	hash->directory = xcalloc (buckets, sizeof (Bucket *));
 
 	for (; i < buckets; i++)
-		hash->table[i] = list_new (NULL);
+		hash->directory[i] = hash_bucket_new ();
 
 	hash->buckets = buckets;
+	hash->global_depth = GLOBAL_DEPTH;
+
 	hash->hash_fun = hash_fun;
 	hash->match_fun = match_fun;
 	hash->destroy_key_fun = destroy_key_fun;
@@ -161,11 +221,24 @@ hash_new_full (size_t buckets, HashFunc hash_fun, EqualFun match_fun,
 }
 
 Hash *
-hash_new (size_t buckets, DestroyNotify destroy_key_fun,
-		DestroyNotify destroy_value_fun)
+hash_new (DestroyNotify destroy_key_fun, DestroyNotify destroy_value_fun)
 {
-	return hash_new_full (buckets, str_hash, str_equal,
+	return hash_new_full (str_hash, str_equal,
 			destroy_key_fun, destroy_value_fun);
+}
+
+size_t
+hash_size (Hash *hash)
+{
+	return hash->size;
+}
+
+static inline void
+hash_clean_buckets (Hash *hash)
+{
+	size_t i = 0;
+	for (; i < hash->buckets; i++)
+		hash->directory[i]->color = HASH_BUCKET_WHITE;
 }
 
 void
@@ -174,89 +247,201 @@ hash_free (Hash *hash)
 	if (hash == NULL)
 		return;
 
+	Bucket **bucket = NULL;
 	size_t i = 0;
 
-	for (; i < hash->buckets; i++)
+	hash_clean_buckets (hash);
+
+	for (i = 0; i < hash->buckets; i++)
 		{
-			List *list = hash->table[i];
+			bucket = &hash->directory[i];
 
-			while (list_size (list) > 0)
+			switch ((*bucket)->color)
 				{
-					ListElmt *list_elmt = list_tail (list);
-					HashElmt *hash_elmt = list_data (list_elmt);
-					hash_elmt_free (hash, hash_elmt);
-					list_remove (list, list_elmt, NULL);
+				case HASH_BUCKET_WHITE:
+					{
+						(*bucket)->color = HASH_BUCKET_BLACK;
+						break;
+					}
+				case HASH_BUCKET_BLACK:
+					{
+						*bucket = NULL;
+						break;
+					}
 				}
-
-			list_free (list);
 		}
 
-	xfree (hash->table);
+	for (i = 0; i < hash->buckets; i++)
+		{
+			bucket = &hash->directory[i];
+
+			if (*bucket != NULL)
+				hash_bucket_free (hash, *bucket);
+		}
+
+	xfree (hash->directory);
 	xfree (hash);
 }
 
-static ListElmt *
-hash_fetch (Hash *hash, const void *key)
+static inline uint32_t
+hash_probing_func (Hash *hash, const void *key)
 {
-	assert (hash != NULL && key != NULL);
-
-	size_t bucket = 0;
-
-	bucket = hash_calculate_bucket (hash, key);
-	ListElmt *cur = list_head (hash->table[bucket]);
-
-	while (cur != NULL)
-		{
-			HashElmt *element = list_data (cur);
-			if (hash->match_fun (element->key, key))
-				break;
-			cur = list_next (cur);
-		}
-
-	return cur;
+	return hash->hash_fun (key) * 11;
 }
 
-int
-hash_remove (Hash *hash, const void *key)
+static inline Bucket *
+hash_get_bucket (Hash *hash, const void *key, uint32_t *hash_key)
 {
-	ListElmt *list_elmt = hash_fetch (hash, key);
+	*hash_key = hash_probing_func (hash, key);
+	size_t index = *hash_key & ((1 << hash->global_depth) - 1);
+	return hash->directory[index];
+}
 
-	if (list_elmt != NULL)
+static inline Record *
+hash_fetch_bucket_record (Hash *hash, Bucket *bucket,
+		const void *key, uint32_t hash_key, size_t *i_)
+{
+	Record *records = bucket->records;
+	size_t i = 0;
+
+	for (; i < bucket->size; i++)
 		{
-			HashElmt *hash_elmt = list_data (list_elmt);
+			if (records[i].hash == hash_key
+					&& hash->match_fun (records[i].key, key))
+				{
+					*i_ = i;
+					return &records[i];
+				}
+		}
 
-			size_t bucket = hash_calculate_bucket (hash, key);
-			List *list = hash->table[bucket];
+	return NULL;
+}
 
-			hash_elmt_free (hash, hash_elmt);
-			list_remove (list, list_elmt, NULL);
+static inline int
+hash_insert_bucket_record (Hash *hash, Bucket *bucket,
+		const void *key, const void *value, uint32_t hash_key)
+{
+	Record *record = NULL;
+	size_t i = 0;
+	int rc = 0;
 
-			hash->size--;
-			hash->version++;
+	record = hash_fetch_bucket_record (hash, bucket,
+			key, hash_key, &i);
+
+	if (record == NULL)
+		{
+			record = &bucket->records[bucket->size];
+			bucket->size++;
+			rc = 1;
+		}
+	else
+		hash_record_destroy (hash, record);
+
+	record->key   = (void *) key;
+	record->value = (void *) value;
+	record->hash  = hash_key;
+
+	return rc;
+}
+
+static inline int
+hash_remove_bucket_record (Hash *hash, Bucket *bucket,
+		const void *key, uint32_t hash_key)
+{
+	Record *record = NULL;
+	size_t i = 0;
+
+	record = hash_fetch_bucket_record (hash, bucket,
+			key, hash_key, &i);
+
+	if (record != NULL)
+		{
+			hash_record_destroy (hash, record);
+
+			for (i++; i < bucket->size; i++)
+				bucket->records[i - 1] = bucket->records[i];
+
+			bucket->size--;
 			return 1;
 		}
 
 	return 0;
 }
 
+static inline void
+hash_duplicate_buckets (Hash *hash)
+{
+	size_t old_buckets = hash->buckets;
+	size_t i = 0;
+
+	hash->buckets *= 2;
+	hash->directory = xrealloc (hash->directory,
+			sizeof (Bucket *) * hash->buckets);
+
+	for (i = old_buckets; i < hash->buckets; i++)
+		hash->directory[i] = hash->directory[i - old_buckets];
+}
+
+static void
+hash_maybe_expand (Hash *hash, Bucket *bucket,
+		uint32_t hash_key)
+{
+	if (!hash_bucket_is_full (bucket))
+		return;
+
+	if (bucket->depth == hash->global_depth)
+		{
+			hash_duplicate_buckets (hash);
+			hash->global_depth++;
+		}
+
+	Bucket *bucket0 = hash_bucket_new ();
+	Bucket *bucket1 = hash_bucket_new ();
+
+	bucket0->depth = bucket1->depth = bucket->depth + 1;
+	size_t bit = 1 << bucket->depth;
+
+	Bucket **new_bucket = NULL;
+	Record *record = NULL;
+	size_t i = 0;
+
+	for (; i < bucket->size; i++)
+		{
+			record = &bucket->records[i];
+
+			new_bucket = record->hash & bit
+				? &bucket1
+				: &bucket0;
+
+			(*new_bucket)->records[(*new_bucket)->size] = *record;
+			(*new_bucket)->size++;
+		}
+
+	for (i = hash_key & (bit - 1); i < hash->buckets; i += bit)
+		hash->directory[i] = i & bit ? bucket1 : bucket0;
+
+	bucket->size = 0;
+	hash_bucket_free (hash, bucket);
+
+	hash_maybe_expand (hash, bucket0, hash_key);
+	hash_maybe_expand (hash, bucket1, hash_key);
+}
+
 int
 hash_insert (Hash *hash, const void *key, const void *value)
 {
-	ListElmt *list_elmt = hash_fetch (hash, key);
+	assert (hash != NULL && key != NULL);
 
-	if (list_elmt != NULL)
-		{
-			HashElmt *hash_elmt = list_data (list_elmt);
-			hash_elmt_clean (hash, hash_elmt);
+	Bucket *bucket = NULL;
+	uint32_t hash_key = 0;
 
-			hash_elmt->key = (void *) key;
-			hash_elmt->value = (void *) value;
+	bucket = hash_get_bucket (hash, key, &hash_key);
 
-			return 0;
-		}
+	if (!hash_insert_bucket_record (hash, bucket,
+				key, value, hash_key))
+		return 0;
 
-	size_t bucket = hash_calculate_bucket (hash, key);
-	list_append (hash->table[bucket], hash_elmt_new (key, value));
+	hash_maybe_expand (hash, bucket, hash_key);
 
 	hash->size++;
 	hash->version++;
@@ -266,59 +451,89 @@ hash_insert (Hash *hash, const void *key, const void *value)
 void *
 hash_lookup (Hash *hash, const void *key)
 {
-	ListElmt *list_elmt = hash_fetch (hash, key);
+	assert (hash != NULL && key != NULL);
 
-	if (list_elmt != NULL)
-		{
-			HashElmt *hash_elmt = list_data (list_elmt);
-			return hash_elmt->value;
-		}
+	Bucket *bucket = NULL;
+	Record *record = NULL;
 
-	return NULL;
+	uint32_t hash_key = 0;
+	size_t i = 0;
+
+	bucket = hash_get_bucket (hash, key, &hash_key);
+	record = hash_fetch_bucket_record (hash, bucket,
+			key, hash_key, &i);
+
+	return record != NULL ? record->value : NULL;
 }
 
 int
 hash_contains (Hash *hash, const void *key)
 {
-	return hash_fetch (hash, key) != NULL;
+	return hash_lookup (hash, key) != NULL;
 }
 
-static inline int
-hash_find_bucket_in_use (Hash *hash, size_t *from)
+int
+hash_remove (Hash *hash, const void *key)
 {
-	assert (from != NULL);
+	assert (hash != NULL && key != NULL);
+
+	Bucket *bucket = NULL;
+	uint32_t hash_key = 0;
+
+	bucket = hash_get_bucket (hash, key, &hash_key);
+
+	if (!hash_remove_bucket_record (hash, bucket,
+				key, hash_key))
+		return 0;
+
+	hash->size--;
+	hash->version++;
+	return 1;
+}
+
+static inline Bucket *
+hash_find_bucket (Hash *hash, size_t *from)
+{
+	Bucket *bucket = NULL;
 	size_t i = *from;
 
 	for (; i < hash->buckets; i++)
 		{
-			List *list = hash->table[i];
-			if (list_size (list) > 0)
-				break;
+			bucket = hash->directory[i];
+			if (bucket->color == HASH_BUCKET_WHITE
+					&& bucket->size > 0)
+				{
+					*from = i;
+					return bucket;
+				}
 		}
 
-	*from = i;
-	return i < hash->buckets;
+	return NULL;
 }
 
 void
 hash_foreach (Hash *hash, HFunc func, void *user_data)
 {
 	assert (hash != NULL && func != NULL);
+
+	Bucket *bucket = NULL;
+	Record *record = NULL;
 	size_t i = 0;
+	size_t j = 0;
 
-	while (hash_find_bucket_in_use (hash, &i))
+	hash_clean_buckets (hash);
+
+	while (hash_find_bucket (hash, &i))
 		{
-			List *list = hash->table[i];
-			ListElmt *cur = list_head (list);
+			bucket = hash->directory[i];
 
-			while (cur != NULL)
+			for (j = 0; j < bucket->size; j++)
 				{
-					HashElmt *hash_elmt = list_data (cur);
-					func (hash_elmt->key, hash_elmt->value, user_data);
-					cur = list_next (cur);
+					record = &bucket->records[j];
+					func (record->key, record->value, user_data);
 				}
 
-			i++;
+			bucket->color = HASH_BUCKET_BLACK;
 		}
 }
 
@@ -326,54 +541,59 @@ void
 hash_iter_init (HashIter *iter, Hash *hash)
 {
 	assert (iter != NULL && hash != NULL);
-	memset (iter, 0, sizeof (HashIter));
 
-	size_t i = 0;
+	RealIter *ri = (RealIter *) iter;
 
-	if (hash_find_bucket_in_use (hash, &i))
-		{
-			List *list = hash->table[i];
-			iter->cur = list_head (list);
-		}
+	hash_clean_buckets (hash);
 
-	iter->bucket = i;
-	iter->version = hash->version;
-	iter->hash = hash;
+	ri->bucket = 0;
+	ri->record = 0;
+	ri->version = hash->version;
+	ri->hash = hash;
 }
 
 int
 hash_iter_next (HashIter *iter, void **key, void **value)
 {
 	assert (iter != NULL);
-	assert (iter->version == iter->hash->version);
 
-	Hash *hash = iter->hash;
-	HashElmt *hash_elmt = NULL;
-	ListElmt *cur = iter->cur;
+	RealIter *ri = (RealIter *) iter;
+	assert (ri->version == ri->hash->version);
 
-	if (cur == NULL)
+	Hash *hash = NULL;
+	Bucket *bucket = NULL;
+	Record *record = NULL;
+	size_t i = 0;
+	size_t j = 0;
+
+	hash = ri->hash;
+
+	i = ri->bucket;
+	j = ri->record;
+
+	bucket = hash->directory[i];
+
+	if (j == bucket->size)
 		{
-			size_t i = iter->bucket + 1;
+			bucket->color = HASH_BUCKET_BLACK;
 
-			if (hash_find_bucket_in_use (hash, &i))
-				{
-					List *list = hash->table[i];
-					iter->bucket = i;
-					cur = list_head (list);
-				}
-			else
+			if (hash_find_bucket (hash, &i) == NULL)
 				return 0;
+
+			bucket = hash->directory[i];
+			j = 0;
 		}
 
-	hash_elmt = list_data (cur);
+	record = &bucket->records[j];
 
 	if (key != NULL)
-		*key = hash_elmt->key;
+		*key = record->key;
 
 	if (value != NULL)
-		*value = hash_elmt->value;
+		*value = record->value;
 
-	iter->cur = list_next (cur);
+	ri->record = j + 1;
+	ri->bucket = i;
 	return 1;
 }
 

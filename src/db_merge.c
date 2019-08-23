@@ -289,12 +289,10 @@ db_merge (sqlite3 *db, int argc, char **argv)
 		}
 
 	// Init hash ense => exon_id
-	ense_h = hash_new_full (HASH_LARGE_SIZE,
-			str_hash, str_equal, xfree, NULL);
+	ense_h = hash_new_full (str_hash, str_equal, xfree, NULL);
 
 	// Init hash exon_id => exon_id
-	exon_id_h = hash_new_full (HASH_LARGE_SIZE,
-			int_hash, int_equal, xfree, NULL);
+	exon_id_h = hash_new_full (int_hash, int_equal, xfree, NULL);
 
 	// Merge all files at argv
 	for (i = 0; i < argc; i++)
