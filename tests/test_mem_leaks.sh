@@ -1,6 +1,7 @@
 #!/usr/bin/env sh
 
 UNIT_TEST=./check_sider
+EXCLUDE_TAGS="no-valgrind"
 VALGRIND_LOG_FILE=${UNIT_TEST}.valgrind
 LEAK_MESSAGE="are definitely lost"
 
@@ -8,6 +9,8 @@ LEAK_MESSAGE="are definitely lost"
 # program, looking for memory leaks. If any are found, "exit 1"
 # is invoked, and one must look through the resulting valgrind log
 # file for details on the leak.
+
+export CK_EXCLUDE_TAGS="${EXCLUDE_TAGS}"
 
 rm -f ${VALGRIND_LOG_FILE}
 libtool --mode=execute valgrind --leak-check=full ${UNIT_TEST} 2>&1 | tee ${VALGRIND_LOG_FILE}

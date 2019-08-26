@@ -6,71 +6,72 @@
 #include "../src/wrapper.h"
 #include "../src/hash.h"
 
-START_TEST (test_hash_new)
+static Hash *hash = NULL;
+
+static void
+setup (void)
 {
-	Hash *hash = hash_new_full (str_hash, str_equal,
-			free, free);
-	hash_free (NULL);
+	hash = hash_new (xfree, NULL);
+}
+
+static void
+teardown (void)
+{
 	hash_free (hash);
+}
+
+START_TEST (test_hash_free)
+{
+	hash_free (NULL);
 }
 END_TEST
 
 START_TEST (test_hash_insert)
 {
-	Hash *hash = hash_new (NULL, free);
-
-	hash_insert (hash, "eu", xstrdup ("Thiago"));
-	hash_insert (hash, "tu", xstrdup ("Fernanda"));
-	hash_insert (hash, "ele", xstrdup ("Pedro"));
+	hash_insert (hash, xstrdup ("Thiago"), "eu");
+	hash_insert (hash, xstrdup ("Fernanda"), "tu");
+	hash_insert (hash, xstrdup ("Pedro"), "ele");
 
 	ck_assert_int_eq (hash_size (hash), 3);
-
-	hash_free (hash);
 }
 END_TEST
 
 START_TEST (test_hash_lookup)
 {
-	Hash *hash = hash_new (NULL, free);
+	hash_insert (hash, xstrdup ("Thiago"), "eu");
+	hash_insert (hash, xstrdup ("Fernanda"), "tu");
+	hash_insert (hash, xstrdup ("Pedro"), "ele");
 
-	hash_insert (hash, "eu", xstrdup ("Thiago"));
-	hash_insert (hash, "tu", xstrdup ("Fernanda"));
-	hash_insert (hash, "ele", xstrdup ("Pedro"));
-
-	ck_assert_str_eq (hash_lookup (hash, "eu"), "Thiago");
-	ck_assert_str_eq (hash_lookup (hash, "tu"), "Fernanda");
-	ck_assert_str_eq (hash_lookup (hash, "ele"), "Pedro");
-
-	hash_free (hash);
+	ck_assert_str_eq (hash_lookup (hash, "Thiago"), "eu");
+	ck_assert_str_eq (hash_lookup (hash, "Fernanda"), "tu");
+	ck_assert_str_eq (hash_lookup (hash, "Pedro"), "ele");
 }
 END_TEST
 
 START_TEST (test_hash_replace)
 {
-	Hash *hash = hash_new (NULL, free);
 	int *num_alloc = xcalloc (1, sizeof (int));
 	int num;
 	int rc;
 
-	rc = hash_insert (hash, "eu", xstrdup ("Thiago"));
+	rc = hash_insert (hash, xstrdup ("Thiago"), "eu");
 	ck_assert_int_eq (rc, 1);
 
 	*num_alloc = 120;
 
-	rc = hash_insert (hash, "eu", num_alloc);
+	rc = hash_insert (hash, xstrdup ("Thiago"), num_alloc);
 	ck_assert_int_eq (rc, 0);
 
-	num = * (int *) hash_lookup (hash, "eu");
+	num = * (int *) hash_lookup (hash, "Thiago");
 	ck_assert_int_eq (num, *num_alloc);
 	ck_assert_int_eq (num, 120);
 
-	hash_free (hash);
+	xfree (num_alloc);
 }
 END_TEST
 
 START_TEST (test_hash_remove)
 {
-	Hash *hash = hash_new (free, NULL);
 	int i = 0;
 	int rc;
 	char **str;
@@ -97,13 +98,11 @@ START_TEST (test_hash_remove)
 	ck_assert_int_eq (hash_size (hash), 0);
 
 	xfree (str);
-	hash_free (hash);
 }
 END_TEST
 
 START_TEST (test_hash_contains)
 {
-	Hash *hash = hash_new (free, NULL);
 	char **keys = xcalloc (100, sizeof (char *));
 	int *values = xcalloc (100, sizeof (int));
 	int i = 0;
@@ -122,7 +121,6 @@ START_TEST (test_hash_contains)
 			ck_assert_int_eq (*ptr, values[i]);
 		}
 
-	hash_free (hash);
 	xfree (keys);
 	xfree (values);
 }
@@ -146,7 +144,6 @@ sum (void *key, void *value, void *user_data)
 
 START_TEST (test_hash_foreach)
 {
-	Hash *hash = hash_new (free, NULL);
 	char **keys = xcalloc (100, sizeof (char *));
 	int *values = xcalloc (100, sizeof (int));
 	int i = 0;
@@ -162,7 +159,6 @@ START_TEST (test_hash_foreach)
 	hash_foreach (hash, sum, &total);
 	ck_assert_int_eq (total, 61);
 
-	hash_free (hash);
 	xfree (keys);
 	xfree (values);
 }
@@ -170,7 +166,6 @@ END_TEST
 
 START_TEST (test_hash_iter)
 {
-	Hash *hash = hash_new (free, NULL);
 	char **keys = xcalloc (100, sizeof (char *));
 	int *values = xcalloc (100, sizeof (int));
 	int i = 0;
@@ -193,7 +188,6 @@ START_TEST (test_hash_iter)
 
 	ck_assert_int_eq (total, 4950);
 
-	hash_free (hash);
 	xfree (keys);
 	xfree (values);
 }
@@ -201,13 +195,12 @@ END_TEST
 
 START_TEST (test_hash_get_keys_as_list)
 {
-	Hash *hash = hash_new (NULL, NULL);
 	char *pronouns[] = { "I", "you", "he", "she", "it", "we", "they" };
 	int num_elem = sizeof (pronouns)/sizeof (char *);
 	int i = 0;
 
 	for (; i < num_elem; i++)
-		hash_insert (hash, pronouns[i], NULL);
+		hash_insert (hash, xstrdup (pronouns[i]), NULL);
 
 	List *list = hash_get_keys_as_list (hash);
 	ck_assert_ptr_ne (list, NULL);
@@ -218,19 +211,17 @@ START_TEST (test_hash_get_keys_as_list)
 
 	for (; cur != NULL; cur = list_next (cur))
 		for (i = 0; i < num_elem; i++)
-			if (list_data (cur) == pronouns[i])
+			if (!strcmp (list_data (cur), pronouns[i]))
 				match ++;
 
 	ck_assert_int_eq (match, num_elem);
 
-	hash_free (hash);
 	list_free (list);
 }
 END_TEST
 
 START_TEST (test_hash_get_values_as_list)
 {
-	Hash *hash = hash_new (free, NULL);
 	char *pronouns[] = { "I", "you", "he", "she", "it", "we", "they" };
 	int num_elem = sizeof (pronouns)/sizeof (char *);
 	int i = 0;
@@ -251,25 +242,23 @@ START_TEST (test_hash_get_values_as_list)
 
 	for (; cur != NULL; cur = list_next (cur))
 		for (i = 0; i < num_elem; i++)
-			if (list_data (cur) == pronouns[i])
+			if (!strcmp (list_data (cur), pronouns[i]))
 				match ++;
 
 	ck_assert_int_eq (match, num_elem);
 
-	hash_free (hash);
 	list_free (list);
 }
 END_TEST
 
 START_TEST (test_hash_get_keys_as_array)
 {
-	Hash *hash = hash_new (NULL, NULL);
 	char *pronouns[] = { "I", "you", "he", "she", "it", "we", "they" };
 	int num_elem = sizeof (pronouns)/sizeof (char *);
 	int i = 0;
 
 	for (; i < num_elem; i++)
-		hash_insert (hash, pronouns[i], NULL);
+		hash_insert (hash, xstrdup (pronouns[i]), NULL);
 
 	Array *array = hash_get_keys_as_array (hash);
 	ck_assert_ptr_ne (array, NULL);
@@ -280,19 +269,17 @@ START_TEST (test_hash_get_keys_as_array)
 
 	for (i = 0; i < num_elem; i++)
 		for (j = 0; j < num_elem; j++)
-			if (array_get (array, i) == pronouns[j])
+			if (!strcmp (array_get (array, i), pronouns[j]))
 				match ++;
 
 	ck_assert_int_eq (match, num_elem);
 
-	hash_free (hash);
 	array_free (array, 1);
 }
 END_TEST
 
 START_TEST (test_hash_get_values_as_array)
 {
-	Hash *hash = hash_new (free, NULL);
 	char *pronouns[] = { "I", "you", "he", "she", "it", "we", "they" };
 	int num_elem = sizeof (pronouns)/sizeof (char *);
 	int i = 0;
@@ -313,12 +300,11 @@ START_TEST (test_hash_get_values_as_array)
 
 	for (i = 0; i < num_elem; i++)
 		for (j = 0; j < num_elem; j++)
-			if (array_get (array, i) == pronouns[j])
+			if (!strcmp (array_get (array, i), pronouns[j]))
 				match ++;
 
 	ck_assert_int_eq (match, num_elem);
 
-	hash_free (hash);
 	array_free (array, 1);
 }
 END_TEST
@@ -352,21 +338,17 @@ END_TEST
 
 START_TEST (test_hash_many_insertions)
 {
-	Hash *h = NULL;
 	char *key = NULL;
 	int size = 1e4;
 	int i = 0;
 
-	h = hash_new (xfree, NULL);
-
 	for (; i < size; i++)
 		{
 			xasprintf (&key, "ponga%d", i);
-			hash_insert (h, key, key);
+			hash_insert (hash, key, key);
 		}
 
-	ck_assert_int_eq (hash_size (h), size);
-	hash_free (h);
+	ck_assert_int_eq (hash_size (hash), size);
 }
 END_TEST
 
@@ -381,8 +363,9 @@ make_hash_suite (void)
 
 	/* Core test case */
 	tc_core = tcase_create ("Core");
+	tcase_add_checked_fixture (tc_core, setup, teardown);
 
-	tcase_add_test (tc_core, test_hash_new);
+	tcase_add_test (tc_core, test_hash_free);
 	tcase_add_test (tc_core, test_hash_insert);
 	tcase_add_test (tc_core, test_hash_lookup);
 	tcase_add_test (tc_core, test_hash_replace);
@@ -394,6 +377,8 @@ make_hash_suite (void)
 
 	/* Misc test case */
 	tc_misc = tcase_create ("Misc");
+	tcase_add_checked_fixture (tc_misc, setup, teardown);
+
 	tcase_add_test (tc_misc, test_hash_foreach);
 	tcase_add_test (tc_misc, test_hash_iter);
 	tcase_add_test (tc_misc, test_hash_get_keys_as_list);

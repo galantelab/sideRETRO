@@ -7,16 +7,31 @@
 #include "../src/list.h"
 #include "../src/ibitree.h"
 
+static IBiTree *tree = NULL;
+static List *list = NULL;
+
+static void
+setup (void)
+{
+	tree = ibitree_new (xfree);
+	list = list_new (NULL);
+}
+
+static void
+teardown (void)
+{
+	ibitree_free (tree);
+	list_free (list);
+}
+
 START_TEST (test_ibitree_insert)
 {
-	IBiTree *tree = ibitree_new (xfree);
 	int i = 0;
 
 	for (; i < 10; i++)
 		ibitree_insert (tree, i, i + 1, xstrdup ("ponga"));
 
 	ck_assert_int_eq (ibitree_size (tree), i);
-	ibitree_free (tree);
 }
 END_TEST
 
@@ -29,8 +44,6 @@ catcher (IBiTreeLookupData *ldata, void *user_data)
 
 START_TEST (test_ibitree_lookup)
 {
-	IBiTree *tree = ibitree_new (xfree);
-	List *list = list_new (NULL);
 	ListElmt *cur = NULL;
 	int acm = 0;
 	int i = 0;
@@ -50,16 +63,11 @@ START_TEST (test_ibitree_lookup)
 
 	for (; cur != NULL; cur = list_next (cur), i++)
 		ck_assert_str_eq (list_data (cur), overlap[i]);
-
-	list_free (list);
-	ibitree_free (tree);
 }
 END_TEST
 
 START_TEST (test_ibitree_lookup_frac)
 {
-	IBiTree *tree = ibitree_new (xfree);
-	List *list = list_new (NULL);
 	ListElmt *cur = NULL;
 	int acm = 0;
 	int i = 0;
@@ -78,16 +86,11 @@ START_TEST (test_ibitree_lookup_frac)
 
 	for (; cur != NULL; cur = list_next (cur), i++)
 		ck_assert_str_eq (list_data (cur), overlap[i]);
-
-	list_free (list);
-	ibitree_free (tree);
 }
 END_TEST
 
 START_TEST (test_ibitree_lookup_either)
 {
-	IBiTree *tree = ibitree_new (xfree);
-	List *list = list_new (NULL);
 	ListElmt *cur = NULL;
 	int acm = 0;
 	int i = 0;
@@ -106,9 +109,6 @@ START_TEST (test_ibitree_lookup_either)
 
 	for (; cur != NULL; cur = list_next (cur), i++)
 		ck_assert_str_eq (list_data (cur), overlap[i]);
-
-	list_free (list);
-	ibitree_free (tree);
 }
 END_TEST
 
@@ -122,6 +122,7 @@ make_ibitree_suite (void)
 
 	/* Core test case */
 	tc_core = tcase_create ("Core");
+	tcase_add_checked_fixture (tc_core, setup, teardown);
 
 	tcase_add_test (tc_core, test_ibitree_insert);
 	tcase_add_test (tc_core, test_ibitree_lookup);

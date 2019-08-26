@@ -9,9 +9,28 @@
 #include "../src/wrapper.h"
 #include "../src/array.h"
 
+static Array *arr = NULL;
+
+static void
+setup1 (void)
+{
+	arr = array_new (xfree);
+}
+
+static void
+setup2 (void)
+{
+	arr = array_new (NULL);
+}
+
+static void
+teardown (void)
+{
+	array_free (arr, 1);
+}
+
 START_TEST (test_array)
 {
-	Array *arr = array_new (xfree);
 	int ponga_size = 5;
 
 	char *ponga[] = {
@@ -29,8 +48,6 @@ START_TEST (test_array)
 
 	for (int i = 0; i < arr->len; i++)
 		ck_assert_str_eq ((char *) array_get (arr, i), ponga[i]);
-
-	array_free (arr, 1);
 }
 END_TEST
 
@@ -64,7 +81,6 @@ END_TEST
 
 START_TEST (test_array_uniq)
 {
-	Array *arr = array_new (xfree);
 	int ponga_size = 15;
 
 	char *ponga[] = {
@@ -102,14 +118,11 @@ START_TEST (test_array_uniq)
 
 	for (int i = 0; i < arr->len; i++)
 		ck_assert_str_eq ((char *) array_get (arr, i), uniq[i]);
-
-	array_free (arr, 1);
 }
 END_TEST
 
 START_TEST (test_array_find)
 {
-	Array *arr = array_new (NULL);
 	int ponga_size = 5;
 	int rc = 0;
 	int i = 0;
@@ -135,14 +148,11 @@ START_TEST (test_array_find)
 
 	rc = array_find (arr, "ponga66", &index_);
 	ck_assert_int_eq (rc, 0);
-
-	array_free (arr, 1);
 }
 END_TEST
 
 START_TEST (test_array_find_with_equal_fun)
 {
-	Array *arr = array_new (xfree);
 	int ponga_size = 5;
 	int rc = 0;
 	int i = 0;
@@ -170,14 +180,11 @@ START_TEST (test_array_find_with_equal_fun)
 	rc = array_find_with_equal_fun (arr, "ponga66",
 			equalstring, &index_);
 	ck_assert_int_eq (rc, 0);
-
-	array_free (arr, 1);
 }
 END_TEST
 
 START_TEST (test_array_remove)
 {
-	Array *arr = array_new (NULL);
 	int ponga_size = 5;
 	int rc = 0;
 	int i = 0;
@@ -207,14 +214,11 @@ START_TEST (test_array_remove)
 
 	ck_assert_str_eq (array_get (arr, 0), "Ponga2");
 	ck_assert_str_eq (array_get (arr, 1), "Ponga4");
-
-	array_free (arr, 1);
 }
 END_TEST
 
 START_TEST (test_array_remove_index)
 {
-	Array *arr = array_new (NULL);
 	int ponga_size = 5;
 	int i = 0;
 
@@ -245,8 +249,6 @@ START_TEST (test_array_remove_index)
 
 	ck_assert_str_eq (array_remove_index (arr, 0), ponga[3]);
 	ck_assert_int_eq (array_len (arr), ponga_size - 5);
-
-	array_free (arr, 1);
 }
 END_TEST
 
@@ -254,21 +256,29 @@ Suite *
 make_array_suite (void)
 {
 	Suite *s;
-	TCase *tc_core;
+	TCase *tc_core_free;
+	TCase *tc_core_null;
 	TCase *tc_free;
 
 	s = suite_create ("Array");
 
-	/* Core test case */
-	tc_core = tcase_create ("Core");
+	/* Core free test case */
+	tc_core_free = tcase_create ("CoreFree");
+	tcase_add_checked_fixture (tc_core_free, setup1, teardown);
 
-	tcase_add_test (tc_core, test_array);
-	tcase_add_test (tc_core, test_array_uniq);
-	tcase_add_test (tc_core, test_array_find);
-	tcase_add_test (tc_core, test_array_find_with_equal_fun);
-	tcase_add_test (tc_core, test_array_remove);
-	tcase_add_test (tc_core, test_array_remove_index);
-	suite_add_tcase (s, tc_core);
+	tcase_add_test (tc_core_free, test_array);
+	tcase_add_test (tc_core_free, test_array_uniq);
+	tcase_add_test (tc_core_free, test_array_find_with_equal_fun);
+	suite_add_tcase (s, tc_core_free);
+
+	/* Core null test case */
+	tc_core_null = tcase_create ("CoreNull");
+	tcase_add_checked_fixture (tc_core_null, setup2, teardown);
+
+	tcase_add_test (tc_core_null, test_array_find);
+	tcase_add_test (tc_core_null, test_array_remove);
+	tcase_add_test (tc_core_null, test_array_remove_index);
+	suite_add_tcase (s, tc_core_null);
 
 	/* Free test case */
 	tc_free = tcase_create ("Free");

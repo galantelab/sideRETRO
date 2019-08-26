@@ -3,23 +3,35 @@
 #include <stdlib.h>
 #include <check.h>
 #include "check_sider.h"
+
 #include "../src/wrapper.h"
 #include "../src/list.h"
 
+static List *l = NULL;
+
+static void
+setup (void)
+{
+	l = list_new (xfree);
+}
+
+static void
+teardown (void)
+{
+	list_free (l);
+}
+
 START_TEST (test_list_new)
 {
-	List *l = list_new (free);
 	ck_assert_ptr_ne (l, NULL);
 	ck_assert_int_eq (l->size, 0);
 	ck_assert_ptr_eq (l->head, NULL);
 	ck_assert_ptr_eq (l->tail, NULL);
-	list_free (l);
 }
 END_TEST
 
 START_TEST (test_list_ins_prev)
 {
-	List *l = list_new (free);
 	list_ins_prev (l, NULL, xstrdup ("eu"));
 	list_ins_prev (l, list_head (l), xstrdup ("tu"));
 	list_ins_prev (l, list_head (l), xstrdup ("ele"));
@@ -28,14 +40,11 @@ START_TEST (test_list_ins_prev)
 	ck_assert_str_eq (list_data (cur), "ele"); cur = list_next (cur);
 	ck_assert_str_eq (list_data (cur), "tu"); cur = list_next (cur);
 	ck_assert_str_eq (list_data (cur), "eu");
-
-	list_free (l);
 }
 END_TEST
 
 START_TEST (test_list_ins_next)
 {
-	List *l = list_new (free);
 	list_ins_next (l, NULL, xstrdup ("eu"));
 	list_ins_next (l, list_tail (l), xstrdup ("tu"));
 	list_ins_next (l, list_tail (l), xstrdup ("ele"));
@@ -44,14 +53,11 @@ START_TEST (test_list_ins_next)
 	ck_assert_str_eq (list_data (cur), "eu"); cur = list_next (cur);
 	ck_assert_str_eq (list_data (cur), "tu"); cur = list_next (cur);
 	ck_assert_str_eq (list_data (cur), "ele");
-
-	list_free (l);
 }
 END_TEST
 
 START_TEST (test_list_ins_prev_link)
 {
-	List *l = list_new (free);
 	list_ins_prev (l, NULL, xstrdup ("eu"));
 	list_ins_prev (l, list_head (l), xstrdup ("tu"));
 	list_ins_prev (l, list_head (l), xstrdup ("ele"));
@@ -61,13 +67,11 @@ START_TEST (test_list_ins_prev_link)
 	list_ins_prev_link (l, list_head (l), tail);
 
 	ck_assert_str_eq (list_data (list_head (l)), "eu");
-	list_free (l);
 }
 END_TEST
 
 START_TEST (test_list_ins_next_link)
 {
-	List *l = list_new (free);
 	list_ins_next (l, NULL, xstrdup ("eu"));
 	list_ins_next (l, list_tail (l), xstrdup ("tu"));
 	list_ins_next (l, list_tail (l), xstrdup ("ele"));
@@ -77,13 +81,11 @@ START_TEST (test_list_ins_next_link)
 	list_ins_next_link (l, list_tail (l), head);
 
 	ck_assert_str_eq (list_data (list_tail (l)), "eu");
-	list_free (l);
 }
 END_TEST
 
 START_TEST (test_list_remove)
 {
-	List *l = list_new (free);
 	list_ins_next (l, NULL, xstrdup ("eu"));
 	list_ins_next (l, list_tail (l), xstrdup ("tu"));
 	list_ins_next (l, list_tail (l), xstrdup ("ele"));
@@ -100,13 +102,11 @@ START_TEST (test_list_remove)
 	ck_assert_str_eq (list_data (list_head (l)), "ele");
 
 	xfree (data);
-	list_free (l);
 }
 END_TEST
 
 START_TEST (test_list_remove_link)
 {
-	List *l = list_new (free);
 	list_ins_next (l, NULL, xstrdup ("eu"));
 	list_ins_next (l, list_tail (l), xstrdup ("tu"));
 	list_ins_next (l, list_tail (l), xstrdup ("ele"));
@@ -120,7 +120,6 @@ START_TEST (test_list_remove_link)
 
 	xfree (list_data (head));
 	xfree (head);
-	list_free (l);
 }
 END_TEST
 
@@ -134,17 +133,19 @@ sum (void *a, void *b)
 
 START_TEST (test_list_foreach)
 {
-	List *l = list_new (NULL);
 	int prime[] = {1, 3, 5, 7, 11, 13, 17};
 	int total = 0;
 	int i = 0;
 
 	for (; i < sizeof (prime)/sizeof (int); i++)
-		list_append (l, &prime[i]);
+		{
+			int *p = xcalloc (1, sizeof (int));
+			*p = prime[i];
+			list_append (l, p);
+		}
 
 	list_foreach (l, sum, &total);
 	ck_assert_int_eq (total, 57);
-	list_free (l);
 }
 END_TEST
 
@@ -158,6 +159,7 @@ make_list_suite (void)
 
 	/* Core test case */
 	tc_core = tcase_create ("Core");
+	tcase_add_checked_fixture (tc_core, setup, teardown);
 
 	tcase_add_test (tc_core, test_list_new);
 	tcase_add_test (tc_core, test_list_ins_prev);

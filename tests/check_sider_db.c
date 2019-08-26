@@ -260,6 +260,7 @@ make_db_suite (void)
 
 	/* Abort test case */
 	tc_abort = tcase_create ("Abort");
+	/*tcase_set_tags (tc_abort, "no-valgrind");*/
 
 	tcase_add_test (tc_core, test_db_open);
 	tcase_add_test (tc_core, test_db_exec);
