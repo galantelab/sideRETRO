@@ -67,6 +67,8 @@ libsider_la_SOURCES = \
 		merge_call.c \
 		merge_call.h \
 		db_merge.c \
-		db_merge.h
+		db_merge.h \
+		set.c \
+		set.h
 
 libsider_la_CPPFLAGS = -I$(top_srcdir)/htslib

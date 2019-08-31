@@ -28,7 +28,8 @@ check_sider_SOURCES = \
 	check_sider_dbscan.c \
 	check_sider_cluster.c \
 	check_sider_wrapper.c \
-	check_sider_db_merge.c
+	check_sider_db_merge.c \
+	check_sider_set.c
 
 check_sider_LDFLAGS = -static
 
