@@ -150,6 +150,18 @@ int_equal (const void *key1, const void *key2)
 	return * ((const int *) key1) == * ((const int *) key2);
 }
 
+uint32_t
+direct_hash (const void *key)
+{
+	return (uint32_t) (unsigned long) key;
+}
+
+int
+direct_equal (const void *key1, const void *key2)
+{
+	return key1 == key2;
+}
+
 static inline void
 hash_record_destroy (Hash *hash, Record *record)
 {

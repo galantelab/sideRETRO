@@ -336,6 +336,33 @@ START_TEST (test_hash_int)
 }
 END_TEST
 
+START_TEST (test_hash_direct)
+{
+	Hash *h = NULL;
+	int k[100] = {};
+	int i = 0;
+	int *n = NULL;
+
+	h = hash_new_full (direct_hash, direct_equal, NULL, NULL);
+
+	for (i = 0; i < 100; i++)
+		{
+			k[i] = i;
+			hash_insert (h, &k[i], &k[i]);
+		}
+
+	ck_assert_int_eq (hash_size (h), 100);
+
+	for (i = 0; i < 100; i++)
+		{
+			n = hash_lookup (h, &k[i]);
+			ck_assert_int_eq (*n, i);
+		}
+
+	hash_free (h);
+}
+END_TEST
+
 START_TEST (test_hash_many_insertions)
 {
 	char *key = NULL;
@@ -372,6 +399,7 @@ make_hash_suite (void)
 	tcase_add_test (tc_core, test_hash_remove);
 	tcase_add_test (tc_core, test_hash_contains);
 	tcase_add_test (tc_core, test_hash_int);
+	tcase_add_test (tc_core, test_hash_direct);
 	tcase_add_test (tc_core, test_hash_many_insertions);
 	suite_add_tcase (s, tc_core);
 

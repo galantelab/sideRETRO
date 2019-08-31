@@ -23,10 +23,12 @@ struct _HashIter
 
 typedef struct _HashIter HashIter;
 
-uint32_t str_hash  (const void *key);
-uint32_t int_hash  (const void *key);
-int      str_equal (const void *key1, const void *key2);
-int      int_equal (const void *key1, const void *key2);
+uint32_t str_hash     (const void *key);
+uint32_t int_hash     (const void *key);
+uint32_t direct_hash  (const void *key);
+int      str_equal    (const void *key1, const void *key2);
+int      int_equal    (const void *key1, const void *key2);
+int      direct_equal (const void *key1, const void *key2);
 
 Hash  * hash_new_full (HashFunc hash_fun, EqualFun match_fun,
 		DestroyNotify destroy_key_fun, DestroyNotify destroy_value_fun);
