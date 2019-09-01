@@ -1,5 +1,6 @@
 #include "config.h"
 
+#include "set.h"
 #include "ibitree.h"
 #include "wrapper.h"
 #include "dbscan.h"
@@ -73,9 +74,9 @@ range_query (DBSCAN *db, List *neighbors,
 }
 
 static void
-process_seed (const List *seed, DFunc func, void *user_data)
+process_seed (const Set *seed, DFunc func, void *user_data)
 {
-	ListElmt *cur = list_head (seed);
+	ListElmt *cur = list_head (set_list (seed));
 	Point *p = NULL;
 
 	for (; cur != NULL; cur = list_next (cur))
@@ -85,42 +86,12 @@ process_seed (const List *seed, DFunc func, void *user_data)
 		}
 }
 
-static int
-point_is_present (const List *list, const Point *q)
+static void
+set_union_list (Set *set, const List *list)
 {
 	ListElmt *cur = list_head (list);
-	Point *p = NULL;
-
 	for (; cur != NULL; cur = list_next (cur))
-		{
-			p = list_data (cur);
-			if (p == q)
-				return 1;
-		}
-
-	return 0;
-}
-
-static void
-get_union (List *to, List *from)
-{
-	ListElmt *cur = list_head (from);
-	ListElmt *next = NULL;
-	Point *p = NULL;
-
-	while (cur != NULL)
-		{
-			next = list_next (cur);
-			p = list_data (cur);
-
-			if (!point_is_present (to, p))
-				{
-					list_remove_link (from, cur);
-					list_append_link (to, cur);
-				}
-
-			cur = next;
-		}
+		set_insert (set, list_data (cur));
 }
 
 static void
@@ -143,7 +114,7 @@ dbscan_cluster (DBSCAN *db, long eps, int min_pts, DFunc func, void *user_data)
 	ListElmt *cur = NULL;
 	ListElmt *cur_seed = NULL;
 	List *neighbors = NULL;
-	List *seed = NULL;
+	Set *seed = NULL;
 	Point *p = NULL;
 	Point *q = NULL;
 	int acm = 0;
@@ -162,21 +133,27 @@ dbscan_cluster (DBSCAN *db, long eps, int min_pts, DFunc func, void *user_data)
 			if (p->label != UNDEFINED)
 				continue;
 
-			seed = list_new (NULL);
-			n = range_query (db, seed, p, eps);
+			neighbors = list_new (NULL);
+			n = range_query (db, neighbors, p, eps);
 			p->neighbors = n;
 
 			if (n < min_pts)
 				{
 					p->label = NOISE;
-					list_free (seed);
+					list_free (neighbors);
 					continue;
 				}
 
 			p->label = CORE;
 			p->id = ++c;
 
-			cur_seed = list_head (seed);
+			seed = set_new (NULL);
+
+			set_union_list (seed, neighbors);
+			list_free (neighbors);
+
+			cur_seed = list_head (set_list (seed));
+
 			for (; cur_seed != NULL; cur_seed = list_next (cur_seed))
 				{
 					q = list_data (cur_seed);
@@ -200,7 +177,7 @@ dbscan_cluster (DBSCAN *db, long eps, int min_pts, DFunc func, void *user_data)
 					if (n >= min_pts)
 						{
 							q->label = CORE;
-							get_union (seed, neighbors);
+							set_union_list (seed, neighbors);
 						}
 
 					list_free (neighbors);
@@ -209,7 +186,7 @@ dbscan_cluster (DBSCAN *db, long eps, int min_pts, DFunc func, void *user_data)
 			process_seed (seed, func, user_data);
 			acm++;
 
-			list_free (seed);
+			set_free (seed);
 		}
 
 	return acm;
