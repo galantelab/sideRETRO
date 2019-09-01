@@ -72,17 +72,6 @@ set_insert (Set *set, const void *data)
 	return 1;
 }
 
-void
-set_insert_all (Set *setu, const Set *set)
-{
-	assert (setu != NULL && set != NULL);
-
-	ListElmt *cur = NULL;
-
-	for (cur = list_head (set->list); cur != NULL; cur = list_next (cur))
-		set_insert (setu, list_data (cur));
-}
-
 int
 set_remove (Set *set, void **data)
 {
@@ -101,22 +90,6 @@ set_remove (Set *set, void **data)
 		}
 
 	return 0;
-}
-
-void
-set_remove_all (Set *setd, const Set *set)
-{
-	assert (setd != NULL && set != NULL);
-
-	ListElmt *cur = NULL;
-	void *data = NULL;
-
-	for (cur = list_head (set->list); cur != NULL; cur = list_next (cur))
-		{
-			data = list_data (cur);
-			if (set_remove (setd, &data) && setd->destroy_fun != NULL)
-				setd->destroy_fun (data);
-		}
 }
 
 Set *
