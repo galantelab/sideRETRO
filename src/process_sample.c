@@ -32,13 +32,15 @@
 #define DEFAULT_LOG_FILE        NULL
 #define DEFAULT_GFF_FILE        NULL
 #define DEFAULT_INPUT_FILE      NULL
+#define DEFAULT_PHRED_QUALITY   8
 
 static void
 process_sample (const char *output_dir, const char *prefix,
 		const Array *sam_files, const char *gff_file,
 		int threads, int cache_size, int sorted,
-		int max_distance, float exon_frac,
-		float alignment_frac, int either)
+		int phred_quality, int max_distance,
+		float exon_frac, float alignment_frac,
+		int either)
 {
 	log_trace ("Inside %s", __func__);
 
@@ -130,7 +132,8 @@ process_sample (const char *output_dir, const char *prefix,
 				.cs               = cs,
 				.alignment_stmt   = alignment_stmt,
 				.queryname_sorted = sorted,
-				.max_distance     = max_distance
+				.max_distance     = max_distance,
+				.phred_quality    = phred_quality
 			};
 
 			log_debug ("Dump source entry '%s'", sam_file);
@@ -172,9 +175,9 @@ print_usage (FILE *fp)
 		"%s\n"
 		"\n"
 		"Usage: %s process-sample [-h] [-q] [-d] [-s] [-l FILE] [-o DIR]\n"
-		"       %*c                [-p STR] [-t INT] [-c INT] [-m INT]\n"
-		"       %*c                [-f FLOAT] [-F FLOAT | -r] [-e]\n"
-		"       %*c                [-i FILE] -a FILE <FILE> ...\n"
+		"       %*c                [-p STR] [-t INT] [-c INT] [-Q INT]\n"
+		"       %*c                [-m INT] [-f FLOAT] [-F FLOAT | -r]\n"
+		"       %*c                [-e] [-i FILE] -a FILE <FILE> ...\n"
 		"\n"
 		"Arguments:\n"
 		"   One or more alignment files SAM/BAM\n"
@@ -203,6 +206,8 @@ print_usage (FILE *fp)
 		"   -c, --cache-size        Set SQLite3 cache size in KiB [default: \"%d\"]\n"
 		"   -s, --sorted            Assume all reads are grouped by queryname, even if\n"
 		"                           there is no SAM/BAM header tag 'SO:queryname'\n"
+		"   -Q, --phred-quality     Minimum phred quality score required\n"
+		"                           [default:\"%d\"]\n"
 		"   -m, --max-distance      Maximum distance allowed between paired-end reads\n"
 		"                           [default:\"%d\"]\n"
 		"   -f, --exon-frac         Minimum overlap required as a fraction of exon\n"
@@ -218,7 +223,8 @@ print_usage (FILE *fp)
 		"\n",
 		PACKAGE_STRING, PACKAGE, pkg_len, ' ', pkg_len, ' ', pkg_len, ' ',
 		DEFAULT_OUTPUT_DIR, DEFAULT_PREFIX, DEFAULT_THREADS, DEFAULT_CACHE_SIZE,
-		DEFAULT_MAX_DISTANCE, DEFAULT_EXON_FRAC, DEFAULT_ALIGNMENT_FRAC);
+		DEFAULT_PHRED_QUALITY, DEFAULT_MAX_DISTANCE, DEFAULT_EXON_FRAC,
+		DEFAULT_ALIGNMENT_FRAC);
 }
 
 static void
@@ -252,6 +258,7 @@ parse_process_sample_command_opt (int argc, char **argv)
 		{"output-dir",      required_argument, 0, 'o'},
 		{"prefix",          required_argument, 0, 'p'},
 		{"threads",         required_argument, 0, 't'},
+		{"phred-quality",   required_argument, 0, 'Q'},
 		{"max-distance",    required_argument, 0, 'm'},
 		{"cache-size",      required_argument, 0, 'c'},
 		{"sorted",          no_argument,       0, 's'},
@@ -268,6 +275,7 @@ parse_process_sample_command_opt (int argc, char **argv)
 	int         log_level      = DEFAULT_LOG_LEVEL;
 	int         threads        = DEFAULT_THREADS;
 	int         sorted         = DEFAULT_SORTED;
+	int         phred_quality  = DEFAULT_PHRED_QUALITY;
 	int         max_distance   = DEFAULT_MAX_DISTANCE;
 	int         cache_size     = DEFAULT_CACHE_SIZE;
 	int         either         = DEFAULT_EITHER;
@@ -288,7 +296,7 @@ parse_process_sample_command_opt (int argc, char **argv)
 	int alignment_frac_set = 0;
 	int c, i;
 
-	while ((c = getopt_long (argc, argv, "hqdsl:a:o:p:t:m:c:f:F:eri:", opt, &option_index)) >= 0)
+	while ((c = getopt_long (argc, argv, "hqdsl:a:o:p:t:m:c:Q:f:F:eri:", opt, &option_index)) >= 0)
 		{
 			switch (c)
 				{
@@ -336,6 +344,11 @@ parse_process_sample_command_opt (int argc, char **argv)
 				case 'c':
 					{
 						cache_size = atoi (optarg);
+						break;
+					}
+				case 'Q':
+					{
+						phred_quality = atoi (optarg);
 						break;
 					}
 				case 'm':
@@ -483,6 +496,13 @@ parse_process_sample_command_opt (int argc, char **argv)
 			rc = EXIT_FAILURE; goto Exit;
 		}
 
+	// Validate phred_quality >= 0
+	if (phred_quality < 0)
+		{
+			fprintf (stderr, "%s: --phred-quality must be a positive value\n", PACKAGE);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
 	/*
 	* Final settings
 	*/
@@ -506,8 +526,8 @@ parse_process_sample_command_opt (int argc, char **argv)
 	* RUN FOOLS
 	*/
 	process_sample (output_dir, prefix, sam_files, gff_file, threads,
-			cache_size, sorted, max_distance, exon_frac, alignment_frac,
-			either);
+			cache_size, sorted, phred_quality, max_distance, exon_frac,
+			alignment_frac, either);
 
 Exit:
 	logger_free (logger);

@@ -23,6 +23,7 @@ struct _AbnormalFilter
 	ExonTree      *exon_tree;
 	ChrStd        *cs;
 	sqlite3_stmt  *alignment_stmt;
+	int            phred_quality;
 	int            queryname_sorted;
 	int            max_distance;
 	int            either;
@@ -102,17 +103,19 @@ abnormal_filter_destroy (AbnormalFilter *argf)
 
 static inline int
 abnormal_classifier (const bam1_t *align, int max_distance,
-		AbnormalType *type)
+		int phred_quality, AbnormalType *type)
 {
 	/*
 	* abnormal alignment must be:
 	* - paired-end
 	* - mapped
 	* - mate mapped
+	* - phred-quality
 	*/
 	if (!(align->core.flag & 0x1)
 			|| (align->core.flag & 0x4)
-			|| (align->core.flag & 0x8))
+			|| (align->core.flag & 0x8)
+			|| (align->core.qual < phred_quality))
 		{
 			return 0;
 		}
@@ -229,7 +232,8 @@ dump_stack_if_abnormal (AbnormalFilter *argf, const List *stack)
 		{
 			align = list_data (cur);
 
-			if (!abnormal_classifier (align, argf->max_distance, &rtype))
+			if (!abnormal_classifier (align, argf->max_distance,
+						argf->phred_quality, &rtype))
 				return;
 
 			type |= rtype;
@@ -385,7 +389,8 @@ parse_unsorted_sam (AbnormalFilter *argf)
 		{
 			argf->alignment_acm++;
 
-			if (!abnormal_classifier (argf->align, argf->max_distance, &type))
+			if (!abnormal_classifier (argf->align, argf->max_distance,
+						argf->phred_quality, &type))
 				{
 					name = xstrdup (bam_get_qname (argf->align));
 					list_append (blacklist_ids, name);
@@ -455,7 +460,8 @@ abnormal_filter (AbnormalArg *arg)
 {
 	assert (arg != NULL && arg->sam_file != NULL
 			&& arg->alignment_stmt != NULL && arg->exon_tree
-			&& arg->cs && arg->tid >= 0 && arg->num_threads > 0);
+			&& arg->cs && arg->tid >= 0 && arg->num_threads > 0
+			&& arg->phred_quality >= 0);
 
 	AbnormalFilter argf = {};
 	memcpy (&argf, arg, sizeof (AbnormalArg));

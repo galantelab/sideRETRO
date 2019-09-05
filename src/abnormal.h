@@ -24,6 +24,7 @@ struct _AbnormalArg
 	ExonTree      *exon_tree;
 	ChrStd        *cs;
 	sqlite3_stmt  *alignment_stmt;
+	int            phred_quality;
 	int            queryname_sorted;
 	int            max_distance;
 	int            either;

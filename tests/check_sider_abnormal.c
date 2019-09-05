@@ -142,6 +142,7 @@ test_abnormal_init (TestAbnormal *a, const char *sam)
 		.either = 0,
 		.exon_frac  = -1,
 		.alignment_frac = -1,
+		.phred_quality = 0
 	};
 }
 
