@@ -16,19 +16,42 @@ struct _Cluster
 
 typedef struct _Cluster Cluster;
 
+static void
+index_alignment_qname (sqlite3 *db)
+{
+	const char sql[] =
+		"DROP INDEX IF EXISTS alignment_qname_idx;\n"
+		"CREATE INDEX alignment_qname_idx\n"
+		"	ON alignment(qname)";
+
+	log_debug ("Create index:\n%s", sql);
+	db_exec (db, sql);
+}
+
 static sqlite3_stmt *
 prepare_query_stmt (sqlite3 *db)
 {
 	sqlite3_stmt *stmt = NULL;
 
 	const char sql[] =
-		"SELECT a1.id, a1.chr, a1.pos, a1.pos + a1.rlen - 1\n"
-		"FROM alignment AS a1\n"
-		"INNER JOIN alignment AS a2\n"
-		"	USING (qname)\n"
-		"WHERE a1.id != a2.id\n"
-		"	AND a2.type & ?1\n"
-		"ORDER BY a1.chr ASC;";
+		"WITH\n"
+		"	alignment_overlaps_exon(id, qname, chr, pos, rlen, type, gene_name) AS (\n"
+		"		SELECT a.id, a.qname, a.chr, a.pos, a.rlen, a.type, e.gene_name\n"
+		"		FROM alignment AS a\n"
+		"		LEFT JOIN overlapping AS o\n"
+		"			ON a.id = o.alignment_id\n"
+		"		LEFT JOIN exon AS e\n"
+		"			ON e.id = o.exon_id\n"
+		"	)\n"
+		"SELECT DISTINCT aoe1.id, aoe1.chr, aoe1.pos, aoe1.pos + aoe1.rlen - 1\n"
+		"FROM alignment_overlaps_exon AS aoe1\n"
+		"INNER JOIN alignment_overlaps_exon AS aoe2\n"
+		"	USING(qname)\n"
+		"WHERE aoe1.id != aoe2.id\n"
+		"	AND aoe2.type & ?1\n"
+		"	AND ((NOT aoe1.type & ?1)\n"
+		"		OR (aoe1.type & ?1 AND aoe1.gene_name IS NOT aoe2.gene_name))\n"
+		"ORDER BY aoe1.chr ASC";
 
 	log_debug ("Query schema:\n%s", sql);
 	stmt = db_prepare (db, sql);
@@ -74,6 +97,9 @@ cluster (sqlite3_stmt *clustering_stmt,
 		.clustering_stmt = clustering_stmt,
 		.id = 0
 	};
+
+	log_info ("Index abnormal alignment qnames");
+	index_alignment_qname (sqlite3_db_handle (clustering_stmt));
 
 	log_debug ("Prepare query stmt");
 	query_stmt = prepare_query_stmt (
