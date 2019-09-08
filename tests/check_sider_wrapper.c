@@ -104,19 +104,19 @@ END_TEST
 
 START_TEST (test_xfopen_rw_abort)
 {
-	FILE *fp = xfopen (NULL, "r+");
+	xfopen (NULL, "r+");
 }
 END_TEST
 
 START_TEST (test_xfopen_w_abort)
 {
-	FILE *fp = xfopen (NULL, "w");
+	xfopen (NULL, "w");
 }
 END_TEST
 
 START_TEST (test_xfopen_r_abort)
 {
-	FILE *fp = xfopen (NULL, "r");
+	xfopen (NULL, "r");
 }
 END_TEST
 
@@ -135,19 +135,19 @@ END_TEST
 
 START_TEST (test_xfdopen_rw_abort)
 {
-	FILE *fp = xfdopen (-10, "r+");
+	xfdopen (-10, "r+");
 }
 END_TEST
 
 START_TEST (test_xfdopen_w_abort)
 {
-	FILE *fp = xfdopen (-10, "w");
+	xfdopen (-10, "w");
 }
 END_TEST
 
 START_TEST (test_xfdopen_r_abort)
 {
-	FILE *fp = xfdopen (-10, "r");
+	xfdopen (-10, "r");
 }
 END_TEST
 
@@ -162,18 +162,17 @@ START_TEST (test_xfflush)
 	char buf[10];
 	const char *str = "PONGA";
 	int str_size = strlen (str);
-	int size = 0;
 
 	char path[] = "/tmp/pongaXXXXXX";
 	int fd = xmkstemp (path);
 
 	FILE *fp = xfdopen (fd, "w+");
-	size = fwrite (str, sizeof (char), str_size, fp);
+	fwrite (str, sizeof (char), str_size, fp);
 
 	xfflush (fp);
 	fseek (fp, 0L, SEEK_SET);
 
-	size = fread (buf, sizeof (char), str_size, fp);
+	fread (buf, sizeof (char), str_size, fp);
 	buf[str_size] = '\0';
 
 	ck_assert_str_eq (buf, str);
@@ -265,17 +264,16 @@ START_TEST (test_xfprintf)
 	char buf[10];
 	const char *str = "PONGA";
 	int str_size = strlen (str);
-	int size = 0;
 
 	char path[] = "/tmp/pongaXXXXXX";
 	int fd = xmkstemp (path);
 
 	FILE *fp = xfdopen (fd, "w");
-	size = xfprintf (fp, "%s", str);
+	xfprintf (fp, "%s", str);
 	xfclose (fp);
 
 	fp = xfopen (path, "r");
-	size = fread (buf, sizeof (char), str_size, fp);
+	fread (buf, sizeof (char), str_size, fp);
 	buf[str_size] = '\0';
 
 	ck_assert_str_eq (buf, str);

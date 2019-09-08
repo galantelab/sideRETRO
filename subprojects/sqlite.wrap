@@ -1,0 +1,10 @@
+[wrap-file]
+directory = sqlite-amalgamation-3.29.0
+
+source_url = https://github.com/azadkuh/sqlite-amalgamation/archive/3.29.0.tar.gz
+source_filename = sqlite-amalgamation-3.29.0.tar.gz
+source_hash = 20efa6e6a5fb32b458aed20437a69a1a0d9b97ad9cfb2c913068df87e7188030
+
+patch_url = https://github.com/galantelab/sqlite-amalgamation/archive/3.29.0.tar.gz
+patch_filename = sqlite-amalgamation-3.29.0-wrap.tar.gz
+patch_hash = 833868c40aacfd28bdc06184d0759324c440e8b26929b119d7670f187c3b0e02

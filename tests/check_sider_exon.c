@@ -156,7 +156,6 @@ START_TEST (test_exon_tree_index_dump)
 	IBiTree *tree = NULL;
 	sqlite3_stmt *search_stmt = NULL;
 
-	int id = 0;
 	int tree_id = 0;
 	long start = 0;
 	long end = 0;
@@ -184,7 +183,6 @@ START_TEST (test_exon_tree_index_dump)
 
 	for (i = 0; db_step (search_stmt) == SQLITE_ROW; i++)
 		{
-			id = db_column_int (search_stmt, 0);
 			start = db_column_int64 (search_stmt, 1);
 			end = db_column_int64 (search_stmt, 2);
 			exon_id = db_column_text (search_stmt, 3);

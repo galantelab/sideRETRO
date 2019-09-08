@@ -4,8 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
-#include "htslib/bgzf.h"
-#include "htslib/hfile.h"
+#include <htslib/bgzf.h>
+#include <htslib/hfile.h>
 #include "sam.h"
 #include "list.h"
 #include "hash.h"

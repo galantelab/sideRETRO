@@ -1,0 +1,10 @@
+[wrap-file]
+directory = htslib-1.9
+
+source_url = https://github.com/samtools/htslib/archive/1.9.tar.gz
+source_filename = htslib-1.9.tar.gz
+source_hash = d2e3cde77b8f874b37453c63390cd992901266336e9f70e871ef42402510467f
+
+patch_url = https://github.com/galantelab/htslib/archive/1.9.tar.gz
+patch_filename = htslib-1.9-wrap.tar.gz
+patch_hash = 3eae0b7d1b819e76f494d4d57b8a8b369ebb1c08414fff7ed9e1470a4b6185dc

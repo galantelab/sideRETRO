@@ -42,16 +42,14 @@ END_TEST
 
 START_TEST (test_db_open_abort)
 {
-	sqlite3 *db = db_open ("it-must-not-exist",
-			SQLITE_OPEN_READWRITE);
+	db_open ("it-must-not-exist", SQLITE_OPEN_READWRITE);
 }
 END_TEST
 
 START_TEST (test_db_close_abort)
 {
 	sqlite3 *db = db_open (":memory:", SQLITE_OPEN_READONLY);
-	sqlite3_stmt *stmt = db_prepare (db,
-			"HEY, CREATE PLEASE TABLE ponga (id INTEGER)");
+	db_prepare (db, "HEY, CREATE PLEASE TABLE ponga (id INTEGER)");
 	db_close (db);
 }
 END_TEST
@@ -94,8 +92,7 @@ END_TEST
 START_TEST (test_db_prepare_abort)
 {
 	sqlite3 *db = db_open (":memory:", SQLITE_OPEN_READONLY);
-	sqlite3_stmt *stmt = db_prepare (db,
-			"HEY, CREATE PLEASE TABLE ponga (id INTEGER)");
+	db_prepare (db, "HEY, CREATE PLEASE TABLE ponga (id INTEGER)");
 }
 END_TEST
 

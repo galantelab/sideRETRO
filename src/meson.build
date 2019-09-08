@@ -1,0 +1,74 @@
+sider_sources = files(
+  'abnormal.c',
+  'abnormal.h',
+  'align.c',
+  'align.h',
+  'array.c',
+  'array.h',
+  'bitree.c',
+  'bitree.h',
+  'bwa.c',
+  'bwa.h',
+  'chr.c',
+  'chr.h',
+  'cluster.c',
+  'cluster.h',
+  'db.c',
+  'db.h',
+  'db_merge.c',
+  'db_merge.h',
+  'dbscan.c',
+  'dbscan.h',
+  'exon.c',
+  'exon.h',
+  'gff.c',
+  'gff.h',
+  'hash.c',
+  'hash.h',
+  'ibitree.c',
+  'ibitree.h',
+  'io.c',
+  'io.h',
+  'list.c',
+  'list.h',
+  'log.c',
+  'logger.c',
+  'logger.h',
+  'log.h',
+  'merge_call.c',
+  'merge_call.h',
+  'process_sample.c',
+  'process_sample.h',
+  'sam.c',
+  'sam.h',
+  'set.c',
+  'set.h',
+  'str.c',
+  'str.h',
+  'thpool.c',
+  'thpool.h',
+  'types.h',
+  'utils.c',
+  'utils.h',
+  'wrapper.c',
+  'wrapper.h'
+)
+
+# Static library necessary for
+# executable and testing
+sider_lib = static_library(
+  package,
+  sider_sources,
+  include_directories : inc,
+         dependencies : deps,
+              install : false
+)
+
+# Our product!
+executable(
+  package,
+  files('main.c'),
+  include_directories : inc,
+            link_with : sider_lib,
+              install : true
+)

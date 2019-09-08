@@ -35,10 +35,10 @@ START_TEST (test_sam_to_bam)
 	char bam_file[]  = "/tmp/ponga_bam-XXXXXX";
 
 	int sam_fd1 = xmkstemp (sam_file1);
-	int sam_fd2 = xmkstemp (sam_file2);
-	int bam_fd  = xmkstemp (bam_file);
-
 	create_sam_fd (sam_fd1);
+
+	xmkstemp (sam_file2);
+	xmkstemp (bam_file);
 
 	ck_assert_int_eq (sam_to_bam (sam_file1, bam_file), 1);
 
@@ -46,11 +46,10 @@ START_TEST (test_sam_to_bam)
 		{
 			char *cmd1 = NULL;
 			char *cmd2 = NULL;
-			int len = 0;
 
-			len = xasprintf (&cmd1, "samtools view -h %s -o %s 2> /dev/null",
+			xasprintf (&cmd1, "samtools view -h %s -o %s 2> /dev/null",
 					bam_file, sam_file2);
-			len = xasprintf (&cmd2, "diff -q %s %s 2>&1 > /dev/null",
+			xasprintf (&cmd2, "diff -q %s %s 2>&1 > /dev/null",
 					sam_file1, sam_file2);
 
 			ck_assert_int_eq (system (cmd1), 0);
@@ -72,9 +71,9 @@ START_TEST (test_sam_to_bam_fp)
 	char bam_file[] = "/tmp/ponga_bam-XXXXXX";
 
 	int sam_fd = xmkstemp (sam_file);
-	int bam_fd = xmkstemp (bam_file);
-
 	create_sam_fd (sam_fd);
+
+	xmkstemp (bam_file);
 
 	FILE *fp = xfopen (sam_file, "r");
 	ck_assert_int_eq (sam_to_bam_fp (fp, bam_file), 1);

@@ -1,44 +1,63 @@
-/autom4te.cache/
-/config/
-/build/
-INSTALL
-Makefile
-Makefile.in
-aclocal.m4
-app.info
-compile
-config.h
-config.h.in
-config.log
-config.status
-annot
-tags
-configure
-configure.scan
-coverage_report
-depcomp
-install-sh
-libtool
-m4/lt*
-m4/libtool.m4
-missing
-stamp-h1
-*~
-*.swp
-*.html
-*.log
+# Build directory
+build/
+builddir/
+
+# Meson subprojects
+subprojects/*
+!subprojects/*.wrap
+
+# Prerequisites
+*.d
+
+# Object files
 *.o
-*.la
-*.so*
+*.ko
+*.obj
+*.elf
+
+# Linker output
+*.ilk
+*.map
+*.exp
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Libraries
+*.lib
 *.a
-.deps
-*.tar*
-*.zip
+*.la
 *.lo
-*.gcno
-*.gcda
-*.valgrind
-*vgcore.*
-*.trs
-src/sider
-tests/check_sider
+
+# Shared objects (inc. Windows DLLs)
+*.dll
+*.so
+*.so.*
+*.dylib
+
+# Executables
+*.exe
+*.out
+*.app
+*.i*86
+*.x86_64
+*.hex
+
+# Debug files
+*.dSYM/
+*.su
+*.idb
+*.pdb
+
+# Tag file for source code
+tags
+
+# Kernel Module Compile Results
+*.mod*
+*.cmd
+.tmp_versions/
+modules.order
+Module.symvers
+Mkfile.old
+dkms.conf

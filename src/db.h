@@ -3,7 +3,7 @@
 
 #include <stdlib.h>
 #include <stdint.h>
-#include "sqlite3.h"
+#include <sqlite3.h>
 
 /* Database schema version */
 #define DB_SCHEMA_VERSION 0.1

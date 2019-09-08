@@ -1,7 +1,7 @@
 #include "config.h"
 
-#include "htslib/hts.h"
-#include "htslib/hfile.h"
+#include <htslib/hts.h>
+#include <htslib/hfile.h>
 #include <fcntl.h>
 #include <assert.h>
 #include "wrapper.h"

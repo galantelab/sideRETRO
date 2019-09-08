@@ -6,22 +6,13 @@
 #include <assert.h>
 #include <getopt.h>
 
-#include "htslib/version.h"
-#include "sqlite3.h"
-
 #include "process_sample.h"
 #include "merge_call.h"
 
 static void
 print_version (FILE *fp)
 {
-	fprintf (fp,
-		"%s\n"
-		"\n"
-		"Using:\n"
-		"  htslib  %s\n"
-		"  sqlite3 %s\n",
-		PACKAGE_STRING, HTS_VERSION, SQLITE_VERSION);
+	fprintf (fp, "%s\n", PACKAGE_STRING);
 }
 
 static void

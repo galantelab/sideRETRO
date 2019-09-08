@@ -182,7 +182,7 @@ START_TEST (test_exists)
 {
 	char file[] = "/tmp/pongaXXXXXX";
 
-	int fd = xmkstemp (file);
+	xmkstemp (file);
 
 	ck_assert_int_eq (exists (file), 1);
 	ck_assert_int_eq (exists ("pongatrongaflofa"), 0);
@@ -207,11 +207,10 @@ END_TEST
 
 START_TEST (test_xasprintf_concat)
 {
-	int rc = 0;
 	char *str = xstrdup ("I want");
 
-	rc = xasprintf_concat (&str, " %d potatos", 5);
-	rc = xasprintf_concat (&str, " and %d tomatos", 10);
+	xasprintf_concat (&str, " %d potatos", 5);
+	xasprintf_concat (&str, " and %d tomatos", 10);
 
 	ck_assert_str_eq (str, "I want 5 potatos and 10 tomatos");
 

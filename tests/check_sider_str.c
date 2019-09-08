@@ -129,7 +129,7 @@ START_TEST (test_string_clear)
 	ck_assert_int_eq (s->len, 0);
 	ck_assert_int_eq (s->str[0], 0);
 
-	char *s_str = string_free (s, 1);
+	string_free (s, 1);
 }
 END_TEST
 

@@ -66,10 +66,9 @@ static void
 make_index (char *file)
 {
 	int ret;
-	int len;
 	char *cmd = NULL;
 
-	len = xasprintf (&cmd, "%s index %s 2> /dev/null", BWA, file);
+	xasprintf (&cmd, "%s index %s 2> /dev/null", BWA, file);
 	ret = system (cmd);
 
 	if (ret)
@@ -100,10 +99,8 @@ remove_idx (const char *base)
 	for (; i < sizeof (suffix) / sizeof (char *); i++)
 		{
 			char *file = NULL;
-			int len = 0;
 
-			len = xasprintf (&file, "%s.%s",
-					base, suffix[i]);
+			xasprintf (&file, "%s.%s", base, suffix[i]);
 
 			xunlink (file);
 			xfree (file);
@@ -142,9 +139,8 @@ START_TEST (test_bwa_mem)
 
 	for (; i < n; i++)
 		{
-			char *s;
 			ck_assert_str_eq (buf, sam[i]);
-			s = fgets (buf, BUFSIZ, fp);
+			fgets (buf, BUFSIZ, fp);
 		}
 
 	xfclose (fp);

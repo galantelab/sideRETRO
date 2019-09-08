@@ -1,0 +1,10 @@
+[wrap-file]
+directory = zlib-1.2.11
+
+source_url = https://github.com/madler/zlib/archive/v1.2.11.tar.gz
+source_filename = zlib-1.2.11.tar.gz
+source_hash = 629380c90a77b964d896ed37163f5c3a34f6e6d897311f1df2a7016355c45eff
+
+patch_url = https://github.com/galantelab/zlib/archive/1.2.11.tar.gz
+patch_filename = zlib-1.2.11-wrap.tar.gz
+patch_hash = 9a3b65dddc455cbb05e79bf04b946971b167701a47d97fb43373ec9241150412
