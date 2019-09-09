@@ -18,7 +18,7 @@
 struct _AbnormalFilter
 {
 	int            tid;
-	int            num_threads;
+	int            inc_step;
 	const char    *sam_file;
 	ExonTree      *exon_tree;
 	ChrStd        *cs;
@@ -199,13 +199,14 @@ dump_alignment (AbnormalFilter *argf, const bam1_t *align,
 		{
 			type |= ABNORMAL_EXONIC;
 			argf->exonic_acm++;
-			log_debug ("Alignment %s %s:%d overlaps %d exons",
-					qname, chr_std, align->core.pos + 1, acm);
+			log_debug ("Alignment [%li] %s %s:%d overlaps %d exons",
+					argf->alignment_id, qname, chr_std,
+					align->core.pos + 1, acm);
 		}
 
-	log_debug ("Dump abnormal alignment %s %d %s:%d type %d",
-			qname, align->core.flag, chr_std, align->core.pos + 1,
-			type);
+	log_debug ("Dump abnormal alignment [%li] %s %d %s:%d type %d",
+			argf->alignment_id, qname, align->core.flag, chr_std,
+			align->core.pos + 1, type);
 
 	db_insert_alignment (argf->alignment_stmt,
 			argf->alignment_id, qname, align->core.flag,
@@ -213,10 +214,10 @@ dump_alignment (AbnormalFilter *argf, const bam1_t *align,
 			argf->cigar->str, qlen, rlen, chr_std_next,
 			align->core.mpos + 1, type, argf->tid);
 
-	// sum the number of threads - in order to
+	// sum the number of files - in order to
 	// avoid database insertion chocking and
 	// constraints
-	argf->alignment_id += argf->num_threads;
+	argf->alignment_id += argf->inc_step;
 }
 
 static inline void
@@ -460,7 +461,7 @@ abnormal_filter (AbnormalArg *arg)
 {
 	assert (arg != NULL && arg->sam_file != NULL
 			&& arg->alignment_stmt != NULL && arg->exon_tree
-			&& arg->cs && arg->tid >= 0 && arg->num_threads > 0
+			&& arg->cs && arg->tid >= 0 && arg->inc_step > 0
 			&& arg->phred_quality >= 0);
 
 	AbnormalFilter argf = {};

@@ -133,7 +133,7 @@ test_abnormal_init (TestAbnormal *a, const char *sam)
 
 	*a->arg = (AbnormalArg) {
 		.tid = 1,
-		.num_threads = 1,
+		.inc_step = 1,
 		.sam_file = a->sam_path,
 		.exon_tree = a->exon_tree,
 		.cs = a->cs,

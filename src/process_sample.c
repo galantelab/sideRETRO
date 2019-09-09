@@ -115,7 +115,7 @@ process_sample (const char *output_dir, const char *prefix,
 
 	AbnormalArg *ab_args = xcalloc (num_files, sizeof (AbnormalArg));
 
-	for (i = 0; i < array_len (sam_files); i++)
+	for (i = 0; i < num_files; i++)
 		{
 			sam_file = array_get (sam_files, i);
 
@@ -123,7 +123,7 @@ process_sample (const char *output_dir, const char *prefix,
 			ab_args[i] = (AbnormalArg)
 			{
 				.tid              = i + 1,
-				.num_threads      = num_files,
+				.inc_step         = num_files,
 				.sam_file         = sam_file,
 				.either           = either,
 				.exon_frac        = exon_frac,

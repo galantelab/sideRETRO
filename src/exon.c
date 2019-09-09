@@ -132,8 +132,9 @@ dump_if_overlaps_exon (IBiTreeLookupData *ldata,
 	const long *exon_id = ldata->data;
 	ExonTree *exon_tree = user_data;
 
-	log_debug ("Dump overlapping exon [%li-%li] with alignment [%li-%li] at [%li-%li]",
-			ldata->node_low, ldata->node_high, ldata->interval_low, ldata->interval_high,
+	log_debug ("Dump overlapping exon [%li] %li-%li with alignment [%li] %li-%li at %li-%li",
+			*exon_id, ldata->node_low, ldata->node_high,
+			exon_tree->alignment_id, ldata->interval_low, ldata->interval_high,
 			ldata->overlap_pos, ldata->overlap_pos + ldata->overlap_len - 1);
 
 	db_insert_overlapping (exon_tree->overlapping_stmt, *exon_id,

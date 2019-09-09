@@ -19,7 +19,7 @@ typedef enum _AbnormalType AbnormalType;
 struct _AbnormalArg
 {
 	int            tid;
-	int            num_threads;
+	int            inc_step;
 	const char    *sam_file;
 	ExonTree      *exon_tree;
 	ChrStd        *cs;
