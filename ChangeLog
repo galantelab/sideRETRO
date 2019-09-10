@@ -1,3 +1,84 @@
+2019-09-10 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* Version 0.8.0
+
+	* CHANGE: INSTALL.md -> INSTALL
+
+	* ADD: meson.build (vcs_tag)
+
+	Dynamically generate the VERSION macro according to git tag and commit
+	SHA-1
+
+2019-09-09 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* FIX: exon.c (exon_tree_lookup_dump): Thread-safe
+
+	The alignment_id was included inside ExonTree object, which in turn was
+	shared among all threads. With no mutex, may occur shocking among all
+	alignment_id values. In order to fix it, a new private struct keeps
+	ExonTree and alignment_id separately
+
+	* ADD: abnormal.c, exon.c, process_sample.c: loginfo
+
+	Improve log messages for debugging and change attribute name num_threads
+	in AbnormalArg to inc_step - this way is more descriptive about its
+	function
+
+2019-09-08 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* FIX: db.c (db_create_tables): source foreign key
+
+	* CHANGE: Move from Autotools to Meson build system
+
+	* REMOVE: Autotools
+
+2019-09-06 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: cluster.c (index_alignment_qname)
+
+	Add index for alignment qname for speed up query. Update
+	prepare_query_stmt() in order to avoid the abnormal reads that
+	fall into their on parental gene
+
+2019-09-05 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: --phred-quality option
+
+	Add phred quality score filter option in order to avoid low mapped
+	quality reads
+
+2019-08-31 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* CHANGE: dbscan.c (dbscan_cluster): List -> Set
+
+	* Change List *seed to Set *seed in order to speed up union statement
+
+	* REMOVE: set.c (set_insert_all, set_remove_all)
+
+	* ADD: set.c: Set interface
+
+	* ADD: hash.c (direct_hash, direct_equal)
+
+2019-08-26 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: tests: checked fixtures
+
+2019-08-23 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* CHANGE: hash.c: New extensible hash algorithm
+
+	Move from chaining hash type to extensible hash. Now it has no need to
+	declare the hash size in 'new' function, because it is dynamically
+	allocated.
+
+2019-08-15 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: configure.ac: -Wextra -Wpedantic
+
+	* FIX: Remove -Wunused-variable
+
+	* FIX: db_merge.c (db_merge): Remove *db2 redundancy
+
 2019-08-14 Thiago L. A. Miller <tmiller@mochsl.org.br>
 
 	* Version 0.7.0

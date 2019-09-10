@@ -1,3 +1,34 @@
+Version 0.8.0
+
+* Add new extensible hash algorithm. Move from
+  chaining hash type to extensible hash. Now it
+  has no need to declare the hash size in 'new'
+  function, because it is dynamically allocated.
+
+* Add a 'set' interface based on 'hash', instead
+  of 'list'. It was necessary for speed up the
+  'DBSCAN' when making the union operation.
+
+* In 'process-sample' command, add phred quality
+  score filter option in order to avoid low mapped
+  quality reads.
+
+* Add SQL INDEX for alignment(qname) table for
+  speed up query.
+
+* Update clustering query statement in order to
+  avoid the abnormal reads that fall into their
+  on parental gene.
+
+* Fix bug in 'exon.c'. The alignment_id was
+  included inside ExonTree object, which in turn
+  was shared among all threads. With no mutex,
+  may occur shocking among all alignment_id values.
+  In order to fix it, a new private struct keeps
+  'ExonTree' and 'alignment_id' separately.
+
+* Move from 'Autotools' to 'Meson build system'.
+
 Version 0.7.0
 
 * Change abnormal interface to handle sorted
