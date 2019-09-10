@@ -12,34 +12,48 @@ package = 'sider'
 # Package name as in project
 package_name = meson.project_name()
 
+# Version template
+version_t = '@version@'
+
 # Package string as in autoheader
-package_string = ' '.join([meson.project_name(), meson.project_version()])
+package_string = ' '.join([meson.project_name(), version_t])
 
 # Package bugreport
 package_bugreport = 'https://github.com/galantelab/sideRETRO/issues'
 
 # Create a configuration structure
-config_h = configuration_data()
+config = configuration_data()
 
 # Defines
 set_defines = [
   ['PACKAGE',           package],
   ['PACKAGE_NAME',      package_name],
-  ['PACKAGE_STRING',    package_string],
   ['PACKAGE_BUGREPORT', package_bugreport],
-  ['PACKAGE_VERSION',   meson.project_version()],
-  ['VERSION',           meson.project_version()],
+  ['PACKAGE_STRING',    package_string],
+  ['PACKAGE_VERSION',   version_t],
+  ['VERSION',           version_t]
 ]
 
-# Set config_h values
+# Set config values
 foreach define: set_defines
-  config_h.set_quoted(define[0], define[1])
+  config.set_quoted(define[0], define[1])
 endforeach
 
-# Write macros to 'config.h'
-configure_file(
-         output : 'config.h',
-  configuration : config_h
+# Write macros to 'config.h.in' file
+config_in = configure_file(
+         output : 'config.h.in',
+  configuration : config
+)
+
+# The version is dynamically generated according to
+# the 'git tag and commit'
+# Read config.h.in and replace the version template
+# generating in turn config.h
+vcs_tag(
+         command : ['git', 'describe', '--tags', '--dirty=+'],
+           input : config_in,
+          output : 'config.h',
+  replace_string : version_t
 )
 
 # Compiler flags
