@@ -1,0 +1,21 @@
+Installation
+------------
+
+sideRETRO uses Meson build system to manage configuration and compilation process.
+To build and install sideRETRO, type the following commands:
+
+    $ meson build
+    $ ninja -C build
+    $ Optional: ninja -C build install
+
+By default, sideRETRO will install under '/usr/local'.
+The configure script can customize the prefix directory. Run:
+
+    $ meson build configure
+
+for instructions and other installation options.
+
+You may need to execute "ninja -C build install" as root
+(i.e. sudo ninja -C build install) if installing to system directories.
+
+For more details about Meson, please visit https://mesonbuild.com/.
