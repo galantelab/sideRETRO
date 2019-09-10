@@ -8,6 +8,14 @@
 #include "chr.h"
 #include "exon.h"
 
+struct _ExonTreeData
+{
+	ExonTree *tree;
+	long      alignment_id;
+};
+
+typedef struct _ExonTreeData ExonTreeData;
+
 ExonTree *
 exon_tree_new (sqlite3_stmt *exon_stmt,
 		sqlite3_stmt *overlapping_stmt, ChrStd *cs)
@@ -130,15 +138,15 @@ dump_if_overlaps_exon (IBiTreeLookupData *ldata,
 		void *user_data)
 {
 	const long *exon_id = ldata->data;
-	ExonTree *exon_tree = user_data;
+	ExonTreeData *data = user_data;
 
 	log_debug ("Dump overlapping exon [%li] %li-%li with alignment [%li] %li-%li at %li-%li",
-			*exon_id, ldata->node_low, ldata->node_high,
-			exon_tree->alignment_id, ldata->interval_low, ldata->interval_high,
-			ldata->overlap_pos, ldata->overlap_pos + ldata->overlap_len - 1);
+			*exon_id, ldata->node_low, ldata->node_high, data->alignment_id,
+			ldata->interval_low, ldata->interval_high, ldata->overlap_pos,
+			ldata->overlap_pos + ldata->overlap_len - 1);
 
-	db_insert_overlapping (exon_tree->overlapping_stmt, *exon_id,
-			exon_tree->alignment_id, ldata->overlap_pos, ldata->overlap_len);
+	db_insert_overlapping (data->tree->overlapping_stmt, *exon_id,
+			data->alignment_id, ldata->overlap_pos, ldata->overlap_len);
 }
 
 int
@@ -156,10 +164,10 @@ exon_tree_lookup_dump (ExonTree *exon_tree, const char *chr,
 
 	if (tree != NULL)
 		{
-			exon_tree->alignment_id = alignment_id;
+			ExonTreeData data = {exon_tree, alignment_id};
 			acm = ibitree_lookup (tree, low, high, exon_overlap_frac,
 					alignment_overlap_frac, either, dump_if_overlaps_exon,
-					exon_tree);
+					&data);
 		}
 
 	return acm;

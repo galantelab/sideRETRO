@@ -12,7 +12,6 @@ struct _ExonTree
 	sqlite3_stmt *exon_stmt;
 	sqlite3_stmt *overlapping_stmt;
 	ChrStd       *cs;
-	long          alignment_id;
 };
 
 typedef struct _ExonTree ExonTree;
