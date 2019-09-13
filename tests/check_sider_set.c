@@ -216,6 +216,25 @@ START_TEST (test_set_is_equal)
 }
 END_TEST
 
+START_TEST (test_set_is_member)
+{
+	char *k[5];
+	int size = sizeof (k) / sizeof (char *);
+	int i = 0;
+
+	for (i = 0; i < size; i++)
+		{
+			xasprintf (&k[i], "ponga%d", i);
+			set_insert (set, k[i]);
+		}
+
+	ck_assert_int_eq (set_is_member (set, "ponga4"), 0);
+
+	for (i = 0; i < size; i++)
+		ck_assert_int_eq (set_is_member (set, k[i]), 1);
+}
+END_TEST
+
 Suite *
 make_set_suite (void)
 {
@@ -236,6 +255,7 @@ make_set_suite (void)
 	tcase_add_test (tc_core, test_set_difference);
 	tcase_add_test (tc_core, test_set_is_subset);
 	tcase_add_test (tc_core, test_set_is_equal);
+	tcase_add_test (tc_core, test_set_is_member);
 	suite_add_tcase (s, tc_core);
 
 	return s;

@@ -53,9 +53,15 @@ set_list (const Set *set)
 }
 
 static inline int
-set_is_member (const Set *set, const void *data)
+__set_is_member (const Set *set, const void *data)
 {
 	return hash_contains (set->index, data);
+}
+
+int
+set_is_member (const Set *set, const void *data)
+{
+	return __set_is_member (set, data);
 }
 
 int
@@ -63,7 +69,7 @@ set_insert (Set *set, const void *data)
 {
 	assert (set != NULL && data != NULL);
 
-	if (set_is_member (set, data))
+	if (__set_is_member (set, data))
 		return 0;
 
 	list_append (set->list, data);
@@ -122,7 +128,7 @@ set_intersection (const Set *set1, const Set *set2)
 	seti = set_new_full (set1->hash_fun, set1->match_fun, NULL);
 
 	for (cur = list_head (set1->list); cur != NULL; cur = list_next (cur))
-		if (set_is_member (set2, list_data (cur)))
+		if (__set_is_member (set2, list_data (cur)))
 			set_insert (seti, list_data (cur));
 
 	return seti;
@@ -139,7 +145,7 @@ set_difference (const Set *set1, const Set *set2)
 	setd = set_new_full (set1->hash_fun, set1->match_fun, NULL);
 
 	for (cur = list_head (set1->list); cur != NULL; cur = list_next (cur))
-		if (!set_is_member (set2, list_data (cur)))
+		if (!__set_is_member (set2, list_data (cur)))
 			set_insert (setd, list_data (cur));
 
 	return setd;
@@ -156,7 +162,7 @@ set_is_subset (const Set *set1, const Set *set2)
 		return 0;
 
 	for (cur = list_head (set1->list); cur != NULL; cur = list_next (cur))
-		if (!set_is_member (set2, list_data (cur)))
+		if (!__set_is_member (set2, list_data (cur)))
 			return 0;
 
 	return 1;

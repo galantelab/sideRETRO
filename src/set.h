@@ -12,6 +12,7 @@ Set    * set_new_full     (HashFunc hash_fun, EqualFun match_fun, DestroyNotify 
 Set    * set_new          (DestroyNotify destroy_fun);
 void     set_free         (Set *set);
 List   * set_list         (const Set *set);
+int      set_is_member    (const Set *set, const void *data);
 int      set_insert       (Set *set, const void *data);
 int      set_remove       (Set *set, void **data);
 Set    * set_union        (const Set *set1, const Set *set2);
