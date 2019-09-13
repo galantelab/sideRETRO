@@ -5,8 +5,7 @@
 #include "utils.h"
 #include "chr.h"
 
-#define CHR_BUFSIZ   8
-#define CHR_HASHSIZ 64
+#define CHR_BUFSIZ 32
 
 ChrStd *
 chr_std_new (void)
