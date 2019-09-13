@@ -10,6 +10,8 @@
 #include "logger.h"
 #include "utils.h"
 #include "wrapper.h"
+#include "set.h"
+#include "chr.h"
 #include "array.h"
 #include "cluster.h"
 #include "db_merge.h"
@@ -25,10 +27,12 @@
 #define DEFAULT_MIN_PTS        10
 #define DEFAULT_LOG_FILE       NULL
 #define DEFAULT_INPUT_FILE     NULL
+#define DEFAULT_BLACKLIST_CHR  "chrM"
 
 static void
 merge_call (const char *output_dir, const char *prefix, Array *db_files,
-		const char *output_file, int cache_size, int epsilon, int min_pts)
+		const char *output_file, int cache_size, int epsilon, int min_pts,
+		Set *blacklist_chr)
 {
 	log_trace ("Inside %s", __func__);
 
@@ -90,7 +94,7 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 
 	// RUN
 	log_info ("Run clustering step for '%s'", db_file);
-	cluster (clustering_stmt, epsilon, min_pts);
+	cluster (clustering_stmt, epsilon, min_pts, blacklist_chr);
 
 	// Commit
 	db_end_transaction (db);
@@ -110,7 +114,7 @@ print_usage (FILE *fp)
 		"\n"
 		"Usage: %s merge-call [-h] [-q] [-d] [-l FILE] [-o DIR]\n"
 		"       %*c            [-p STR] [-c INT] [-e INT] [-m]\n"
-		"       %*c            [-i FILE] <FILE> ...\n"
+		"       %*c            [-b STR] [-i FILE] <FILE> ...\n"
 		"\n"
 		"Arguments:\n"
 		"   One or more SQLite3 databases generated in the 'process-sample' step\n"
@@ -136,15 +140,17 @@ print_usage (FILE *fp)
 		"   -p, --prefix            Prefix output files [default:\"%s\"]\n"
 		"   -I, --in-place          Merge all databases with the first one of the list,\n"
 		"                           instead of creating a new file\n"
-		"   -c, --cache-size        Set SQLite3 cache size in KiB [default: \"%d\"]\n"
+		"   -c, --cache-size        Set SQLite3 cache size in KiB [default:\"%d\"]\n"
 		"   -e, --epsilon           DBSCAN: Maximum distance between two alignments\n"
-		"                           inside a cluster [default: \"%d\"]\n"
+		"                           inside a cluster [default:\"%d\"]\n"
 		"   -m, --min-pts           DBSCAN: Minimum number of points required to form a\n"
-		"                           dense region [default: \"%d\"]\n"
+		"                           dense region [default:\"%d\"]\n"
+		"   -b, --blacklist-chr     Avoid clustering at this chromosome. This option\n"
+		"                           may be passed multiple times [default:\"%s\"]\n"
 		"\n",
 		PACKAGE_STRING, PACKAGE, pkg_len, ' ', pkg_len, ' ',
 		DEFAULT_OUTPUT_DIR, DEFAULT_PREFIX, DEFAULT_CACHE_SIZE,
-		DEFAULT_EPS, DEFAULT_MIN_PTS);
+		DEFAULT_EPS, DEFAULT_MIN_PTS, DEFAULT_BLACKLIST_CHR);
 }
 
 static void
@@ -185,20 +191,22 @@ parse_merge_call_command_opt (int argc, char **argv)
 	};
 
 	// Init variables to default values
-	int         silent         = DEFAULT_LOG_SILENT;
-	int         log_level      = DEFAULT_LOG_LEVEL;
-	int         cache_size     = DEFAULT_CACHE_SIZE;
-	int         in_place       = DEFAULT_IN_PLACE;
-	int         epsilon        = DEFAULT_EPS;
-	int         min_pts        = DEFAULT_MIN_PTS;
-	const char *output_dir     = DEFAULT_OUTPUT_DIR;
-	const char *prefix         = DEFAULT_PREFIX;
-	const char *log_file       = DEFAULT_LOG_FILE;
-	const char *input_file     = DEFAULT_INPUT_FILE;
+	int         silent     = DEFAULT_LOG_SILENT;
+	int         log_level  = DEFAULT_LOG_LEVEL;
+	int         cache_size = DEFAULT_CACHE_SIZE;
+	int         in_place   = DEFAULT_IN_PLACE;
+	int         epsilon    = DEFAULT_EPS;
+	int         min_pts    = DEFAULT_MIN_PTS;
+	const char *output_dir = DEFAULT_OUTPUT_DIR;
+	const char *prefix     = DEFAULT_PREFIX;
+	const char *log_file   = DEFAULT_LOG_FILE;
+	const char *input_file = DEFAULT_INPUT_FILE;
 
 	char *output_file = NULL;
 	int index_ = 0;
 
+	ChrStd *cs = chr_std_new ();
+	Set *blacklist_chr = set_new_full (str_hash, str_equal, NULL);
 	Array *db_files = array_new (xfree);
 	Logger *logger = NULL;
 
@@ -206,7 +214,7 @@ parse_merge_call_command_opt (int argc, char **argv)
 	int option_index = 0;
 	int c, i;
 
-	while ((c = getopt_long (argc, argv, "hqdIl:o:p:c:e:m:i:", opt, &option_index)) >= 0)
+	while ((c = getopt_long (argc, argv, "hqdIl:o:p:c:e:m:b:i:", opt, &option_index)) >= 0)
 		{
 			switch (c)
 				{
@@ -259,6 +267,12 @@ parse_merge_call_command_opt (int argc, char **argv)
 				case 'm':
 					{
 						min_pts = atoi (optarg);
+						break;
+					}
+				case 'b':
+					{
+						set_insert (blacklist_chr,
+								chr_std_lookup (cs, optarg));
 						break;
 					}
 				case 'i':
@@ -331,6 +345,12 @@ parse_merge_call_command_opt (int argc, char **argv)
 
 	/*Final settings*/
 
+	// Add default blacklisted chr if none
+	// has been passed
+	if (set_size (blacklist_chr) == 0)
+		set_insert (blacklist_chr,
+				chr_std_lookup (cs, DEFAULT_BLACKLIST_CHR));
+
 	// Copy the name of possible output file, if the
 	// user chose --in-place
 	if (in_place)
@@ -362,10 +382,12 @@ parse_merge_call_command_opt (int argc, char **argv)
 
 	// RUN FOOLS
 	merge_call (output_dir, prefix, db_files, output_file,
-			cache_size, epsilon, min_pts);
+			cache_size, epsilon, min_pts, blacklist_chr);
 
 Exit:
 	logger_free (logger);
+	chr_std_free (cs);
+	set_free (blacklist_chr);
 	array_free (db_files, 1);
 	xfree (output_file);
 	return rc;

@@ -10,6 +10,7 @@
 #include "../src/abnormal.h"
 #include "../src/wrapper.h"
 #include "../src/utils.h"
+#include "../src/set.h"
 #include "../src/db.h"
 #include "../src/cluster.h"
 
@@ -59,6 +60,8 @@ START_TEST (test_cluster)
 	sqlite3_stmt *alignment_stmt = NULL;
 	sqlite3_stmt *clustering_stmt = NULL;
 	sqlite3_stmt *search_stmt = NULL;
+
+	Set *blacklist_chr = set_new (NULL);
 
 	int eps = 500;
 	int min_pts = 3;
@@ -116,7 +119,7 @@ START_TEST (test_cluster)
 	populate_db (alignment_stmt, size * 2, chr2, id2, pos, size);
 
 	// RUN
-	cluster (clustering_stmt, eps, min_pts);
+	cluster (clustering_stmt, eps, min_pts, blacklist_chr);
 
 	// Let's get the clustering table values
 	search_stmt = prepare_query_stmt (db);
@@ -132,6 +135,7 @@ START_TEST (test_cluster)
 	db_finalize (alignment_stmt);
 	db_finalize (clustering_stmt);
 	db_finalize (search_stmt);
+	set_free (blacklist_chr);
 	db_close (db);
 	xunlink (db_file);
 }

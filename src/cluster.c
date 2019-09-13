@@ -77,7 +77,7 @@ dump_clustering (Point *p, void *user_data)
 
 void
 cluster (sqlite3_stmt *clustering_stmt,
-		long eps, int min_pts)
+		long eps, int min_pts, Set *blacklist_chr)
 {
 	log_trace ("Inside %s", __func__);
 	assert (clustering_stmt != NULL
@@ -113,6 +113,12 @@ cluster (sqlite3_stmt *clustering_stmt,
 			chr = db_column_text (query_stmt, 1);
 			low = db_column_int64 (query_stmt, 2);
 			high = db_column_int64 (query_stmt, 3);
+
+			if (set_is_member (blacklist_chr, chr))
+				{
+					log_debug ("Avoid blacklistied chr: '%s'", chr);
+					continue;
+				}
 
 			// First loop - Init dbscan and chr_prev
 			if (chr_prev == NULL)
