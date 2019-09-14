@@ -294,12 +294,12 @@ db_create_tables (sqlite3 *db)
 		"\n"
 		"DROP TABLE IF EXISTS clustering;\n"
 		"CREATE TABLE clustering (\n"
-		"	id INTEGER PRIMARY KEY,\n"
-		"	cluster_id INTEGER NOT NULL,\n"
+		"	id INTEGER NOT NULL,\n"
 		"	alignment_id INTEGER NOT NULL,\n"
 		"	label INTEGER NOT NULL,\n"
 		"	neighbors INTEGER NOT NULL,\n"
-		"	FOREIGN KEY (alignment_id) REFERENCES alignment(id));";
+		"	FOREIGN KEY (alignment_id) REFERENCES alignment(id),\n"
+		"	PRIMARY KEY (id, alignment_id));";
 
 	log_debug ("Database schema:\n%s", sql);
 	db_exec (db, sql);
@@ -617,14 +617,14 @@ db_prepare_clustering_stmt (sqlite3 *db)
 	assert (db != NULL);
 
 	const char sql[] =
-		"INSERT INTO clustering (cluster_id,alignment_id,label,neighbors)\n"
+		"INSERT INTO clustering (id,alignment_id,label,neighbors)\n"
 		"VALUES (?1,?2,?3,?4)";
 
 	return db_prepare (db, sql);
 }
 
 void
-db_insert_clustering (sqlite3_stmt *stmt, int cluster_id,
+db_insert_clustering (sqlite3_stmt *stmt, int id,
 	int alignment_id, int label, int neighbors)
 {
 	log_trace ("Inside %s", __func__);
@@ -635,7 +635,7 @@ db_insert_clustering (sqlite3_stmt *stmt, int cluster_id,
 	db_reset (stmt);
 	db_clear_bindings (stmt);
 
-	db_bind_int (stmt, 1, cluster_id);
+	db_bind_int (stmt, 1, id);
 	db_bind_int (stmt, 2, alignment_id);
 	db_bind_int (stmt, 3, label);
 	db_bind_int (stmt, 4, neighbors);

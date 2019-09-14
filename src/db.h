@@ -6,7 +6,7 @@
 #include <sqlite3.h>
 
 /* Database schema version */
-#define DB_SCHEMA_VERSION 0.1
+#define DB_SCHEMA_VERSION 0.2
 
 #define DB_DEFAULT_CACHE_SIZE 2000
 
@@ -65,7 +65,7 @@ void db_insert_overlapping (sqlite3_stmt *stmt, int exon_id,
 	int alignment_id, long pos, long len);
 
 sqlite3_stmt * db_prepare_clustering_stmt (sqlite3 *db);
-void db_insert_clustering (sqlite3_stmt *stmt, int cluster_id,
+void db_insert_clustering (sqlite3_stmt *stmt, int id,
 	int alignment_id, int label, int neighbors);
 
 #endif /* db.h */

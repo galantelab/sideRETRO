@@ -47,7 +47,7 @@ sqlite3_stmt *
 prepare_query_stmt (sqlite3 *db)
 {
 	const char sql[] =
-		"SELECT cluster_id, alignment_id, label, neighbors\n"
+		"SELECT id, alignment_id, label, neighbors\n"
 		"FROM clustering ORDER BY alignment_id ASC";
 	return db_prepare (db, sql);
 }
