@@ -23,7 +23,7 @@ prepare_query_stmt (sqlite3 *db, const int distance)
 	const char sql[]=
 		"SELECT cid, aid, astart, aend, gene_name\n"
 		"FROM (\n"
-		"	SELECT DISTINCT c.cluster_id AS cid,\n"
+		"	SELECT DISTINCT c.id AS cid,\n"
 		"		c.alignment_id AS aid,\n"
 		"		a.chr AS achr,\n"
 		"		a.pos AS astart,\n"
