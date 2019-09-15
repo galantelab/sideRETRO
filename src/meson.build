@@ -39,6 +39,8 @@ sider_sources = files(
   'merge_call.h',
   'process_sample.c',
   'process_sample.h',
+  'recluster.c',
+  'recluster.h',
   'sam.c',
   'sam.h',
   'set.c',

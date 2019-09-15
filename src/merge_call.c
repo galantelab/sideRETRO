@@ -14,6 +14,7 @@
 #include "chr.h"
 #include "array.h"
 #include "cluster.h"
+#include "recluster.h"
 #include "db_merge.h"
 #include "merge_call.h"
 
@@ -28,16 +29,18 @@
 #define DEFAULT_LOG_FILE       NULL
 #define DEFAULT_INPUT_FILE     NULL
 #define DEFAULT_BLACKLIST_CHR  "chrM"
+#define DEFAULT_DISTANCE       10000
 
 static void
 merge_call (const char *output_dir, const char *prefix, Array *db_files,
 		const char *output_file, int cache_size, int epsilon, int min_pts,
-		Set *blacklist_chr)
+		Set *blacklist_chr, int distance)
 {
 	log_trace ("Inside %s", __func__);
 
 	sqlite3 *db = NULL;
 	sqlite3_stmt *clustering_stmt = NULL;
+	sqlite3_stmt *reclustering_stmt = NULL;
 	char *db_file = NULL;
 
 	log_info (">>> Merge Call step <<<");
@@ -74,6 +77,9 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 	// Create clustering statement
 	clustering_stmt = db_prepare_clustering_stmt (db);
 
+	// Create reclustering statement
+	reclustering_stmt = db_prepare_reclustering_stmt (db);
+
 	// If there are files to merge with ...
 	if (array_len (db_files))
 		{
@@ -96,6 +102,10 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 	log_info ("Run clustering step for '%s'", db_file);
 	cluster (clustering_stmt, epsilon, min_pts, blacklist_chr);
 
+	// Validate and recluster clustered alignments if necessary
+	log_info ("Run reclustering step for '%s'", db_file);
+	recluster (reclustering_stmt, epsilon, min_pts, distance);
+
 	// Commit
 	db_end_transaction (db);
 
@@ -113,44 +123,47 @@ print_usage (FILE *fp)
 		"%s\n"
 		"\n"
 		"Usage: %s merge-call [-h] [-q] [-d] [-l FILE] [-o DIR]\n"
-		"       %*c            [-p STR] [-c INT] [-e INT] [-m]\n"
-		"       %*c            [-b STR] [-i FILE] <FILE> ...\n"
+		"       %*c            [-p STR] [-c INT] [-I] [-e INT]\n"
+		"       %*c            [-m INT] [-b STR] [-x INT]\n"
+		"       %*c            [-i FILE] <FILE> ...\n"
 		"\n"
 		"Arguments:\n"
 		"   One or more SQLite3 databases generated in the 'process-sample' step\n"
 		"\n"
 		"Mandatory Options:\n"
-		"   -i, --input-file        FILE containing a list of SQLite3 databases\n"
-		"                           to be processed. They must be separated by newline.\n"
-		"                           This option is not manditory if one or more SQLite3\n"
-		"                           databases are passed as argument. If 'input-file' and\n"
-		"                           arguments are set concomitantly, then the union of\n"
-		"                           all files is used\n"
+		"   -i, --input-file           FILE containing a list of SQLite3 databases\n"
+		"                              to be processed. They must be separated by newline.\n"
+		"                              This option is not manditory if one or more SQLite3\n"
+		"                              databases are passed as argument. If 'input-file' and\n"
+		"                              arguments are set concomitantly, then the union of\n"
+		"                              all files is used\n"
 		"\n"
 		"Options:\n"
-		"   -h, --help              Show help options\n"
-		"   -q, --quiet             Decrease verbosity to error messages only\n"
-		"                           or supress terminal outputs at all if\n"
-		"                           'log-file' is passed\n"
-		"       --silent            Same as '--quiet'\n"
-		"   -d, --debug             Increase verbosity to debug level\n"
-		"   -l, --log-file          Print log messages to a FILE\n"
-		"   -o, --output-dir        Output directory. Create the directory if it does\n"
-		"                           not exist [default:\"%s\"]\n"
-		"   -p, --prefix            Prefix output files [default:\"%s\"]\n"
-		"   -I, --in-place          Merge all databases with the first one of the list,\n"
-		"                           instead of creating a new file\n"
-		"   -c, --cache-size        Set SQLite3 cache size in KiB [default:\"%d\"]\n"
-		"   -e, --epsilon           DBSCAN: Maximum distance between two alignments\n"
-		"                           inside a cluster [default:\"%d\"]\n"
-		"   -m, --min-pts           DBSCAN: Minimum number of points required to form a\n"
-		"                           dense region [default:\"%d\"]\n"
-		"   -b, --blacklist-chr     Avoid clustering at this chromosome. This option\n"
-		"                           may be passed multiple times [default:\"%s\"]\n"
+		"   -h, --help                 Show help options\n"
+		"   -q, --quiet                Decrease verbosity to error messages only\n"
+		"                              or supress terminal outputs at all if\n"
+		"                              'log-file' is passed\n"
+		"       --silent               Same as '--quiet'\n"
+		"   -d, --debug                Increase verbosity to debug level\n"
+		"   -l, --log-file             Print log messages to a FILE\n"
+		"   -o, --output-dir           Output directory. Create the directory if it does\n"
+		"                              not exist [default:\"%s\"]\n"
+		"   -p, --prefix               Prefix output files [default:\"%s\"]\n"
+		"   -I, --in-place             Merge all databases with the first one of the list,\n"
+		"                              instead of creating a new file\n"
+		"   -c, --cache-size           Set SQLite3 cache size in KiB [default:\"%d\"]\n"
+		"   -e, --epsilon              DBSCAN: Maximum distance between two alignments\n"
+		"                              inside a cluster [default:\"%d\"]\n"
+		"   -m, --min-pts              DBSCAN: Minimum number of points required to form a\n"
+		"                              dense region [default:\"%d\"]\n"
+		"   -b, --blacklist-chr        Avoid clustering at this chromosome. This option\n"
+		"                              may be passed multiple times [default:\"%s\"]\n"
+		"   -x, --parental-distance    Minimum distance allowed between a cluster and\n"
+		"                              its putative parental gene [default:\"%d\"]\n"
 		"\n",
-		PACKAGE_STRING, PACKAGE, pkg_len, ' ', pkg_len, ' ',
-		DEFAULT_OUTPUT_DIR, DEFAULT_PREFIX, DEFAULT_CACHE_SIZE,
-		DEFAULT_EPS, DEFAULT_MIN_PTS, DEFAULT_BLACKLIST_CHR);
+		PACKAGE_STRING, PACKAGE, pkg_len, ' ', pkg_len, ' ', pkg_len, ' ',
+		DEFAULT_OUTPUT_DIR, DEFAULT_PREFIX, DEFAULT_CACHE_SIZE, DEFAULT_EPS,
+		DEFAULT_MIN_PTS, DEFAULT_BLACKLIST_CHR, DEFAULT_DISTANCE);
 }
 
 static void
@@ -175,19 +188,20 @@ parse_merge_call_command_opt (int argc, char **argv)
 
 	struct option opt[] =
 	{
-		{"help",            no_argument,       0, 'h'},
-		{"quiet",           no_argument,       0, 'q'},
-		{"silent",          no_argument,       0, 'q'},
-		{"debug",           no_argument,       0, 'd'},
-		{"in-place",        no_argument,       0, 'I'},
-		{"log-file",        required_argument, 0, 'l'},
-		{"output-dir",      required_argument, 0, 'o'},
-		{"prefix",          required_argument, 0, 'p'},
-		{"cache-size",      required_argument, 0, 'c'},
-		{"input-file",      required_argument, 0, 'i'},
-		{"epsilon",         required_argument, 0, 'e'},
-		{"min-pts",         required_argument, 0, 'm'},
-		{0,                 0,                 0,  0 }
+		{"help",              no_argument,       0, 'h'},
+		{"quiet",             no_argument,       0, 'q'},
+		{"silent",            no_argument,       0, 'q'},
+		{"debug",             no_argument,       0, 'd'},
+		{"in-place",          no_argument,       0, 'I'},
+		{"log-file",          required_argument, 0, 'l'},
+		{"output-dir",        required_argument, 0, 'o'},
+		{"prefix",            required_argument, 0, 'p'},
+		{"cache-size",        required_argument, 0, 'c'},
+		{"input-file",        required_argument, 0, 'i'},
+		{"epsilon",           required_argument, 0, 'e'},
+		{"min-pts",           required_argument, 0, 'm'},
+		{"parental-distance", required_argument, 0, 'x'},
+		{0,                   0,                 0,  0 }
 	};
 
 	// Init variables to default values
@@ -197,6 +211,7 @@ parse_merge_call_command_opt (int argc, char **argv)
 	int         in_place   = DEFAULT_IN_PLACE;
 	int         epsilon    = DEFAULT_EPS;
 	int         min_pts    = DEFAULT_MIN_PTS;
+	int         distance   = DEFAULT_DISTANCE;
 	const char *output_dir = DEFAULT_OUTPUT_DIR;
 	const char *prefix     = DEFAULT_PREFIX;
 	const char *log_file   = DEFAULT_LOG_FILE;
@@ -214,7 +229,7 @@ parse_merge_call_command_opt (int argc, char **argv)
 	int option_index = 0;
 	int c, i;
 
-	while ((c = getopt_long (argc, argv, "hqdIl:o:p:c:e:m:b:i:", opt, &option_index)) >= 0)
+	while ((c = getopt_long (argc, argv, "hqdIl:o:p:c:e:m:b:x:i:", opt, &option_index)) >= 0)
 		{
 			switch (c)
 				{
@@ -273,6 +288,11 @@ parse_merge_call_command_opt (int argc, char **argv)
 					{
 						set_insert (blacklist_chr,
 								chr_std_lookup (cs, optarg));
+						break;
+					}
+				case 'x':
+					{
+						distance = atoi (optarg);
 						break;
 					}
 				case 'i':
@@ -382,7 +402,8 @@ parse_merge_call_command_opt (int argc, char **argv)
 
 	// RUN FOOLS
 	merge_call (output_dir, prefix, db_files, output_file,
-			cache_size, epsilon, min_pts, blacklist_chr);
+			cache_size, epsilon, min_pts, blacklist_chr,
+			distance);
 
 Exit:
 	logger_free (logger);
