@@ -112,6 +112,7 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 	// Cleanup
 	xfree (db_file);
 	db_finalize (clustering_stmt);
+	db_finalize (reclustering_stmt);
 	db_close (db);
 }
 
