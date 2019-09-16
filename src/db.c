@@ -304,11 +304,15 @@ db_create_tables (sqlite3 *db)
 		"DROP TABLE IF EXISTS reclustering;\n"
 		"CREATE TABLE reclustering (\n"
 		"	id INTEGER NOT NULL,\n"
+		"	clustering_id INTEGER NOT NULL,\n"
 		"	clustering_alignment_id INTEGER NOT NULL,\n"
 		"	label INTEGER NOT NULL,\n"
 		"	neighbors INTEGER NOT NULL,\n"
+		"	parental_gene_name TEXT NOT NULL,\n"
+		"	FOREIGN KEY (clustering_id) REFERENCES clustering(id),\n"
 		"	FOREIGN KEY (clustering_alignment_id) REFERENCES clustering(alignment_id),\n"
-		"	PRIMARY KEY (id, clustering_alignment_id));";
+		"	FOREIGN KEY (parental_gene_name) REFERENCES exon(gene_name),\n"
+		"	PRIMARY KEY (id, clustering_id, clustering_alignment_id));";
 
 	log_debug ("Database schema:\n%s", sql);
 	db_exec (db, sql);
@@ -661,15 +665,16 @@ db_prepare_reclustering_stmt (sqlite3 *db)
 	assert (db != NULL);
 
 	const char sql[] =
-		"INSERT INTO reclustering (id,clustering_alignment_id,label,neighbors)\n"
-		"VALUES (?1,?2,?3,?4)";
+		"INSERT INTO reclustering (id,clustering_id,clustering_alignment_id,label,neighbors,parental_gene_name)\n"
+		"VALUES (?1,?2,?3,?4,?5,?6)";
 
 	return db_prepare (db, sql);
 }
 
 void
-db_insert_reclustering (sqlite3_stmt *stmt, int id,
-	int clustering_alignment_id, int label, int neighbors)
+db_insert_reclustering (sqlite3_stmt *stmt, int id, int clustering_id,
+	int clustering_alignment_id, int label, int neighbors,
+	const char *parental_gene_name)
 {
 	log_trace ("Inside %s", __func__);
 	assert (stmt != NULL);
@@ -680,9 +685,11 @@ db_insert_reclustering (sqlite3_stmt *stmt, int id,
 	db_clear_bindings (stmt);
 
 	db_bind_int (stmt, 1, id);
-	db_bind_int (stmt, 2, clustering_alignment_id);
-	db_bind_int (stmt, 3, label);
-	db_bind_int (stmt, 4, neighbors);
+	db_bind_int (stmt, 2, clustering_id);
+	db_bind_int (stmt, 3, clustering_alignment_id);
+	db_bind_int (stmt, 4, label);
+	db_bind_int (stmt, 5, neighbors);
+	db_bind_text (stmt, 6, parental_gene_name);
 
 	db_step (stmt);
 

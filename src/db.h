@@ -6,7 +6,7 @@
 #include <sqlite3.h>
 
 /* Database schema version */
-#define DB_SCHEMA_VERSION 0.3
+#define DB_SCHEMA_VERSION 0.4
 
 #define DB_DEFAULT_CACHE_SIZE 2000
 
@@ -69,7 +69,8 @@ void db_insert_clustering (sqlite3_stmt *stmt, int id,
 	int alignment_id, int label, int neighbors);
 
 sqlite3_stmt * db_prepare_reclustering_stmt (sqlite3 *db);
-void db_insert_reclustering (sqlite3_stmt *stmt, int id,
-	int clustering_alignment_id, int label, int neighbors);
+void db_insert_reclustering (sqlite3_stmt *stmt, int id, int clustering_id,
+	int clustering_alignment_id, int label, int neighbors,
+	const char *parental_gene_name);
 
 #endif /* db.h */

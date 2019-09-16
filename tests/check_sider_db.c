@@ -228,7 +228,7 @@ START_TEST (test_db_schema)
 			"101M", 101, 101, "chr1", 200, 0, 1);
 	db_insert_overlapping (overlapping_stmt, 1, 1, 1, 101);
 	db_insert_clustering (clustering_stmt, 1, 1, 0, 1);
-	db_insert_reclustering (reclustering_stmt, 1, 1, 0, 1);
+	db_insert_reclustering (reclustering_stmt, 1, 1, 1, 0, 1, "PONGA");
 
 	db_end_transaction (db);
 

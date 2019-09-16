@@ -10,7 +10,9 @@
 struct _Recluster
 {
 	sqlite3_stmt *reclustering_stmt;
+	const char   *gene_name;
 	int           id;
+	int           cid;
 };
 
 typedef struct _Recluster Recluster;
@@ -60,16 +62,16 @@ dump_reclustering (Point *p, void *user_data)
 	Recluster *r = user_data;
 	int aid = * (int *) p->data;
 
-	log_debug ("Redump cluster%d aid = %d label = %d n = %d",
-			p->id + r->id, aid, p->label, p->neighbors);
+	log_debug ("Redump cluster%d aid = %d label = %d n = %d parental = %s",
+			p->id + r->id, aid, p->label, p->neighbors, r->gene_name);
 
 	db_insert_reclustering (r->reclustering_stmt,
-			p->id + r->id, aid, p->label,
-			p->neighbors);
+			p->id + r->id, r->cid, aid, p->label,
+			p->neighbors, r->gene_name);
 }
 
 static void
-cluster_analysis (Recluster *r, Hash *cluster_by_gene,
+recluster_by_gene (Recluster *r, Hash *cluster_by_gene,
 		const long eps, const int min_pts)
 {
 	const char *gene_name = NULL;
@@ -81,6 +83,8 @@ cluster_analysis (Recluster *r, Hash *cluster_by_gene,
 
 	while (hash_iter_next (&iter, (void **) &gene_name, (void **) &dbscan))
 		{
+			r->gene_name = gene_name;
+
 			log_debug ("Cluster for putative parental '%s'", gene_name);
 			acm = dbscan_cluster (dbscan, eps, min_pts, dump_reclustering, r);
 
@@ -135,8 +139,10 @@ recluster (sqlite3_stmt *reclustering_stmt,
 
 			if (cid_prev != cid)
 				{
+					r.cid = cid_prev;
+
 					log_debug ("Reclustering cluster '%d'", cid_prev);
-					cluster_analysis (&r, cluster_by_gene, eps, min_pts);
+					recluster_by_gene (&r, cluster_by_gene, eps, min_pts);
 
 					hash_free (cluster_by_gene);
 					cluster_by_gene = hash_new (xfree, (DestroyNotify) dbscan_free);
@@ -163,8 +169,9 @@ recluster (sqlite3_stmt *reclustering_stmt,
 	// Test if there any entry
 	if (cluster_by_gene != NULL)
 		{
+			r.cid = cid_prev;
 			log_debug ("Reclustering cluster '%d'", cid_prev);
-			cluster_analysis (&r, cluster_by_gene, eps, min_pts);
+			recluster_by_gene (&r, cluster_by_gene, eps, min_pts);
 		}
 
 	log_info ("Found %d clusters after reclustering", r.id);
