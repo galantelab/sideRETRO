@@ -157,18 +157,15 @@ dbscan_cluster (DBSCAN *db, long eps, int min_pts, DFunc func, void *user_data)
 			for (; cur_seed != NULL; cur_seed = list_next (cur_seed))
 				{
 					q = list_data (cur_seed);
+					q->id = c;
 
 					if (q->label == NOISE)
-						{
-							q->label = REACHABLE;
-							q->id = c;
-						}
+						q->label = REACHABLE;
 
 					if (q->label != UNDEFINED)
 						continue;
 
 					q->label = REACHABLE;
-					q->id = c;
 
 					neighbors = list_new (NULL);
 					n = range_query (db, neighbors, q, eps);
