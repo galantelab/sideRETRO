@@ -4,6 +4,7 @@
 #include <assert.h>
 #include "wrapper.h"
 #include "log.h"
+#include "str.h"
 #include "abnormal.h"
 #include "dbscan.h"
 #include "cluster.h"
@@ -29,34 +30,73 @@ index_alignment_qname (sqlite3 *db)
 }
 
 static sqlite3_stmt *
-prepare_query_stmt (sqlite3 *db)
+prepare_query_stmt (sqlite3 *db, Set *blacklist_chr)
 {
 	sqlite3_stmt *stmt = NULL;
+	String *sql = NULL;
+	List *list = NULL;
+	ListElmt *cur = NULL;
+	int blacklist_size = 0;
+	int limit = 0;
+	int i = 0;
 
-	const char sql[] =
+	blacklist_size = set_size (blacklist_chr);
+	limit = sqlite3_limit (db, SQLITE_LIMIT_VARIABLE_NUMBER, -1);
+
+	// Test for set size. Needs to be less than SQLITE_LIMIT_VARIABLE_NUMBER - 1
+	if (blacklist_size >= (limit - 1))
+		log_fatal ("blacklisted chrs size (%d) is greater than the maximum allowed (%d)",
+				blacklist_size, limit);
+
+	sql = string_new (
 		"WITH\n"
-		"	alignment_overlaps_exon(id, qname, chr, pos, rlen, type, gene_name) AS (\n"
-		"		SELECT a.id, a.qname, a.chr, a.pos, a.rlen, a.type, e.gene_name\n"
-		"		FROM alignment AS a\n"
-		"		LEFT JOIN overlapping AS o\n"
-		"			ON a.id = o.alignment_id\n"
-		"		LEFT JOIN exon AS e\n"
-		"			ON e.id = o.exon_id\n"
+		"\talignment_overlaps_exon(id, qname, chr, pos, rlen, type, gene_name) AS (\n"
+		"\t\tSELECT a.id, a.qname, a.chr, a.pos, a.rlen, a.type, e.gene_name\n"
+		"\t\tFROM alignment AS a\n"
+		"\t\tLEFT JOIN overlapping AS o\n"
+		"\t\t\tON a.id = o.alignment_id\n"
+		"\t\tLEFT JOIN exon AS e\n"
+		"\t\t\tON e.id = o.exon_id\n"
 		"	)\n"
 		"SELECT DISTINCT aoe1.id, aoe1.chr, aoe1.pos, aoe1.pos + aoe1.rlen - 1\n"
 		"FROM alignment_overlaps_exon AS aoe1\n"
 		"INNER JOIN alignment_overlaps_exon AS aoe2\n"
-		"	USING(qname)\n"
-		"WHERE aoe1.id != aoe2.id\n"
-		"	AND aoe2.type & ?1\n"
-		"	AND ((NOT aoe1.type & ?1)\n"
-		"		OR (aoe1.type & ?1 AND aoe1.gene_name IS NOT aoe2.gene_name))\n"
-		"ORDER BY aoe1.chr ASC";
+		"\tUSING(qname)\n"
+		"WHERE "
+	);
 
-	log_debug ("Query schema:\n%s", sql);
-	stmt = db_prepare (db, sql);
-	db_bind_int (stmt, 1, ABNORMAL_EXONIC);
+	if (blacklist_size)
+		{
+			string_concat (sql, "aoe1.chr NOT IN (?1");
+			for (i = 1; i < blacklist_size; i++)
+				string_concat_printf (sql, ",?%d", i + 1);
 
+			string_concat (sql, ")\n\tAND aoe2.chr NOT IN (?1");
+			for (i = 1; i < blacklist_size; i++)
+				string_concat_printf (sql, ",?%d", i + 1);
+
+			string_concat (sql, ")\n\tAND ");
+		}
+
+	string_concat (sql,
+			"aoe1.id != aoe2.id\n"
+			"\tAND aoe2.type & $EXONIC\n"
+			"\tAND ((NOT aoe1.type & $EXONIC)\n"
+			"\t\tOR (aoe1.type & $EXONIC AND aoe1.gene_name IS NOT aoe2.gene_name))\n"
+			"ORDER BY aoe1.chr ASC");
+
+	log_debug ("Query schema:\n%s", sql->str);
+	stmt = db_prepare (db, sql->str);
+
+	list = set_list (blacklist_chr);
+	for (cur = list_head (list), i = 1; cur != NULL; cur = list_next (cur), i++)
+		db_bind_text (stmt, i, list_data (cur));
+
+	db_bind_int (stmt,
+			sqlite3_bind_parameter_index (stmt, "$EXONIC"),
+				ABNORMAL_EXONIC);
+
+	string_free (sql, 1);
 	return stmt;
 }
 
@@ -103,7 +143,7 @@ cluster (sqlite3_stmt *clustering_stmt,
 
 	log_debug ("Prepare query stmt");
 	query_stmt = prepare_query_stmt (
-			sqlite3_db_handle (clustering_stmt));
+			sqlite3_db_handle (clustering_stmt), blacklist_chr);
 
 	log_info ("Clustering abnormal alignments");
 
@@ -113,12 +153,6 @@ cluster (sqlite3_stmt *clustering_stmt,
 			chr = db_column_text (query_stmt, 1);
 			low = db_column_int64 (query_stmt, 2);
 			high = db_column_int64 (query_stmt, 3);
-
-			if (set_is_member (blacklist_chr, chr))
-				{
-					log_debug ("Avoid blacklistied chr: '%s'", chr);
-					continue;
-				}
 
 			// First loop - Init dbscan and chr_prev
 			if (chr_prev == NULL)

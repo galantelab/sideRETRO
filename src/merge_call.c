@@ -157,8 +157,8 @@ print_usage (FILE *fp)
 		"                              inside a cluster [default:\"%d\"]\n"
 		"   -m, --min-pts              DBSCAN: Minimum number of points required to form a\n"
 		"                              dense region [default:\"%d\"]\n"
-		"   -b, --blacklist-chr        Avoid clustering at this chromosome. This option\n"
-		"                              may be passed multiple times [default:\"%s\"]\n"
+		"   -b, --blacklist-chr        Avoid clustering from and to this chromosome. This\n"
+		"                              option may be passed multiple times [default:\"%s\"]\n"
 		"   -x, --parental-distance    Minimum distance allowed between a cluster and\n"
 		"                              its putative parental gene [default:\"%d\"]\n"
 		"\n",
