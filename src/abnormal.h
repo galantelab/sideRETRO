@@ -27,6 +27,7 @@ struct _AbnormalArg
 	int            phred_quality;
 	int            queryname_sorted;
 	int            max_distance;
+	float          max_base_frac;
 	int            either;
 	float          exon_frac;
 	float          alignment_frac;

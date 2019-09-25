@@ -1,6 +1,7 @@
 #include "config.h"
 
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
@@ -26,6 +27,7 @@ struct _AbnormalFilter
 	int            phred_quality;
 	int            queryname_sorted;
 	int            max_distance;
+	float          max_base_frac;
 	int            either;
 	float          exon_frac;
 	float          alignment_frac;
@@ -101,9 +103,29 @@ abnormal_filter_destroy (AbnormalFilter *argf)
 	string_free (argf->cigar, 1);
 }
 
+static int
+is_base_overly_freq (const bam1_t *align, float freq)
+{
+	uint8_t *seq = NULL;
+	int bases[5] = {};
+	int i = 0;
+
+	seq = bam_get_seq (align);
+
+	for (i = 0; i < align->core.l_qseq; i++)
+		bases[seq_nt16_int[bam_seqi (seq, i)]]++;
+
+	for (i = 0; i < 5; i++)
+		if (((float) bases[i] / align->core.l_qseq) > freq)
+			return 1;
+
+	return 0;
+}
+
 static inline int
 abnormal_classifier (const bam1_t *align, int max_distance,
-		int phred_quality, AbnormalType *type)
+		int phred_quality, float max_base_frac,
+		AbnormalType *type)
 {
 	/*
 	* abnormal alignment must be:
@@ -111,11 +133,13 @@ abnormal_classifier (const bam1_t *align, int max_distance,
 	* - mapped
 	* - mate mapped
 	* - phred-quality
+	* - base frequency
 	*/
 	if (!(align->core.flag & 0x1)
 			|| (align->core.flag & 0x4)
 			|| (align->core.flag & 0x8)
-			|| (align->core.qual < phred_quality))
+			|| (align->core.qual < phred_quality)
+			|| is_base_overly_freq (align, max_base_frac))
 		{
 			return 0;
 		}
@@ -234,7 +258,8 @@ dump_stack_if_abnormal (AbnormalFilter *argf, const List *stack)
 			align = list_data (cur);
 
 			if (!abnormal_classifier (align, argf->max_distance,
-						argf->phred_quality, &rtype))
+						argf->phred_quality, argf->max_base_frac,
+						&rtype))
 				return;
 
 			type |= rtype;
@@ -391,7 +416,7 @@ parse_unsorted_sam (AbnormalFilter *argf)
 			argf->alignment_acm++;
 
 			if (!abnormal_classifier (argf->align, argf->max_distance,
-						argf->phred_quality, &type))
+						argf->phred_quality, argf->max_base_frac, &type))
 				{
 					name = xstrdup (bam_get_qname (argf->align));
 					list_append (blacklist_ids, name);
@@ -462,7 +487,7 @@ abnormal_filter (AbnormalArg *arg)
 	assert (arg != NULL && arg->sam_file != NULL
 			&& arg->alignment_stmt != NULL && arg->exon_tree
 			&& arg->cs && arg->tid >= 0 && arg->inc_step > 0
-			&& arg->phred_quality >= 0);
+			&& arg->phred_quality >= 0 && arg->max_base_frac > 0);
 
 	AbnormalFilter argf = {};
 	memcpy (&argf, arg, sizeof (AbnormalArg));
