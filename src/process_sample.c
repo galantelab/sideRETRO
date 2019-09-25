@@ -283,7 +283,7 @@ parse_process_sample_command_opt (int argc, char **argv)
 	int         sorted         = DEFAULT_SORTED;
 	int         phred_quality  = DEFAULT_PHRED_QUALITY;
 	int         max_distance   = DEFAULT_MAX_DISTANCE;
-	int         max_base_frac  = DEFAULT_MAX_BASE_FRAC;
+	float       max_base_frac  = DEFAULT_MAX_BASE_FRAC;
 	int         cache_size     = DEFAULT_CACHE_SIZE;
 	int         either         = DEFAULT_EITHER;
 	int         reciprocal     = DEFAULT_RECIPROCAL;
