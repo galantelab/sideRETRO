@@ -22,5 +22,6 @@ Suite * make_cluster_suite        (void);
 Suite * make_wrapper_suite        (void);
 Suite * make_db_merge_suite       (void);
 Suite * make_set_suite            (void);
+Suite * make_correlation_suite    (void);
 
 #endif /* check_sider.h */

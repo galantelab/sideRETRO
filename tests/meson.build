@@ -6,6 +6,7 @@ test_sources = files(
   'check_sider_bwa.c',
   'check_sider_chr.c',
   'check_sider_cluster.c',
+  'check_sider_correlation.c',
   'check_sider_db.c',
   'check_sider_db_merge.c',
   'check_sider_dbscan.c',
