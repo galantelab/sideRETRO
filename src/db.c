@@ -309,9 +309,7 @@ db_create_tables (sqlite3 *db)
 		"	label INTEGER NOT NULL,\n"
 		"	neighbors INTEGER NOT NULL,\n"
 		"	parental_gene_name TEXT NOT NULL,\n"
-		"	FOREIGN KEY (clustering_id) REFERENCES clustering(id),\n"
-		"	FOREIGN KEY (clustering_alignment_id) REFERENCES clustering(alignment_id),\n"
-		"	FOREIGN KEY (parental_gene_name) REFERENCES exon(gene_name),\n"
+		"	FOREIGN KEY (clustering_id, clustering_alignment_id) REFERENCES clustering(id, alignment_id),\n"
 		"	PRIMARY KEY (id, clustering_id, clustering_alignment_id));";
 
 	log_debug ("Database schema:\n%s", sql);
