@@ -1,3 +1,24 @@
+Version 0.9.0
+
+* Add options '--blacklist-chr' and
+  '--parental-distance' to 'merge-call' command.
+  This way, it's possible to filter reads from
+  chromosomes (as chrM), and avoid clustering
+  inside, or very near, its own parental gene.
+
+* 'DBSCAN' is not entirely deterministic: border
+  points that are reachable from more than one
+  cluster can be part of either cluster,
+  depending on the order the data are processed
+  (Wikipedia).
+  Fix the 'REACHABLE' points which are shared
+  among multiple clusters.
+
+* Add statistics 'pearson' and 'spearman'
+  correlation brought from 'GSL'. They will be
+  necessary for calculating the retrocopy
+  orientation.
+
 Version 0.8.0
 
 * Add new extensible hash algorithm. Move from
@@ -18,7 +39,7 @@ Version 0.8.0
 
 * Update clustering query statement in order to
   avoid the abnormal reads that fall into their
-  on parental gene.
+  own parental gene.
 
 * Fix bug in 'exon.c'. The alignment_id was
   included inside ExonTree object, which in turn

@@ -1,3 +1,96 @@
+2019-10-05 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* Version 0.9.0
+
+	* FIX: cluster.c, db.c, merge_call.c, recluster.c
+
+	Remove 'recluster.c' and merge its functionality to 'cluster.c'.
+
+	Catch all alignments whose mate overlaps a given exon and filter them
+	by: blacklisted chromosomes (e.g. chrM); read cannot be exonic from its
+	own parental; distance from its own parental gene.
+
+	Reshape database schema removing reclustering table and add retrocopy
+	and related tables to make relation among retrocopies and clusters
+
+2019-09-30 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: correlation.c interface
+
+	Add statistics pearson and spearman correlation brought from GSL
+
+2019-09-29 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* FIX: db.c (db_create_tables): foreign key
+
+2019-09-25 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* FIX: process_sample.c: int -> float max_base_frac
+
+	* ADD: abnormal.c, process_sample.c (max-base-frac)
+
+	Filter reads according to the base frequency fraction in order to avoid
+	aligments against genome repetitive motifs
+
+2019-09-22 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* FIX: cluster.c (prepare_query_stmt): blacklist_chr
+
+	Avoid clusters from and to the chromosomes into blacklist_chr set
+
+2019-09-16 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* FIX: dbscan.c (dbscan_cluster): Same point shared
+
+	* DBSCAN is not entirely deterministic: border points that are
+	reachable from more than one cluster can be part of either
+	cluster, depending on the order the data are processed.
+		(Wikipedia)
+
+	* Fix the REACHABLE points which are shared among multiple clusters
+
+2019-09-15 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* FIX: db.c (clustering table)
+
+	Fix foreign key issue by adding the clustering id as part of the weak
+	key. Add gene_name as parental_gene_name in order to facilitate future
+	analysis
+
+	* FIX: recluster.c (prepare_query_stmt): cluster_id
+
+	Change cluster_id to id
+
+	* FIX: merge_call.c (merge_call): reclustering_stmt
+
+	Call db_finalise for reclustering_stmt
+
+	* ADD: recluster.c interface
+
+	Add reclustering step in order to validate the clusters found. The
+	clusters will be analysed according to distance from, number of, and
+	number of reads for reclustering each putative parental gene
+
+2019-09-13 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: db.c: reclustering table
+
+	Add reclustering table to hold validated clustering entries
+
+	* CHANGE: db.c (db_insert_clustering): rm cluster_id
+
+	Remove cluster_id from clustering table schema. Now it became a weak
+	entity
+
+	* ADD: merge_call.c, cluster.c (blacklist_chr)
+
+	Add option to avoid clustering at certain chromosomes. By default it
+	avoides 'chrM'
+
+	* ADD: set.c (set_is_member)
+
+	* CHANGE: chr.c (CHR_BUFSIZ): 32
+
 2019-09-10 Thiago L. A. Miller <tmiller@mochsl.org.br>
 
 	* Version 0.8.0
