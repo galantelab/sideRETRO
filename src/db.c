@@ -292,25 +292,49 @@ db_create_tables (sqlite3 *db)
 		"	FOREIGN KEY (alignment_id) REFERENCES alignment(id),\n"
 		"	PRIMARY KEY (exon_id, alignment_id));\n"
 		"\n"
+		"DROP TABLE IF EXISTS cluster;\n"
+		"CREATE TABLE cluster (\n"
+		"	id INTEGER PRIMARY KEY);\n"
+		"\n"
 		"DROP TABLE IF EXISTS clustering;\n"
 		"CREATE TABLE clustering (\n"
-		"	id INTEGER NOT NULL,\n"
+		"	cluster_id INTEGER NOT NULL,\n"
 		"	alignment_id INTEGER NOT NULL,\n"
 		"	label INTEGER NOT NULL,\n"
 		"	neighbors INTEGER NOT NULL,\n"
+		"	gene_name TEXT NOT NULL,\n"
+		"	FOREIGN KEY (cluster_id) REFERENCES cluster(id),\n"
 		"	FOREIGN KEY (alignment_id) REFERENCES alignment(id),\n"
-		"	PRIMARY KEY (id, alignment_id));\n"
+		"	PRIMARY KEY (cluster_id, alignment_id));\n"
 		"\n"
-		"DROP TABLE IF EXISTS reclustering;\n"
-		"CREATE TABLE reclustering (\n"
+		"DROP TABLE IF EXISTS retrocopy;\n"
+		"CREATE TABLE retrocopy (\n"
+		"	id INTEGER PRIMARY KEY,\n"
+		"	chr TEXT NOT NULL,\n"
+		"	window_start INTEGER NOT NULL,\n"
+		"	window_end INTEGER NOT NULL,\n"
+		"	insertion_point INTEGER NOT NULL,\n"
+		"	insertion_point_type INTEGER NOT NULL,\n"
+		"	parental_gene_name TEXT NOT NULL);\n"
+		"\n"
+		"DROP TABLE IF EXISTS cluster_merging;\n"
+		"CREATE TABLE cluster_merging (\n"
+		"	cluster_id INTEGER NOT NULL,\n"
+		"	retrocopy_id INTEGER NOT NULL,\n"
+		"	FOREIGN KEY (cluster_id) REFERENCES cluster(id),\n"
+		"	FOREIGN KEY (retrocopy_id) REFERENCES retrocopy(id));\n"
+		"\n"
+		"DROP TABLE IF EXISTS genotype;\n"
+		"CREATE TABLE genotype (\n"
 		"	id INTEGER NOT NULL,\n"
-		"	clustering_id INTEGER NOT NULL,\n"
-		"	clustering_alignment_id INTEGER NOT NULL,\n"
-		"	label INTEGER NOT NULL,\n"
-		"	neighbors INTEGER NOT NULL,\n"
-		"	parental_gene_name TEXT NOT NULL,\n"
-		"	FOREIGN KEY (clustering_id, clustering_alignment_id) REFERENCES clustering(id, alignment_id),\n"
-		"	PRIMARY KEY (id, clustering_id, clustering_alignment_id));";
+		"	retrocopy_id INTEGER NOT NULL,\n"
+		"	source_id INTEGER NOT NULL,\n"
+		"	orientation_rho REAL NOT NULL,\n"
+		"	orientation_p_value REAL NOT NULL,\n"
+		"	zygosity INTEGER NOT NULL,\n"
+		"	FOREIGN KEY (retrocopy_id) REFERENCES retrocopy(id),\n"
+		"	FOREIGN KEY (source_id) REFERENCES source(id),\n"
+		"	PRIMARY KEY (id, retrocopy_id, source_id));";
 
 	log_debug ("Database schema:\n%s", sql);
 	db_exec (db, sql);
@@ -628,15 +652,16 @@ db_prepare_clustering_stmt (sqlite3 *db)
 	assert (db != NULL);
 
 	const char sql[] =
-		"INSERT INTO clustering (id,alignment_id,label,neighbors)\n"
-		"VALUES (?1,?2,?3,?4)";
+		"INSERT INTO clustering (cluster_id,alignment_id,label,neighbors,gene_name)\n"
+		"VALUES (?1,?2,?3,?4,?5)";
 
 	return db_prepare (db, sql);
 }
 
 void
-db_insert_clustering (sqlite3_stmt *stmt, int id,
-	int alignment_id, int label, int neighbors)
+db_insert_clustering (sqlite3_stmt *stmt, int cluster_id,
+	int alignment_id, int label, int neighbors,
+	const char *gene_name)
 {
 	log_trace ("Inside %s", __func__);
 	assert (stmt != NULL);
@@ -646,48 +671,11 @@ db_insert_clustering (sqlite3_stmt *stmt, int id,
 	db_reset (stmt);
 	db_clear_bindings (stmt);
 
-	db_bind_int (stmt, 1, id);
+	db_bind_int (stmt, 1, cluster_id);
 	db_bind_int (stmt, 2, alignment_id);
 	db_bind_int (stmt, 3, label);
 	db_bind_int (stmt, 4, neighbors);
-
-	db_step (stmt);
-
-	sqlite3_mutex_leave (sqlite3_db_mutex (sqlite3_db_handle (stmt)));
-}
-
-sqlite3_stmt *
-db_prepare_reclustering_stmt (sqlite3 *db)
-{
-	log_trace ("Inside %s", __func__);
-	assert (db != NULL);
-
-	const char sql[] =
-		"INSERT INTO reclustering (id,clustering_id,clustering_alignment_id,label,neighbors,parental_gene_name)\n"
-		"VALUES (?1,?2,?3,?4,?5,?6)";
-
-	return db_prepare (db, sql);
-}
-
-void
-db_insert_reclustering (sqlite3_stmt *stmt, int id, int clustering_id,
-	int clustering_alignment_id, int label, int neighbors,
-	const char *parental_gene_name)
-{
-	log_trace ("Inside %s", __func__);
-	assert (stmt != NULL);
-
-	sqlite3_mutex_enter (sqlite3_db_mutex (sqlite3_db_handle (stmt)));
-
-	db_reset (stmt);
-	db_clear_bindings (stmt);
-
-	db_bind_int (stmt, 1, id);
-	db_bind_int (stmt, 2, clustering_id);
-	db_bind_int (stmt, 3, clustering_alignment_id);
-	db_bind_int (stmt, 4, label);
-	db_bind_int (stmt, 5, neighbors);
-	db_bind_text (stmt, 6, parental_gene_name);
+	db_bind_text (stmt, 5, gene_name);
 
 	db_step (stmt);
 

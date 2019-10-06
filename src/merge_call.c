@@ -14,7 +14,6 @@
 #include "chr.h"
 #include "array.h"
 #include "cluster.h"
-#include "recluster.h"
 #include "db_merge.h"
 #include "merge_call.h"
 
@@ -40,7 +39,6 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 
 	sqlite3 *db = NULL;
 	sqlite3_stmt *clustering_stmt = NULL;
-	sqlite3_stmt *reclustering_stmt = NULL;
 	char *db_file = NULL;
 
 	log_info (">>> Merge Call step <<<");
@@ -77,9 +75,6 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 	// Create clustering statement
 	clustering_stmt = db_prepare_clustering_stmt (db);
 
-	// Create reclustering statement
-	reclustering_stmt = db_prepare_reclustering_stmt (db);
-
 	// If there are files to merge with ...
 	if (array_len (db_files))
 		{
@@ -100,11 +95,7 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 
 	// RUN
 	log_info ("Run clustering step for '%s'", db_file);
-	cluster (clustering_stmt, epsilon, min_pts, blacklist_chr);
-
-	// Validate and recluster clustered alignments if necessary
-	log_info ("Run reclustering step for '%s'", db_file);
-	recluster (reclustering_stmt, epsilon, min_pts, distance);
+	cluster (clustering_stmt, epsilon, min_pts, blacklist_chr, distance);
 
 	// Commit
 	db_end_transaction (db);
@@ -112,7 +103,6 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 	// Cleanup
 	xfree (db_file);
 	db_finalize (clustering_stmt);
-	db_finalize (reclustering_stmt);
 	db_close (db);
 }
 
