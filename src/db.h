@@ -6,7 +6,8 @@
 #include <sqlite3.h>
 
 /* Database schema version */
-#define DB_SCHEMA_VERSION 0.5
+#define DB_SCHEMA_MAJOR_VERSION 0
+#define DB_SCHEMA_MINOR_VERSION 6
 
 #define DB_DEFAULT_CACHE_SIZE 2000
 

@@ -239,7 +239,9 @@ db_create_tables (sqlite3 *db)
 
 	const char sql[] =
 		"DROP TABLE IF EXISTS schema;\n"
-		"CREATE TABLE schema (version REAL NOT NULL);\n"
+		"CREATE TABLE schema (\n"
+		"	major_version INTEGER NOT NULL,\n"
+		"	minor_version INTEGER NOT NULL);\n"
 		"\n"
 		"DROP TABLE IF EXISTS batch;\n"
 		"CREATE TABLE batch (\n"
@@ -313,28 +315,27 @@ db_create_tables (sqlite3 *db)
 		"	chr TEXT NOT NULL,\n"
 		"	window_start INTEGER NOT NULL,\n"
 		"	window_end INTEGER NOT NULL,\n"
-		"	insertion_point INTEGER NOT NULL,\n"
-		"	insertion_point_type INTEGER NOT NULL,\n"
-		"	parental_gene_name TEXT NOT NULL);\n"
+		"	parental_gene_name TEXT NOT NULL,\n"
+		"	insertion_point INTEGER,\n"
+		"	insertion_point_type INTEGER,\n"
+		"	orientation_rho REAL,\n"
+		"	orientation_p_value REAL);\n"
 		"\n"
 		"DROP TABLE IF EXISTS cluster_merging;\n"
 		"CREATE TABLE cluster_merging (\n"
-		"	cluster_id INTEGER NOT NULL,\n"
 		"	retrocopy_id INTEGER NOT NULL,\n"
-		"	FOREIGN KEY (cluster_id) REFERENCES cluster(id),\n"
-		"	FOREIGN KEY (retrocopy_id) REFERENCES retrocopy(id));\n"
+		"	cluster_id INTEGER NOT NULL,\n"
+		"	FOREIGN KEY (retrocopy_id) REFERENCES retrocopy(id),\n"
+		"	FOREIGN KEY (cluster_id) REFERENCES cluster(id));\n"
 		"\n"
 		"DROP TABLE IF EXISTS genotype;\n"
 		"CREATE TABLE genotype (\n"
-		"	id INTEGER NOT NULL,\n"
-		"	retrocopy_id INTEGER NOT NULL,\n"
 		"	source_id INTEGER NOT NULL,\n"
-		"	orientation_rho REAL NOT NULL,\n"
-		"	orientation_p_value REAL NOT NULL,\n"
-		"	zygosity INTEGER NOT NULL,\n"
-		"	FOREIGN KEY (retrocopy_id) REFERENCES retrocopy(id),\n"
+		"	retrocopy_id INTEGER NOT NULL,\n"
+		"	heterozygous INTEGER NOT NULL,\n"
 		"	FOREIGN KEY (source_id) REFERENCES source(id),\n"
-		"	PRIMARY KEY (id, retrocopy_id, source_id));";
+		"	FOREIGN KEY (retrocopy_id) REFERENCES retrocopy(id),\n"
+		"	PRIMARY KEY (source_id, retrocopy_id));";
 
 	log_debug ("Database schema:\n%s", sql);
 	db_exec (db, sql);
@@ -349,9 +350,11 @@ db_insert_schema_version (sqlite3 *db)
 	sqlite3_stmt *stmt = NULL;
 
 	stmt = db_prepare (db,
-			"INSERT INTO schema (version) VALUES (?1)");
+		"INSERT INTO schema (major_version,minor_version)\n"
+		"VALUES (?1,?2)");
 
-	db_bind_double (stmt, 1, DB_SCHEMA_VERSION);
+	db_bind_int (stmt, 1, DB_SCHEMA_MAJOR_VERSION);
+	db_bind_int (stmt, 2, DB_SCHEMA_MINOR_VERSION);
 	db_step (stmt);
 
 	db_finalize (stmt);
@@ -371,8 +374,8 @@ db_create (const char *path)
 	log_debug ("Create tables into database '%s'", path);
 	db_create_tables (db);
 
-	log_debug ("Insert schema version 'v%.1f' into database '%s'",
-			DB_SCHEMA_VERSION, path);
+	log_debug ("Insert schema version 'v%d.%d' into database '%s'",
+			DB_SCHEMA_MAJOR_VERSION, DB_SCHEMA_MINOR_VERSION, path);
 	db_insert_schema_version (db);
 
 	return db;
@@ -421,22 +424,36 @@ db_check_schema_version (sqlite3 *db)
 	assert (db != NULL);
 
 	sqlite3_stmt *stmt = NULL;
-	double version = 0;
+	int major_version = 0;
+	int minor_version = 0;
 
 	stmt = db_prepare (db,
-			"SELECT version FROM schema LIMIT 1");
+			"SELECT major_version,minor_version FROM schema LIMIT 1");
 
 	if (db_step (stmt) == SQLITE_ROW)
-		version = db_column_double (stmt, 0);
+		{
+			major_version = db_column_int (stmt, 0);
+			minor_version = db_column_int (stmt, 1);
+		}
 	else
 		log_fatal ("Failed to request schema version");
 
-	if (version > DB_SCHEMA_VERSION)
-		log_fatal ("Schema version 'v%.1f' at database '%s' is ahead the current version 'v%.1f' of '%s'",
-				version, sqlite3_db_filename (db, "main"), DB_SCHEMA_VERSION, PACKAGE_STRING);
-	else if (version < DB_SCHEMA_VERSION)
-		log_fatal ("Schema version 'v%.1f' at database '%s' is behind the current version 'v%.1f' of '%s'",
-				version, sqlite3_db_filename (db, "main"), DB_SCHEMA_VERSION, PACKAGE_STRING);
+	if ((major_version > DB_SCHEMA_MAJOR_VERSION)
+			|| (major_version == DB_SCHEMA_MAJOR_VERSION
+				&& minor_version > DB_SCHEMA_MINOR_VERSION))
+		{
+			log_fatal ("Schema version 'v%d.%d' at database '%s' is ahead the current version 'v%d.%d' of '%s'",
+				major_version, minor_version, sqlite3_db_filename (db, "main"),
+				DB_SCHEMA_MAJOR_VERSION, DB_SCHEMA_MINOR_VERSION, PACKAGE_STRING);
+		}
+	else if ((major_version < DB_SCHEMA_MAJOR_VERSION)
+			|| (major_version == DB_SCHEMA_MAJOR_VERSION
+				&& minor_version < DB_SCHEMA_MINOR_VERSION))
+		{
+			log_fatal ("Schema version 'v%d.%d' at database '%s' is behind the current version 'v%d.%d' of '%s'",
+				major_version, minor_version, sqlite3_db_filename (db, "main"),
+				DB_SCHEMA_MAJOR_VERSION, DB_SCHEMA_MINOR_VERSION, PACKAGE_STRING);
+		}
 
 	db_finalize (stmt);
 }
