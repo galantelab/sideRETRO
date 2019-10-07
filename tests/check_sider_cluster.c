@@ -88,6 +88,7 @@ START_TEST (test_cluster)
 	char db_file[] = "/tmp/ponga.db.XXXXXX";
 
 	sqlite3 *db = NULL;
+	sqlite3_stmt *cluster_stmt = NULL;
 	sqlite3_stmt *clustering_stmt = NULL;
 	sqlite3_stmt *search_stmt = NULL;
 
@@ -122,13 +123,15 @@ START_TEST (test_cluster)
 	};
 
 	db = create_db (db_file);
+	cluster_stmt = db_prepare_cluster_stmt (db);
 	clustering_stmt = db_prepare_clustering_stmt (db);
 
 	// Populate database
 	populate_db (db);
 
 	// RUN
-	cluster (clustering_stmt, eps, min_pts, blacklist_chr, distance);
+	cluster (cluster_stmt, clustering_stmt, eps, min_pts,
+			blacklist_chr, distance);
 
 	// Let's get the clustering table values
 	search_stmt = prepare_query_stmt (db);
@@ -141,6 +144,7 @@ START_TEST (test_cluster)
 
 	ck_assert_int_eq (i, size * 2);
 
+	db_finalize (cluster_stmt);
 	db_finalize (clustering_stmt);
 	db_finalize (search_stmt);
 	set_free (blacklist_chr);

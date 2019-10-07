@@ -296,7 +296,11 @@ db_create_tables (sqlite3 *db)
 		"\n"
 		"DROP TABLE IF EXISTS cluster;\n"
 		"CREATE TABLE cluster (\n"
-		"	id INTEGER PRIMARY KEY);\n"
+		"	id INTEGER PRIMARY KEY,\n"
+		"	chr TEXT NOT NULL,\n"
+		"	start INTEGER NOT NULL,\n"
+		"	end INTEGER NOT NULL,\n"
+		"	gene_name TEXT NOT NULL);\n"
 		"\n"
 		"DROP TABLE IF EXISTS clustering;\n"
 		"CREATE TABLE clustering (\n"
@@ -304,7 +308,6 @@ db_create_tables (sqlite3 *db)
 		"	alignment_id INTEGER NOT NULL,\n"
 		"	label INTEGER NOT NULL,\n"
 		"	neighbors INTEGER NOT NULL,\n"
-		"	gene_name TEXT NOT NULL,\n"
 		"	FOREIGN KEY (cluster_id) REFERENCES cluster(id),\n"
 		"	FOREIGN KEY (alignment_id) REFERENCES alignment(id),\n"
 		"	PRIMARY KEY (cluster_id, alignment_id));\n"
@@ -669,16 +672,15 @@ db_prepare_clustering_stmt (sqlite3 *db)
 	assert (db != NULL);
 
 	const char sql[] =
-		"INSERT INTO clustering (cluster_id,alignment_id,label,neighbors,gene_name)\n"
-		"VALUES (?1,?2,?3,?4,?5)";
+		"INSERT INTO clustering (cluster_id,alignment_id,label,neighbors)\n"
+		"VALUES (?1,?2,?3,?4)";
 
 	return db_prepare (db, sql);
 }
 
 void
 db_insert_clustering (sqlite3_stmt *stmt, int cluster_id,
-	int alignment_id, int label, int neighbors,
-	const char *gene_name)
+	int alignment_id, int label, int neighbors)
 {
 	log_trace ("Inside %s", __func__);
 	assert (stmt != NULL);
@@ -692,6 +694,41 @@ db_insert_clustering (sqlite3_stmt *stmt, int cluster_id,
 	db_bind_int (stmt, 2, alignment_id);
 	db_bind_int (stmt, 3, label);
 	db_bind_int (stmt, 4, neighbors);
+
+	db_step (stmt);
+
+	sqlite3_mutex_leave (sqlite3_db_mutex (sqlite3_db_handle (stmt)));
+}
+
+sqlite3_stmt *
+db_prepare_cluster_stmt (sqlite3 *db)
+{
+	log_trace ("Inside %s", __func__);
+	assert (db != NULL);
+
+	const char sql[] =
+		"INSERT INTO cluster (id,chr,start,end,gene_name)\n"
+		"VALUES (?1,?2,?3,?4,?5)";
+
+	return db_prepare (db, sql);
+}
+
+void
+db_insert_cluster (sqlite3_stmt *stmt, int id, const char *chr,
+		long start, long end, const char *gene_name)
+{
+	log_trace ("Inside %s", __func__);
+	assert (stmt != NULL);
+
+	sqlite3_mutex_enter (sqlite3_db_mutex (sqlite3_db_handle (stmt)));
+
+	db_reset (stmt);
+	db_clear_bindings (stmt);
+
+	db_bind_int (stmt, 1, id);
+	db_bind_text (stmt, 2, chr);
+	db_bind_int64 (stmt, 3, start);
+	db_bind_int64 (stmt, 4, end);
 	db_bind_text (stmt, 5, gene_name);
 
 	db_step (stmt);

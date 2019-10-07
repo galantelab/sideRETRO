@@ -7,7 +7,7 @@
 
 /* Database schema version */
 #define DB_SCHEMA_MAJOR_VERSION 0
-#define DB_SCHEMA_MINOR_VERSION 6
+#define DB_SCHEMA_MINOR_VERSION 7
 
 #define DB_DEFAULT_CACHE_SIZE 2000
 
@@ -67,7 +67,10 @@ void db_insert_overlapping (sqlite3_stmt *stmt, int exon_id,
 
 sqlite3_stmt * db_prepare_clustering_stmt (sqlite3 *db);
 void db_insert_clustering (sqlite3_stmt *stmt, int cluster_id,
-	int alignment_id, int label, int neighbors,
-	const char *gene_name);
+	int alignment_id, int label, int neighbors);
+
+sqlite3_stmt * db_prepare_cluster_stmt (sqlite3 *db);
+void db_insert_cluster (sqlite3_stmt *stmt, int id, const char *chr,
+		long start, long end, const char *gene_name);
 
 #endif /* db.h */

@@ -5,6 +5,7 @@
 #include "wrapper.h"
 #include "log.h"
 #include "str.h"
+#include "hash.h"
 #include "abnormal.h"
 #include "dbscan.h"
 #include "cluster.h"
@@ -12,7 +13,6 @@
 struct _Cluster
 {
 	sqlite3_stmt *stmt;
-	const char   *gene_name;
 	int           id;
 };
 
@@ -56,7 +56,7 @@ prepare_query_stmt (sqlite3 *db, const Set *blacklist_chr, const int distance)
 	* a given exon and filter them by:
 	* - blacklisted chromosomes (e.g. chrM)
 	* - read cannot be exonic from its own parental
-	* - distance from its own parental gene 
+	* - distance from its own parental gene
 	*
 	* Sort by chromosome and gene, so the clustering
 	* will procide for each gene by its abnormal reads
@@ -131,23 +131,68 @@ prepare_query_stmt (sqlite3 *db, const Set *blacklist_chr, const int distance)
 	return stmt;
 }
 
+static sqlite3_stmt *
+prepare_clustering_query_stmt (sqlite3 *db)
+{
+	/*
+	* All the clusters are build at end, when the
+	* clustering step is done
+	*/
+	const char sql[] =
+		"SELECT cluster_id, chr, MIN(pos), MAX(pos + rlen - 1)\n"
+		"FROM clustering AS c\n"
+		"INNER JOIN alignment AS a\n"
+		"	ON a.id = c.alignment_id\n"
+		"GROUP BY cluster_id";
+
+	log_debug ("Clustering query schema:\n%s", sql);
+	return db_prepare (db, sql);
+}
+
+static void
+dump_cluster (sqlite3_stmt *cluster_stmt, sqlite3_stmt *query_stmt,
+		Hash *cluster_gene)
+{
+	int id = 0;
+	const char *chr = NULL;
+	long start = 0;
+	long end = 0;
+	const char *gene_name = NULL;
+
+	while (sqlite3_step (query_stmt) == SQLITE_ROW)
+		{
+			id = db_column_int (query_stmt, 0);
+			chr = db_column_text (query_stmt, 1);
+			start = db_column_int64 (query_stmt, 2);
+			end = db_column_int64 (query_stmt, 3);
+
+			gene_name = hash_lookup (cluster_gene, &id);
+
+			log_debug ("Dump cluster %d at %s:%li-%li from %s",
+					id, chr, start, end, gene_name);
+
+			db_insert_cluster (cluster_stmt, id, chr,
+					start, end, gene_name);
+		}
+}
+
 static void
 dump_clustering (Point *p, void *user_data)
 {
 	Cluster *c = user_data;
 	const int *alignment_id = p->data;
 
-	log_debug ("Dump cluster%d aid = %d label = %d n = %d from = %s",
+	log_debug ("Dump cluster%d aid = %d label = %d n = %d",
 			p->id + c->id, *alignment_id, p->label,
-			p->neighbors, c->gene_name);
+			p->neighbors);
 
 	db_insert_clustering (c->stmt, p->id + c->id, *alignment_id,
-			p->label, p->neighbors, c->gene_name);
+			p->label, p->neighbors);
 }
 
 static void
 clustering (sqlite3_stmt *clustering_stmt, sqlite3_stmt *query_stmt,
-		const long eps, const int min_pts)
+		const long eps, const int min_pts, Hash *cluster_gene)
 {
 	log_trace ("Inside %s", __func__);
 
@@ -160,11 +205,13 @@ clustering (sqlite3_stmt *clustering_stmt, sqlite3_stmt *query_stmt,
 	const char *gene_name = NULL;
 
 	int *aid_alloc = NULL;
+	int *cid_alloc = NULL;
 
 	int aid = 0;
 	long astart = 0;
 	long aend = 0;
 	int acm = 0;
+	int i = 0;
 
 	Cluster c = {clustering_stmt, 0};
 
@@ -191,15 +238,23 @@ clustering (sqlite3_stmt *clustering_stmt, sqlite3_stmt *query_stmt,
 					log_debug ("Clustering by chr at '%s' for '%s'",
 							chr_prev, gene_name_prev);
 
-					c.gene_name = gene_name_prev;
-
 					acm = dbscan_cluster (dbscan, eps, min_pts,
 							dump_clustering, &c);
 
-					log_debug ("Found %d clusters at '%s' for '%s'",
-							acm, chr_prev, gene_name_prev);
+					if (acm)
+						{
+							log_debug ("Found %d clusters at '%s' for '%s'",
+									acm, chr_prev, gene_name_prev);
 
-					c.id += acm;
+							// Store cluster_id => gene_name_prev relation
+							for (i = 0; i < acm; i++)
+								{
+									cid_alloc = xcalloc (1, sizeof (int));
+									*cid_alloc = ++c.id;
+									hash_insert (cluster_gene, cid_alloc,
+											xstrdup (gene_name_prev));
+								}
+						}
 
 					dbscan_free (dbscan);
 					dbscan = dbscan_new (xfree);
@@ -227,15 +282,23 @@ clustering (sqlite3_stmt *clustering_stmt, sqlite3_stmt *query_stmt,
 			log_debug ("Clustering at '%s' for '%s'",
 					chr_prev, gene_name_prev);
 
-			c.gene_name = gene_name_prev;
-
 			acm = dbscan_cluster (dbscan, eps, min_pts,
 					dump_clustering, &c);
 
-			c.id += acm;
+			if (acm)
+				{
+					log_debug ("Found %d clusters at '%s' for '%s'",
+							acm, chr_prev, gene_name_prev);
 
-			log_debug ("Found %d clusters at %s for '%s'",
-					acm, chr_prev, gene_name_prev);
+					// Store cluster_id => gene_name_prev relation
+					for (i = 0; i < acm; i++)
+						{
+							cid_alloc = xcalloc (1, sizeof (int));
+							*cid_alloc = ++c.id;
+							hash_insert (cluster_gene, cid_alloc,
+									xstrdup (gene_name_prev));
+						}
+				}
 		}
 
 	log_info ("Found %d clusters", c.id);
@@ -245,43 +308,51 @@ clustering (sqlite3_stmt *clustering_stmt, sqlite3_stmt *query_stmt,
 	dbscan_free (dbscan);
 }
 
-static void
-insert_cluster_ids (sqlite3 *db)
-{
-	const char sql[] =
-		"INSERT INTO cluster SELECT DISTINCT cluster_id FROM clustering";
-
-	log_debug ("Insert cluster schema:\n%s", sql);
-	db_exec (db, sql);
-}
-
 void
-cluster (sqlite3_stmt *clustering_stmt, const long eps, const int min_pts,
-		const Set *blacklist_chr, const int distance)
+cluster (sqlite3_stmt *cluster_stmt, sqlite3_stmt *clustering_stmt,
+		const long eps, const int min_pts, const Set *blacklist_chr,
+		const int distance)
 {
 	log_trace ("Inside %s", __func__);
-	assert (clustering_stmt != NULL
+	assert (cluster_stmt != NULL
+			&& clustering_stmt != NULL
 			&& min_pts > 2
 			&& distance >= 0);
 
 	sqlite3 *db = NULL;
+
 	sqlite3_stmt *query_stmt = NULL;
+	sqlite3_stmt *clustering_query_stmt = NULL;
+
+	Hash *cluster_gene = NULL;
 
 	db = sqlite3_db_handle (clustering_stmt);
 
-	log_debug ("Prepare query stmt");
+	// Prepare query stmt
 	query_stmt = prepare_query_stmt (db, blacklist_chr, distance);
+
+	// Prepare clustering query stmt
+	clustering_query_stmt = prepare_clustering_query_stmt (db);
+
+	// cluster => gene relation
+	cluster_gene = hash_new_full (int_hash, int_equal,
+			xfree, xfree);
 
 	log_info ("Index abnormal alignment qnames");
 	index_alignment_qname (db);
 
 	log_info ("Clustering abnormal alignments");
-	clustering (clustering_stmt, query_stmt, eps, min_pts);
+	clustering (clustering_stmt, query_stmt, eps, min_pts,
+			cluster_gene);
 
-	log_info ("Fill cluster ids from clustering");
-	insert_cluster_ids (db);
+	log_info ("Build clusters from clustering");
+	dump_cluster (cluster_stmt, clustering_query_stmt,
+			cluster_gene);
 
 	log_info ("Done!");
 
 	db_finalize (query_stmt);
+	db_finalize (clustering_query_stmt);
+
+	hash_free (cluster_gene);
 }

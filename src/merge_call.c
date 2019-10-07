@@ -38,6 +38,7 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 	log_trace ("Inside %s", __func__);
 
 	sqlite3 *db = NULL;
+	sqlite3_stmt *cluster_stmt = NULL;
 	sqlite3_stmt *clustering_stmt = NULL;
 	char *db_file = NULL;
 
@@ -72,6 +73,9 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 	// Increase the cache size
 	db_cache_size (db, cache_size);
 
+	// Create cluster statement
+	cluster_stmt = db_prepare_cluster_stmt (db);
+
 	// Create clustering statement
 	clustering_stmt = db_prepare_clustering_stmt (db);
 
@@ -95,13 +99,15 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 
 	// RUN
 	log_info ("Run clustering step for '%s'", db_file);
-	cluster (clustering_stmt, epsilon, min_pts, blacklist_chr, distance);
+	cluster (cluster_stmt, clustering_stmt, epsilon, min_pts,
+			blacklist_chr, distance);
 
 	// Commit
 	db_end_transaction (db);
 
 	// Cleanup
 	xfree (db_file);
+	db_finalize (cluster_stmt);
 	db_finalize (clustering_stmt);
 	db_close (db);
 }
