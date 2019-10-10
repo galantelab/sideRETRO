@@ -97,6 +97,7 @@ START_TEST (test_cluster)
 	int eps = 500;
 	int min_pts = 3;
 	int distance = 10000;
+	int support = 1;
 	int i = 0;
 	int j = 0;
 
@@ -131,7 +132,7 @@ START_TEST (test_cluster)
 
 	// RUN
 	cluster (cluster_stmt, clustering_stmt, eps, min_pts,
-			blacklist_chr, distance);
+			blacklist_chr, distance, support);
 
 	// Let's get the clustering table values
 	search_stmt = prepare_query_stmt (db);

@@ -29,11 +29,12 @@
 #define DEFAULT_INPUT_FILE     NULL
 #define DEFAULT_BLACKLIST_CHR  "chrM"
 #define DEFAULT_DISTANCE       10000
+#define DEFAULT_SUPPORT        1
 
 static void
 merge_call (const char *output_dir, const char *prefix, Array *db_files,
 		const char *output_file, int cache_size, int epsilon, int min_pts,
-		Set *blacklist_chr, int distance)
+		Set *blacklist_chr, int distance, int support)
 {
 	log_trace ("Inside %s", __func__);
 
@@ -100,7 +101,7 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 	// RUN
 	log_info ("Run clustering step for '%s'", db_file);
 	cluster (cluster_stmt, clustering_stmt, epsilon, min_pts,
-			blacklist_chr, distance);
+			blacklist_chr, distance, support);
 
 	// Commit
 	db_end_transaction (db);
@@ -122,7 +123,7 @@ print_usage (FILE *fp)
 		"Usage: %s merge-call [-h] [-q] [-d] [-l FILE] [-o DIR]\n"
 		"       %*c            [-p STR] [-c INT] [-I] [-e INT]\n"
 		"       %*c            [-m INT] [-b STR] [-x INT]\n"
-		"       %*c            [-i FILE] <FILE> ...\n"
+		"       %*c            [-g INT] [-i FILE] <FILE> ...\n"
 		"\n"
 		"Arguments:\n"
 		"   One or more SQLite3 databases generated in the 'process-sample' step\n"
@@ -153,6 +154,8 @@ print_usage (FILE *fp)
 		"                              inside a cluster [default:\"%d\"]\n"
 		"   -m, --min-pts              DBSCAN: Minimum number of points required to form a\n"
 		"                              dense region [default:\"%d\"]\n"
+		"   -g, --genotype-support     Minimum number of reads comming from a given source\n"
+		"                              (BAM) within a cluster [default:\"%d\"]\n"
 		"   -b, --blacklist-chr        Avoid clustering from and to this chromosome. This\n"
 		"                              option may be passed multiple times [default:\"%s\"]\n"
 		"   -x, --parental-distance    Minimum distance allowed between a cluster and\n"
@@ -160,7 +163,8 @@ print_usage (FILE *fp)
 		"\n",
 		PACKAGE_STRING, PACKAGE, pkg_len, ' ', pkg_len, ' ', pkg_len, ' ',
 		DEFAULT_OUTPUT_DIR, DEFAULT_PREFIX, DEFAULT_CACHE_SIZE, DEFAULT_EPS,
-		DEFAULT_MIN_PTS, DEFAULT_BLACKLIST_CHR, DEFAULT_DISTANCE);
+		DEFAULT_MIN_PTS, DEFAULT_SUPPORT, DEFAULT_BLACKLIST_CHR,
+		DEFAULT_DISTANCE);
 }
 
 static void
@@ -198,6 +202,7 @@ parse_merge_call_command_opt (int argc, char **argv)
 		{"epsilon",           required_argument, 0, 'e'},
 		{"min-pts",           required_argument, 0, 'm'},
 		{"parental-distance", required_argument, 0, 'x'},
+		{"genotype-support",  required_argument, 0, 'g'},
 		{0,                   0,                 0,  0 }
 	};
 
@@ -209,6 +214,7 @@ parse_merge_call_command_opt (int argc, char **argv)
 	int         epsilon    = DEFAULT_EPS;
 	int         min_pts    = DEFAULT_MIN_PTS;
 	int         distance   = DEFAULT_DISTANCE;
+	int         support    = DEFAULT_SUPPORT;
 	const char *output_dir = DEFAULT_OUTPUT_DIR;
 	const char *prefix     = DEFAULT_PREFIX;
 	const char *log_file   = DEFAULT_LOG_FILE;
@@ -226,7 +232,7 @@ parse_merge_call_command_opt (int argc, char **argv)
 	int option_index = 0;
 	int c, i;
 
-	while ((c = getopt_long (argc, argv, "hqdIl:o:p:c:e:m:b:x:i:", opt, &option_index)) >= 0)
+	while ((c = getopt_long (argc, argv, "hqdIl:o:p:c:e:m:b:x:g:i:", opt, &option_index)) >= 0)
 		{
 			switch (c)
 				{
@@ -290,6 +296,11 @@ parse_merge_call_command_opt (int argc, char **argv)
 				case 'x':
 					{
 						distance = atoi (optarg);
+						break;
+					}
+				case 'g':
+					{
+						support = atoi (optarg);
 						break;
 					}
 				case 'i':
@@ -360,6 +371,18 @@ parse_merge_call_command_opt (int argc, char **argv)
 			rc = EXIT_FAILURE; goto Exit;
 		}
 
+	if (distance < 0)
+		{
+			fprintf (stderr, "%s: --parental-distance must be greater or equal to 0\n", PACKAGE);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
+	if (support < 0)
+		{
+			fprintf (stderr, "%s: --genotype-support must be greater or equal to 0\n", PACKAGE);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
 	/*Final settings*/
 
 	// Add default blacklisted chr if none
@@ -400,7 +423,7 @@ parse_merge_call_command_opt (int argc, char **argv)
 	// RUN FOOLS
 	merge_call (output_dir, prefix, db_files, output_file,
 			cache_size, epsilon, min_pts, blacklist_chr,
-			distance);
+			distance, support);
 
 Exit:
 	logger_free (logger);
