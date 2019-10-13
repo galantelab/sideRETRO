@@ -2,6 +2,7 @@ test_sources = files(
   'check_sider.h',
   'check_sider_abnormal.c',
   'check_sider_array.c',
+  'check_sider_bed.c',
   'check_sider_bitree.c',
   'check_sider_bwa.c',
   'check_sider_chr.c',

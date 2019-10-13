@@ -5,6 +5,8 @@ sider_sources = files(
   'align.h',
   'array.c',
   'array.h',
+  'bed.c',
+  'bed.h',
   'bitree.c',
   'bitree.h',
   'bwa.c',

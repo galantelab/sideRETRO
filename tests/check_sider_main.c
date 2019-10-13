@@ -36,6 +36,7 @@ main (void)
 	srunner_add_suite (sr, make_db_merge_suite ());
 	srunner_add_suite (sr, make_set_suite ());
 	srunner_add_suite (sr, make_correlation_suite ());
+	srunner_add_suite (sr, make_bed_suite ());
 	/*srunner_set_tap (sr, "-");*/
 
 	srunner_run_all (sr, CK_NORMAL);
