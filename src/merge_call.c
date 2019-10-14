@@ -13,34 +13,48 @@
 #include "set.h"
 #include "chr.h"
 #include "array.h"
+#include "blacklist.h"
 #include "cluster.h"
 #include "db_merge.h"
 #include "merge_call.h"
 
-#define DEFAULT_CACHE_SIZE     DB_DEFAULT_CACHE_SIZE
-#define DEFAULT_PREFIX         "out"
-#define DEFAULT_OUTPUT_DIR     "."
-#define DEFAULT_LOG_SILENT     0
-#define DEFAULT_LOG_LEVEL      LOG_INFO
-#define DEFAULT_IN_PLACE       0
-#define DEFAULT_EPS            300
-#define DEFAULT_MIN_PTS        10
-#define DEFAULT_LOG_FILE       NULL
-#define DEFAULT_INPUT_FILE     NULL
-#define DEFAULT_BLACKLIST_CHR  "chrM"
-#define DEFAULT_DISTANCE       10000
-#define DEFAULT_SUPPORT        1
+#define DEFAULT_CACHE_SIZE            DB_DEFAULT_CACHE_SIZE
+#define DEFAULT_PREFIX                "out"
+#define DEFAULT_OUTPUT_DIR            "."
+#define DEFAULT_LOG_SILENT            0
+#define DEFAULT_LOG_LEVEL             LOG_INFO
+#define DEFAULT_IN_PLACE              0
+#define DEFAULT_EPS                   300
+#define DEFAULT_MIN_PTS               10
+#define DEFAULT_LOG_FILE              NULL
+#define DEFAULT_INPUT_FILE            NULL
+#define DEFAULT_BLACKLIST_CHR         "chrM"
+#define DEFAULT_DISTANCE              10000
+#define DEFAULT_SUPPORT               1
+#define DEFAULT_BLACKLIST_REGION      NULL
+#define DEFAULT_GFF_FEATURE           "gene"
+#define DEFAULT_GFF_ATTRIBUTE         "gene_type"
+#define DEFAULT_GFF_ATTRIBUTE_VALUE   "processed_pseudogene"
 
 static void
 merge_call (const char *output_dir, const char *prefix, Array *db_files,
 		const char *output_file, int cache_size, int epsilon, int min_pts,
-		Set *blacklist_chr, int distance, int support)
+		Set *blacklist_chr, int distance, int support, const char *blacklist_region,
+		const char *gff_feature, const char *gff_attribute,
+		const Set *gff_attribute_values)
 {
 	log_trace ("Inside %s", __func__);
 
 	sqlite3 *db = NULL;
+
 	sqlite3_stmt *cluster_stmt = NULL;
 	sqlite3_stmt *clustering_stmt = NULL;
+	sqlite3_stmt *blacklist_stmt = NULL;
+	sqlite3_stmt *overlapping_blacklist_stmt = NULL;
+
+	Blacklist *blacklist = NULL;
+	ChrStd *cs = NULL;
+
 	char *db_file = NULL;
 
 	log_info (">>> Merge Call step <<<");
@@ -80,6 +94,30 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 	// Create clustering statement
 	clustering_stmt = db_prepare_clustering_stmt (db);
 
+	// Create blacklist statement
+	blacklist_stmt = db_prepare_blacklist_stmt (db);
+
+	// Create overlapping blacklist statement
+	overlapping_blacklist_stmt =
+		db_prepare_overlapping_blacklist_stmt (db);
+
+	// Get chromosome standardization
+	cs = chr_std_new ();
+
+	// Index blacklisted regions
+	blacklist = blacklist_new (blacklist_stmt,
+			overlapping_blacklist_stmt, cs);
+
+	// If the user passed blacklisted regions
+	// TODO: ESTÁ ERRADO! Precisa estar dentro da transação!
+	if (blacklist_region != NULL)
+		{
+			log_info ("Index blacklisted regions from file '%s'",
+					blacklist_region);
+			blacklist_index_dump (blacklist, blacklist_region, gff_feature,
+					gff_attribute, gff_attribute_values);
+		}
+
 	// If there are files to merge with ...
 	if (array_len (db_files))
 		{
@@ -101,7 +139,7 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 	// RUN
 	log_info ("Run clustering step for '%s'", db_file);
 	cluster (cluster_stmt, clustering_stmt, epsilon, min_pts,
-			blacklist_chr, distance, support);
+			blacklist_chr, distance, support, blacklist);
 
 	// Commit
 	db_end_transaction (db);
@@ -110,7 +148,12 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 	xfree (db_file);
 	db_finalize (cluster_stmt);
 	db_finalize (clustering_stmt);
+	db_finalize (blacklist_stmt);
+	db_finalize (overlapping_blacklist_stmt);
 	db_close (db);
+
+	chr_std_free (cs);
+	blacklist_free (blacklist);
 }
 
 static void
@@ -120,10 +163,11 @@ print_usage (FILE *fp)
 	fprintf (fp,
 		"%s\n"
 		"\n"
-		"Usage: %s merge-call [-h] [-q] [-d] [-l FILE] [-o DIR]\n"
-		"       %*c            [-p STR] [-c INT] [-I] [-e INT]\n"
-		"       %*c            [-m INT] [-b STR] [-x INT]\n"
-		"       %*c            [-g INT] [-i FILE] <FILE> ...\n"
+		"Usage: %s merge-call [-h] [-q] [-d] [-l FILE] [-o DIR] [-p STR]\n"
+		"       %*c            [-c INT] [-I] [-e INT] [-m INT] [-b STR]\n"
+		"       %*c            [-a FILE] [[-F STR] [-A KEY=VALUE]]\n"
+		"       %*c            [-x INT] [-g INT] [-i FILE]\n"
+		"       %*c            <FILE> ...\n"
 		"\n"
 		"Arguments:\n"
 		"   One or more SQLite3 databases generated in the 'process-sample' step\n"
@@ -154,17 +198,30 @@ print_usage (FILE *fp)
 		"                              inside a cluster [default:\"%d\"]\n"
 		"   -m, --min-pts              DBSCAN: Minimum number of points required to form a\n"
 		"                              dense region [default:\"%d\"]\n"
-		"   -g, --genotype-support     Minimum number of reads comming from a given source\n"
-		"                              (BAM) within a cluster [default:\"%d\"]\n"
 		"   -b, --blacklist-chr        Avoid clustering from and to this chromosome. This\n"
 		"                              option may be passed multiple times [default:\"%s\"]\n"
+		"   -a, --blacklist-region     GTF/GFF3/BED blacklisted regions. If the file is in\n"
+		"                              GTF/GFF3 format, the user may indicate the 'feature'\n"
+		"                              (third column), the 'attribute' (ninth column) and\n"
+		"                              its values\n"
+		"   -F, --gff-feature          The value of 'feature' (third column) for GTF/GFF3\n"
+		"                              '--blacklist-region' file [default:\"%s\"]\n"
+		"   -A, --gff-attribute        The 'attribute' (ninth column) for GTF/GFF3\n"
+		"                              '--blacklist-region' file. It may be passed in the\n"
+		"                              format key=value, where 'value' is comma separated\n"
+		"                              values (e.g. gene_type=lincRNA,pseudogene,sRNA).\n"
+		"                              Each value will match as regex, so 'pseudogene'\n"
+		"                              can capture IG_C_pseudogene, IG_V_pseudogene etc\n"
+		"                              [default:\"%s=%s\"]\n"
 		"   -x, --parental-distance    Minimum distance allowed between a cluster and\n"
 		"                              its putative parental gene [default:\"%d\"]\n"
+		"   -g, --genotype-support     Minimum number of reads comming from a given source\n"
+		"                              (BAM) within a cluster [default:\"%d\"]\n"
 		"\n",
-		PACKAGE_STRING, PACKAGE, pkg_len, ' ', pkg_len, ' ', pkg_len, ' ',
+		PACKAGE_STRING, PACKAGE, pkg_len, ' ', pkg_len, ' ', pkg_len, ' ', pkg_len, ' ',
 		DEFAULT_OUTPUT_DIR, DEFAULT_PREFIX, DEFAULT_CACHE_SIZE, DEFAULT_EPS,
-		DEFAULT_MIN_PTS, DEFAULT_SUPPORT, DEFAULT_BLACKLIST_CHR,
-		DEFAULT_DISTANCE);
+		DEFAULT_MIN_PTS, DEFAULT_BLACKLIST_CHR, DEFAULT_GFF_FEATURE, DEFAULT_GFF_ATTRIBUTE,
+		DEFAULT_GFF_ATTRIBUTE_VALUE, DEFAULT_DISTANCE, DEFAULT_SUPPORT);
 }
 
 static void
@@ -203,22 +260,30 @@ parse_merge_call_command_opt (int argc, char **argv)
 		{"min-pts",           required_argument, 0, 'm'},
 		{"parental-distance", required_argument, 0, 'x'},
 		{"genotype-support",  required_argument, 0, 'g'},
+		{"blacklist-chr",     required_argument, 0, 'b'},
+		{"blacklist-region",  required_argument, 0, 'a'},
+		{"gff-feature",       required_argument, 0, 'F'},
+		{"gff-attribute",     required_argument, 0, 'A'},
 		{0,                   0,                 0,  0 }
 	};
 
 	// Init variables to default values
-	int         silent     = DEFAULT_LOG_SILENT;
-	int         log_level  = DEFAULT_LOG_LEVEL;
-	int         cache_size = DEFAULT_CACHE_SIZE;
-	int         in_place   = DEFAULT_IN_PLACE;
-	int         epsilon    = DEFAULT_EPS;
-	int         min_pts    = DEFAULT_MIN_PTS;
-	int         distance   = DEFAULT_DISTANCE;
-	int         support    = DEFAULT_SUPPORT;
-	const char *output_dir = DEFAULT_OUTPUT_DIR;
-	const char *prefix     = DEFAULT_PREFIX;
-	const char *log_file   = DEFAULT_LOG_FILE;
-	const char *input_file = DEFAULT_INPUT_FILE;
+	int         silent           = DEFAULT_LOG_SILENT;
+	int         log_level        = DEFAULT_LOG_LEVEL;
+	int         cache_size       = DEFAULT_CACHE_SIZE;
+	int         in_place         = DEFAULT_IN_PLACE;
+	int         epsilon          = DEFAULT_EPS;
+	int         min_pts          = DEFAULT_MIN_PTS;
+	int         distance         = DEFAULT_DISTANCE;
+	int         support          = DEFAULT_SUPPORT;
+	const char *blacklist_region = DEFAULT_BLACKLIST_REGION;
+	const char *gff_feature      = DEFAULT_GFF_FEATURE;
+	const char *gff_attribute    = DEFAULT_GFF_ATTRIBUTE;
+	const char *output_dir       = DEFAULT_OUTPUT_DIR;
+	const char *prefix           = DEFAULT_PREFIX;
+	const char *log_file         = DEFAULT_LOG_FILE;
+	const char *input_file       = DEFAULT_INPUT_FILE;
+
 
 	char *output_file = NULL;
 	int index_ = 0;
@@ -226,13 +291,14 @@ parse_merge_call_command_opt (int argc, char **argv)
 	ChrStd *cs = chr_std_new ();
 	Set *blacklist_chr = set_new_full (str_hash, str_equal, NULL);
 	Array *db_files = array_new (xfree);
+	Set *gff_attribute_values = NULL;
 	Logger *logger = NULL;
 
 	int rc = EXIT_SUCCESS;
 	int option_index = 0;
 	int c, i;
 
-	while ((c = getopt_long (argc, argv, "hqdIl:o:p:c:e:m:b:x:g:i:", opt, &option_index)) >= 0)
+	while ((c = getopt_long (argc, argv, "hqdIl:o:p:c:e:m:b:a:F:A:x:g:i:", opt, &option_index)) >= 0)
 		{
 			switch (c)
 				{
@@ -303,6 +369,46 @@ parse_merge_call_command_opt (int argc, char **argv)
 						support = atoi (optarg);
 						break;
 					}
+				case 'a':
+					{
+						blacklist_region = optarg;
+						break;
+					}
+				case 'F':
+					{
+						gff_feature = optarg;
+						break;
+					}
+				case 'A':
+					{
+						char *scratch1 = NULL;
+						char *scratch2 = NULL;
+						char *token = NULL;
+						char *subtoken = NULL;
+
+						token = strtok_r (optarg, "=", &scratch1);
+						gff_attribute = token == NULL
+							? DEFAULT_GFF_ATTRIBUTE
+							: token;
+
+						token = strtok_r (NULL, "=", &scratch1);
+						if (token != NULL)
+							{
+								set_free (gff_attribute_values);
+								gff_attribute_values = set_new_full (str_hash,
+										str_equal, NULL);
+
+								subtoken = strtok_r (token, ",", &scratch2);
+
+								while (subtoken != NULL)
+									{
+										set_insert (gff_attribute_values, subtoken);
+										subtoken = strtok_r (NULL, ",", &scratch2);
+									}
+							}
+
+						break;
+					}
 				case 'i':
 					{
 						input_file = optarg;
@@ -351,6 +457,11 @@ parse_merge_call_command_opt (int argc, char **argv)
 
 	/*Validate options*/
 
+	// Validate blacklist_region file
+	if (blacklist_region != NULL && !exists (blacklist_region))
+		fprintf (stderr, "%s: --blacklist-region '%s': No such file\n", PACKAGE,
+				blacklist_region);
+
 	// Validate cache_size >= DEFAULT_CACHE_SIZE
 	if (cache_size < DEFAULT_CACHE_SIZE)
 		{
@@ -391,6 +502,16 @@ parse_merge_call_command_opt (int argc, char **argv)
 		set_insert (blacklist_chr,
 				chr_std_lookup (cs, DEFAULT_BLACKLIST_CHR));
 
+	// If gff_attribute_values was not set
+	if (gff_attribute_values == NULL)
+		gff_attribute_values = set_new_full (str_hash,
+				str_equal, NULL);
+
+	// Or it exists and has no values
+	if (set_size (gff_attribute_values) == 0)
+		set_insert (gff_attribute_values,
+				DEFAULT_GFF_ATTRIBUTE_VALUE);
+
 	// Copy the name of possible output file, if the
 	// user chose --in-place
 	if (in_place)
@@ -423,12 +544,14 @@ parse_merge_call_command_opt (int argc, char **argv)
 	// RUN FOOLS
 	merge_call (output_dir, prefix, db_files, output_file,
 			cache_size, epsilon, min_pts, blacklist_chr,
-			distance, support);
+			distance, support, blacklist_region, gff_feature,
+			gff_attribute, gff_attribute_values);
 
 Exit:
 	logger_free (logger);
 	chr_std_free (cs);
 	set_free (blacklist_chr);
+	set_free (gff_attribute_values);
 	array_free (db_files, 1);
 	xfree (output_file);
 	return rc;

@@ -90,7 +90,12 @@ START_TEST (test_cluster)
 	sqlite3 *db = NULL;
 	sqlite3_stmt *cluster_stmt = NULL;
 	sqlite3_stmt *clustering_stmt = NULL;
+	sqlite3_stmt *blacklist_stmt = NULL;
+	sqlite3_stmt *overlapping_blacklist_stmt = NULL;
 	sqlite3_stmt *search_stmt = NULL;
+
+	Blacklist *blacklist = NULL;
+	ChrStd *cs = NULL;
 
 	Set *blacklist_chr = set_new (NULL);
 
@@ -126,13 +131,20 @@ START_TEST (test_cluster)
 	db = create_db (db_file);
 	cluster_stmt = db_prepare_cluster_stmt (db);
 	clustering_stmt = db_prepare_clustering_stmt (db);
+	blacklist_stmt = db_prepare_blacklist_stmt (db);
+	overlapping_blacklist_stmt =
+		db_prepare_overlapping_blacklist_stmt (db);
+
+	cs = chr_std_new ();
+	blacklist = blacklist_new (blacklist_stmt,
+			overlapping_blacklist_stmt, cs);
 
 	// Populate database
 	populate_db (db);
 
 	// RUN
 	cluster (cluster_stmt, clustering_stmt, eps, min_pts,
-			blacklist_chr, distance, support);
+			blacklist_chr, distance, support, blacklist);
 
 	// Let's get the clustering table values
 	search_stmt = prepare_query_stmt (db);
@@ -147,9 +159,15 @@ START_TEST (test_cluster)
 
 	db_finalize (cluster_stmt);
 	db_finalize (clustering_stmt);
+	db_finalize (blacklist_stmt);
+	db_finalize (overlapping_blacklist_stmt);
 	db_finalize (search_stmt);
-	set_free (blacklist_chr);
 	db_close (db);
+
+	set_free (blacklist_chr);
+	chr_std_free (cs);
+	blacklist_free (blacklist);
+
 	xunlink (db_file);
 }
 END_TEST

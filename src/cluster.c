@@ -461,14 +461,65 @@ prepare_clustering_query_stmt (sqlite3 *db)
 }
 
 static void
-dump_cluster (sqlite3_stmt *cluster_stmt, sqlite3_stmt *query_stmt,
+run_clustering_step (sqlite3 *db, const long eps, const int min_pts,
+		const int distance, const Set *blacklist_chr,
 		Hash *cluster_gene)
 {
+	log_trace ("Inside %s", __func__);
+
+	// Query the database for valid abnormal reads
+	sqlite3_stmt *query_stmt = NULL;
+
+	// Insert into temporary clustering table
+	sqlite3_stmt *clustering_stmt = NULL;
+
+	// Prepare query stmt
+	query_stmt = prepare_query_stmt (db, blacklist_chr, distance);
+
+	// Prepare temp clustering
+	clustering_stmt = prepare_temp_clustering_stmt (db);
+
+	clustering (clustering_stmt, query_stmt, eps, min_pts,
+			cluster_gene);
+
+	db_finalize (query_stmt);
+	db_finalize (clustering_stmt);
+}
+
+static void
+run_reclustering_step (sqlite3 *db, sqlite3_stmt *clustering_stmt,
+		const long eps, const int min_pts, const int support,
+		Hash *cluster_gene)
+{
+	log_trace ("Inside %s", __func__);
+
+	// Query temporary clustering table for validation
+	sqlite3_stmt *query_stmt = NULL;
+
+	// Prepare temp clustering query stmt
+	query_stmt = prepare_temp_clustering_query_stmt (db, support);
+
+	reclustering (clustering_stmt, query_stmt,
+			eps, min_pts, cluster_gene);
+
+	db_finalize (query_stmt);
+}
+
+static void
+dump_cluster (sqlite3 *db, sqlite3_stmt *cluster_stmt,
+		Hash *cluster_gene, Blacklist *blacklist)
+{
+	sqlite3_stmt *query_stmt = NULL;
+
 	int id = 0;
 	const char *chr = NULL;
 	long start = 0;
 	long end = 0;
 	const char *gene_name = NULL;
+	int acm = 0;
+
+	// Prepare clustering query stmt
+	query_stmt = prepare_clustering_query_stmt (db);
 
 	while (sqlite3_step (query_stmt) == SQLITE_ROW)
 		{
@@ -476,8 +527,14 @@ dump_cluster (sqlite3_stmt *cluster_stmt, sqlite3_stmt *query_stmt,
 			chr = db_column_text (query_stmt, 1);
 			start = db_column_int64 (query_stmt, 2);
 			end = db_column_int64 (query_stmt, 3);
-
 			gene_name = hash_lookup (cluster_gene, &id);
+
+			acm = blacklist_lookup (blacklist, chr, start, end,
+					0, id);
+
+			if (acm)
+				log_debug ("Cluster [%d] from %s %s:%li-%li overlaps %d blacklisted regions",
+						id, gene_name, chr, start, end, acm);
 
 			log_debug ("Dump cluster %d at %s:%li-%li from %s",
 					id, chr, start, end, gene_name);
@@ -485,33 +542,25 @@ dump_cluster (sqlite3_stmt *cluster_stmt, sqlite3_stmt *query_stmt,
 			db_insert_cluster (cluster_stmt, id, chr,
 					start, end, gene_name);
 		}
+
+	db_finalize (query_stmt);
 }
 
 void
 cluster (sqlite3_stmt *cluster_stmt, sqlite3_stmt *clustering_stmt,
 		const long eps, const int min_pts, const Set *blacklist_chr,
-		const int distance, const int support)
+		const int distance, const int support,
+		Blacklist *blacklist)
 {
 	log_trace ("Inside %s", __func__);
 	assert (cluster_stmt != NULL
 			&& clustering_stmt != NULL
 			&& min_pts > 2
 			&& distance >= 0
-			&& support >= 0);
+			&& support >= 0
+			&& blacklist != NULL);
 
 	sqlite3 *db = NULL;
-
-	// Query the database for valid abnormal reads
-	sqlite3_stmt *query_stmt = NULL;
-
-	// Insert into temporary clustering table
-	sqlite3_stmt *temp_clustering_stmt = NULL;
-
-	// Query temporary clustering table for validation
-	sqlite3_stmt *temp_clustering_query_stmt = NULL;
-
-	// Query clustering table for building cluster
-	sqlite3_stmt *clustering_query_stmt = NULL;
 
 	// Hold cluster_id => gene relation
 	Hash *cluster_gene = NULL;
@@ -519,47 +568,27 @@ cluster (sqlite3_stmt *cluster_stmt, sqlite3_stmt *clustering_stmt,
 	// sqlite3 handle
 	db = sqlite3_db_handle (clustering_stmt);
 
-	// Prepare query stmt
-	query_stmt = prepare_query_stmt (db, blacklist_chr, distance);
-
 	log_debug ("Create temporary clustering table");
 	create_temp_clustering_table (db);
 
-	// Prepare temp clustering
-	temp_clustering_stmt = prepare_temp_clustering_stmt (db);
-
-	// Prepare temp clustering query stmt
-	temp_clustering_query_stmt =
-		prepare_temp_clustering_query_stmt (db, support);
-
-	// Prepare clustering query stmt
-	clustering_query_stmt = prepare_clustering_query_stmt (db);
+	log_info ("Index abnormal alignment qnames");
+	index_alignment_qname (db);
 
 	// cluster => gene relation
 	cluster_gene = hash_new_full (int_hash, int_equal,
 			xfree, xfree);
 
-	log_info ("Index abnormal alignment qnames");
-	index_alignment_qname (db);
-
 	log_info ("Clustering abnormal alignments");
-	clustering (temp_clustering_stmt, query_stmt, eps, min_pts,
-			cluster_gene);
+	run_clustering_step (db, eps, min_pts, distance,
+			blacklist_chr, cluster_gene);
 
 	log_info ("Filter clusters according to genotype support and recluster them");
-	reclustering (clustering_stmt, temp_clustering_query_stmt,
-			eps, min_pts, cluster_gene);
+	run_reclustering_step (db, clustering_stmt, eps, min_pts,
+			support, cluster_gene);
 
 	log_info ("Build clusters from clustering");
-	dump_cluster (cluster_stmt, clustering_query_stmt,
-			cluster_gene);
+	dump_cluster (db, cluster_stmt, cluster_gene, blacklist);
 
 	log_info ("Done!");
-
-	db_finalize (query_stmt);
-	db_finalize (temp_clustering_stmt);
-	db_finalize (temp_clustering_query_stmt);
-	db_finalize (clustering_query_stmt);
-
 	hash_free (cluster_gene);
 }

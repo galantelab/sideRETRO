@@ -9,6 +9,8 @@ sider_sources = files(
   'bed.h',
   'bitree.c',
   'bitree.h',
+  'blacklist.c',
+  'blacklist.h',
   'bwa.c',
   'bwa.h',
   'chr.c',

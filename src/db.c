@@ -312,6 +312,24 @@ db_create_tables (sqlite3 *db)
 		"	FOREIGN KEY (alignment_id) REFERENCES alignment(id),\n"
 		"	PRIMARY KEY (cluster_id, alignment_id));\n"
 		"\n"
+		"DROP TABLE IF EXISTS blacklist;\n"
+		"CREATE TABLE blacklist (\n"
+		"	id INTEGER PRIMARY KEY,\n"
+		"	name TEXT NOT NULL,\n"
+		"	chr TEXT NOT NULL,\n"
+		"	start INTEGER NOT NULL,\n"
+		"	end INTEGER NOT NULL);\n"
+		"\n"
+		"DROP TABLE IF EXISTS overlapping_blacklist;\n"
+		"CREATE TABLE overlapping_blacklist (\n"
+		"	blacklist_id INTEGER NOT NULL,\n"
+		"	cluster_id INTEGER NOT NULL,\n"
+		"	pos INTEGER NOT NULL,\n"
+		"	len INTEGER NOT NULL,\n"
+		"	FOREIGN KEY (blacklist_id) REFERENCES blacklist(id),\n"
+		"	FOREIGN KEY (cluster_id) REFERENCES cluster(id),\n"
+		"	PRIMARY KEY (blacklist_id, cluster_id));\n"
+		"\n"
 		"DROP TABLE IF EXISTS retrocopy;\n"
 		"CREATE TABLE retrocopy (\n"
 		"	id INTEGER PRIMARY KEY,\n"
@@ -319,6 +337,7 @@ db_create_tables (sqlite3 *db)
 		"	window_start INTEGER NOT NULL,\n"
 		"	window_end INTEGER NOT NULL,\n"
 		"	parental_gene_name TEXT NOT NULL,\n"
+		"	level INTEGER NOT NULL,\n"
 		"	insertion_point INTEGER,\n"
 		"	insertion_point_type INTEGER,\n"
 		"	orientation_rho REAL,\n"
@@ -329,7 +348,8 @@ db_create_tables (sqlite3 *db)
 		"	retrocopy_id INTEGER NOT NULL,\n"
 		"	cluster_id INTEGER NOT NULL,\n"
 		"	FOREIGN KEY (retrocopy_id) REFERENCES retrocopy(id),\n"
-		"	FOREIGN KEY (cluster_id) REFERENCES cluster(id));\n"
+		"	FOREIGN KEY (cluster_id) REFERENCES cluster(id),\n"
+		"	PRIMARY KEY (retrocopy_id, cluster_id));\n"
 		"\n"
 		"DROP TABLE IF EXISTS genotype;\n"
 		"CREATE TABLE genotype (\n"
@@ -730,6 +750,77 @@ db_insert_cluster (sqlite3_stmt *stmt, int id, const char *chr,
 	db_bind_int64 (stmt, 3, start);
 	db_bind_int64 (stmt, 4, end);
 	db_bind_text (stmt, 5, gene_name);
+
+	db_step (stmt);
+
+	sqlite3_mutex_leave (sqlite3_db_mutex (sqlite3_db_handle (stmt)));
+}
+
+sqlite3_stmt *
+db_prepare_blacklist_stmt (sqlite3 *db)
+{
+	log_trace ("Inside %s", __func__);
+	assert (db != NULL);
+
+	const char sql[] =
+		"INSERT INTO blacklist (id,name,chr,start,end)"
+		"	VALUES (?1,?2,?3,?4,?5)";
+
+	return db_prepare (db, sql);
+}
+
+void
+db_insert_blacklist (sqlite3_stmt *stmt, int id, const char *name,
+		const char *chr, long start, long end)
+{
+	log_trace ("Inside %s", __func__);
+	assert (stmt != NULL && name != NULL && chr != NULL);
+
+	sqlite3_mutex_enter (sqlite3_db_mutex (sqlite3_db_handle (stmt)));
+
+	db_reset (stmt);
+	db_clear_bindings (stmt);
+
+	db_bind_int (stmt, 1, id);
+	db_bind_text (stmt, 2, name);
+	db_bind_text (stmt, 3, chr);
+	db_bind_int64 (stmt, 4, start);
+	db_bind_int64 (stmt, 5, end);
+
+	db_step (stmt);
+
+	sqlite3_mutex_leave (sqlite3_db_mutex (sqlite3_db_handle (stmt)));
+}
+
+sqlite3_stmt *
+db_prepare_overlapping_blacklist_stmt (sqlite3 *db)
+{
+	log_trace ("Inside %s", __func__);
+	assert (db != NULL);
+
+	const char sql[] =
+		"INSERT INTO overlapping_blacklist (blacklist_id,cluster_id,pos,len)\n"
+		"VALUES (?1,?2,?3,?4)";
+
+	return db_prepare (db, sql);
+}
+
+void
+db_insert_overlapping_blacklist (sqlite3_stmt *stmt, int blacklist_id,
+	int cluster_id, long pos, long len)
+{
+	log_trace ("Inside %s", __func__);
+	assert (stmt != NULL);
+
+	sqlite3_mutex_enter (sqlite3_db_mutex (sqlite3_db_handle (stmt)));
+
+	db_reset (stmt);
+	db_clear_bindings (stmt);
+
+	db_bind_int (stmt, 1, blacklist_id);
+	db_bind_int (stmt, 2, cluster_id);
+	db_bind_int64 (stmt, 3, pos);
+	db_bind_int64 (stmt, 4, len);
 
 	db_step (stmt);
 
