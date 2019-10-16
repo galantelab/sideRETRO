@@ -94,7 +94,7 @@ blacklist_index_dump_from_gff (Blacklist *blacklist, const char *gff_file,
 	init_attribute_regex (&reg, attributes);
 
 	// Open for reading gff file
-	GffFile *gff = gff_open (gff_file, "rb");
+	GffFile *gff = gff_open_for_reading (gff_file);
 	GffEntry *entry = gff_entry_new ();
 
 	IBiTree *tree = NULL;

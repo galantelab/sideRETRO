@@ -56,7 +56,7 @@ exon_tree_index_dump (ExonTree *exon_tree,
 {
 	assert (exon_tree != NULL && gff_file != NULL);
 
-	GffFile *gff = gff_open (gff_file, "rb");
+	GffFile *gff = gff_open_for_reading (gff_file);
 	GffEntry *entry = gff_entry_new ();
 
 	IBiTree *tree = NULL;

@@ -28,10 +28,10 @@ static const char *bed_chrom_fatal =
 	"browser position chr7:127471196-127495720\n"
 	" \n";
 
-static const char *bed_chrom_start_fatal = 
+static const char *bed_chrom_start_fatal =
 	"chr7\n";
 
-static const char *bed_chrom_end_fatal = 
+static const char *bed_chrom_end_fatal =
 	"chr7 127471196\n";
 
 #define BED1 \

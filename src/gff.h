@@ -3,6 +3,7 @@
 
 #include <stdlib.h>
 #include <zlib.h>
+#include "hash.h"
 
 struct _GffFile
 {
@@ -48,14 +49,29 @@ struct _GffEntry
 
 typedef struct _GffEntry GffEntry;
 
-GffFile    * gff_open           (const char *path, const char *mode);
-void         gff_close          (GffFile *gff);
-int          gff_read           (GffFile *gff, GffEntry *entry);
-GffEntry   * gff_entry_new      (void);
-GffEntry   * gff_entry_dup      (const GffEntry *from);
-void         gff_entry_copy     (GffEntry *to, const GffEntry *from);
-void         gff_entry_free     (GffEntry *entry);
-const char * gff_attribute_find (GffEntry *entry, const char *key);
+struct _GffFilter
+{
+	const char *feature;
+	Hash       *hard_attributes;
+	Hash       *soft_attributes;
+	Hash       *values_regex;
+};
+
+typedef struct _GffFilter GffFilter;
+
+GffFile    * gff_open_for_reading               (const char *path);
+void         gff_close                          (GffFile *gff);
+int          gff_read                           (GffFile *gff, GffEntry *entry);
+GffEntry   * gff_entry_new                      (void);
+GffEntry   * gff_entry_dup                      (const GffEntry *from);
+void         gff_entry_copy                     (GffEntry *to, const GffEntry *from);
+void         gff_entry_free                     (GffEntry *entry);
+const char * gff_attribute_find                 (const GffEntry *entry, const char *key);
+GffFilter  * gff_filter_new                     (const char *feature);
+void         gff_filter_free                    (GffFilter *filter);
+void         gff_filter_insert_hard_attribute   (GffFilter *filter, const char *key, const char *value);
+void         gff_filter_insert_soft_attribute   (GffFilter *filter, const char *key, const char *value);
+int          gff_read_filtered                  (GffFile *gff, GffEntry *entry, const GffFilter *filter);
 
 #define gff_attribute_get(entry,i) (&(entry)->attributes[(i)])
 

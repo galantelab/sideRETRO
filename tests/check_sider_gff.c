@@ -7,29 +7,63 @@
 #include <check.h>
 #include "check_sider.h"
 
+#include "../src/utils.h"
 #include "../src/wrapper.h"
 #include "../src/gff.h"
 
-static const char *gtf_header =
+static void
+handle_sigabrt (int sig)
+{
+	if (sig == SIGABRT)
+		exit (1);
+}
+
+static const char *gff_header =
 	"##description: evidence-based annotation of the human genome (GRCh38), version 30 (Ensembl 96)\n"
 	"##provider: GENCODE\n"
 	"##contact: gencode-help@ebi.ac.uk\n"
-	"##format: gtf\n"
+	"##format: gff"
 	"##date: 2019-03-28";
 
-static const char *gtf_body =
-	"chr1\t.\tgene\t1\t1000\t.\t+\t.\t"
-	"gene_name \"g1\"; gene_id \"ENSG1\"; transcript_id \"ENST1\"; transcript_type \"protein_coding\";\n"
-	"chr1\t.\ttranscript\t1\t1000\t.\t+\t.\t"
-	"gene_name \"g1\"; gene_id \"ENSG1\"; transcript_id \"ENST1\"; transcript_type \"protein_coding\";\n"
-	"chr1\t.\texon\t1\t100\t.\t+\t.\t"
-	"gene_name \"g1\"; gene_id \"ENSG1\"; transcript_id \"ENST1\"; transcript_type \"protein_coding\"; "
-	"exon_id \"ENSE1\"\n";
+static const char *gff_body =
+	"chr1	.	gene	1000	1100	100	+	.	gene_name=g1;gene_id=ENSG1;transcript_id=ENST1;gene_type=lincRNA;transcript_type=protein_coding;\n"
+	"##provider: GENCODE\n"
+	"chr1	.	transcript	1000	1100	.	+	.	gene_name=g1;gene_id=ENSG1;transcript_id=ENST1;transcript_type=protein_coding;\n"
+	"chr1	.	exon	1000	1100	.	+	1	gene_name=g1;gene_id=ENSG1;transcript_id=ENST1;transcript_type=protein_coding;exon_id=ENSE1;\n"
+	"chr1	.	gene	1000	1100	.	+	.	gene_name=g1;gene_id=ENSG1;transcript_id=ENST1;gene_type=lincRNA;ponga=must_fail;\n"
+	"chr1	.	gene	1000	1100	.	+	.	gene_name=g1;gene_id=ENSG1;transcript_id=ENST1;transcript_type=protein_coding;\n"
+	"chr1	.	gene	1000	1100	.	+	.	gene_name=g1;gene_id=ENSG1;transcript_id=ENST1;gene_type=protein_coding;transcript_type=protein_coding;\n";
 
-static const int gtf_num_lines = 8;
+static const char *gff_seqname_fatal =
+	"##description: evidence-based annotation of the human genome (GRCh38), version 30 (Ensembl 96)\n"
+	"		\n";
+
+static const char *gff_source_fatal =
+	"chr1		\n";
+
+static const char *gff_feature_fatal =
+	"chr1	HAVANA		\n";
+
+static const char *gff_start_fatal =
+	"chr1	HAVANA	gene		\n";
+
+static const char *gff_end_fatal =
+	"chr1	HAVANA	gene	1		\n";
+
+static const char *gff_score_fatal =
+	"chr1	HAVANA	gene	1	2		\n";
+
+static const char *gff_strand_fatal =
+	"chr1	HAVANA	gene	1	2	.		\n";
+
+static const char *gff_frame_fatal =
+	"chr1	HAVANA	gene	1	2	.	+		\n";
+
+static const char *gff_key_value_fatal =
+	"chr1	HAVANA	gene	1	2	.	+	.	gene_name=\n";
 
 static void
-create_gtf (char *path)
+create_gff (const char *gff, char *path)
 {
 	FILE *fp = NULL;
 	int fd;
@@ -37,102 +71,360 @@ create_gtf (char *path)
 	fd = xmkstemp (path);
 	fp = xfdopen (fd, "w");
 
-	xfprintf (fp, gtf_header, "");
-	xfprintf (fp, "\n");
-	xfprintf (fp, gtf_body, "");
+	xfprintf (fp, "%s", gff);
 
 	xfclose (fp);
 }
 
+START_TEST (test_gff_header)
+{
+	GffFile *gff = NULL;
+	GffEntry *entry = NULL;
+
+	char gff_path[] = "/tmp/ponga.gff3.XXXXXX";
+	create_gff (gff_header, gff_path);
+
+	gff = gff_open_for_reading (gff_path);
+	entry = gff_entry_new ();
+
+	ck_assert (gff->header != NULL);
+	ck_assert (gff_read (gff, entry) == 0);
+
+	gff_close (gff);
+	gff_entry_free (entry);
+
+	// For coverage
+	gff_close (NULL);
+	gff_entry_free (NULL);
+
+	xunlink (gff_path);
+}
+END_TEST
+
 START_TEST (test_gff_read)
 {
 	// Our heroes!
-	GffFile *fp = NULL;
-	GffEntry *e = NULL;
+	GffFile *gff = NULL;
+	GffEntry *entry = NULL;
 	GffEntry *dup = NULL;
 
 	// Create gtf file
-	char gtf_path[] = "/tmp/ponga.gtf.XXXXXX";
-	create_gtf (gtf_path);
+	char gff_path[] = "/tmp/ponga.gff3.XXXXXX";
+	create_gff (gff_body, gff_path);
 
-	int i = 0;
+	gff = gff_open_for_reading (gff_path);
+	entry = gff_entry_new ();
 
-	/* TRUE POSITIVE */
-	int gtf_size = 3;
-	const char *chrs[] = {"chr1", "chr1", "chr1"};
-	const char *types[] = {"gene", "transcript", "exon"};
-	const char *gene_ids[] = {"ENSG1", "ENSG1", "ENSG1"};
-	const char *transcript_ids[] = {"ENST1", "ENST1", "ENST1"};
-	const char *exon_ids[] = {NULL, NULL, "ENSE1"};
-	const int starts[] = {1, 1, 1};
-	const int ends[] = {1000, 1000, 100};
+	ck_assert (gff != NULL && entry != NULL);
 
-	// Open gtf_path and allocate GffEntry
-	fp = gff_open (gtf_path, "rb");
-	e = gff_entry_new ();
+	while (gff_read (gff, entry))
+		;
 
-	/* TEST GTF HEADER */
-	ck_assert (fp != NULL && e != NULL);
-	ck_assert_str_eq (gtf_header, fp->header);
-
-	/* TIME TO TEST THE GTF BODY */
-	while (gff_read (fp, e))
-		{
-			ck_assert_str_eq (chrs[i], e->seqname);
-			ck_assert_str_eq (types[i], e->feature);
-
-			ck_assert_int_eq (starts[i], e->start);
-			ck_assert_int_eq (ends[i], e->end);
-
-			ck_assert_str_eq (gff_attribute_find (e, "gene_id"),
-					gene_ids[i]);
-			ck_assert_str_eq (gff_attribute_find (e, "transcript_id"),
-					transcript_ids[i]);
-
-			if (exon_ids[i] != NULL)
-				ck_assert_str_eq (gff_attribute_find (e, "exon_id"),
-						exon_ids[i]);
-
-			i++;
-		}
-
-	ck_assert_int_eq (e->num_line, gtf_num_lines);
-	ck_assert_int_eq (i, gtf_size);
-
-	dup = gff_entry_dup (e);
-
-	ck_assert_str_eq (dup->seqname, e->seqname);
-	ck_assert_str_eq (dup->feature, e->feature);
-
-	ck_assert_int_eq (dup->start, e->start);
-	ck_assert_int_eq (dup->end, e->end);
-
-	ck_assert_str_eq (gff_attribute_find (dup, "gene_id"),
-			gff_attribute_find (e, "gene_id"));
-	ck_assert_str_eq (gff_attribute_find (dup, "transcript_id"),
-			gff_attribute_find (e, "transcript_id"));
+	dup = gff_entry_dup (entry);
 
 	// Cleanup
 	gff_entry_free (dup);
-	gff_entry_free (e);
-	gff_close (fp);
-	xunlink (gtf_path);
+	gff_entry_free (entry);
+	gff_close (gff);
+	xunlink (gff_path);
+}
+END_TEST
+
+START_TEST (test_open_fatal)
+{
+	char gff_path[] = "/tmp/ponga.gff3.XXXXXX";
+	gff_open_for_reading (gff_path);
+}
+END_TEST
+
+START_TEST (test_close_fatal)
+{
+	GffFile *gff;
+	char gff_path[] = "/tmp/ponga.gff3.XXXXXX";
+
+	create_gff (gff_header, gff_path);
+	gff = gff_open_for_reading (gff_path);
+
+	gff_close (gff);
+	gff_close (gff);
+
+	xunlink (gff_path);
+}
+END_TEST
+
+START_TEST (test_seqname_fatal)
+{
+	GffFile *gff = NULL;
+	GffEntry *entry = NULL;
+
+	char gff_path[] = "/tmp/ponga.gff3.XXXXXX";
+	create_gff (gff_seqname_fatal, gff_path);
+
+	gff = gff_open_for_reading (gff_path);
+	entry = gff_entry_new ();
+
+	while (gff_read (gff, entry))
+		;
+
+	gff_close (gff);
+	gff_entry_free (entry);
+
+	xunlink (gff_path);
+}
+END_TEST
+
+START_TEST (test_source_fatal)
+{
+	GffFile *gff = NULL;
+	GffEntry *entry = NULL;
+
+	char gff_path[] = "/tmp/ponga.gff3.XXXXXX";
+	create_gff (gff_source_fatal, gff_path);
+
+	gff = gff_open_for_reading (gff_path);
+	entry = gff_entry_new ();
+
+	while (gff_read (gff, entry))
+		;
+
+	gff_close (gff);
+	gff_entry_free (entry);
+
+	xunlink (gff_path);
+}
+END_TEST
+
+START_TEST (test_feature_fatal)
+{
+	GffFile *gff = NULL;
+	GffEntry *entry = NULL;
+
+	char gff_path[] = "/tmp/ponga.gff3.XXXXXX";
+	create_gff (gff_feature_fatal, gff_path);
+
+	gff = gff_open_for_reading (gff_path);
+	entry = gff_entry_new ();
+
+	while (gff_read (gff, entry))
+		;
+
+	gff_close (gff);
+	gff_entry_free (entry);
+
+	xunlink (gff_path);
+}
+END_TEST
+
+START_TEST (test_start_fatal)
+{
+	GffFile *gff = NULL;
+	GffEntry *entry = NULL;
+
+	char gff_path[] = "/tmp/ponga.gff3.XXXXXX";
+	create_gff (gff_start_fatal, gff_path);
+
+	gff = gff_open_for_reading (gff_path);
+	entry = gff_entry_new ();
+
+	while (gff_read (gff, entry))
+		;
+
+	gff_close (gff);
+	gff_entry_free (entry);
+
+	xunlink (gff_path);
+}
+END_TEST
+
+START_TEST (test_end_fatal)
+{
+	GffFile *gff = NULL;
+	GffEntry *entry = NULL;
+
+	char gff_path[] = "/tmp/ponga.gff3.XXXXXX";
+	create_gff (gff_end_fatal, gff_path);
+
+	gff = gff_open_for_reading (gff_path);
+	entry = gff_entry_new ();
+
+	while (gff_read (gff, entry))
+		;
+
+	gff_close (gff);
+	gff_entry_free (entry);
+
+	xunlink (gff_path);
+}
+END_TEST
+
+START_TEST (test_score_fatal)
+{
+	GffFile *gff = NULL;
+	GffEntry *entry = NULL;
+
+	char gff_path[] = "/tmp/ponga.gff3.XXXXXX";
+	create_gff (gff_score_fatal, gff_path);
+
+	gff = gff_open_for_reading (gff_path);
+	entry = gff_entry_new ();
+
+	while (gff_read (gff, entry))
+		;
+
+	gff_close (gff);
+	gff_entry_free (entry);
+
+	xunlink (gff_path);
+}
+END_TEST
+
+START_TEST (test_strand_fatal)
+{
+	GffFile *gff = NULL;
+	GffEntry *entry = NULL;
+
+	char gff_path[] = "/tmp/ponga.gff3.XXXXXX";
+	create_gff (gff_strand_fatal, gff_path);
+
+	gff = gff_open_for_reading (gff_path);
+	entry = gff_entry_new ();
+
+	while (gff_read (gff, entry))
+		;
+
+	gff_close (gff);
+	gff_entry_free (entry);
+
+	xunlink (gff_path);
+}
+END_TEST
+
+START_TEST (test_frame_fatal)
+{
+	GffFile *gff = NULL;
+	GffEntry *entry = NULL;
+
+	char gff_path[] = "/tmp/ponga.gff3.XXXXXX";
+	create_gff (gff_frame_fatal, gff_path);
+
+	gff = gff_open_for_reading (gff_path);
+	entry = gff_entry_new ();
+
+	while (gff_read (gff, entry))
+		;
+
+	gff_close (gff);
+	gff_entry_free (entry);
+
+	xunlink (gff_path);
+}
+END_TEST
+
+START_TEST (test_key_value_fatal)
+{
+	GffFile *gff = NULL;
+	GffEntry *entry = NULL;
+
+	char gff_path[] = "/tmp/ponga.gff3.XXXXXX";
+	create_gff (gff_key_value_fatal, gff_path);
+
+	gff = gff_open_for_reading (gff_path);
+	entry = gff_entry_new ();
+
+	while (gff_read (gff, entry))
+		;
+
+	gff_close (gff);
+	gff_entry_free (entry);
+
+	xunlink (gff_path);
+}
+END_TEST
+
+START_TEST (test_gff_filter)
+{
+	GffFile *gff = NULL;
+	GffEntry *entry = NULL;
+	GffFilter *filter = NULL;
+
+	int i = 0;
+
+	char gff_path[] = "/tmp/ponga.gff3.XXXXXX";
+	create_gff (gff_body, gff_path);
+
+	gff = gff_open_for_reading (gff_path);
+	entry = gff_entry_new ();
+
+	// Only hard attributes
+	filter = gff_filter_new ("gene");
+	gff_filter_insert_hard_attribute (filter, "transcript_type", "protein_coding");
+	gff_filter_insert_hard_attribute (filter, "gene_id", "ENS");
+
+	while (gff_read_filtered (gff, entry, filter))
+		;
+
+	// Rewind
+	gff_close (gff);
+	gff = gff_open_for_reading (gff_path);
+
+	// Hard and soft attributes
+	gff_filter_insert_hard_attribute (filter, "transcript_type", "protein_coding");
+	gff_filter_insert_hard_attribute (filter, "gene_id", "ENS");
+	gff_filter_insert_soft_attribute (filter, "non_exist", "ponga");
+	gff_filter_insert_soft_attribute (filter, "gene_type", "protein_coding");
+	gff_filter_insert_soft_attribute (filter, "gene_type", "lincRNA");
+
+	while (gff_read_filtered (gff, entry, filter))
+		i++;
+
+	ck_assert_int_eq (i, 2);
+
+	gff_close (gff);
+	gff_entry_free (entry);
+	gff_filter_free (filter);
+
+	// Coverage
+	gff_filter_free (NULL);
+
+	xunlink (gff_path);
 }
 END_TEST
 
 Suite *
 make_gff_suite (void)
 {
+	setup_signal (SIGABRT, handle_sigabrt);
+
 	Suite *s;
 	TCase *tc_core;
+	TCase *tc_abort;
 
 	s = suite_create ("GFF");
 
 	/* Core test case */
 	tc_core = tcase_create ("Core");
 
+	/* Abort test case */
+	tc_abort = tcase_create ("Abort");
+
+	tcase_add_test (tc_core, test_gff_header);
 	tcase_add_test (tc_core, test_gff_read);
+	tcase_add_test (tc_core, test_gff_filter);
+
+	tcase_add_exit_test (tc_abort, test_open_fatal, 1);
+	tcase_add_exit_test (tc_abort, test_close_fatal, 1);
+	tcase_add_exit_test (tc_abort, test_seqname_fatal, 1);
+	tcase_add_exit_test (tc_abort, test_source_fatal, 1);
+	tcase_add_exit_test (tc_abort, test_feature_fatal, 1);
+	tcase_add_exit_test (tc_abort, test_start_fatal, 1);
+	tcase_add_exit_test (tc_abort, test_end_fatal, 1);
+	tcase_add_exit_test (tc_abort, test_score_fatal, 1);
+	tcase_add_exit_test (tc_abort, test_strand_fatal, 1);
+	tcase_add_exit_test (tc_abort, test_frame_fatal, 1);
+	tcase_add_exit_test (tc_abort, test_key_value_fatal, 1);
+
 	suite_add_tcase (s, tc_core);
+	suite_add_tcase (s, tc_abort);
 
 	return s;
 }
