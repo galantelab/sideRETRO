@@ -14,6 +14,7 @@ struct _BlacklistData
 {
 	Blacklist *blacklist;
 	long       cluster_id;
+	long       cluster_sid;
 };
 
 typedef struct _BlacklistData BlacklistData;
@@ -218,13 +219,13 @@ dump_if_overlaps_blacklist (IBiTreeLookupData *ldata,
 			ldata->overlap_pos + ldata->overlap_len - 1);
 
 	db_insert_overlapping_blacklist (data->blacklist->overlapping_blacklist_stmt, *blacklist_id,
-			data->cluster_id, ldata->overlap_pos, ldata->overlap_len);
+			data->cluster_id, data->cluster_sid, ldata->overlap_pos, ldata->overlap_len);
 }
 
 int
 blacklist_lookup (Blacklist *blacklist, const char *chr,
-		long low, long high, long padding,
-		const long cluster_id)
+		long low, long high, long padding, const long cluster_id,
+		const long cluster_sid)
 {
 	assert (blacklist != NULL && chr != NULL
 			&& padding >= 0);
@@ -237,7 +238,7 @@ blacklist_lookup (Blacklist *blacklist, const char *chr,
 	if (tree != NULL)
 		{
 			low -= padding;
-			BlacklistData data = {blacklist, cluster_id};
+			BlacklistData data = {blacklist, cluster_id, cluster_sid};
 			acm = ibitree_lookup (tree, low > 0 ? low : 0, high + padding,
 					-1, -1, 0, dump_if_overlaps_blacklist, &data);
 		}

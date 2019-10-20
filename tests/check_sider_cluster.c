@@ -14,6 +14,8 @@
 #include "../src/db.h"
 #include "../src/cluster.h"
 
+#define QUERY_COLUMNS 5
+
 static sqlite3 *
 create_db (char *db_path)
 {
@@ -74,16 +76,17 @@ populate_db (sqlite3 *db)
 	db_exec (db, schema);
 }
 
-sqlite3_stmt *
+static sqlite3_stmt *
 prepare_query_stmt (sqlite3 *db)
 {
 	const char sql[] =
-		"SELECT cluster_id, alignment_id, label, neighbors\n"
-		"FROM clustering ORDER BY alignment_id ASC";
+		"SELECT cluster_id, cluster_sid, alignment_id, label, neighbors\n"
+		"FROM clustering ORDER BY cluster_id ASC";
 	return db_prepare (db, sql);
 }
 
-START_TEST (test_cluster)
+static void
+test_cluster (int (*true_positive)[QUERY_COLUMNS], int support)
 {
 	char db_file[] = "/tmp/ponga.db.XXXXXX";
 
@@ -102,31 +105,8 @@ START_TEST (test_cluster)
 	int eps = 500;
 	int min_pts = 3;
 	int distance = 10000;
-	int support = 1;
 	int i = 0;
 	int j = 0;
-
-	// Number of positions
-	// for each chromosome
-	int size = 6;
-
-	// True positive
-	int true_size_col = 4;
-
-	int true[][4] = {
-		{1, 2, 3, 3},
-		{1, 4, 3, 3},
-		{1, 6, 3, 3},
-		{2, 8, 2, 2},
-		{2, 10, 3, 3},
-		{2, 12, 2, 2},
-		{3, 14, 3, 3},
-		{3, 16, 3, 3},
-		{3, 18, 3, 3},
-		{4, 20, 2, 2},
-		{4, 22, 3, 3},
-		{4, 24, 2, 2}
-	};
 
 	db = create_db (db_file);
 	cluster_stmt = db_prepare_cluster_stmt (db);
@@ -144,18 +124,16 @@ START_TEST (test_cluster)
 
 	// RUN
 	cluster (cluster_stmt, clustering_stmt, eps, min_pts,
-			blacklist_chr, distance, support, blacklist);
+			distance, support, blacklist_chr, blacklist);
 
 	// Let's get the clustering table values
 	search_stmt = prepare_query_stmt (db);
 
 	/* TIME TO TEST */
 	for (i = 0; db_step (search_stmt) == SQLITE_ROW; i++)
-		for (j = 0; j < true_size_col; j++)
+		for (j = 0; j < QUERY_COLUMNS; j++)
 			ck_assert_int_eq (db_column_int (search_stmt, j),
-					true[i][j]);
-
-	ck_assert_int_eq (i, size * 2);
+					true_positive[i][j]);
 
 	db_finalize (cluster_stmt);
 	db_finalize (clustering_stmt);
@@ -170,6 +148,65 @@ START_TEST (test_cluster)
 
 	xunlink (db_file);
 }
+
+START_TEST (test_cluster_without_genotype_support)
+{
+	// True positive
+	int true_positive[][QUERY_COLUMNS] = {
+		{1, 1, 2, 3, 3},
+		{1, 1, 4, 3, 3},
+		{1, 1, 6, 3, 3},
+		{2, 1, 8, 2, 2},
+		{2, 1, 10, 3, 3},
+		{2, 1, 12, 2, 2},
+		{3, 1, 14, 3, 3},
+		{3, 1, 16, 3, 3},
+		{3, 1, 18, 3, 3},
+		{4, 1, 20, 2, 2},
+		{4, 1, 22, 3, 3},
+		{4, 1, 24, 2, 2}
+	};
+
+	int support = 1;
+
+	test_cluster (true_positive, support);
+}
+END_TEST
+
+START_TEST (test_cluster_with_genotype_support)
+{
+	// True positive
+	int true_positive[][QUERY_COLUMNS] = {
+		{1, 1, 2, 3, 3},
+		{1, 1, 4, 3, 3},
+		{1, 1, 6, 3, 3},
+		{1, 2, 2, 3, 3},
+		{1, 2, 4, 3, 3},
+		{1, 2, 6, 3, 3},
+		{2, 1, 8, 2, 2},
+		{2, 1, 10, 3, 3},
+		{2, 1, 12, 2, 2},
+		{2, 2, 8, 2, 2},
+		{2, 2, 10, 3, 3},
+		{2, 2, 12, 2, 2},
+		{3, 1, 14, 3, 3},
+		{3, 1, 16, 3, 3},
+		{3, 1, 18, 3, 3},
+		{3, 2, 14, 3, 3},
+		{3, 2, 16, 3, 3},
+		{3, 2, 18, 3, 3},
+		{4, 1, 20, 2, 2},
+		{4, 1, 22, 3, 3},
+		{4, 1, 24, 2, 2},
+		{4, 2, 20, 2, 2},
+		{4, 2, 22, 3, 3},
+		{4, 2, 24, 2, 2}
+	};
+
+	int support = 2;
+
+	test_cluster (true_positive, support);
+}
 END_TEST
 
 Suite *
@@ -183,7 +220,8 @@ make_cluster_suite (void)
 	/* Core test case */
 	tc_core = tcase_create ("Core");
 
-	tcase_add_test (tc_core, test_cluster);
+	tcase_add_test (tc_core, test_cluster_without_genotype_support);
+	tcase_add_test (tc_core, test_cluster_with_genotype_support);
 	suite_add_tcase (s, tc_core);
 
 	return s;

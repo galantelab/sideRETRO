@@ -27,7 +27,7 @@ void blacklist_index_dump (Blacklist *blacklist, const char *file,
 		const Set *attributes);
 
 int blacklist_lookup (Blacklist *blacklist, const char *chr,
-		long low, long high, long padding,
-		const long cluster_id);
+		long low, long high, long padding, const long cluster_id,
+		const long cluster_sid);
 
 #endif /* blacklist.h */

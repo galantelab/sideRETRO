@@ -10,19 +10,90 @@
 #include "dbscan.h"
 #include "cluster.h"
 
-struct _Cluster
+struct _Clustering
 {
+	Hash         *cluster_h;
 	sqlite3_stmt *stmt;
+	ClusterFilter filter;
 	int           id;
+	int           sid;
+	int           sub;
 };
 
-typedef struct _Cluster Cluster;
+typedef struct _Clustering Clustering;
+
+static inline Hash *
+cluster_filter_new (void)
+{
+	return hash_new_full (int_hash, int_equal,
+			xfree, (DestroyNotify) hash_free);
+}
+
+static inline void
+cluster_filter_free (Hash *h)
+{
+	hash_free (h);
+}
+
+static inline void
+cluster_filter_set (Hash *h, const int id, const int sid,
+		const ClusterFilter filter)
+{
+/*
+ * Handle Hash of Hashes schema to keep
+ * the relation cluster => subcluster => filter
+ */
+	Hash *s_h = NULL;
+	int *filter_alloc = NULL;
+
+	s_h = hash_lookup (h, &id);
+
+	if (s_h == NULL)
+		{
+			s_h = hash_new_full (int_hash, int_equal,
+					xfree, xfree);
+
+			int *id_alloc = xcalloc (1, sizeof (int));
+			*id_alloc = id;
+
+			hash_insert (h, id_alloc, s_h);
+		}
+
+	filter_alloc = hash_lookup (s_h, &sid);
+
+	if (filter_alloc == NULL)
+		{
+			int *sid_alloc = xcalloc (1, sizeof (int));
+			*sid_alloc = sid;
+
+			filter_alloc = xcalloc (1,
+					sizeof (ClusterFilter));
+
+			hash_insert (s_h, sid_alloc, filter_alloc);
+		}
+
+	*filter_alloc |= filter;
+}
+
+static inline ClusterFilter *
+cluster_filter_get (Hash *h, const int id, const int sid)
+{
+/*
+ * Get id => sid => filter
+ *  or NULL
+ */
+	Hash *s_h = NULL;
+
+	s_h = hash_lookup (h, &id);
+	if (s_h == NULL)
+		return NULL;
+
+	return hash_lookup (s_h, &sid);
+}
 
 static void
 index_alignment_qname (sqlite3 *db)
 {
-	log_trace ("Inside %s", __func__);
-
 	// Index qname for speedup queries
 	const char sql[] =
 		"DROP INDEX IF EXISTS alignment_qname_idx;\n"
@@ -33,46 +104,34 @@ index_alignment_qname (sqlite3 *db)
 	db_exec (db, sql);
 }
 
+static void
+index_overlapping_alignment (sqlite3 *db)
+{
+	const char sql[] =
+		"DROP INDEX IF EXISTS overlapping_alignment_idx;\n"
+		"CREATE INDEX overlapping_alignment_idx\n"
+		"	ON overlapping(alignment_id)";
+
+	log_debug ("Create index:\n%s", sql);
+	db_exec (db, sql);
+}
+
 static sqlite3_stmt *
-prepare_query_stmt (sqlite3 *db, const Set *blacklist_chr, const int distance)
+prepare_query_stmt (sqlite3 *db)
 {
 	log_trace ("Inside %s", __func__);
 
 	sqlite3_stmt *stmt = NULL;
-	String *sql = NULL;
-	List *list = NULL;
-	ListElmt *cur = NULL;
-	int blacklist_size = 0;
-	int limit = 0;
-	int i = 0;
-
-	blacklist_size = set_size (blacklist_chr);
-	limit = sqlite3_limit (db, SQLITE_LIMIT_VARIABLE_NUMBER, -1);
-
-	// Test for set size. Needs to be less than SQLITE_LIMIT_VARIABLE_NUMBER - 2
-	if (blacklist_size >= (limit - 2))
-		log_fatal ("blacklisted chrs size (%d) is greater than the maximum allowed (%d)",
-				blacklist_size, limit);
 
 	/*
 	* Where the magic happens!
 	* Catch all alignments whose mate overlaps
-	* a given exon and filter them by:
-	* - blacklisted chromosomes (e.g. chrM)
-	* - read cannot be exonic from its own parental
-	* - distance from its own parental gene
-	*
-	* Sort by chromosome and gene, so the clustering
-	* will procide for each gene by its abnormal reads
-	* along the chromosomes
+	* a given exon and sort by chromosome and gene,
+	* so the clustering will procide for each gene
+	* by its abnormal reads along the chromosomes
 	*/
-	sql = string_new (
+	const char sql[] =
 		"WITH\n"
-		"	gene_pos (gene_name, chr, start, end) AS (\n"
-		"		SELECT gene_name, chr, MIN(start), MAX(end)\n"
-		"		FROM exon\n"
-		"		GROUP BY gene_name\n"
-		"	),\n"
 		"	alignment_overlaps_exon(id, qname, chr, pos, rlen, type, gene_name) AS (\n"
 		"		SELECT a.id, a.qname, a.chr, a.pos, a.rlen, a.type, e.gene_name\n"
 		"		FROM alignment AS a\n"
@@ -89,134 +148,56 @@ prepare_query_stmt (sqlite3 *db, const Set *blacklist_chr, const int distance)
 		"FROM alignment_overlaps_exon AS aoe1\n"
 		"INNER JOIN alignment_overlaps_exon AS aoe2\n"
 		"	USING(qname)\n"
-		"INNER JOIN gene_pos AS g\n"
-		"	ON aoe2.gene_name = g.gene_name\n"
-		"WHERE "
-	);
+		"WHERE aoe1.id != aoe2.id\n"
+		"	AND aoe2.type & $EXONIC\n"
+		"	AND ((NOT aoe1.type & $EXONIC)\n"
+		"		OR (aoe1.type & $EXONIC AND aoe1.gene_name IS NOT aoe2.gene_name))\n"
+		"ORDER BY aoe1.chr ASC, aoe2.gene_name ASC";
 
-	if (blacklist_size)
-		{
-			string_concat (sql, "aoe1.chr NOT IN (?1");
-			for (i = 1; i < blacklist_size; i++)
-				string_concat_printf (sql, ",?%d", i + 1);
-
-			string_concat (sql, ")\n\tAND aoe2.chr NOT IN (?1");
-			for (i = 1; i < blacklist_size; i++)
-				string_concat_printf (sql, ",?%d", i + 1);
-
-			string_concat (sql, ")\n\tAND ");
-		}
-
-	string_concat (sql,
-			"((achr != g.chr)\n"
-			"		OR NOT (astart <= (g.end + $DIST) AND aend >= (g.start - $DIST)))\n"
-			"	AND aoe1.id != aoe2.id\n"
-			"	AND aoe2.type & $EXONIC\n"
-			"	AND ((NOT aoe1.type & $EXONIC)\n"
-			"		OR (aoe1.type & $EXONIC AND aoe1.gene_name IS NOT aoe2.gene_name))\n"
-			"ORDER BY aoe1.chr ASC, aoe2.gene_name ASC");
-
-	log_debug ("Query schema:\n%s", sql->str);
-	stmt = db_prepare (db, sql->str);
-
-	list = set_list (blacklist_chr);
-	for (cur = list_head (list), i = 1; cur != NULL; cur = list_next (cur), i++)
-		db_bind_text (stmt, i, list_data (cur));
-
-	db_bind_int (stmt,
-			sqlite3_bind_parameter_index (stmt, "$DIST"),
-			distance);
+	log_debug ("Query schema:\n%s", sql);
+	stmt = db_prepare (db, sql);
 
 	db_bind_int (stmt,
 			sqlite3_bind_parameter_index (stmt, "$EXONIC"),
 			ABNORMAL_EXONIC);
 
-	string_free (sql, 1);
-	return stmt;
-}
-
-static void
-create_temp_clustering_table (sqlite3 *db)
-{
-	log_trace ("Inside %s", __func__);
-
-	// Create temporary table as clustering.
-	// It is necessary for validating each cluster
-	// according to genotype support in reads
-	const char sql[] =
-		"CREATE TEMPORARY TABLE temp_clustering AS SELECT * FROM clustering";
-
-	db_exec (db, sql);
-}
-
-static sqlite3_stmt *
-prepare_temp_clustering_stmt (sqlite3 *db)
-{
-	log_trace ("Inside %s", __func__);
-
-	const char sql[] =
-		"INSERT INTO temp_clustering (cluster_id,alignment_id,label,neighbors)\n"
-		"	VALUES (?1,?2,?3,?4)";
-
-	return db_prepare (db, sql);
-}
-
-static sqlite3_stmt *
-prepare_temp_clustering_query_stmt (sqlite3 *db,
-		const int support)
-{
-	log_trace ("Inside %s", __func__);
-
-	sqlite3_stmt *stmt = NULL;
-
-	// Filter clustering reads according
-	// to the genotype support number
-	const char sql[] =
-		"WITH\n"
-		"	filter (cid, sid) AS (\n"
-		"		SELECT cluster_id, source_id\n"
-		"		FROM temp_clustering AS c\n"
-		"		INNER JOIN alignment AS a\n"
-		"			ON a.id = c.alignment_id\n"
-		"		GROUP BY cluster_id, source_id\n"
-		"		HAVING COUNT(*) >= ?1\n"
-		")\n"
-		"SELECT cluster_id, alignment_id, pos, (pos + rlen - 1)\n"
-		"FROM temp_clustering AS c\n"
-		"INNER JOIN alignment AS a\n"
-		"	ON c.alignment_id = a.id\n"
-		"INNER JOIN filter AS f\n"
-		"	ON f.cid = c.cluster_id\n"
-		"WHERE a.source_id = f.sid";
-
-	log_debug ("Temporary clustering query schema:\n%s", sql);
-	stmt = db_prepare (db, sql);
-
-	db_bind_int (stmt, 1, support);
 	return stmt;
 }
 
 static void
 dump_clustering (Point *p, void *user_data)
 {
-	Cluster *c = user_data;
+	Clustering *c = user_data;
 	const int *alignment_id = p->data;
 
-	log_debug ("Dump cluster%d aid = %d label = %d n = %d",
-			p->id + c->id, *alignment_id, p->label,
-			p->neighbors);
+	int id = c->id;
+	int sid = c->sid;
 
-	db_insert_clustering (c->stmt, p->id + c->id, *alignment_id,
+	// Clustering or reclustering
+	// ('sub'clustering)
+	if (c->sub)
+		sid += p->id;
+	else
+		id += p->id;
+
+	log_debug ("Dump cluster [%d %d] aid = %d label = %d n = %d",
+			id, sid, *alignment_id, p->label, p->neighbors);
+
+	// Set id => sid => filter hash
+	cluster_filter_set (c->cluster_h, id, sid, c->filter);
+
+	db_insert_clustering (c->stmt, id, sid, *alignment_id,
 			p->label, p->neighbors);
 }
 
-static void
-clustering (sqlite3_stmt *clustering_stmt, sqlite3_stmt *query_stmt,
-		const long eps, const int min_pts, Hash *cluster_gene)
+static int
+clustering (sqlite3_stmt *clustering_stmt, const long eps,
+		const int min_pts, Hash *cluster_h)
 {
 	log_trace ("Inside %s", __func__);
 
 	DBSCAN *dbscan = NULL;
+	sqlite3_stmt *query_stmt = NULL;
 
 	char *chr_prev = NULL;
 	const char *chr = NULL;
@@ -225,15 +206,25 @@ clustering (sqlite3_stmt *clustering_stmt, sqlite3_stmt *query_stmt,
 	const char *gene_name = NULL;
 
 	int *aid_alloc = NULL;
-	int *cid_alloc = NULL;
 
 	int aid = 0;
 	long astart = 0;
 	long aend = 0;
 	int acm = 0;
-	int i = 0;
 
-	Cluster c = {clustering_stmt, 0};
+	// Prepare query stmt
+	query_stmt = prepare_query_stmt (
+			sqlite3_db_handle (clustering_stmt));
+
+	// STEP 1
+	Clustering c = {
+		.filter    = CLUSTER_FILTER_NONE,
+		.cluster_h = cluster_h,
+		.stmt      = clustering_stmt,
+		.sub       = 0,
+		.id        = 0,
+		.sid       = 1
+	};
 
 	while (db_step (query_stmt) == SQLITE_ROW)
 		{
@@ -263,17 +254,9 @@ clustering (sqlite3_stmt *clustering_stmt, sqlite3_stmt *query_stmt,
 
 					if (acm)
 						{
+							c.id += acm;
 							log_debug ("Found %d clusters at '%s' for '%s'",
 									acm, chr_prev, gene_name_prev);
-
-							// Store cluster_id => gene_name_prev relation
-							for (i = 0; i < acm; i++)
-								{
-									cid_alloc = xcalloc (1, sizeof (int));
-									*cid_alloc = ++c.id;
-									hash_insert (cluster_gene, cid_alloc,
-											xstrdup (gene_name_prev));
-								}
 						}
 
 					dbscan_free (dbscan);
@@ -307,97 +290,137 @@ clustering (sqlite3_stmt *clustering_stmt, sqlite3_stmt *query_stmt,
 
 			if (acm)
 				{
+					c.id += acm;
 					log_debug ("Found %d clusters at '%s' for '%s'",
 							acm, chr_prev, gene_name_prev);
-
-					// Store cluster_id => gene_name_prev relation
-					for (i = 0; i < acm; i++)
-						{
-							cid_alloc = xcalloc (1, sizeof (int));
-							*cid_alloc = ++c.id;
-							hash_insert (cluster_gene, cid_alloc,
-									xstrdup (gene_name_prev));
-						}
 				}
 		}
-
-	log_info ("Found %d clusters", c.id);
 
 	xfree (chr_prev);
 	xfree (gene_name_prev);
 	dbscan_free (dbscan);
+	db_finalize (query_stmt);
+
+	return c.id;
 }
 
-static void
-reclustering (sqlite3_stmt *clustering_stmt, sqlite3_stmt *query_stmt,
-		const long eps, const int min_pts, Hash *cluster_gene)
+static sqlite3_stmt *
+prepare_filter_support_stmt (sqlite3 *db,
+		const int support)
+{
+	log_trace ("Inside %s", __func__);
+
+	sqlite3_stmt *stmt = NULL;
+
+	// Filter clustering reads according
+	// to the genotype support number
+	const char sql[] =
+		"WITH\n"
+		"	filter (cid, sid) AS (\n"
+		"		SELECT cluster_id, source_id\n"
+		"		FROM clustering AS c\n"
+		"		INNER JOIN alignment AS a\n"
+		"			ON a.id = c.alignment_id\n"
+		"		GROUP BY cluster_id, source_id\n"
+		"		HAVING COUNT(*) >= $SUPPORT\n"
+		")\n"
+		"SELECT cluster_id, cluster_sid, alignment_id,\n"
+		"	pos, (pos + rlen - 1)\n"
+		"FROM clustering AS c\n"
+		"INNER JOIN alignment AS a\n"
+		"	ON c.alignment_id = a.id\n"
+		"INNER JOIN filter AS f\n"
+		"	ON f.cid = c.cluster_id\n"
+		"WHERE a.source_id = f.sid";
+
+	log_debug ("Clustering query schema:\n%s", sql);
+	stmt = db_prepare (db, sql);
+
+	db_bind_int (stmt,
+			sqlite3_bind_parameter_index (stmt, "$SUPPORT"),
+			support);
+
+	return stmt;
+}
+
+static int
+reclustering (sqlite3_stmt *clustering_stmt, const int support,
+		const long eps, const int min_pts, Hash *cluster_h)
 {
 	log_trace ("Inside %s", __func__);
 
 	DBSCAN *dbscan = NULL;
+	sqlite3_stmt *filter_support_stmt = NULL;
 
-	const char *gene_name = NULL;
-
+	ClusterFilter *filter_alloc = NULL;
 	int *aid_alloc = NULL;
-	int *cid_alloc = NULL;
 
 	int cid = 0;
 	int cid_prev = 0;
+
+	int sid = 0;
+	int sid_prev = 0;
 
 	int aid = 0;
 	long astart = 0;
 	long aend = 0;
 	int acm = 0;
-	int i = 0;
 
-	Cluster c = {clustering_stmt, 0};
+	// Prepare filtering support query stmt
+	filter_support_stmt = prepare_filter_support_stmt (
+			sqlite3_db_handle (clustering_stmt), support);
 
-	while (db_step (query_stmt) == SQLITE_ROW)
+	// STEP 2
+	Clustering c = {
+		.cluster_h = cluster_h,
+		.stmt      = clustering_stmt,
+		.sub       = 1,
+		.id        = 0,
+		.sid       = 0
+	};
+
+	while (db_step (filter_support_stmt) == SQLITE_ROW)
 		{
-			cid       = db_column_int   (query_stmt, 0);
-			aid       = db_column_int   (query_stmt, 1);
-			astart    = db_column_int64 (query_stmt, 2);
-			aend      = db_column_int64 (query_stmt, 3);
+			cid    = db_column_int   (filter_support_stmt, 0);
+			sid    = db_column_int   (filter_support_stmt, 1);
+			aid    = db_column_int   (filter_support_stmt, 2);
+			astart = db_column_int64 (filter_support_stmt, 3);
+			aend   = db_column_int64 (filter_support_stmt, 4);
 
 			// First loop - Init dbscan and cid_prev
 			if (!cid_prev)
 				{
 					dbscan = dbscan_new (xfree);
 					cid_prev = cid;
+					sid_prev = sid;
 				}
 
 			// If all alignment from a given clusters were catch, then
 			// recluster them!
-			if (cid_prev != cid)
+			if (cid_prev != cid || sid_prev != sid)
 				{
-					// Get gene_name from clustering step
-					gene_name = hash_lookup (cluster_gene, &cid_prev);
+					// Get filter from clustering step
+					filter_alloc = cluster_filter_get (cluster_h, cid_prev, sid_prev);
+					assert (filter_alloc != NULL);
 
-					log_debug ("Reclustering by cluster_id = '%d' from '%s'",
-							cid_prev, gene_name);
+					log_debug ("Reclustering cluster [%d %d]", cid_prev, sid_prev);
+
+					c.id = cid_prev;
+					c.sid = sid_prev;
+					c.filter =  *filter_alloc | CLUSTER_FILTER_SUPPORT;
 
 					acm = dbscan_cluster (dbscan, eps, min_pts,
 							dump_clustering, &c);
 
 					if (acm)
-						{
-							log_debug ("Found %d clusters from cluster_id = '%d' after reclustering",
-									acm, cid_prev);
-
-							// Store cluster_id => gene_name relation
-							for (i = 0; i < acm; i++)
-								{
-									cid_alloc = xcalloc (1, sizeof (int));
-									*cid_alloc = ++c.id;
-									hash_insert (cluster_gene, cid_alloc,
-											xstrdup (gene_name));
-								}
-						}
+						log_debug ("Found %d clusters from [%d %d] after reclustering",
+								acm, cid_prev, sid_prev);
 
 					dbscan_free (dbscan);
 					dbscan = dbscan_new (xfree);
 
 					cid_prev = cid;
+					sid_prev = sid;
 				}
 
 			aid_alloc = xcalloc (1, sizeof (int));
@@ -413,143 +436,162 @@ reclustering (sqlite3_stmt *clustering_stmt, sqlite3_stmt *query_stmt,
 	// Test if there any entry
 	if (dbscan != NULL)
 		{
-			// Get gene_name from clustering step
-			gene_name = hash_lookup (cluster_gene, &cid_prev);
+			// Get filter from clustering step
+			filter_alloc = cluster_filter_get (cluster_h, cid_prev, sid_prev);
+			assert (filter_alloc != NULL);
 
-			log_debug ("Reclustering by cluster_id = '%d' from '%s'",
-					cid_prev, gene_name);
+			log_debug ("Reclustering cluster [%d %d]", cid_prev, sid_prev);
+
+			c.id = cid_prev;
+			c.sid = sid_prev;
+			c.filter =  *filter_alloc | CLUSTER_FILTER_SUPPORT;
 
 			acm = dbscan_cluster (dbscan, eps, min_pts,
 					dump_clustering, &c);
 
 			if (acm)
-				{
-					log_debug ("Found %d clusters from cluster_id = '%d' after reclustering",
-							acm, cid_prev);
-
-					// Store cluster_id => gene_name_prev relation
-					for (i = 0; i < acm; i++)
-						{
-							cid_alloc = xcalloc (1, sizeof (int));
-							*cid_alloc = ++c.id;
-							hash_insert (cluster_gene, cid_alloc,
-									xstrdup (gene_name));
-						}
-				}
+				log_debug ("Found %d clusters from [%d %d] after reclustering",
+						acm, cid_prev, sid_prev);
 		}
 
-	log_info ("Found %d clusters after reclustering", c.id);
 	dbscan_free (dbscan);
+	db_finalize (filter_support_stmt);
+
+	return c.id;
 }
 
 static sqlite3_stmt *
-prepare_clustering_query_stmt (sqlite3 *db)
+prepare_filter_stmt (sqlite3 *db)
 {
-	/*
-	* All the clusters are build at end, when the
-	* clustering step is done
-	*/
-	const char sql[] =
-		"SELECT cluster_id, chr, MIN(pos), MAX(pos + rlen - 1)\n"
-		"FROM clustering AS c\n"
-		"INNER JOIN alignment AS a\n"
-		"	ON a.id = c.alignment_id\n"
-		"GROUP BY cluster_id";
+	log_trace ("Inside %s", __func__);
 
-	log_debug ("Clustering query schema:\n%s", sql);
+	const char sql[] =
+		"WITH\n"
+		"	gene (gene_name, chr, start, end) AS (\n"
+		"		SELECT gene_name, chr, MIN(start), MAX(end)\n"
+		"		FROM exon\n"
+		"		GROUP BY gene_name\n"
+		"	),\n"
+		"	cluster (gene_name, id, sid, chr, start, end) AS (\n"
+		"		SELECT e.gene_name, cluster_id, cluster_sid,\n"
+		"			a1.chr, MIN(a1.pos), MAX(a1.pos + a1.rlen - 1)\n"
+		"		FROM clustering AS c\n"
+		"		INNER JOIN alignment AS a1\n"
+		"			ON c.alignment_id = a1.id\n"
+		"		INNER JOIN alignment AS a2\n"
+		"			USING (qname)\n"
+		"		INNER JOIN overlapping AS o\n"
+		"			ON a2.id = o.alignment_id\n"
+		"		INNER JOIN exon AS e\n"
+		"			ON o.exon_id = e.id\n"
+		"		GROUP BY cluster_id, cluster_sid\n"
+		"	)\n"
+		"SELECT c.id, c.sid, c.chr, c.start, c.end,\n"
+		"	g.gene_name, g.chr, g.start, g.end\n"
+		"FROM cluster AS c\n"
+		"INNER JOIN gene AS g\n"
+		"	USING (gene_name)";
+
+	log_debug ("Filter query schema:\n%s", sql);
 	return db_prepare (db, sql);
 }
 
-static void
-run_clustering_step (sqlite3 *db, const long eps, const int min_pts,
-		const int distance, const Set *blacklist_chr,
-		Hash *cluster_gene)
+static int
+dump_and_filter_clusters (sqlite3_stmt *cluster_stmt, const int distance,
+		const int support, Set *blacklist_chr, Blacklist *blacklist,
+		Hash *cluster_h)
 {
-	log_trace ("Inside %s", __func__);
+	sqlite3_stmt *filter_query = NULL;
+	ClusterFilter *filter = NULL;
 
-	// Query the database for valid abnormal reads
-	sqlite3_stmt *query_stmt = NULL;
+	// Cluster info
+	int cluster_id = 0;
+	int cluster_sid = 0;
+	const char *cluster_chr = NULL;
+	long cluster_start = 0;
+	long cluster_end = 0;
 
-	// Insert into temporary clustering table
-	sqlite3_stmt *clustering_stmt = NULL;
-
-	// Prepare query stmt
-	query_stmt = prepare_query_stmt (db, blacklist_chr, distance);
-
-	// Prepare temp clustering
-	clustering_stmt = prepare_temp_clustering_stmt (db);
-
-	clustering (clustering_stmt, query_stmt, eps, min_pts,
-			cluster_gene);
-
-	db_finalize (query_stmt);
-	db_finalize (clustering_stmt);
-}
-
-static void
-run_reclustering_step (sqlite3 *db, sqlite3_stmt *clustering_stmt,
-		const long eps, const int min_pts, const int support,
-		Hash *cluster_gene)
-{
-	log_trace ("Inside %s", __func__);
-
-	// Query temporary clustering table for validation
-	sqlite3_stmt *query_stmt = NULL;
-
-	// Prepare temp clustering query stmt
-	query_stmt = prepare_temp_clustering_query_stmt (db, support);
-
-	reclustering (clustering_stmt, query_stmt,
-			eps, min_pts, cluster_gene);
-
-	db_finalize (query_stmt);
-}
-
-static void
-dump_cluster (sqlite3 *db, sqlite3_stmt *cluster_stmt,
-		Hash *cluster_gene, Blacklist *blacklist)
-{
-	sqlite3_stmt *query_stmt = NULL;
-
-	int id = 0;
-	const char *chr = NULL;
-	long start = 0;
-	long end = 0;
+	// Parental info
 	const char *gene_name = NULL;
+	const char *gene_chr = NULL;
+	long gene_start = 0;
+	long gene_end = 0;
+
+	int num_clusters = 0;
 	int acm = 0;
 
-	// Prepare clustering query stmt
-	query_stmt = prepare_clustering_query_stmt (db);
+	// Add the flag CLUSTER_FILTER_SUPPORT
+	// if there was not need to reclustering
+	const int support_flag =
+		support > 1 ? 0 : CLUSTER_FILTER_SUPPORT;
 
-	while (sqlite3_step (query_stmt) == SQLITE_ROW)
+	const int all_filters =
+		CLUSTER_FILTER_NONE
+		|CLUSTER_FILTER_CHR
+		|CLUSTER_FILTER_DIST
+		|CLUSTER_FILTER_REGION
+		|CLUSTER_FILTER_SUPPORT;
+
+	filter_query = prepare_filter_stmt (
+			sqlite3_db_handle (cluster_stmt));
+
+	while (db_step (filter_query) == SQLITE_ROW)
 		{
-			id = db_column_int (query_stmt, 0);
-			chr = db_column_text (query_stmt, 1);
-			start = db_column_int64 (query_stmt, 2);
-			end = db_column_int64 (query_stmt, 3);
-			gene_name = hash_lookup (cluster_gene, &id);
+			cluster_id    = db_column_int   (filter_query, 0);
+			cluster_sid   = db_column_int   (filter_query, 1);
+			cluster_chr   = db_column_text  (filter_query, 2);
+			cluster_start = db_column_int64 (filter_query, 3);
+			cluster_end   = db_column_int64 (filter_query, 4);
+			gene_name     = db_column_text  (filter_query, 5);
+			gene_chr      = db_column_text  (filter_query, 6);
+			gene_start    = db_column_int64 (filter_query, 7);
+			gene_end      = db_column_int64 (filter_query, 8);
 
-			acm = blacklist_lookup (blacklist, chr, start, end,
-					0, id);
+			filter = cluster_filter_get (cluster_h, cluster_id, cluster_sid);
+			assert (filter != NULL);
 
-			if (acm)
-				log_debug ("Cluster [%d] from %s %s:%li-%li overlaps %d blacklisted regions",
-						id, gene_name, chr, start, end, acm);
+			// CLUSTER_FILTER_SUPPORT
+			*filter |= support_flag;
 
-			log_debug ("Dump cluster %d at %s:%li-%li from %s",
-					id, chr, start, end, gene_name);
+			// Chromosome filter
+			if (!set_is_member (blacklist_chr, cluster_chr)
+					&& !set_is_member (blacklist_chr, gene_chr))
+				*filter |= CLUSTER_FILTER_CHR;
 
-			db_insert_cluster (cluster_stmt, id, chr,
-					start, end, gene_name);
+			// Distance filter
+			if (strcmp (cluster_chr, gene_chr)
+					|| !(cluster_start <= (gene_end + distance)
+						&& cluster_end >= (gene_start - distance)))
+				*filter |= CLUSTER_FILTER_DIST;
+
+			// Region filter
+			// Padding = 0
+			acm = blacklist_lookup (blacklist, cluster_chr, cluster_start,
+					cluster_end, 0, cluster_id, cluster_sid);
+
+			if (!acm)
+				*filter |= CLUSTER_FILTER_REGION;
+
+			log_debug ("Dump cluster [%d %d] at %s:%li-%li from %s filter %d",
+					cluster_id, cluster_sid, cluster_chr, cluster_start,
+					cluster_end, gene_name, *filter);
+
+			db_insert_cluster (cluster_stmt, cluster_id, cluster_sid,
+					cluster_chr, cluster_start, cluster_end,
+					gene_name, *filter);
+
+			if (*filter == all_filters)
+				num_clusters++;
 		}
 
-	db_finalize (query_stmt);
+	db_finalize (filter_query);
+	return num_clusters;
 }
 
-void
+int
 cluster (sqlite3_stmt *cluster_stmt, sqlite3_stmt *clustering_stmt,
-		const long eps, const int min_pts, const Set *blacklist_chr,
-		const int distance, const int support,
+		const long eps, const int min_pts, const int distance,
+		const int support, Set *blacklist_chr,
 		Blacklist *blacklist)
 {
 	log_trace ("Inside %s", __func__);
@@ -560,35 +602,60 @@ cluster (sqlite3_stmt *cluster_stmt, sqlite3_stmt *clustering_stmt,
 			&& support >= 0
 			&& blacklist != NULL);
 
-	sqlite3 *db = NULL;
+	Hash *cluster_h = NULL;
+	int num_clusters = 0;
 
-	// Hold cluster_id => gene relation
-	Hash *cluster_gene = NULL;
-
-	// sqlite3 handle
-	db = sqlite3_db_handle (clustering_stmt);
-
-	log_debug ("Create temporary clustering table");
-	create_temp_clustering_table (db);
+	// cluster_id => sid => filter relation
+	cluster_h = cluster_filter_new ();
 
 	log_info ("Index abnormal alignment qnames");
-	index_alignment_qname (db);
+	index_alignment_qname (
+			sqlite3_db_handle (cluster_stmt));
 
-	// cluster => gene relation
-	cluster_gene = hash_new_full (int_hash, int_equal,
-			xfree, xfree);
+	log_info ("Index overlapping alignment ids");
+	index_overlapping_alignment (
+			sqlite3_db_handle (cluster_stmt));
 
+	// First clustering step
 	log_info ("Clustering abnormal alignments");
-	run_clustering_step (db, eps, min_pts, distance,
-			blacklist_chr, cluster_gene);
+	num_clusters = clustering (clustering_stmt,
+			eps, min_pts, cluster_h);
 
-	log_info ("Filter clusters according to genotype support and recluster them");
-	run_reclustering_step (db, clustering_stmt, eps, min_pts,
-			support, cluster_gene);
+	if (num_clusters)
+		log_info ("Found %d clusters", num_clusters);
+	else
+		goto RET;
 
-	log_info ("Build clusters from clustering");
-	dump_cluster (db, cluster_stmt, cluster_gene, blacklist);
+	// Next clustering
+	if (support > 1)
+		{
+			log_info ("Filter clusters according to genotype support and recluster them");
+			num_clusters = reclustering (clustering_stmt, support,
+					eps, min_pts, cluster_h);
 
-	log_info ("Done!");
-	hash_free (cluster_gene);
+			if (num_clusters)
+				log_info ("%d clusters left after genotype filtering and reclustering",
+						num_clusters);
+			else
+				goto RET;
+		}
+
+	// Finally dump all clusters
+	log_info (
+			"Build clusters from clustering and filter them "
+			"by blacklisted regions, and chromosome, and parental distance");
+
+	num_clusters = dump_and_filter_clusters (cluster_stmt,
+			distance, support, blacklist_chr,
+			blacklist, cluster_h);
+
+	if (num_clusters)
+		log_info ("%d clusters have been passed all controling filters",
+				num_clusters);
+	else
+		goto RET;
+
+RET:
+	cluster_filter_free (cluster_h);
+	return num_clusters;
 }

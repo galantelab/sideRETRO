@@ -7,7 +7,7 @@
 
 /* Database schema version */
 #define DB_SCHEMA_MAJOR_VERSION 0
-#define DB_SCHEMA_MINOR_VERSION 8
+#define DB_SCHEMA_MINOR_VERSION 9
 
 #define DB_DEFAULT_CACHE_SIZE 2000
 
@@ -66,12 +66,12 @@ void db_insert_overlapping (sqlite3_stmt *stmt, int exon_id,
 	int alignment_id, long pos, long len);
 
 sqlite3_stmt * db_prepare_clustering_stmt (sqlite3 *db);
-void db_insert_clustering (sqlite3_stmt *stmt, int cluster_id,
-	int alignment_id, int label, int neighbors);
+void db_insert_clustering (sqlite3_stmt *stmt, int cluster_id, int cluster_sid,
+		int alignment_id, int label, int neighbors);
 
 sqlite3_stmt * db_prepare_cluster_stmt (sqlite3 *db);
-void db_insert_cluster (sqlite3_stmt *stmt, int id, const char *chr,
-		long start, long end, const char *gene_name);
+void db_insert_cluster (sqlite3_stmt *stmt, int id, int sid, const char *chr,
+		long start, long end, const char *gene_name, int filter);
 
 sqlite3_stmt * db_prepare_blacklist_stmt (sqlite3 *db);
 void db_insert_blacklist (sqlite3_stmt *stmt, int id, const char *name,
@@ -79,6 +79,6 @@ void db_insert_blacklist (sqlite3_stmt *stmt, int id, const char *name,
 
 sqlite3_stmt * db_prepare_overlapping_blacklist_stmt (sqlite3 *db);
 void db_insert_overlapping_blacklist (sqlite3_stmt *stmt, int blacklist_id,
-	int cluster_id, long pos, long len);
+	int cluster_id, int cluster_sid, long pos, long len);
 
 #endif /* db.h */

@@ -109,13 +109,19 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 			overlapping_blacklist_stmt, cs);
 
 	// If the user passed blacklisted regions
-	// TODO: ESTÁ ERRADO! Precisa estar dentro da transação!
 	if (blacklist_region != NULL)
 		{
+			// Begin transaction to speed up
+			db_begin_transaction (db);
+
 			log_info ("Index blacklisted regions from file '%s'",
 					blacklist_region);
+
 			blacklist_index_dump (blacklist, blacklist_region, gff_feature,
 					gff_attribute, gff_attribute_values);
+
+			// Commit
+			db_end_transaction (db);
 		}
 
 	// If there are files to merge with ...
@@ -139,7 +145,7 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 	// RUN
 	log_info ("Run clustering step for '%s'", db_file);
 	cluster (cluster_stmt, clustering_stmt, epsilon, min_pts,
-			blacklist_chr, distance, support, blacklist);
+			distance, support, blacklist_chr, blacklist);
 
 	// Commit
 	db_end_transaction (db);
