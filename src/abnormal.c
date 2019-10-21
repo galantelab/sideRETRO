@@ -186,6 +186,7 @@ dump_alignment (AbnormalFilter *argf, const bam1_t *align,
 	const char *qname = NULL;
 	int qlen = 0;
 	int rlen = 0;
+	int len = 0;
 	int acm = 0;
 
 	cigar = bam_get_cigar (align);
@@ -198,6 +199,7 @@ dump_alignment (AbnormalFilter *argf, const bam1_t *align,
 
 	qlen = bam_cigar2qlen (align->core.n_cigar, cigar);
 	rlen = bam_cigar2rlen (align->core.n_cigar, cigar);
+	len = rlen < 1 ? 1 : rlen;
 
 	qname = bam_get_qname (align);
 
@@ -215,7 +217,7 @@ dump_alignment (AbnormalFilter *argf, const bam1_t *align,
 
 	// Dump overlapping exon with alignment
 	acm = exon_tree_lookup_dump (argf->exon_tree, chr_std,
-			align->core.pos + 1, align->core.pos + rlen,
+			align->core.pos + 1, align->core.pos + len,
 			argf->exon_frac, argf->alignment_frac,
 			argf->either, argf->alignment_id);
 
