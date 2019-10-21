@@ -390,6 +390,33 @@ START_TEST (test_gff_filter)
 }
 END_TEST
 
+START_TEST (test_gff_looks_like_gff_file)
+{
+	const char *filenames[10] = {
+		"ponga.gff3",
+		"ponga.gtf",
+		"ponga.gff",
+		"ponga.gff3.gz",
+		"ponga.gtf.gz",
+		"ponga.gff.gz",
+		"ponga.bed",
+		"ponga.bed.gz",
+		"ponga.gff3.bed.gz",
+		"ponga.txt"
+	};
+
+	const int true_positives[10] = {
+		1, 1, 1, 1, 1, 1, 0, 0, 0, 0
+	};
+
+	int i = 0;
+	for (; i < 10; i++)
+		ck_assert_int_eq (
+				gff_looks_like_gff_file (filenames[i]),
+				true_positives[i]);
+}
+END_TEST
+
 Suite *
 make_gff_suite (void)
 {
@@ -410,6 +437,7 @@ make_gff_suite (void)
 	tcase_add_test (tc_core, test_gff_header);
 	tcase_add_test (tc_core, test_gff_read);
 	tcase_add_test (tc_core, test_gff_filter);
+	tcase_add_test (tc_core, test_gff_looks_like_gff_file);
 
 	tcase_add_exit_test (tc_abort, test_open_fatal, 1);
 	tcase_add_exit_test (tc_abort, test_close_fatal, 1);

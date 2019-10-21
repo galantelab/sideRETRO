@@ -13,6 +13,25 @@
 #define GFF_BUFSIZ  128
 #define GFF_ATTRSIZ 8
 
+int
+gff_looks_like_gff_file (const char *filename)
+{
+	assert (filename != NULL);
+
+	regex_t reg;
+	int rc = 0;
+
+	const char regex_str[] = "\\.(gff|gff3|gtf)(\\.gz)*$";
+
+	if (regcomp (&reg, regex_str, REG_EXTENDED|REG_NOSUB) != 0)
+		log_fatal ("Error regcomp for '%s'", regex_str);
+
+	rc = regexec (&reg, filename, 0, (regmatch_t *) NULL, 0);
+
+	regfree (&reg);
+	return rc == 0;
+}
+
 GffEntry *
 gff_entry_new (void)
 {

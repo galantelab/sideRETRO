@@ -59,6 +59,7 @@ struct _GffFilter
 
 typedef struct _GffFilter GffFilter;
 
+int          gff_looks_like_gff_file            (const char *filename);
 GffFile    * gff_open_for_reading               (const char *path);
 void         gff_close                          (GffFile *gff);
 int          gff_read                           (GffFile *gff, GffEntry *entry);
