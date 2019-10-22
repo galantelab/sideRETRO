@@ -356,7 +356,10 @@ START_TEST (test_gff_filter)
 	entry = gff_entry_new ();
 
 	// Only hard attributes
-	filter = gff_filter_new ("gene");
+	filter = gff_filter_new ();
+	gff_filter_insert_feature (filter, NULL);
+	gff_filter_insert_feature (filter, "ponga");
+	gff_filter_insert_feature (filter, "gene");
 	gff_filter_insert_hard_attribute (filter, "transcript_type", "protein_coding");
 	gff_filter_insert_hard_attribute (filter, "gene_id", "ENS");
 

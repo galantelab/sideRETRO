@@ -409,13 +409,10 @@ regex_free (regex_t *reg)
 }
 
 GffFilter *
-gff_filter_new (const char *feature)
+gff_filter_new (void)
 {
-	assert (feature != NULL);
-
 	GffFilter *filter = xcalloc (1, sizeof (GffFilter));
 
-	filter->feature = xstrdup (feature);
 	filter->hard_attributes = hash_new (xfree,
 			(DestroyNotify) set_free);
 	filter->soft_attributes = hash_new (xfree,
@@ -438,6 +435,15 @@ gff_filter_free (GffFilter *filter)
 	hash_free (filter->values_regex);
 
 	xfree (filter);
+}
+
+void
+gff_filter_insert_feature (GffFilter *filter, const char *feature)
+{
+	xfree ((void *) filter->feature);
+	filter->feature = feature != NULL
+		? xstrdup (feature)
+		: NULL;
 }
 
 static inline void
