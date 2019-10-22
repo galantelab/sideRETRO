@@ -58,6 +58,11 @@ exon_tree_index_dump (ExonTree *exon_tree,
 
 	GffFile *gff = gff_open_for_reading (gff_file);
 	GffEntry *entry = gff_entry_new ();
+	GffFilter *filter = gff_filter_new ();
+
+	gff_filter_insert_feature (filter, "exon");
+	gff_filter_insert_hard_attribute (filter,
+			"transcript_type", "protein_coding");
 
 	IBiTree *tree = NULL;
 
@@ -69,66 +74,59 @@ exon_tree_index_dump (ExonTree *exon_tree,
 	const char *gene_id = NULL;
 	const char *exon_id = NULL;
 	const char *exon_id_copy = NULL;
-	const char *transcript_type = NULL;
 	char strand[1];
 
-	while (gff_read (gff, entry))
+	while (gff_read_filtered (gff, entry, filter))
 		{
-			transcript_type = gff_attribute_find (entry, "transcript_type");
+			gene_name = gff_attribute_find (entry, "gene_name");
+			gene_id = gff_attribute_find (entry, "gene_id");
+			exon_id = gff_attribute_find (entry, "exon_id");
 
-			if (!strcmp (entry->feature, "exon")
-					&& transcript_type != NULL
-					&& !strcmp (transcript_type, "protein_coding"))
+			if (gene_name == NULL || gene_id == NULL || exon_id == NULL)
 				{
-					gene_name = gff_attribute_find (entry, "gene_name");
-					gene_id = gff_attribute_find (entry, "gene_id");
-					exon_id = gff_attribute_find (entry, "exon_id");
-
-					if (gene_name == NULL || gene_id == NULL || exon_id == NULL)
-						{
-							log_warn ("Missing gene_name|gene_id|exon_id at line %zu",
-								entry->num_line);
-							continue;
-						}
-
-					if (hash_contains (exon_tree->cache, exon_id))
-						{
-							continue;
-						}
-					else
-						{
-							exon_id_copy = xstrdup (exon_id);
-							hash_insert (exon_tree->cache, exon_id_copy,
-									exon_id_copy);
-						}
-
-					chr_std = chr_std_lookup (exon_tree->cs, entry->seqname);
-
-					log_debug ("Index exon from gene '%s' at %s:%zu-%zu", gene_name,
-							chr_std, entry->start, entry->end);
-
-					strand[0] = entry->strand;
-					alloc_id = xcalloc (1, sizeof (long));
-					* (long *) alloc_id = ++table_id;
-
-					tree = hash_lookup (exon_tree->idx, chr_std);
-
-					if (tree == NULL)
-						{
-							tree = ibitree_new (xfree);
-							hash_insert (exon_tree->idx,
-									xstrdup (chr_std), tree);
-						}
-
-					ibitree_insert (tree, entry->start, entry->end,
-							alloc_id);
-
-					db_insert_exon (exon_tree->exon_stmt,
-							table_id, gene_name, chr_std, entry->start,
-							entry->end, strand, gene_id, exon_id);
+					log_warn ("Missing gene_name|gene_id|exon_id at line %zu",
+						entry->num_line);
+					continue;
 				}
+
+			if (hash_contains (exon_tree->cache, exon_id))
+				{
+					continue;
+				}
+			else
+				{
+					exon_id_copy = xstrdup (exon_id);
+					hash_insert (exon_tree->cache, exon_id_copy,
+							exon_id_copy);
+				}
+
+			chr_std = chr_std_lookup (exon_tree->cs, entry->seqname);
+
+			log_debug ("Index exon from gene '%s' at %s:%zu-%zu", gene_name,
+					chr_std, entry->start, entry->end);
+
+			strand[0] = entry->strand;
+			alloc_id = xcalloc (1, sizeof (long));
+			* (long *) alloc_id = ++table_id;
+
+			tree = hash_lookup (exon_tree->idx, chr_std);
+
+			if (tree == NULL)
+				{
+					tree = ibitree_new (xfree);
+					hash_insert (exon_tree->idx,
+							xstrdup (chr_std), tree);
+				}
+
+			ibitree_insert (tree, entry->start, entry->end,
+					alloc_id);
+
+			db_insert_exon (exon_tree->exon_stmt,
+					table_id, gene_name, chr_std, entry->start,
+					entry->end, strand, gene_id, exon_id);
 		}
 
+	gff_filter_free (filter);
 	gff_entry_free (entry);
 	gff_close (gff);
 }
