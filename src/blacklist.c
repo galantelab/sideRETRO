@@ -52,118 +52,69 @@ blacklist_free (Blacklist *blacklist)
 	xfree (blacklist);
 }
 
-static inline void
-init_attribute_regex (regex_t *reg, const Set *attributes)
+void
+blacklist_index_dump_from_gff (Blacklist *blacklist, const char *gff_file, const GffFilter *filter)
 {
-	String *regex_s = NULL;
-	ListElmt *cur = NULL;
+	assert (blacklist != NULL && gff_file != NULL && filter != NULL);
 
-	regex_s = string_new (NULL);
-	cur = list_head (set_list (attributes));
-
-	string_concat_printf (regex_s, "(%s", (char *) list_data (cur));
-
-	for (cur = list_next (cur); cur != NULL; cur = list_next (cur))
-		string_concat_printf (regex_s, "|%s", (char *) list_data (cur));
-
-	string_concat (regex_s, ")");
-
-	log_debug ("GFF/GTF attributes regex: %s", regex_s->str);
-
-	if (regcomp (reg, regex_s->str, REG_EXTENDED|REG_NOSUB) != 0)
-		log_fatal ("Error regcomp for '%s'", regex_s->str);
-
-	string_free (regex_s, 1);
-}
-
-static inline int
-match_attribute (regex_t *reg, const char *str)
-{
-	return regexec (reg, str, 0, (regmatch_t *) NULL, 0) == 0;
-}
-
-static void
-blacklist_index_dump_from_gff (Blacklist *blacklist, const char *gff_file,
-		const char *feature, const char *attribute, const Set *attributes)
-{
-	assert (blacklist != NULL && gff_file != NULL && feature != NULL
-			&& attribute != NULL && attributes != NULL
-			&& set_size (attributes) > 0);
-
-	// Compile regex
-	regex_t reg;
-	init_attribute_regex (&reg, attributes);
-
-	// Open for reading gff file
 	GffFile *gff = gff_open_for_reading (gff_file);
 	GffEntry *entry = gff_entry_new ();
 
 	IBiTree *tree = NULL;
 
-	long table_id = blacklist->table_id;
+	long table_id = 0;
 	long *alloc_id = NULL;
 
 	const char *chr_std = NULL;
 	const char *gene_name = NULL;
-	const char *attribute_value = NULL;
 
-	while (gff_read (gff, entry))
+	while (gff_read_filtered (gff, entry, filter))
 		{
-			attribute_value = gff_attribute_find (entry, attribute);
+			gene_name = gff_attribute_find (entry, "gene_name");
 
-			if (!strcmp (entry->feature, feature)
-					&& attribute_value != NULL
-					&& match_attribute (&reg, attribute_value))
+			if (gene_name == NULL)
+				gene_name = "blacklist";
+
+			chr_std = chr_std_lookup (blacklist->cs, entry->seqname);
+
+			log_debug ("Index blacklist '%s' at %s:%zu-%zu", gene_name,
+					chr_std, entry->start, entry->end);
+
+			alloc_id = xcalloc (1, sizeof (long));
+			* (long *) alloc_id = ++table_id;
+
+			tree = hash_lookup (blacklist->idx, chr_std);
+
+			if (tree == NULL)
 				{
-					gene_name = gff_attribute_find (entry, "gene_name");
-
-					if (gene_name == NULL)
-						gene_name = "blacklist";
-
-					chr_std = chr_std_lookup (blacklist->cs, entry->seqname);
-
-					log_debug ("Index blacklist '%s' at %s:%zu-%zu", gene_name,
-							chr_std, entry->start, entry->end);
-
-					alloc_id = xcalloc (1, sizeof (long));
-					* (long *) alloc_id = ++table_id;
-
-					tree = hash_lookup (blacklist->idx, chr_std);
-
-					if (tree == NULL)
-						{
-							tree = ibitree_new (xfree);
-							hash_insert (blacklist->idx,
-									xstrdup (chr_std), tree);
-						}
-
-					ibitree_insert (tree, entry->start, entry->end,
-							alloc_id);
-
-					db_insert_blacklist (blacklist->blacklist_stmt,
-							table_id, gene_name, chr_std, entry->start,
-							entry->end);
+					tree = ibitree_new (xfree);
+					hash_insert (blacklist->idx,
+							xstrdup (chr_std), tree);
 				}
-		}
 
-	blacklist->table_id = table_id;
+			ibitree_insert (tree, entry->start, entry->end,
+					alloc_id);
+
+			db_insert_blacklist (blacklist->blacklist_stmt,
+					table_id, gene_name, chr_std, entry->start,
+					entry->end);
+		}
 
 	gff_entry_free (entry);
 	gff_close (gff);
 }
 
-static void
+void
 blacklist_index_dump_from_bed (Blacklist *blacklist, const char *bed_file)
 {
 	assert (blacklist != NULL && bed_file != NULL);
 
-	// Open for reading bed file
 	BedFile *bed = bed_open_for_reading (bed_file);
 	BedEntry *entry = bed_entry_new ();
 
 	IBiTree *tree = NULL;
 
-	long table_id = blacklist->table_id;
+	long table_id = 0;
 	long *alloc_id = NULL;
 
 	const char *chr_std = NULL;
@@ -199,8 +150,6 @@ blacklist_index_dump_from_bed (Blacklist *blacklist, const char *bed_file)
 					table_id, name, chr_std, entry->chrom_start,
 					entry->chrom_end);
 		}
-
-	blacklist->table_id = table_id;
 
 	bed_entry_free (entry);
 	bed_close (bed);
@@ -244,35 +193,4 @@ blacklist_lookup (Blacklist *blacklist, const char *chr,
 		}
 
 	return acm;
-}
-
-static inline int
-is_gff_file (const char *file)
-{
-	regex_t reg;
-	const char regex_str[] = "\\.(gff|gff3|gtf)(\\.gz)*$";
-
-	if (regcomp (&reg, regex_str, REG_EXTENDED|REG_NOSUB) != 0)
-		log_fatal ("Error regcomp for '%s'", regex_str);
-
-	return regexec (&reg, file, 0, (regmatch_t *) NULL, 0) == 0;
-}
-
-void
-blacklist_index_dump (Blacklist *blacklist, const char *file,
-		const char *feature, const char *attribute,
-		const Set *attributes)
-{
-	assert (blacklist != NULL && file != NULL);
-
-	if (is_gff_file (file))
-		{
-			log_info ("Index blacklist entries from GFF/GTF file '%s'", file);
-			blacklist_index_dump_from_gff (blacklist, file, feature, attribute, attributes);
-		}
-	else
-		{
-			log_info ("Index blacklist entries from BED file '%s'", file);
-			blacklist_index_dump_from_bed (blacklist, file);
-		}
 }

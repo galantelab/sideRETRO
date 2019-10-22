@@ -11,6 +11,7 @@
 #include "utils.h"
 #include "wrapper.h"
 #include "set.h"
+#include "gff.h"
 #include "chr.h"
 #include "array.h"
 #include "blacklist.h"
@@ -33,15 +34,16 @@
 #define DEFAULT_SUPPORT               1
 #define DEFAULT_BLACKLIST_REGION      NULL
 #define DEFAULT_GFF_FEATURE           "gene"
-#define DEFAULT_GFF_ATTRIBUTE         "gene_type"
-#define DEFAULT_GFF_ATTRIBUTE_VALUE   "processed_pseudogene"
+#define DEFAULT_GFF_ATTRIBUTE1        "gene_type"
+#define DEFAULT_GFF_ATTRIBUTE_VALUE1  "processed_pseudogene"
+#define DEFAULT_GFF_ATTRIBUTE2        "tag"
+#define DEFAULT_GFF_ATTRIBUTE_VALUE2  "retrogene"
 
 static void
 merge_call (const char *output_dir, const char *prefix, Array *db_files,
 		const char *output_file, int cache_size, int epsilon, int min_pts,
 		Set *blacklist_chr, int distance, int support, const char *blacklist_region,
-		const char *gff_feature, const char *gff_attribute,
-		const Set *gff_attribute_values)
+		const GffFilter *filter)
 {
 	log_trace ("Inside %s", __func__);
 
@@ -117,8 +119,20 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 			log_info ("Index blacklisted regions from file '%s'",
 					blacklist_region);
 
-			blacklist_index_dump (blacklist, blacklist_region, gff_feature,
-					gff_attribute, gff_attribute_values);
+			if (gff_looks_like_gff_file (blacklist_region))
+				{
+					log_info ("Index blacklist entries from GTF/GFF3 file '%s'",
+							blacklist_region);
+					blacklist_index_dump_from_gff (blacklist,
+							blacklist_region, filter);
+				}
+			else
+				{
+					log_info ("Index blacklist entries from BED file '%s'",
+							blacklist_region);
+					blacklist_index_dump_from_bed (blacklist,
+							blacklist_region);
+				}
 
 			// Commit
 			db_end_transaction (db);
@@ -171,7 +185,7 @@ print_usage (FILE *fp)
 		"\n"
 		"Usage: %s merge-call [-h] [-q] [-d] [-l FILE] [-o DIR] [-p STR]\n"
 		"       %*c            [-c INT] [-I] [-e INT] [-m INT] [-b STR]\n"
-		"       %*c            [-a FILE] [[-F STR] [-A KEY=VALUE]]\n"
+		"       %*c            [-B FILE] [[-F STR] [[-H|S] KEY=VALUE]]\n"
 		"       %*c            [-x INT] [-g INT] [-i FILE]\n"
 		"       %*c            <FILE> ...\n"
 		"\n"
@@ -205,20 +219,22 @@ print_usage (FILE *fp)
 		"   -m, --min-pts              DBSCAN: Minimum number of points required to form a\n"
 		"                              dense region [default:\"%d\"]\n"
 		"   -b, --blacklist-chr        Avoid clustering from and to this chromosome. This\n"
-		"                              option may be passed multiple times [default:\"%s\"]\n"
-		"   -a, --blacklist-region     GTF/GFF3/BED blacklisted regions. If the file is in\n"
+		"                              option can be passed multiple times [default:\"%s\"]\n"
+		"   -B, --blacklist-region     GTF/GFF3/BED blacklisted regions. If the file is in\n"
 		"                              GTF/GFF3 format, the user may indicate the 'feature'\n"
 		"                              (third column), the 'attribute' (ninth column) and\n"
 		"                              its values\n"
 		"   -F, --gff-feature          The value of 'feature' (third column) for GTF/GFF3\n"
-		"                              '--blacklist-region' file [default:\"%s\"]\n"
-		"   -A, --gff-attribute        The 'attribute' (ninth column) for GTF/GFF3\n"
-		"                              '--blacklist-region' file. It may be passed in the\n"
-		"                              format key=value, where 'value' is comma separated\n"
-		"                              values (e.g. gene_type=lincRNA,pseudogene,sRNA).\n"
-		"                              Each value will match as regex, so 'pseudogene'\n"
-		"                              can capture IG_C_pseudogene, IG_V_pseudogene etc\n"
-		"                              [default:\"%s=%s\"]\n"
+		"                              file [default:\"%s\"]\n"
+		"   -H, --gff-hard-attribute   The 'attribute' (ninth column) for GTF/GFF3\n"
+		"                              file. It may be passed in the format key=value\n"
+		"                              (e.g. gene_type=pseudogene). Each value will match\n"
+		"                              as regex, so 'pseudogene' can capture IG_C_pseudogene,\n"
+		"                              IG_V_pseudogene etc. This option can be passed multiple\n"
+		"                              times and must be true in all of them\n"
+		"   -S, --gff-soft-attribute   Works as 'gff-hard-attribute'. The difference is\n"
+		"                              if this option is passed multiple times, it needs\n"
+		"                              to be true only once [default:\"%s=%s %s=%s\"]\n"
 		"   -x, --parental-distance    Minimum distance allowed between a cluster and\n"
 		"                              its putative parental gene [default:\"%d\"]\n"
 		"   -g, --genotype-support     Minimum number of reads comming from a given source\n"
@@ -226,8 +242,9 @@ print_usage (FILE *fp)
 		"\n",
 		PACKAGE_STRING, PACKAGE, pkg_len, ' ', pkg_len, ' ', pkg_len, ' ', pkg_len, ' ',
 		DEFAULT_OUTPUT_DIR, DEFAULT_PREFIX, DEFAULT_CACHE_SIZE, DEFAULT_EPS,
-		DEFAULT_MIN_PTS, DEFAULT_BLACKLIST_CHR, DEFAULT_GFF_FEATURE, DEFAULT_GFF_ATTRIBUTE,
-		DEFAULT_GFF_ATTRIBUTE_VALUE, DEFAULT_DISTANCE, DEFAULT_SUPPORT);
+		DEFAULT_MIN_PTS, DEFAULT_BLACKLIST_CHR, DEFAULT_GFF_FEATURE, DEFAULT_GFF_ATTRIBUTE1,
+		DEFAULT_GFF_ATTRIBUTE_VALUE1, DEFAULT_GFF_ATTRIBUTE2, DEFAULT_GFF_ATTRIBUTE_VALUE2,
+		DEFAULT_DISTANCE, DEFAULT_SUPPORT);
 }
 
 static void
@@ -252,25 +269,26 @@ parse_merge_call_command_opt (int argc, char **argv)
 
 	struct option opt[] =
 	{
-		{"help",              no_argument,       0, 'h'},
-		{"quiet",             no_argument,       0, 'q'},
-		{"silent",            no_argument,       0, 'q'},
-		{"debug",             no_argument,       0, 'd'},
-		{"in-place",          no_argument,       0, 'I'},
-		{"log-file",          required_argument, 0, 'l'},
-		{"output-dir",        required_argument, 0, 'o'},
-		{"prefix",            required_argument, 0, 'p'},
-		{"cache-size",        required_argument, 0, 'c'},
-		{"input-file",        required_argument, 0, 'i'},
-		{"epsilon",           required_argument, 0, 'e'},
-		{"min-pts",           required_argument, 0, 'm'},
-		{"parental-distance", required_argument, 0, 'x'},
-		{"genotype-support",  required_argument, 0, 'g'},
-		{"blacklist-chr",     required_argument, 0, 'b'},
-		{"blacklist-region",  required_argument, 0, 'a'},
-		{"gff-feature",       required_argument, 0, 'F'},
-		{"gff-attribute",     required_argument, 0, 'A'},
-		{0,                   0,                 0,  0 }
+		{"help",               no_argument,       0, 'h'},
+		{"quiet",              no_argument,       0, 'q'},
+		{"silent",             no_argument,       0, 'q'},
+		{"debug",              no_argument,       0, 'd'},
+		{"in-place",           no_argument,       0, 'I'},
+		{"log-file",           required_argument, 0, 'l'},
+		{"output-dir",         required_argument, 0, 'o'},
+		{"prefix",             required_argument, 0, 'p'},
+		{"cache-size",         required_argument, 0, 'c'},
+		{"input-file",         required_argument, 0, 'i'},
+		{"epsilon",            required_argument, 0, 'e'},
+		{"min-pts",            required_argument, 0, 'm'},
+		{"parental-distance",  required_argument, 0, 'x'},
+		{"genotype-support",   required_argument, 0, 'g'},
+		{"blacklist-chr",      required_argument, 0, 'b'},
+		{"blacklist-region",   required_argument, 0, 'B'},
+		{"gff-feature",        required_argument, 0, 'F'},
+		{"gff-hard-attribute", required_argument, 0, 'H'},
+		{"gff-soft-attribute", required_argument, 0, 'S'},
+		{0,                    0,                 0,  0 }
 	};
 
 	// Init variables to default values
@@ -283,8 +301,6 @@ parse_merge_call_command_opt (int argc, char **argv)
 	int         distance         = DEFAULT_DISTANCE;
 	int         support          = DEFAULT_SUPPORT;
 	const char *blacklist_region = DEFAULT_BLACKLIST_REGION;
-	const char *gff_feature      = DEFAULT_GFF_FEATURE;
-	const char *gff_attribute    = DEFAULT_GFF_ATTRIBUTE;
 	const char *output_dir       = DEFAULT_OUTPUT_DIR;
 	const char *prefix           = DEFAULT_PREFIX;
 	const char *log_file         = DEFAULT_LOG_FILE;
@@ -294,17 +310,17 @@ parse_merge_call_command_opt (int argc, char **argv)
 	char *output_file = NULL;
 	int index_ = 0;
 
+	Array *db_files = array_new (xfree);
 	ChrStd *cs = chr_std_new ();
 	Set *blacklist_chr = set_new_full (str_hash, str_equal, NULL);
-	Array *db_files = array_new (xfree);
-	Set *gff_attribute_values = NULL;
+	GffFilter *filter = gff_filter_new ();
 	Logger *logger = NULL;
 
 	int rc = EXIT_SUCCESS;
 	int option_index = 0;
 	int c, i;
 
-	while ((c = getopt_long (argc, argv, "hqdIl:o:p:c:e:m:b:a:F:A:x:g:i:", opt, &option_index)) >= 0)
+	while ((c = getopt_long (argc, argv, "hqdIl:o:p:c:e:m:b:B:F:H:S:x:g:i:", opt, &option_index)) >= 0)
 		{
 			switch (c)
 				{
@@ -375,44 +391,58 @@ parse_merge_call_command_opt (int argc, char **argv)
 						support = atoi (optarg);
 						break;
 					}
-				case 'a':
+				case 'B':
 					{
 						blacklist_region = optarg;
 						break;
 					}
 				case 'F':
 					{
-						gff_feature = optarg;
+						gff_filter_insert_feature (filter, optarg);
 						break;
 					}
-				case 'A':
+				case 'H':
 					{
-						char *scratch1 = NULL;
-						char *scratch2 = NULL;
-						char *token = NULL;
-						char *subtoken = NULL;
+						char *scratch = NULL;
 
-						token = strtok_r (optarg, "=", &scratch1);
-						gff_attribute = token == NULL
-							? DEFAULT_GFF_ATTRIBUTE
-							: token;
+						const char *key = strtok_r (optarg,
+								"=", &scratch);
+						const char *value = strtok_r (NULL,
+								"=", &scratch);
 
-						token = strtok_r (NULL, "=", &scratch1);
-						if (token != NULL)
+						if (key == NULL || value == NULL)
 							{
-								set_free (gff_attribute_values);
-								gff_attribute_values = set_new_full (str_hash,
-										str_equal, NULL);
-
-								subtoken = strtok_r (token, ",", &scratch2);
-
-								while (subtoken != NULL)
-									{
-										set_insert (gff_attribute_values, subtoken);
-										subtoken = strtok_r (NULL, ",", &scratch2);
-									}
+								fprintf (stderr,
+										"%s: --gff-hard-attribute KEY=VALUE: "
+										"Missing complete pair\n", PACKAGE);
+								print_try_help (stderr);
+								rc = EXIT_FAILURE; goto Exit;
 							}
 
+						gff_filter_insert_hard_attribute (filter,
+								key, value);
+						break;
+					}
+				case 'S':
+					{
+						char *scratch = NULL;
+
+						const char *key = strtok_r (optarg,
+								"=", &scratch);
+						const char *value = strtok_r (NULL,
+								"=", &scratch);
+
+						if (key == NULL || value == NULL)
+							{
+								fprintf (stderr,
+										"%s: --gff-soft-attribute KEY=VALUE: "
+										"Missing complete pair\n", PACKAGE);
+								print_try_help (stderr);
+								rc = EXIT_FAILURE; goto Exit;
+							}
+
+						gff_filter_insert_soft_attribute (filter,
+								key, value);
 						break;
 					}
 				case 'i':
@@ -508,15 +538,19 @@ parse_merge_call_command_opt (int argc, char **argv)
 		set_insert (blacklist_chr,
 				chr_std_lookup (cs, DEFAULT_BLACKLIST_CHR));
 
-	// If gff_attribute_values was not set
-	if (gff_attribute_values == NULL)
-		gff_attribute_values = set_new_full (str_hash,
-				str_equal, NULL);
+	// If gff_feature was not set
+	if (filter->feature == NULL)
+		gff_filter_insert_feature (filter, DEFAULT_GFF_FEATURE);
 
-	// Or it exists and has no values
-	if (set_size (gff_attribute_values) == 0)
-		set_insert (gff_attribute_values,
-				DEFAULT_GFF_ATTRIBUTE_VALUE);
+	// If gff_attribute_values was not set
+	if (hash_size (filter->hard_attributes) == 0
+			&& hash_size (filter->soft_attributes) == 0)
+		{
+			gff_filter_insert_soft_attribute (filter, DEFAULT_GFF_ATTRIBUTE1,
+					DEFAULT_GFF_ATTRIBUTE_VALUE1);
+			gff_filter_insert_soft_attribute (filter, DEFAULT_GFF_ATTRIBUTE2,
+					DEFAULT_GFF_ATTRIBUTE_VALUE2);
+		}
 
 	// Copy the name of possible output file, if the
 	// user chose --in-place
@@ -550,14 +584,13 @@ parse_merge_call_command_opt (int argc, char **argv)
 	// RUN FOOLS
 	merge_call (output_dir, prefix, db_files, output_file,
 			cache_size, epsilon, min_pts, blacklist_chr,
-			distance, support, blacklist_region, gff_feature,
-			gff_attribute, gff_attribute_values);
+			distance, support, blacklist_region, filter);
 
 Exit:
 	logger_free (logger);
 	chr_std_free (cs);
 	set_free (blacklist_chr);
-	set_free (gff_attribute_values);
+	gff_filter_free (filter);
 	array_free (db_files, 1);
 	xfree (output_file);
 	return rc;
