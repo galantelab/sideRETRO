@@ -33,6 +33,7 @@
 #define DEFAULT_DISTANCE              10000
 #define DEFAULT_SUPPORT               1
 #define DEFAULT_BLACKLIST_REGION      NULL
+#define DEFAULT_BLACKLIST_PADDING     0
 #define DEFAULT_GFF_FEATURE           "gene"
 #define DEFAULT_GFF_ATTRIBUTE1        "gene_type"
 #define DEFAULT_GFF_ATTRIBUTE_VALUE1  "processed_pseudogene"
@@ -43,7 +44,7 @@ static void
 merge_call (const char *output_dir, const char *prefix, Array *db_files,
 		const char *output_file, int cache_size, int epsilon, int min_pts,
 		Set *blacklist_chr, int distance, int support, const char *blacklist_region,
-		const GffFilter *filter)
+		int padding, const GffFilter *filter)
 {
 	log_trace ("Inside %s", __func__);
 
@@ -116,9 +117,6 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 			// Begin transaction to speed up
 			db_begin_transaction (db);
 
-			log_info ("Index blacklisted regions from file '%s'",
-					blacklist_region);
-
 			if (gff_looks_like_gff_file (blacklist_region))
 				{
 					log_info ("Index blacklist entries from GTF/GFF3 file '%s'",
@@ -159,7 +157,7 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 	// RUN
 	log_info ("Run clustering step for '%s'", db_file);
 	cluster (cluster_stmt, clustering_stmt, epsilon, min_pts,
-			distance, support, blacklist_chr, blacklist);
+			distance, support, blacklist_chr, blacklist, padding);
 
 	// Commit
 	db_end_transaction (db);
@@ -186,7 +184,7 @@ print_usage (FILE *fp)
 		"Usage: %s merge-call [-h] [-q] [-d] [-l FILE] [-o DIR] [-p STR]\n"
 		"       %*c            [-c INT] [-I] [-e INT] [-m INT] [-b STR]\n"
 		"       %*c            [-B FILE] [[-F STR] [[-H|S] KEY=VALUE]]\n"
-		"       %*c            [-x INT] [-g INT] [-i FILE]\n"
+		"       %*c            [-P INT] [-x INT] [-g INT] [-i FILE]\n"
 		"       %*c            <FILE> ...\n"
 		"\n"
 		"Arguments:\n"
@@ -224,6 +222,8 @@ print_usage (FILE *fp)
 		"                              GTF/GFF3 format, the user may indicate the 'feature'\n"
 		"                              (third column), the 'attribute' (ninth column) and\n"
 		"                              its values\n"
+		"   -P, --blacklist-padding    Increase the blacklisted regions ranges (left and right)\n"
+		"                              by N bases [default:\"%d\"]\n"
 		"   -F, --gff-feature          The value of 'feature' (third column) for GTF/GFF3\n"
 		"                              file [default:\"%s\"]\n"
 		"   -H, --gff-hard-attribute   The 'attribute' (ninth column) for GTF/GFF3\n"
@@ -234,15 +234,16 @@ print_usage (FILE *fp)
 		"                              times and must be true in all of them\n"
 		"   -S, --gff-soft-attribute   Works as 'gff-hard-attribute'. The difference is\n"
 		"                              if this option is passed multiple times, it needs\n"
-		"                              to be true only once [default:\"%s=%s %s=%s\"]\n"
+		"                              to be true only once\n"
+		"                              [default:\"%s=%s %s=%s\"]\n"
 		"   -x, --parental-distance    Minimum distance allowed between a cluster and\n"
 		"                              its putative parental gene [default:\"%d\"]\n"
 		"   -g, --genotype-support     Minimum number of reads comming from a given source\n"
 		"                              (BAM) within a cluster [default:\"%d\"]\n"
 		"\n",
 		PACKAGE_STRING, PACKAGE, pkg_len, ' ', pkg_len, ' ', pkg_len, ' ', pkg_len, ' ',
-		DEFAULT_OUTPUT_DIR, DEFAULT_PREFIX, DEFAULT_CACHE_SIZE, DEFAULT_EPS,
-		DEFAULT_MIN_PTS, DEFAULT_BLACKLIST_CHR, DEFAULT_GFF_FEATURE, DEFAULT_GFF_ATTRIBUTE1,
+		DEFAULT_OUTPUT_DIR, DEFAULT_PREFIX, DEFAULT_CACHE_SIZE, DEFAULT_EPS, DEFAULT_MIN_PTS,
+		DEFAULT_BLACKLIST_CHR, DEFAULT_BLACKLIST_PADDING, DEFAULT_GFF_FEATURE, DEFAULT_GFF_ATTRIBUTE1,
 		DEFAULT_GFF_ATTRIBUTE_VALUE1, DEFAULT_GFF_ATTRIBUTE2, DEFAULT_GFF_ATTRIBUTE_VALUE2,
 		DEFAULT_DISTANCE, DEFAULT_SUPPORT);
 }
@@ -285,6 +286,7 @@ parse_merge_call_command_opt (int argc, char **argv)
 		{"genotype-support",   required_argument, 0, 'g'},
 		{"blacklist-chr",      required_argument, 0, 'b'},
 		{"blacklist-region",   required_argument, 0, 'B'},
+		{"blacklist-padding",  required_argument, 0, 'P'},
 		{"gff-feature",        required_argument, 0, 'F'},
 		{"gff-hard-attribute", required_argument, 0, 'H'},
 		{"gff-soft-attribute", required_argument, 0, 'S'},
@@ -300,6 +302,7 @@ parse_merge_call_command_opt (int argc, char **argv)
 	int         min_pts          = DEFAULT_MIN_PTS;
 	int         distance         = DEFAULT_DISTANCE;
 	int         support          = DEFAULT_SUPPORT;
+	int         padding          = DEFAULT_BLACKLIST_PADDING;
 	const char *blacklist_region = DEFAULT_BLACKLIST_REGION;
 	const char *output_dir       = DEFAULT_OUTPUT_DIR;
 	const char *prefix           = DEFAULT_PREFIX;
@@ -320,7 +323,7 @@ parse_merge_call_command_opt (int argc, char **argv)
 	int option_index = 0;
 	int c, i;
 
-	while ((c = getopt_long (argc, argv, "hqdIl:o:p:c:e:m:b:B:F:H:S:x:g:i:", opt, &option_index)) >= 0)
+	while ((c = getopt_long (argc, argv, "hqdIl:o:p:c:e:m:b:B:P:F:H:S:x:g:i:", opt, &option_index)) >= 0)
 		{
 			switch (c)
 				{
@@ -394,6 +397,11 @@ parse_merge_call_command_opt (int argc, char **argv)
 				case 'B':
 					{
 						blacklist_region = optarg;
+						break;
+					}
+				case 'P':
+					{
+						padding = atoi (optarg);
 						break;
 					}
 				case 'F':
@@ -530,6 +538,12 @@ parse_merge_call_command_opt (int argc, char **argv)
 			rc = EXIT_FAILURE; goto Exit;
 		}
 
+	if (padding < 0)
+		{
+			fprintf (stderr, "%s: --blacklist-padding must be greater or equal to 0\n", PACKAGE);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
 	/*Final settings*/
 
 	// Add default blacklisted chr if none
@@ -584,7 +598,8 @@ parse_merge_call_command_opt (int argc, char **argv)
 	// RUN FOOLS
 	merge_call (output_dir, prefix, db_files, output_file,
 			cache_size, epsilon, min_pts, blacklist_chr,
-			distance, support, blacklist_region, filter);
+			distance, support, blacklist_region, padding,
+			filter);
 
 Exit:
 	logger_free (logger);

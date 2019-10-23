@@ -105,6 +105,7 @@ test_cluster (int (*true_positive)[QUERY_COLUMNS], int support)
 	int eps = 500;
 	int min_pts = 3;
 	int distance = 10000;
+	int padding = 0;
 	int i = 0;
 	int j = 0;
 
@@ -123,8 +124,8 @@ test_cluster (int (*true_positive)[QUERY_COLUMNS], int support)
 	populate_db (db);
 
 	// RUN
-	cluster (cluster_stmt, clustering_stmt, eps, min_pts,
-			distance, support, blacklist_chr, blacklist);
+	cluster (cluster_stmt, clustering_stmt, eps, min_pts, distance,
+			support, blacklist_chr, blacklist, padding);
 
 	// Let's get the clustering table values
 	search_stmt = prepare_query_stmt (db);

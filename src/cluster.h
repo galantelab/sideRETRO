@@ -18,7 +18,7 @@ typedef enum _ClusterFilter ClusterFilter;
 
 int cluster (sqlite3_stmt *cluster_stmt, sqlite3_stmt *clustering_stmt,
 		const long eps, const int min_pts, const int distance,
-		const int support, Set *blacklist_chr,
-		Blacklist *blacklist);
+		const int support, Set *blacklist_chr, Blacklist *blacklist,
+		const int padding);
 
 #endif /* cluster.h */

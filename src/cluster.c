@@ -512,7 +512,7 @@ prepare_filter_stmt (sqlite3 *db)
 static int
 dump_and_filter_clusters (sqlite3_stmt *cluster_stmt, const int distance,
 		const int support, Set *blacklist_chr, Blacklist *blacklist,
-		Hash *cluster_h)
+		const int padding, Hash *cluster_h)
 {
 	sqlite3_stmt *filter_query = NULL;
 	ClusterFilter *filter = NULL;
@@ -578,9 +578,8 @@ dump_and_filter_clusters (sqlite3_stmt *cluster_stmt, const int distance,
 				*filter |= CLUSTER_FILTER_DIST;
 
 			// Region filter
-			// Padding = 0
 			acm = blacklist_lookup (blacklist, cluster_chr, cluster_start,
-					cluster_end, 0, cluster_id, cluster_sid);
+					cluster_end, padding, cluster_id, cluster_sid);
 
 			if (!acm)
 				*filter |= CLUSTER_FILTER_REGION;
@@ -604,8 +603,8 @@ dump_and_filter_clusters (sqlite3_stmt *cluster_stmt, const int distance,
 int
 cluster (sqlite3_stmt *cluster_stmt, sqlite3_stmt *clustering_stmt,
 		const long eps, const int min_pts, const int distance,
-		const int support, Set *blacklist_chr,
-		Blacklist *blacklist)
+		const int support, Set *blacklist_chr, Blacklist *blacklist,
+		const int padding)
 {
 	log_trace ("Inside %s", __func__);
 	assert (cluster_stmt != NULL
@@ -613,6 +612,7 @@ cluster (sqlite3_stmt *cluster_stmt, sqlite3_stmt *clustering_stmt,
 			&& min_pts > 2
 			&& distance >= 0
 			&& support >= 0
+			&& padding >= 0
 			&& blacklist != NULL);
 
 	Hash *cluster_h = NULL;
@@ -660,7 +660,7 @@ cluster (sqlite3_stmt *cluster_stmt, sqlite3_stmt *clustering_stmt,
 
 	num_clusters = dump_and_filter_clusters (cluster_stmt,
 			distance, support, blacklist_chr,
-			blacklist, cluster_h);
+			blacklist, padding, cluster_h);
 
 	if (num_clusters)
 		log_info ("%d clusters have been passed all controling filters",
