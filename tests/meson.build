@@ -4,6 +4,7 @@ test_sources = files(
   'check_sider_array.c',
   'check_sider_bed.c',
   'check_sider_bitree.c',
+  'check_sider_blacklist.c',
   'check_sider_bwa.c',
   'check_sider_chr.c',
   'check_sider_cluster.c',
