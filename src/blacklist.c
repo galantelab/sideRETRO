@@ -52,10 +52,27 @@ blacklist_free (Blacklist *blacklist)
 	xfree (blacklist);
 }
 
+static void
+clean_blacklist_tables (sqlite3 *db)
+{
+	// Delete all values from
+	// previous runs
+	const char sql[] =
+		"DELETE FROM overlapping_blacklist;\n"
+		"DELETE FROM blacklist;";
+
+	log_debug ("Clean tables:\n%s", sql);
+	db_exec (db, sql);
+}
+
 void
 blacklist_index_dump_from_gff (Blacklist *blacklist, const char *gff_file, const GffFilter *filter)
 {
 	assert (blacklist != NULL && gff_file != NULL && filter != NULL);
+
+	log_debug ("Clean blacklist tables");
+	clean_blacklist_tables (
+			sqlite3_db_handle (blacklist->blacklist_stmt));
 
 	GffFile *gff = gff_open_for_reading (gff_file);
 	GffEntry *entry = gff_entry_new ();
@@ -108,6 +125,10 @@ void
 blacklist_index_dump_from_bed (Blacklist *blacklist, const char *bed_file)
 {
 	assert (blacklist != NULL && bed_file != NULL);
+
+	log_debug ("Clean blacklist tables");
+	clean_blacklist_tables (
+			sqlite3_db_handle (blacklist->blacklist_stmt));
 
 	BedFile *bed = bed_open_for_reading (bed_file);
 	BedEntry *entry = bed_entry_new ();

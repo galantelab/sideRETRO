@@ -92,6 +92,19 @@ cluster_filter_get (Hash *h, const int id, const int sid)
 }
 
 static void
+clean_clustering_tables (sqlite3 *db)
+{
+	// Delete all values from
+	// previous runs
+	const char sql[] =
+		"DELETE FROM clustering;\n"
+		"DELETE FROM cluster;";
+
+	log_debug ("Clean tables:\n%s", sql);
+	db_exec (db, sql);
+}
+
+static void
 index_alignment_qname (sqlite3 *db)
 {
 	// Index qname for speedup queries
@@ -619,6 +632,10 @@ cluster (sqlite3_stmt *cluster_stmt, sqlite3_stmt *clustering_stmt,
 
 	// cluster_id => sid => filter relation
 	cluster_h = cluster_filter_new ();
+
+	log_debug ("Clean clustering tables");
+	clean_clustering_tables (
+			sqlite3_db_handle (cluster_stmt));
 
 	log_info ("Index abnormal alignment qnames");
 	index_alignment_qname (
