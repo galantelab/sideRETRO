@@ -1,3 +1,36 @@
+Version 0.10.0
+
+* Add reclustering step in order to filtering
+  low number of reads comming from a given
+  source (BAM). When those reads are removed,
+  may occur that the cluster become rarefied,
+  and therefore, invalid according to DBSCAN
+  constraints.
+
+* Add processing text interface to read 'BED'
+  file format.
+
+* Add blacklist interface and tables blacklist,
+  overlapping_blacklist. The interface was
+  inspired in 'exon.c' way. Also add more
+  command-line options for indexing blacklisted
+  regions from GTF/GFF3/BED files.
+
+* Add gff filtering capabilities. The user must
+  initiate a type GffFilter with the feature_type
+  to be filtered (e.g. gene, transcript, exon)
+  and may add attributes aswell (e.g.
+  gene_type=protein_coding). The attributes are
+  hard and soft - which mean, hard attributes
+  must all match the pattern (AND); soft
+  attributes, at least, must match one
+  pattern (OR).
+
+* Cluster filter: NONE, CHR, DIST, REGION, SUPPORT.
+  The philosophy now is to keep all clusters and
+  subclusters and add a new column to handle
+  the filtering steps.
+
 Version 0.9.0
 
 * Add options '--blacklist-chr' and

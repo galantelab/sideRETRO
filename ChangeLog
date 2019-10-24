@@ -1,3 +1,114 @@
+2019-10-24 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* Version 0.10.0
+
+	* FIX: cluster.c (cluster): Clean tables before run
+
+	Clean clustering tables if a db exists in mc step
+
+	* CHANGE: process_sample.c: --max-base-frac -> freq
+
+	* FIX: cluster.c (prepare_filter_support_stmt): sid
+
+	Fix query statement by adding cluster.sid to grouping by
+
+	* CHANGE: merge_call.c (--gff-feature): -F -> -T
+
+	* ADD: gff.h (gff_filter_[hard|soft]_attribute_size)
+
+2019-10-23 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: cluster.c, merge_call.c: --blacklist-padding
+
+	Option to increase the blacklisted regions (left and right) by N bases
+
+2019-10-22 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: check_sider_blacklist.c
+
+	* ADD: exon.c (exon_tree_index_dump): GffFilter
+
+	* FIX: cluster.c (prepare_query_stmt): rlen == 0
+
+	* ADD: blacklist.c, merge_call.c: GffFilter
+
+	* ADD: gff.c (gff_filter_insert_feature)
+
+2019-10-21 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* FIX: abnormal.c (dump_alignment): rlen == 0
+
+	* ADD: gff.c (gff_looks_like_gff_file): GFF filename
+
+	Test if the filename seems to belong to a GFF/GFF3/GTF file
+
+	* FIX: db.c (db_create_tables): Composite PK
+
+	Add cluster_sid references cluster(sid) to foreign keys and primary keys
+	into the table 'cluster_merging'
+
+2019-10-20 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: cluster.c, db.c, blacklist.c: Filter column
+
+	Add cluster filter: CHR, DIST, REGION, SUPPORT, NONE. The philosophy now
+	is to keep all clusters and subclusters and add a new column to handle
+	the filtering steps
+
+2019-10-15 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: gff.c (gff_filter_*)
+
+	Add gff filtering capabilities. The user must initiate a type GffFilter
+	with the feature_type to be filtered (e.g. gene, transcript, exon) and
+	may add attributes aswell (e.g. gene_type=protein_coding). The
+	attributes are hard and soft - which mean, hard attributes must all
+	match the pattern (AND); soft attributes, at least, must match one
+	pattern (OR).
+
+	Increase the 'gff.c' testing coverage and change the function name
+	'gff_open' to 'gff_open_for_reading'
+
+2019-10-14 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: blacklist.c
+
+	Add blacklist interface and tables blacklist, overlapping_blacklist. The
+	interface was inspired in 'exon.c' way. Also add more command-line
+	options for indexing blacklisted regions from GTF/GFF3/BED files
+
+2019-10-12 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: bed.c: Handle BED file format
+
+2019-10-10 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: cluster.c (reclustering): genotype support
+
+	Add reclustering step in order to filtering low number of reads comming
+	from a given source (BAM). When those reads are removed, may occur that
+	the cluster become rarefied, and therefore, invalid according to DBSCAN
+	constraints.
+
+	The option --genotype-support has been added to control the low number
+	of reads comming from a source
+
+2019-10-07 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: log.h (__FILENAME__): Macro for filename
+
+	* CHANGE: db.c, cluster.c (cluster table)
+
+	Move gene_name from clustering to cluster and add the window start and
+	end information
+
+2019-10-06 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* CHANGE: db.c (schema table)
+
+	Change DB_SCHEMA_VERSION (float) by two integer values (%d.%d)
+	DB_SCHEMA_MAJOR_VERSION and DB_SCHEMA_MINOR_VERSION
+
 2019-10-05 Thiago L. A. Miller <tmiller@mochsl.org.br>
 
 	* Version 0.9.0
