@@ -183,7 +183,7 @@ print_usage (FILE *fp)
 		"\n"
 		"Usage: %s merge-call [-h] [-q] [-d] [-l FILE] [-o DIR] [-p STR]\n"
 		"       %*c            [-c INT] [-I] [-e INT] [-m INT] [-b STR]\n"
-		"       %*c            [-B FILE] [[-F STR] [[-H|S] KEY=VALUE]]\n"
+		"       %*c            [-B FILE] [[-T STR] [[-H|S] KEY=VALUE]]\n"
 		"       %*c            [-P INT] [-x INT] [-g INT] [-i FILE]\n"
 		"       %*c            <FILE> ...\n"
 		"\n"
@@ -224,7 +224,7 @@ print_usage (FILE *fp)
 		"                              its values\n"
 		"   -P, --blacklist-padding    Increase the blacklisted regions ranges (left and right)\n"
 		"                              by N bases [default:\"%d\"]\n"
-		"   -F, --gff-feature          The value of 'feature' (third column) for GTF/GFF3\n"
+		"   -T, --gff-feature          The value of 'feature' (third column) for GTF/GFF3\n"
 		"                              file [default:\"%s\"]\n"
 		"   -H, --gff-hard-attribute   The 'attribute' (ninth column) for GTF/GFF3\n"
 		"                              file. It may be passed in the format key=value\n"
@@ -287,7 +287,7 @@ parse_merge_call_command_opt (int argc, char **argv)
 		{"blacklist-chr",      required_argument, 0, 'b'},
 		{"blacklist-region",   required_argument, 0, 'B'},
 		{"blacklist-padding",  required_argument, 0, 'P'},
-		{"gff-feature",        required_argument, 0, 'F'},
+		{"gff-feature",        required_argument, 0, 'T'},
 		{"gff-hard-attribute", required_argument, 0, 'H'},
 		{"gff-soft-attribute", required_argument, 0, 'S'},
 		{0,                    0,                 0,  0 }
@@ -323,7 +323,7 @@ parse_merge_call_command_opt (int argc, char **argv)
 	int option_index = 0;
 	int c, i;
 
-	while ((c = getopt_long (argc, argv, "hqdIl:o:p:c:e:m:b:B:P:F:H:S:x:g:i:", opt, &option_index)) >= 0)
+	while ((c = getopt_long (argc, argv, "hqdIl:o:p:c:e:m:b:B:P:T:H:S:x:g:i:", opt, &option_index)) >= 0)
 		{
 			switch (c)
 				{
@@ -404,7 +404,7 @@ parse_merge_call_command_opt (int argc, char **argv)
 						padding = atoi (optarg);
 						break;
 					}
-				case 'F':
+				case 'T':
 					{
 						gff_filter_insert_feature (filter, optarg);
 						break;
@@ -557,8 +557,8 @@ parse_merge_call_command_opt (int argc, char **argv)
 		gff_filter_insert_feature (filter, DEFAULT_GFF_FEATURE);
 
 	// If gff_attribute_values was not set
-	if (hash_size (filter->hard_attributes) == 0
-			&& hash_size (filter->soft_attributes) == 0)
+	if (gff_filter_hard_attribute_size (filter) == 0
+			&& gff_filter_soft_attribute_size (filter) == 0)
 		{
 			gff_filter_insert_soft_attribute (filter, DEFAULT_GFF_ATTRIBUTE1,
 					DEFAULT_GFF_ATTRIBUTE_VALUE1);
