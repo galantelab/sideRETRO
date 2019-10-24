@@ -321,16 +321,16 @@ prepare_filter_support_stmt (sqlite3 *db,
 	// to the genotype support number
 	const char sql[] =
 		"WITH\n"
-		"	filter (cid, sid) AS (\n"
-		"		SELECT cluster_id, source_id\n"
+		"	filter AS (\n"
+		"		SELECT cluster_id, cluster_sid, source_id\n"
 		"		FROM clustering AS c\n"
 		"		INNER JOIN alignment AS a\n"
 		"			ON a.id = c.alignment_id\n"
-		"		GROUP BY cluster_id, source_id\n"
+		"		GROUP BY cluster_id, cluster_sid, source_id\n"
 		"		HAVING COUNT(*) >= $SUPPORT\n"
 		")\n"
-		"SELECT cluster_id,\n"
-		"	cluster_sid,\n"
+		"SELECT c.cluster_id,\n"
+		"	c.cluster_sid,\n"
 		"	alignment_id,\n"
 		"	pos,\n"
 		"	CASE\n"
@@ -343,8 +343,7 @@ prepare_filter_support_stmt (sqlite3 *db,
 		"INNER JOIN alignment AS a\n"
 		"	ON c.alignment_id = a.id\n"
 		"INNER JOIN filter AS f\n"
-		"	ON f.cid = c.cluster_id\n"
-		"WHERE a.source_id = f.sid";
+		"	USING (cluster_id, cluster_sid, source_id)";
 
 	log_debug ("Clustering query schema:\n%s", sql);
 	stmt = db_prepare (db, sql);
