@@ -33,14 +33,14 @@
 #define DEFAULT_GFF_FILE        NULL
 #define DEFAULT_INPUT_FILE      NULL
 #define DEFAULT_PHRED_QUALITY   8
-#define DEFAULT_MAX_BASE_FRAC   0.75
+#define DEFAULT_MAX_BASE_FREQ   0.75
 
 static void
 process_sample (const char *output_dir, const char *prefix,
 		const Array *sam_files, const char *gff_file,
 		int threads, int cache_size, int sorted,
 		int phred_quality, int max_distance,
-		float max_base_frac, float exon_frac,
+		float max_base_freq, float exon_frac,
 		float alignment_frac, int either)
 {
 	log_trace ("Inside %s", __func__);
@@ -135,7 +135,7 @@ process_sample (const char *output_dir, const char *prefix,
 				.queryname_sorted = sorted,
 				.max_distance     = max_distance,
 				.phred_quality    = phred_quality,
-				.max_base_frac    = max_base_frac
+				.max_base_freq    = max_base_freq
 			};
 
 			log_debug ("Dump source entry '%s'", sam_file);
@@ -213,7 +213,7 @@ print_usage (FILE *fp)
 		"                           [default:\"%d\"]\n"
 		"   -m, --max-distance      Maximum distance allowed between paired-end reads\n"
 		"                           [default:\"%d\"]\n"
-		"   -M, --max-base-frac     Maximum base frequency fraction allowed\n"
+		"   -M, --max-base-freq     Maximum base frequency fraction allowed\n"
 		"                           [default:\"%.2f\"]\n"
 		"   -f, --exon-frac         Minimum overlap required as a fraction of exon\n"
 		"                           [default:\"%.0e\"; 1 base]\n"
@@ -228,7 +228,7 @@ print_usage (FILE *fp)
 		"\n",
 		PACKAGE_STRING, PACKAGE, pkg_len, ' ', pkg_len, ' ', pkg_len, ' ', pkg_len, ' ',
 		DEFAULT_OUTPUT_DIR, DEFAULT_PREFIX, DEFAULT_THREADS, DEFAULT_CACHE_SIZE,
-		DEFAULT_PHRED_QUALITY, DEFAULT_MAX_DISTANCE, DEFAULT_MAX_BASE_FRAC,
+		DEFAULT_PHRED_QUALITY, DEFAULT_MAX_DISTANCE, DEFAULT_MAX_BASE_FREQ,
 		DEFAULT_EXON_FRAC, DEFAULT_ALIGNMENT_FRAC);
 }
 
@@ -265,7 +265,7 @@ parse_process_sample_command_opt (int argc, char **argv)
 		{"threads",         required_argument, 0, 't'},
 		{"phred-quality",   required_argument, 0, 'Q'},
 		{"max-distance",    required_argument, 0, 'm'},
-		{"max-base-frac",   required_argument, 0, 'M'},
+		{"max-base-freq",   required_argument, 0, 'M'},
 		{"cache-size",      required_argument, 0, 'c'},
 		{"sorted",          no_argument,       0, 's'},
 		{"exon-frac",       required_argument, 0, 'f'},
@@ -283,7 +283,7 @@ parse_process_sample_command_opt (int argc, char **argv)
 	int         sorted         = DEFAULT_SORTED;
 	int         phred_quality  = DEFAULT_PHRED_QUALITY;
 	int         max_distance   = DEFAULT_MAX_DISTANCE;
-	float       max_base_frac  = DEFAULT_MAX_BASE_FRAC;
+	float       max_base_freq  = DEFAULT_MAX_BASE_FREQ;
 	int         cache_size     = DEFAULT_CACHE_SIZE;
 	int         either         = DEFAULT_EITHER;
 	int         reciprocal     = DEFAULT_RECIPROCAL;
@@ -365,7 +365,7 @@ parse_process_sample_command_opt (int argc, char **argv)
 					}
 				case 'M':
 					{
-						max_base_frac = atof (optarg);
+						max_base_freq = atof (optarg);
 						break;
 					}
 				case 's':
@@ -508,7 +508,7 @@ parse_process_sample_command_opt (int argc, char **argv)
 			rc = EXIT_FAILURE; goto Exit;
 		}
 
-	if (max_base_frac <= 0.25 || max_base_frac > 1)
+	if (max_base_freq <= 0.25 || max_base_freq > 1)
 		{
 			fprintf (stderr, "%s: --max-base-frac must be in the range of ]0.25, 1]\n", PACKAGE);
 			rc = EXIT_FAILURE; goto Exit;
@@ -544,7 +544,7 @@ parse_process_sample_command_opt (int argc, char **argv)
 	* RUN FOOLS
 	*/
 	process_sample (output_dir, prefix, sam_files, gff_file, threads,
-			cache_size, sorted, phred_quality, max_distance, max_base_frac,
+			cache_size, sorted, phred_quality, max_distance, max_base_freq,
 			exon_frac, alignment_frac, either);
 
 Exit:
