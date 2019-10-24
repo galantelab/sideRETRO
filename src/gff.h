@@ -76,5 +76,7 @@ void         gff_filter_insert_soft_attribute   (GffFilter *filter, const char *
 int          gff_read_filtered                  (GffFile *gff, GffEntry *entry, const GffFilter *filter);
 
 #define gff_attribute_get(entry,i) (&(entry)->attributes[(i)])
+#define gff_filter_hard_attribute_size(filter) (hash_size ((filter)->hard_attributes))
+#define gff_filter_soft_attribute_size(filter) (hash_size ((filter)->soft_attributes))
 
 #endif /* gff.h */
