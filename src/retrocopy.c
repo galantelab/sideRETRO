@@ -81,6 +81,19 @@ cluster_entry_free (ClusterEntry *c)
 	xfree (c);
 }
 
+static void
+clean_retrocopy_tables (sqlite3 *db)
+{
+	// Delete all values from
+	// previous runs
+	const char sql[] =
+		"DELETE FROM cluster_merging;\n"
+		"DELETE FROM retrocopy;";
+
+	log_debug ("Clean tables:\n%s", sql);
+	db_exec (db, sql);
+}
+
 static sqlite3_stmt *
 prepare_cluster_query_stmt (sqlite3 *db, const int filter)
 {
@@ -691,12 +704,17 @@ retrocopy (sqlite3_stmt *retrocopy_stmt,
 	rtc_h = hash_new_full (int_hash, int_equal,
 			xfree, xfree);
 
+	log_debug ("Clean retrocopy tables");
+	clean_retrocopy_tables (
+			sqlite3_db_handle (retrocopy_stmt));
+
 	log_info ("Analise and merge clusters into retrocopies");
 	merge_cluster (cluster_merging_stmt, filter, rtc_h);
 
 	log_info ("Calculate retrocopies orientation");
 	calculate_orientation (
-			sqlite3_db_handle (retrocopy_stmt), rtc_h);
+			sqlite3_db_handle (retrocopy_stmt),
+			rtc_h);
 
 	log_info ("Annotate retrocopies");
 	annotate_retrocopy (retrocopy_stmt, rtc_h);
