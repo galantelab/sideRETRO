@@ -81,7 +81,7 @@ thread_dep = dependency('threads')
 zlib_dep = dependency('zlib', fallback : ['zlib', 'zlib_dep'])
 
 # SQLite3
-sqlite_dep = dependency('sqlite3', version : '>= 3.22.0', fallback : ['sqlite', 'sqlite_dep'])
+sqlite_dep = dependency('sqlite3', version : '>= 3.28.0', fallback : ['sqlite', 'sqlite_dep'])
 
 # HTSLib
 htslib_dep = dependency('htslib', version : '>= 1.9', fallback : ['htslib', 'htslib_dep'])
