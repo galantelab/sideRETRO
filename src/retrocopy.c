@@ -9,10 +9,14 @@
 #include "hash.h"
 #include "log.h"
 #include "db.h"
+#include "abnormal.h"
 #include "cluster.h"
+#include "correlation.h"
 #include "retrocopy.h"
 
 #define MAX_DIST 3
+#define BLOCK_SIZE 64
+#define SEED 17
 
 struct _ClusterEntry
 {
@@ -32,6 +36,15 @@ struct _ClusterEntry
 };
 
 typedef struct _ClusterEntry ClusterEntry;
+
+struct _RetrocopyEntry
+{
+	RetrocopyLevel level;
+	double         orientation_rho;
+	double         orientation_p_value;
+};
+
+typedef struct _RetrocopyEntry RetrocopyEntry;
 
 static ClusterEntry *
 cluster_entry_new (int cid, int sid, const char *cchr, long cstart, long cend,
@@ -170,16 +183,16 @@ dump_cluster_merge (sqlite3_stmt *cluster_merging_stmt,
 		}
 }
 
-static inline void
-rtc_insert_filter (Hash *h, const int rid, const RetrocopyLevel level)
+static inline RetrocopyEntry *
+rtc_insert_entry (Hash *h, const int rid)
 {
 	int *rid_alloc = xcalloc (1, sizeof (int));
 	*rid_alloc = rid;
 
-	RetrocopyLevel *level_alloc = xcalloc (1, sizeof (RetrocopyLevel));
-	*level_alloc = level;
+	RetrocopyEntry *e = xcalloc (1, sizeof (RetrocopyEntry));
+	hash_insert (h, rid_alloc, e);
 
-	hash_insert (h, rid_alloc, level_alloc);
+	return e;
 }
 
 static void
@@ -193,6 +206,7 @@ cluster_entry_merge_and_classify (sqlite3_stmt *cluster_merging_stmt,
 	ClusterEntry *c = NULL;
 	ClusterEntry *c_prev = NULL;
 
+	RetrocopyEntry *e = NULL;
 	RetrocopyLevel level = 0;
 	long gend_prev = 0;
 
@@ -231,8 +245,8 @@ cluster_entry_merge_and_classify (sqlite3_stmt *cluster_merging_stmt,
 					dump_cluster_merge (cluster_merging_stmt,
 							to_merge, *rid);
 
-					rtc_insert_filter (rtc_h, *rid,
-							level | RETROCOPY_HOTSPOT);
+					e = rtc_insert_entry (rtc_h, *rid);
+					e->level = level | RETROCOPY_HOTSPOT;
 
 					list_free (to_merge);
 					to_merge = list_new (NULL);
@@ -258,7 +272,8 @@ cluster_entry_merge_and_classify (sqlite3_stmt *cluster_merging_stmt,
 	dump_cluster_merge (cluster_merging_stmt,
 			to_merge, *rid);
 
-	rtc_insert_filter (rtc_h, *rid, level);
+	e = rtc_insert_entry (rtc_h, *rid);
+	e->level = level;
 
 	list_free (to_merge);
 }
@@ -367,6 +382,168 @@ merge_cluster (sqlite3_stmt *cluster_merging_stmt,
 }
 
 static sqlite3_stmt *
+prepare_orientation_stmt (sqlite3 *db)
+{
+	log_trace ("Inside %s", __func__);
+
+	sqlite3_stmt *stmt = NULL;
+
+	// Get all alignment position for read and its
+	// mate - side by side
+	const char sql[] =
+		"WITH\n"
+		"	alignment_flag (id, sid, aid, pos) AS (\n"
+		"		SELECT c.cluster_id, c.cluster_sid, a.qname, pos\n"
+		"		FROM clustering AS c\n"
+		"		INNER JOIN alignment AS a\n"
+		"			ON c.alignment_id = a.id\n"
+		"	),\n"
+		"	alignment_overlaps_exon (id, qname, pos) AS (\n"
+		"		SELECT id, qname, pos\n"
+		"		FROM alignment\n"
+		"		WHERE type & $EXONIC\n"
+		"	),\n"
+		"	gene_flag (id, sid, aid, pos) AS (\n"
+		"		SELECT c.cluster_id, c.cluster_sid, a.qname, aoe.pos\n"
+		"		FROM clustering AS c\n"
+		"		INNER JOIN alignment AS a\n"
+		"			ON c.alignment_id = a.id\n"
+		"		INNER JOIN alignment_overlaps_exon AS aoe\n"
+		"			USING (qname)\n"
+		"		WHERE a.id != aoe.id\n"
+		"	)\n"
+		"SELECT DISTINCT retrocopy_id, a.pos, g.pos\n"
+		"FROM cluster_merging AS c\n"
+		"INNER JOIN alignment_flag AS a\n"
+		"	ON c.cluster_id = a.id\n"
+		"		AND c.cluster_sid = a.sid\n"
+		"INNER JOIN gene_flag AS g\n"
+		"	USING (id, sid, aid)";
+
+	log_debug ("Query schema:\n%s", sql);
+	stmt = db_prepare (db, sql);
+
+	db_bind_int (stmt,
+			sqlite3_bind_parameter_index (stmt, "$EXONIC"),
+			ABNORMAL_EXONIC);
+
+	return stmt;
+}
+
+static void
+calculate_orientation (sqlite3 *db, Hash *rtc_h)
+{
+	log_trace ("Inside %s", __func__);
+
+	sqlite3_stmt *orientation_stmt = NULL;
+
+	RetrocopyEntry *e = NULL;
+
+	int rid = 0;
+	long apos = 0;
+	long gpos = 0;
+
+	int rid_prev = 0;
+
+	double *apos_a = NULL;
+	double *gpos_a = NULL;
+	size_t alloc_a = 0;
+	size_t size_a = 0;
+
+	double *work1 = NULL;
+	double *work2 = NULL;
+	size_t size_work = 0;
+
+	double orientation_rho = 0;
+	double orientation_p_value = 0;
+	unsigned int seed = SEED;
+
+	orientation_stmt = prepare_orientation_stmt (db);
+
+	while (db_step (orientation_stmt) == SQLITE_ROW)
+		{
+			rid  = db_column_int   (orientation_stmt, 0);
+			apos = db_column_int64 (orientation_stmt, 1);
+			gpos = db_column_int64 (orientation_stmt, 2);
+
+			// First loop
+			if (!rid_prev)
+				rid_prev = rid;
+
+			// Calculate spearman test
+			if (rid_prev != rid)
+				{
+					if ((2 * size_a) > size_work)
+						{
+							size_work = 2 * size_a;
+							work1 = xrealloc (work1, sizeof (double) * size_work);
+							work2 = xrealloc (work2, sizeof (double) * size_work);
+						}
+
+					// spearman test!
+					orientation_rho = spearman (apos_a, gpos_a, size_a, work1);
+
+					// Calculate p-value
+					orientation_p_value = spearman_permutation_test (apos_a, gpos_a,
+							size_a, work1, work2, &seed, orientation_rho);
+
+					// Set orientation value for the given entry
+					e = hash_lookup (rtc_h, &rid_prev);
+					assert (e != NULL);
+
+					e->orientation_rho = orientation_rho;
+					e->orientation_p_value = orientation_p_value;
+
+					size_a = 0;
+					rid_prev = rid;
+				}
+
+			if (size_a >= alloc_a)
+				{
+					alloc_a += BLOCK_SIZE;
+					apos_a = xrealloc (apos_a, sizeof (double) * alloc_a);
+					gpos_a = xrealloc (gpos_a, sizeof (double) * alloc_a);
+				}
+
+			apos_a[size_a] = apos;
+			gpos_a[size_a] = gpos;
+			size_a++;
+		}
+
+	// The last or the first retrocopy
+	if (rid_prev)
+		{
+			if ((2 * size_a) > size_work)
+				{
+					size_work = 2 * size_a;
+					work1 = xrealloc (work1, sizeof (double) * size_work);
+					work2 = xrealloc (work2, sizeof (double) * size_work);
+				}
+
+			// spearman test!
+			orientation_rho = spearman (apos_a, gpos_a, size_a, work1);
+
+			// Calculate p-value
+			orientation_p_value = spearman_permutation_test (apos_a, gpos_a,
+					size_a, work1, work2, &seed, orientation_rho);
+
+			// Set orientation value for the given entry
+			e = hash_lookup (rtc_h, &rid_prev);
+			assert (e != NULL);
+
+			e->orientation_rho = orientation_rho;
+			e->orientation_p_value = orientation_p_value;
+		}
+
+	xfree (apos_a);
+	xfree (gpos_a);
+	xfree (work1);
+	xfree (work2);
+
+	db_finalize (orientation_stmt);
+}
+
+static sqlite3_stmt *
 prepare_cluster_merging_query_stmt (sqlite3 *db)
 {
 	log_trace ("Inside %s", __func__);
@@ -461,8 +638,9 @@ annotate_retrocopy (sqlite3_stmt *retrocopy_stmt, Hash *rtc_h)
 	long end = 0;
 	const char *gene = NULL;
 	long ip = 0;
+
+	RetrocopyEntry *e = NULL;
 	RetrocopyInsertionPoint ip_type = 0;
-	RetrocopyLevel *level = NULL;
 
 	cluster_merging_query_stmt = prepare_cluster_merging_query_stmt (
 			sqlite3_db_handle (retrocopy_stmt));
@@ -477,12 +655,16 @@ annotate_retrocopy (sqlite3_stmt *retrocopy_stmt, Hash *rtc_h)
 			ip      = db_column_int64 (cluster_merging_query_stmt, 5);
 			ip_type = db_column_int   (cluster_merging_query_stmt, 6);
 
-			level = hash_lookup (rtc_h, &rid);
-			assert (level != NULL);
+			e = hash_lookup (rtc_h, &rid);
+			assert (e != NULL);
 
-			log_debug ("%d %s %li %li %s %li %d %d",
-					rid, chr, start, end, gene,
-					ip, ip_type, *level);
+			log_debug ("%d %s %li %li %s %d %li %d %.6f %.6f",
+					rid, chr, start, end, gene, e->level, ip, ip_type,
+					e->orientation_rho, e->orientation_p_value);
+
+			db_insert_retrocopy (retrocopy_stmt, rid, chr, start, end,
+					gene, e->level, ip, ip_type, e->orientation_rho,
+					e->orientation_p_value);
 		}
 
 	db_finalize (cluster_merging_query_stmt);
@@ -511,6 +693,10 @@ retrocopy (sqlite3_stmt *retrocopy_stmt,
 
 	log_info ("Analise and merge clusters into retrocopies");
 	merge_cluster (cluster_merging_stmt, filter, rtc_h);
+
+	log_info ("Calculate retrocopies orientation");
+	calculate_orientation (
+			sqlite3_db_handle (retrocopy_stmt), rtc_h);
 
 	log_info ("Annotate retrocopies");
 	annotate_retrocopy (retrocopy_stmt, rtc_h);
