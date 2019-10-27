@@ -25,5 +25,6 @@ Suite * make_set_suite            (void);
 Suite * make_correlation_suite    (void);
 Suite * make_bed_suite            (void);
 Suite * make_blacklist_suite      (void);
+Suite * make_retrocopy_suite      (void);
 
 #endif /* check_sider.h */

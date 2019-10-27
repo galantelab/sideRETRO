@@ -20,6 +20,7 @@ test_sources = files(
   'check_sider_list.c',
   'check_sider_main.c',
   'check_sider_process_sample.c',
+  'check_sider_retrocopy.c',
   'check_sider_sam.c',
   'check_sider_set.c',
   'check_sider_set.c',

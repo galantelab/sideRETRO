@@ -45,3 +45,5 @@ after_success:
 
 after_failure:
   - cat builddir/meson-logs/meson-log.txt
+  - cat builddir/meson-logs/testlog.txt
+  - cat builddir/meson-logs/testlog-valgrind.txt
