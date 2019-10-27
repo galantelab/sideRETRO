@@ -836,3 +836,80 @@ db_insert_overlapping_blacklist (sqlite3_stmt *stmt, int blacklist_id,
 
 	sqlite3_mutex_leave (sqlite3_db_mutex (sqlite3_db_handle (stmt)));
 }
+
+sqlite3_stmt *
+db_prepare_cluster_merging_stmt (sqlite3 *db)
+{
+	log_trace ("Inside %s", __func__);
+	assert (db != NULL);
+
+	const char sql[] =
+		"INSERT INTO cluster_merging (retrocopy_id,cluster_id,cluster_sid)\n"
+		"VALUES (?1,?2,?3)";
+
+	return db_prepare (db, sql);
+}
+
+void
+db_insert_cluster_merging (sqlite3_stmt *stmt, int retrocopy_id,
+		int cluster_id, int cluster_sid)
+{
+	log_trace ("Inside %s", __func__);
+	assert (stmt != NULL);
+
+	sqlite3_mutex_enter (sqlite3_db_mutex (sqlite3_db_handle (stmt)));
+
+	db_reset (stmt);
+	db_clear_bindings (stmt);
+
+	db_bind_int (stmt, 1, retrocopy_id);
+	db_bind_int (stmt, 2, cluster_id);
+	db_bind_int (stmt, 3, cluster_sid);
+
+	db_step (stmt);
+
+	sqlite3_mutex_leave (sqlite3_db_mutex (sqlite3_db_handle (stmt)));
+}
+
+sqlite3_stmt *
+db_prepare_retrocopy_stmt (sqlite3 *db)
+{
+	log_trace ("Inside %s", __func__);
+	assert (db != NULL);
+
+	const char sql[] =
+		"INSERT INTO retrocopy (id,chr,window_start,window_end,parental_gene_name,level,\n"
+		"	insertion_point,insertion_point_type,orientation_rho,orientation_p_value)\n"
+		"VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)";
+
+	return db_prepare (db, sql);
+}
+
+void
+db_insert_retrocopy (sqlite3_stmt *stmt, int id, const char *chr, long window_start,
+		long window_end, const char *parental_gene_name, int level, long insertion_point,
+		int insertion_point_type, double orientation_rho, double orientation_p_value)
+{
+	log_trace ("Inside %s", __func__);
+	assert (stmt != NULL);
+
+	sqlite3_mutex_enter (sqlite3_db_mutex (sqlite3_db_handle (stmt)));
+
+	db_reset (stmt);
+	db_clear_bindings (stmt);
+
+	db_bind_int    (stmt, 1, id);
+	db_bind_text   (stmt, 2, chr);
+	db_bind_int64  (stmt, 3, window_start);
+	db_bind_int64  (stmt, 4, window_end);
+	db_bind_text   (stmt, 5, parental_gene_name);
+	db_bind_int    (stmt, 6, level);
+	db_bind_int64  (stmt, 7, insertion_point);
+	db_bind_int    (stmt, 8, insertion_point_type);
+	db_bind_double (stmt, 9, orientation_rho);
+	db_bind_double (stmt, 10, orientation_p_value);
+
+	db_step (stmt);
+
+	sqlite3_mutex_leave (sqlite3_db_mutex (sqlite3_db_handle (stmt)));
+}

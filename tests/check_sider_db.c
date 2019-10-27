@@ -219,6 +219,8 @@ START_TEST (test_db_schema)
 	sqlite3_stmt *overlapping_blacklist_stmt =
 		db_prepare_overlapping_blacklist_stmt (db);
 	sqlite3_stmt *blacklist_stmt = db_prepare_blacklist_stmt (db);
+	sqlite3_stmt *cluster_merge_stmt = db_prepare_cluster_merging_stmt (db);
+	sqlite3_stmt *retrocopy_stmt = db_prepare_retrocopy_stmt (db);
 
 	db_cache_size (db, DB_DEFAULT_CACHE_SIZE - 1);
 	db_begin_transaction (db);
@@ -234,6 +236,9 @@ START_TEST (test_db_schema)
 	db_insert_cluster (cluster_stmt, 1, 1, "chr1", 1, 101, "PONGA", 1);
 	db_insert_blacklist (blacklist_stmt, 1, "blackponga", "chr1", 1, 200);
 	db_insert_overlapping_blacklist (overlapping_blacklist_stmt, 1, 1, 1, 1, 101);
+	db_insert_cluster_merging (cluster_merge_stmt, 1, 1, 1);
+	db_insert_retrocopy (retrocopy_stmt, 1, "chr1", 1, 200, "ponga1/ponga2",
+			12, 100, 1, -0.87, 0.00001);
 
 	db_end_transaction (db);
 
@@ -246,6 +251,8 @@ START_TEST (test_db_schema)
 	db_finalize (cluster_stmt);
 	db_finalize (blacklist_stmt);
 	db_finalize (overlapping_blacklist_stmt);
+	db_finalize (cluster_merge_stmt);
+	db_finalize (retrocopy_stmt);
 	db_close (db);
 	xunlink (db_path);
 }
