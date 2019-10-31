@@ -405,24 +405,24 @@ prepare_orientation_stmt (sqlite3 *db)
 	// mate - side by side
 	const char sql[] =
 		"WITH\n"
-		"	alignment_flag (id, sid, aid, pos) AS (\n"
-		"		SELECT c.cluster_id, c.cluster_sid, a.qname, pos\n"
+		"	alignment_flag (id, sid, aid, srcid, pos) AS (\n"
+		"		SELECT c.cluster_id, c.cluster_sid, a.qname, a.source_id, a.pos\n"
 		"		FROM clustering AS c\n"
 		"		INNER JOIN alignment AS a\n"
 		"			ON c.alignment_id = a.id\n"
 		"	),\n"
-		"	alignment_overlaps_exon (id, qname, pos) AS (\n"
-		"		SELECT id, qname, pos\n"
+		"	alignment_overlaps_exon (id, qname, source_id, pos) AS (\n"
+		"		SELECT id, qname, source_id, pos\n"
 		"		FROM alignment\n"
 		"		WHERE type & $EXONIC\n"
 		"	),\n"
-		"	gene_flag (id, sid, aid, pos) AS (\n"
-		"		SELECT c.cluster_id, c.cluster_sid, a.qname, aoe.pos\n"
+		"	gene_flag (id, sid, aid, srcid, pos) AS (\n"
+		"		SELECT c.cluster_id, c.cluster_sid, a.qname, a.source_id, aoe.pos\n"
 		"		FROM clustering AS c\n"
 		"		INNER JOIN alignment AS a\n"
 		"			ON c.alignment_id = a.id\n"
 		"		INNER JOIN alignment_overlaps_exon AS aoe\n"
-		"			USING (qname)\n"
+		"			USING (qname, source_id)\n"
 		"		WHERE a.id != aoe.id\n"
 		"	)\n"
 		"SELECT DISTINCT retrocopy_id, a.pos, g.pos\n"
@@ -431,7 +431,7 @@ prepare_orientation_stmt (sqlite3 *db)
 		"	ON c.cluster_id = a.id\n"
 		"		AND c.cluster_sid = a.sid\n"
 		"INNER JOIN gene_flag AS g\n"
-		"	USING (id, sid, aid)";
+		"	USING (id, sid, aid, srcid)";
 
 	log_debug ("Query schema:\n%s", sql);
 	stmt = db_prepare (db, sql);

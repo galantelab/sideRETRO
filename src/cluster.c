@@ -111,7 +111,7 @@ index_alignment_qname (sqlite3 *db)
 	const char sql[] =
 		"DROP INDEX IF EXISTS alignment_qname_idx;\n"
 		"CREATE INDEX alignment_qname_idx\n"
-		"	ON alignment(qname)";
+		"	ON alignment(qname,source_id)";
 
 	log_debug ("Create index:\n%s", sql);
 	db_exec (db, sql);
@@ -145,8 +145,8 @@ prepare_query_stmt (sqlite3 *db)
 	*/
 	const char sql[] =
 		"WITH\n"
-		"	alignment_overlaps_exon(id, qname, chr, pos, rlen, type, gene_name) AS (\n"
-		"		SELECT a.id, a.qname, a.chr, a.pos, a.rlen, a.type, e.gene_name\n"
+		"	alignment_overlaps_exon(id, qname, source_id, chr, pos, rlen, type, gene_name) AS (\n"
+		"		SELECT a.id, a.qname, a.source_id, a.chr, a.pos, a.rlen, a.type, e.gene_name\n"
 		"		FROM alignment AS a\n"
 		"		LEFT JOIN overlapping AS o\n"
 		"			ON a.id = o.alignment_id\n"
@@ -165,7 +165,7 @@ prepare_query_stmt (sqlite3 *db)
 		"	aoe2.gene_name\n"
 		"FROM alignment_overlaps_exon AS aoe1\n"
 		"INNER JOIN alignment_overlaps_exon AS aoe2\n"
-		"	USING(qname)\n"
+		"	USING (qname, source_id)\n"
 		"WHERE aoe1.id != aoe2.id\n"
 		"	AND aoe2.type & $EXONIC\n"
 		"	AND ((NOT aoe1.type & $EXONIC)\n"
@@ -504,7 +504,7 @@ prepare_filter_stmt (sqlite3 *db)
 		"		INNER JOIN alignment AS a1\n"
 		"			ON c.alignment_id = a1.id\n"
 		"		INNER JOIN alignment AS a2\n"
-		"			USING (qname)\n"
+		"			USING (qname, source_id)\n"
 		"		INNER JOIN overlapping AS o\n"
 		"			ON a2.id = o.alignment_id\n"
 		"		INNER JOIN exon AS e\n"
