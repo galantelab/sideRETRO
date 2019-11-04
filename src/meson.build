@@ -25,6 +25,8 @@ sider_sources = files(
   'db_merge.h',
   'dbscan.c',
   'dbscan.h',
+  'dedup.c',
+  'dedup.h',
   'exon.c',
   'exon.h',
   'gff.c',
