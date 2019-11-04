@@ -132,12 +132,14 @@ abnormal_classifier (const bam1_t *align, int max_distance,
 	* - paired-end
 	* - mapped
 	* - mate mapped
+	* - not a duplication
 	* - phred-quality
 	* - base frequency
 	*/
 	if (!(align->core.flag & 0x1)
 			|| (align->core.flag & 0x4)
 			|| (align->core.flag & 0x8)
+			|| (align->core.flag & 0x400)
 			|| (align->core.qual < phred_quality)
 			|| is_base_overly_freq (align, max_base_freq))
 		{
