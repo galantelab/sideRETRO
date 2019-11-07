@@ -15,12 +15,14 @@
 #include "thpool.h"
 #include "exon.h"
 #include "abnormal.h"
+#include "dedup.h"
 #include "process_sample.h"
 
 #define DEFAULT_MAX_DISTANCE    10000
 #define DEFAULT_CACHE_SIZE      DB_DEFAULT_CACHE_SIZE
 #define DEFAULT_THREADS         1
 #define DEFAULT_SORTED          0
+#define DEFAULT_DEDUPLICATE     0
 #define DEFAULT_EXON_FRAC       1e-09
 #define DEFAULT_ALIGNMENT_FRAC  1e-09
 #define DEFAULT_EITHER          0
@@ -36,11 +38,9 @@
 #define DEFAULT_MAX_BASE_FREQ   0.75
 
 static void
-process_sample (const char *output_dir, const char *prefix,
-		const Array *sam_files, const char *gff_file,
-		int threads, int cache_size, int sorted,
-		int phred_quality, int max_distance,
-		float max_base_freq, float exon_frac,
+process_sample (const char *output_dir, const char *prefix, const Array *sam_files,
+		const char *gff_file, int threads, int cache_size, int sorted, int deduplicate,
+		int phred_quality, int max_distance, float max_base_freq, float exon_frac,
 		float alignment_frac, int either)
 {
 	log_trace ("Inside %s", __func__);
@@ -152,6 +152,19 @@ process_sample (const char *output_dir, const char *prefix,
 	// Commit database
 	db_end_transaction (db);
 
+	if (deduplicate)
+		{
+			// Begin transaction to speed up
+			db_begin_transaction (db);
+
+			// Run deduplication step
+			log_info ("Run deduplication step for '%s'", db_file);
+			dedup (db);
+
+			// Commit database
+			db_end_transaction (db);
+		}
+
 	// Time to clean
 	db_finalize (exon_stmt);
 	db_finalize (batch_stmt);
@@ -179,7 +192,7 @@ print_usage (FILE *fp)
 		"Usage: %s process-sample [-h] [-q] [-d] [-s] [-l FILE] [-o DIR]\n"
 		"       %*c                [-p STR] [-t INT] [-c INT] [-Q INT]\n"
 		"       %*c                [-m INT] [-f FLOAT] [-F FLOAT | -r]\n"
-		"       %*c                [-M FLOAT] [-e] [-i FILE]\n"
+		"       %*c                [-D] [-M FLOAT] [-e] [-i FILE]\n"
 		"       %*c                -a FILE <FILE> ...\n"
 		"\n"
 		"Arguments:\n"
@@ -209,6 +222,9 @@ print_usage (FILE *fp)
 		"   -c, --cache-size        Set SQLite3 cache size in KiB [default: \"%d\"]\n"
 		"   -s, --sorted            Assume all reads are grouped by queryname, even if\n"
 		"                           there is no SAM/BAM header tag 'SO:queryname'\n"
+		"   -D, --deduplicate       Remove duplicated reads. Reads are considered\n"
+		"                           duplicates when they share the 5 prime positions\n"
+		"                           of both reads and read-pairs\n"
 		"   -Q, --phred-quality     Minimum phred quality score required\n"
 		"                           [default:\"%d\"]\n"
 		"   -m, --max-distance      Maximum distance allowed between paired-end reads\n"
@@ -268,6 +284,7 @@ parse_process_sample_command_opt (int argc, char **argv)
 		{"max-base-freq",   required_argument, 0, 'M'},
 		{"cache-size",      required_argument, 0, 'c'},
 		{"sorted",          no_argument,       0, 's'},
+		{"deduplicate",     no_argument,       0, 'D'},
 		{"exon-frac",       required_argument, 0, 'f'},
 		{"alignment-frac",  required_argument, 0, 'F'},
 		{"either",          no_argument,       0, 'e'},
@@ -281,6 +298,7 @@ parse_process_sample_command_opt (int argc, char **argv)
 	int         log_level      = DEFAULT_LOG_LEVEL;
 	int         threads        = DEFAULT_THREADS;
 	int         sorted         = DEFAULT_SORTED;
+	int         deduplicate    = DEFAULT_DEDUPLICATE;
 	int         phred_quality  = DEFAULT_PHRED_QUALITY;
 	int         max_distance   = DEFAULT_MAX_DISTANCE;
 	float       max_base_freq  = DEFAULT_MAX_BASE_FREQ;
@@ -303,7 +321,7 @@ parse_process_sample_command_opt (int argc, char **argv)
 	int alignment_frac_set = 0;
 	int c, i;
 
-	while ((c = getopt_long (argc, argv, "hqdsl:a:o:p:t:m:M:c:Q:f:F:eri:", opt, &option_index)) >= 0)
+	while ((c = getopt_long (argc, argv, "hqdsDl:a:o:p:t:m:M:c:Q:f:F:eri:", opt, &option_index)) >= 0)
 		{
 			switch (c)
 				{
@@ -366,6 +384,11 @@ parse_process_sample_command_opt (int argc, char **argv)
 				case 'M':
 					{
 						max_base_freq = atof (optarg);
+						break;
+					}
+				case 'D':
+					{
+						deduplicate = 1;
 						break;
 					}
 				case 's':
@@ -544,8 +567,8 @@ parse_process_sample_command_opt (int argc, char **argv)
 	* RUN FOOLS
 	*/
 	process_sample (output_dir, prefix, sam_files, gff_file, threads,
-			cache_size, sorted, phred_quality, max_distance, max_base_freq,
-			exon_frac, alignment_frac, either);
+			cache_size, sorted, deduplicate, phred_quality, max_distance,
+			max_base_freq, exon_frac, alignment_frac, either);
 
 Exit:
 	logger_free (logger);
