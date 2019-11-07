@@ -152,6 +152,7 @@ prepare_query_stmt (sqlite3 *db)
 		"			ON a.id = o.alignment_id\n"
 		"		LEFT JOIN exon AS e\n"
 		"			ON e.id = o.exon_id\n"
+		"		WHERE type != $NONE\n"
 		"	)\n"
 		"SELECT DISTINCT aoe1.id,\n"
 		"	aoe1.chr,\n"
@@ -174,6 +175,10 @@ prepare_query_stmt (sqlite3 *db)
 
 	log_debug ("Query schema:\n%s", sql);
 	stmt = db_prepare (db, sql);
+
+	db_bind_int (stmt,
+			sqlite3_bind_parameter_index (stmt, "$NONE"),
+			ABNORMAL_NONE);
 
 	db_bind_int (stmt,
 			sqlite3_bind_parameter_index (stmt, "$EXONIC"),
