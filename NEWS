@@ -1,3 +1,25 @@
+Version 0.11.0
+
+* Add retrocopy annotation: Insertion window
+  and point, orientation rho and p-value,
+  level PASS, OVERLAPPED, NEAR, HOTSPOT,
+  AMBIGUOUS.
+
+* Add deduplication capability. Remove
+  duplicated reads but one, which is called
+  the primary read. Other tools, specilized
+  in remove duplications, use some metric to
+  choose the primary reads. For us, it is just
+  interesting the coordinates, so the primary
+  reads are choosen randomly - mostly the
+  first one to appear.
+
+* There is the possibility that different BAM
+  files share reads with the same query name.
+  In order to avoid a mess to find the right
+  mate, use the source_id along with qname when
+  required to match reads from the same fragment.
+
 Version 0.10.0
 
 * Add reclustering step in order to filtering

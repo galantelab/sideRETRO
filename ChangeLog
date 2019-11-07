@@ -1,3 +1,68 @@
+2019-11-07 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* Version 0.11.0
+
+	* ADD: process_sample.c: --deduplicate option
+
+	* ADD: merge_call.c (merge_call): Run retrocopy step
+
+	* ADD: cluster.c (prepare_query_stmt): test type
+
+	The dedup step set the alignment type to ABNORMAL_NONE flag if the read
+	is a duplication. So, in the clustering step, it is necessary to avoid
+	using those duplicated reads
+
+	* ADD: check_sider_dedup.c test
+
+2019-11-04 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: dedup.c interface: Remove duplicated reads
+
+	Add deduplication capability. Remove duplicated reads but one, which is
+	called the primary read. Other tools, specilized in remove duplications,
+	use some metric to choose the primary reads. For us, it is just
+	interesting the coordinates, so the primary reads are choosen randomly -
+	mostly the first one to appear
+
+	* ADD: abnormal.c (abnormal_classifier): Dup filter
+
+	Add filter for PCR or optical duplicated reads
+
+2019-10-31 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* FIX: cluster.c, retrocopy.c (qname, source_id idx)
+
+	There is the possibility that different BAM files share reads with the
+	same query name. In order to avoid a mess to find the right mate, use
+	the source_id along with qname when required to match reads from the
+	same fragment
+
+2019-10-27 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: retrocopy.c (clean_retrocopy_tables)
+
+	* ADD: retrocopy.c (calculate_orientation)
+
+	* FIX: meson.build: sqlite3 version 3.28.0
+
+	Change sqlite3 minimum version to 3.28.0 in order to support RANK()
+	functions
+
+	* ADD: check_sider_retrocopy.c test
+
+	Add test for 'retrocopy.c'. Also '.travis.yml' now prints all relevant
+	error logs
+
+	* ADD: retrocopy.c (merge_cluster)
+
+	Add merge_cluster function in order to populate 'cluster_merging' table
+	and classify retrocopy level.
+
+	Begin annotate_retrocopy function. For now it is capable to calculate
+	the insertion point
+
+	* ADD: db.c (db_{prepare, insert}_retrocopy)
+
 2019-10-24 Thiago L. A. Miller <tmiller@mochsl.org.br>
 
 	* Version 0.10.0
