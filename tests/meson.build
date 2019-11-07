@@ -12,6 +12,7 @@ test_sources = files(
   'check_sider_db.c',
   'check_sider_db_merge.c',
   'check_sider_dbscan.c',
+  'check_sider_dedup.c',
   'check_sider_exon.c',
   'check_sider_gff.c',
   'check_sider_hash.c',

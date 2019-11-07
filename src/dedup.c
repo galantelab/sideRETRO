@@ -6,6 +6,7 @@
 #include "log.h"
 #include "db.h"
 #include "str.h"
+#include "abnormal.h"
 #include "dedup.h"
 
 #define BLOCK_SIZE 8
@@ -91,7 +92,7 @@ prepare_alignment_query_stmt (sqlite3 *db)
 		"ORDER BY source_id ASC,\n"
 		"	chr ASC, pos ASC,\n"
 		"	chr_next ASC, pos_next ASC,\n"
-		"	id ASC";
+		"	qname ASC";
 
 	log_debug ("Query schema:\n%s", sql);
 	return db_prepare (db, sql);
@@ -104,9 +105,10 @@ create_temp_dup_table (sqlite3 *db)
 
 	const char sql[] =
 		"CREATE TEMPORARY TABLE dup (\n"
-		"	id INTEGER NOT NULL,\n"
 		"	qname TEXT NOT NULL,\n"
-		"	source_id INTEGER NOT NULL)";
+		"	source_id INTEGER NOT NULL,\n"
+		"	is_primary INTEGER NOT NULL,\n"
+		"	PRIMARY KEY (qname, source_id))";
 
 	log_debug ("Create table:\n%s", sql);
 	db_exec (db, sql);
@@ -118,7 +120,7 @@ prepare_temp_dup_stmt (sqlite3 *db)
 	log_trace ("Inside %s", __func__);
 
 	const char sql[] =
-		"INSERT INTO dup (id,qname,source_id)\n"
+		"INSERT OR IGNORE INTO dup (qname,source_id,is_primary)\n"
 		"VALUES (?1,?2,?3)";
 
 	log_debug ("Query schema:\n%s", sql);
@@ -126,51 +128,48 @@ prepare_temp_dup_stmt (sqlite3 *db)
 }
 
 static inline void
-insert_temp_dup (sqlite3_stmt *stmt, const int id,
-		const char *qname, const int source_id)
+insert_temp_dup (sqlite3_stmt *stmt, const char *qname,
+		const int source_id, const int is_primary)
 {
 	db_reset (stmt);
 	db_clear_bindings (stmt);
 
-	db_bind_int (stmt, 1, id);
-	db_bind_text (stmt, 2, qname);
-	db_bind_int (stmt, 3, source_id);
+	db_bind_text (stmt, 1, qname);
+	db_bind_int (stmt, 2, source_id);
+	db_bind_int (stmt, 3, is_primary);
 
 	db_step (stmt);
 }
 
 static void
-delete_primary_reads_from_dup (sqlite3 *db)
+set_dup (sqlite3 *db)
 {
 	log_trace ("Inside %s", __func__);
 
+	sqlite3_stmt *stmt = NULL;
+
+	// Invalidate duplicated reads
+	// without removing it
 	const char sql[] =
-		"DELETE FROM dup\n"
-		"WHERE (qname, source_id) NOT IN (\n"
-		"	SELECT qname, source_id\n"
-		"	FROM dup AS d1\n"
-		"	INNER JOIN dup AS d2\n"
-		"		USING (qname, source_id)\n"
-		"	WHERE d1.id < d2.id\n"
-		"	GROUP BY d1.id)";
-
-	log_debug ("Delete from table:\n%s", sql);
-	db_exec (db, sql);
-}
-
-static void
-delete_dup (sqlite3 *db)
-{
-	log_trace ("Inside %s", __func__);
-
-	const char sql[] =
-		"DELETE FROM alignment\n"
+		"UPDATE alignment\n"
+		"SET type = $NONE\n"
 		"WHERE (qname, source_id) IN (\n"
 		"	SELECT qname, source_id\n"
-		"	FROM dup)";
+		"	FROM dup\n"
+		"	WHERE is_primary = 0)";
 
-	log_debug ("Delete from table:\n%s", sql);
-	db_exec (db, sql);
+	log_debug ("Set duplicated reads to ABNORMAL_NONE flag:\n%s", sql);
+	stmt = db_prepare (db, sql);
+
+	db_bind_int (stmt,
+			sqlite3_bind_parameter_index (stmt, "$NONE"),
+			ABNORMAL_NONE);
+
+	// RUN
+	db_step (stmt);
+
+	// Clean
+	db_finalize (stmt);
 }
 
 static void
@@ -196,7 +195,6 @@ mark_dup (sqlite3 *db)
 	int *source_ids = NULL;
 	String **qnames = NULL;
 
-	int id = 0;
 	int i = 0;
 
 	// Init DedupData
@@ -211,23 +209,30 @@ mark_dup (sqlite3 *db)
 		{
 			dedup_data_read (&data, query_stmt);
 
-			// First loop
 			if (!data_prev.id)
-				dedup_data_copy (&data_prev, &data);
-
-			if (!dedup_data_is_dup (&data, &data_prev))
+				{
+					// First loop
+					dedup_data_copy (&data_prev, &data);
+				}
+			else if (!dedup_data_is_dup (&data, &data_prev))
 				{
 					if (size > 1)
 						{
-							id++;
-							for (i = 0; i < size; i++)
-								insert_temp_dup (temp_dup_stmt,
-										id, qnames[i]->str, source_ids[i]);
+							// The primary read - Just the first one
+							insert_temp_dup (temp_dup_stmt, qnames[0]->str,
+									source_ids[0], 1);
+
+							for (i = 1; i < size; i++)
+								insert_temp_dup (temp_dup_stmt, qnames[i]->str,
+										source_ids[i], 0);
 						}
 
-					dedup_data_copy (&data_prev, &data);
-
 					size = 0;
+				}
+			else if (!strcmp (data.qname->str, data_prev.qname->str))
+				{
+					// Ignore weird mates mapping the same genomic coordinate
+					continue;
 				}
 
 			if (size >= alloc)
@@ -252,6 +257,9 @@ mark_dup (sqlite3 *db)
 					data.qname->str);
 
 			size++;
+
+			// Update data_prev
+			dedup_data_copy (&data_prev, &data);
 		}
 
 	for (i = 0; i < alloc; i++)
@@ -281,11 +289,7 @@ dedup (sqlite3 *db)
 	log_info ("Mark duplicated reads");
 	mark_dup (db);
 
-	// Delete primary reads from 'dup' table
-	log_info ("Choose primary reads");
-	delete_primary_reads_from_dup (db);
-
 	// Delete duplicated reads from alignment
 	log_info ("Remove duplicated reads");
-	delete_dup (db);
+	set_dup (db);
 }
