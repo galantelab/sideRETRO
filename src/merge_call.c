@@ -17,6 +17,7 @@
 #include "blacklist.h"
 #include "cluster.h"
 #include "db_merge.h"
+#include "retrocopy.h"
 #include "merge_call.h"
 
 #define DEFAULT_CACHE_SIZE            DB_DEFAULT_CACHE_SIZE
@@ -54,6 +55,8 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 	sqlite3_stmt *clustering_stmt = NULL;
 	sqlite3_stmt *blacklist_stmt = NULL;
 	sqlite3_stmt *overlapping_blacklist_stmt = NULL;
+	sqlite3_stmt *retrocopy_stmt = NULL;
+	sqlite3_stmt *cluster_merging_stmt = NULL;
 
 	Blacklist *blacklist = NULL;
 	ChrStd *cs = NULL;
@@ -103,6 +106,13 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 	// Create overlapping blacklist statement
 	overlapping_blacklist_stmt =
 		db_prepare_overlapping_blacklist_stmt (db);
+
+	// Create retrocopy statement
+	retrocopy_stmt = db_prepare_retrocopy_stmt (db);
+
+	// Create cluster merging statement
+	cluster_merging_stmt =
+		db_prepare_cluster_merging_stmt (db);
 
 	// Get chromosome standardization
 	cs = chr_std_new ();
@@ -162,12 +172,24 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 	// Commit
 	db_end_transaction (db);
 
+	// Begin transaction to speed up
+	db_begin_transaction (db);
+
+	// RUN
+	log_info ("Run retrocopy annotation step for '%s'", db_file);
+	retrocopy (retrocopy_stmt, cluster_merging_stmt);
+
+	// Commit
+	db_end_transaction (db);
+
 	// Cleanup
 	xfree (db_file);
 	db_finalize (cluster_stmt);
 	db_finalize (clustering_stmt);
 	db_finalize (blacklist_stmt);
 	db_finalize (overlapping_blacklist_stmt);
+	db_finalize (retrocopy_stmt);
+	db_finalize (cluster_merging_stmt);
 	db_close (db);
 
 	chr_std_free (cs);
