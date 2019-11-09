@@ -1,6 +1,8 @@
 #ifndef RETROCOPY_H
 #define RETROCOPY_H
 
+#include "db.h"
+
 /*
  * Types of retrocopy insertion context
  * - RETROCOPY_PASS => When there is no
