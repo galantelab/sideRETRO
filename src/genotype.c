@@ -12,8 +12,6 @@
 #include "thpool.h"
 #include "genotype.h"
 
-#define MAX_CROSS 10
-
 struct _Region
 {
 	const char *chr;
@@ -45,6 +43,8 @@ struct _ZygosityData
 
 	List         *genotype;
 	ChrStd       *cs;
+
+	int           max_cross;
 
 	const char   *path;
 };
@@ -332,6 +332,9 @@ zygosity_linear_search (samFile *fp, bam_hdr_t *hdr, bam1_t *align,
 	Hash *ir = NULL;
 	IBiTree *tree = NULL;
 
+	Genotype *g = NULL;
+	ListElmt *cur = NULL;
+
 	long start = 0;
 	long end = 0;
 
@@ -355,14 +358,12 @@ zygosity_linear_search (samFile *fp, bam_hdr_t *hdr, bam1_t *align,
 	if (rc < -1)
 		log_fatal ("Failed to read sam alignment");
 
-	Genotype *g = NULL;
-	ListElmt *cur = list_head (zd->genotype);
-
+	cur = list_head (zd->genotype);
 	for (; cur != NULL; cur = list_next (cur))
 		{
 			g = list_data (cur);
 
-			if (g->acm > MAX_CROSS)
+			if (g->acm > zd->max_cross)
 				g->z = HETEROZYGOUS;
 
 			switch (g->z)
@@ -370,11 +371,13 @@ zygosity_linear_search (samFile *fp, bam_hdr_t *hdr, bam1_t *align,
 				case HETEROZYGOUS:
 					{
 						log_debug ("retrocopy [%d %d] is heterozygous", g->retrocopy_id, g->source_id);
+						db_insert_genotype (zd->stmt, g->source_id, g->retrocopy_id, 1);
 						break;
 					}
 				case HOMOZYGOUS:
 					{
 						log_debug ("retrocopy [%d %d] is homozygous", g->retrocopy_id, g->source_id);
+						db_insert_genotype (zd->stmt, g->source_id, g->retrocopy_id, 0);
 						break;
 					}
 				}
@@ -423,7 +426,7 @@ zygosity_indexed_search (samFile *fp, bam_hdr_t *hdr, bam1_t *align,
 					if (cross_insertion_point (align, r->insertion_point))
 						g->acm++;
 
-					if (g->acm > MAX_CROSS)
+					if (g->acm > zd->max_cross)
 						{
 							g->z = HETEROZYGOUS;
 							break;
@@ -440,11 +443,13 @@ zygosity_indexed_search (samFile *fp, bam_hdr_t *hdr, bam1_t *align,
 				case HETEROZYGOUS:
 					{
 						log_debug ("retrocopy [%d %d] is heterozygous", g->retrocopy_id, g->source_id);
+						db_insert_genotype (zd->stmt, g->source_id, g->retrocopy_id, 1);
 						break;
 					}
 				case HOMOZYGOUS:
 					{
 						log_debug ("retrocopy [%d %d] is homozygous", g->retrocopy_id, g->source_id);
+						db_insert_genotype (zd->stmt, g->source_id, g->retrocopy_id, 0);
 						break;
 					}
 				}
@@ -505,10 +510,10 @@ zygosity (ZygosityData *zd)
 }
 
 void
-genotype (sqlite3 *db, int threads)
+genotype (sqlite3_stmt *genotype_stmt, int threads, int max_cross)
 {
 	log_trace ("Inside %s", __func__);
-	assert (db != NULL && threads > 0);
+	assert (genotype_stmt != NULL && threads > 0 && max_cross >= 0);
 
 	threadpool thpool = NULL;
 
@@ -535,7 +540,8 @@ genotype (sqlite3 *db, int threads)
 			xfree, (DestroyNotify) zygosity_data_free);
 
 	log_info ("Index all BAM path => retrocopy relationship");
-	genotype_search_db (db, retrocopy_h, path_h);
+	genotype_search_db (sqlite3_db_handle (genotype_stmt),
+			retrocopy_h, path_h);
 
 	// Iterator through paths
 	hash_iter_init (&itr, path_h);
@@ -544,8 +550,11 @@ genotype (sqlite3 *db, int threads)
 		{
 			log_debug ("Look for retrocopies zygosity of file '%s'", path);
 
-			// Don't forget to give chromosome standardization
+			// Don't forget to give chromosome standardization,
+			// genotype statement and max_cross
 			zd->cs = cs;
+			zd->stmt = genotype_stmt;
+			zd->max_cross = max_cross;
 
 			// Let's rock!
 			thpool_add_work (thpool, (void *) zygosity, (void *) zd);

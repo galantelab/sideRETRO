@@ -11,6 +11,6 @@ enum _Zygosity
 
 typedef enum _Zygosity Zygosity;
 
-void genotype (sqlite3 *db, int threads);
+void genotype (sqlite3_stmt *genotype_stmt, int threads, int max_cross);
 
 #endif /* genotype.h */
