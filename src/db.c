@@ -913,3 +913,37 @@ db_insert_retrocopy (sqlite3_stmt *stmt, int id, const char *chr, long window_st
 
 	sqlite3_mutex_leave (sqlite3_db_mutex (sqlite3_db_handle (stmt)));
 }
+
+sqlite3_stmt *
+db_prepare_genotype_stmt (sqlite3 *db)
+{
+	log_trace ("Inside %s", __func__);
+	assert (db != NULL);
+
+	const char sql[] =
+		"INSERT INTO genotype (source_id,retrocopy_id,heterozygous)\n"
+		"VALUES (?1,?2,?3)";
+
+	return db_prepare (db, sql);
+}
+
+void
+db_insert_genotype (sqlite3_stmt *stmt, int source_id, int retrocopy_id,
+		int heterozygous)
+{
+	log_trace ("Inside %s", __func__);
+	assert (stmt != NULL);
+
+	sqlite3_mutex_enter (sqlite3_db_mutex (sqlite3_db_handle (stmt)));
+
+	db_reset (stmt);
+	db_clear_bindings (stmt);
+
+	db_bind_int (stmt, 1, source_id);
+	db_bind_int (stmt, 2, retrocopy_id);
+	db_bind_int (stmt, 3, heterozygous);
+
+	db_step (stmt);
+
+	sqlite3_mutex_leave (sqlite3_db_mutex (sqlite3_db_handle (stmt)));
+}

@@ -90,4 +90,8 @@ void db_insert_retrocopy (sqlite3_stmt *stmt, int id, const char *chr, long wind
 		long window_end, const char *parental_gene_name, int level, long insertion_point,
 		int insertion_point_type, double orientation_rho, double orientation_p_value);
 
+sqlite3_stmt * db_prepare_genotype_stmt (sqlite3 *db);
+void db_insert_genotype (sqlite3_stmt *stmt, int source_id, int retrocopy_id,
+		int heterozygous);
+
 #endif /* db.h */
