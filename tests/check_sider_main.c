@@ -40,6 +40,7 @@ main (void)
 	srunner_add_suite (sr, make_blacklist_suite ());
 	srunner_add_suite (sr, make_retrocopy_suite ());
 	srunner_add_suite (sr, make_dedup_suite ());
+	srunner_add_suite (sr, make_genotype_suite ());
 	/*srunner_set_tap (sr, "-");*/
 
 	srunner_run_all (sr, CK_NORMAL);

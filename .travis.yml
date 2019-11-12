@@ -21,7 +21,7 @@ script:
   - meson -Db_coverage=true builddir
   - ninja -C builddir
   - meson test -C builddir
-  - meson test -C builddir --wrap=valgrind -t 2
+  - meson test -C builddir --wrap=valgrind -t 3
 
 after_success:
   - >

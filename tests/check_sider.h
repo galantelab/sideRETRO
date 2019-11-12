@@ -27,5 +27,6 @@ Suite * make_bed_suite            (void);
 Suite * make_blacklist_suite      (void);
 Suite * make_retrocopy_suite      (void);
 Suite * make_dedup_suite          (void);
+Suite * make_genotype_suite       (void);
 
 #endif /* check_sider.h */
