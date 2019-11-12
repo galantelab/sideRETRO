@@ -17,11 +17,14 @@ install:
   - pip3 install meson
   - pip3 install cpp-coveralls
 
+env:
+  - CK_DEFAULT_TIMEOUT=0
+
 script:
   - meson -Db_coverage=true builddir
   - ninja -C builddir
   - meson test -C builddir
-  - meson test -C builddir --wrap=valgrind -t 3
+  - meson test -C builddir --wrap='valgrind --leak-check=full --error-exitcode=1' -t 2
 
 after_success:
   - >
