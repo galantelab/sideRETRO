@@ -367,10 +367,13 @@ START_TEST (test_gff_filter)
 		;
 
 	// Rewind
+	gff_filter_free (filter);
+	filter = gff_filter_new ();
 	gff_close (gff);
 	gff = gff_open_for_reading (gff_path);
 
 	// Hard and soft attributes
+	gff_filter_insert_feature (filter, "gene");
 	gff_filter_insert_hard_attribute (filter, "transcript_type", "protein_coding");
 	gff_filter_insert_hard_attribute (filter, "gene_id", "ENS");
 	gff_filter_insert_soft_attribute (filter, "non_exist", "ponga");

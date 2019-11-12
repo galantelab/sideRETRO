@@ -28,8 +28,6 @@ START_TEST (test_xmalloc)
 	xfree (p);
 
 	p = xmalloc (0);
-	* (char *) p = 'p';
-	ck_assert_int_eq (* (char *) p, 'p');
 	xfree (p);
 }
 END_TEST
@@ -41,13 +39,9 @@ START_TEST (test_xcalloc)
 	xfree (p);
 
 	p = xcalloc (0, sizeof (int));
-	* (char *) p = 'p';
-	ck_assert_int_eq (* (char *) p, 'p');
 	xfree (p);
 
 	p = xcalloc (1, 0);
-	* (char *) p = 'p';
-	ck_assert_int_eq (* (char *) p, 'p');
 	xfree (p);
 }
 END_TEST

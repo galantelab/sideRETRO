@@ -144,6 +144,9 @@ START_TEST (test_genotype)
 
 	genotype (stmt, 2, 1);
 
+	db_finalize (stmt);
+	db_close (db);
+
 	xunlink (db_file);
 	xunlink (bam_sorted_file);
 	xunlink (bam_unsorted_file);
