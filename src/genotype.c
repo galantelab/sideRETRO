@@ -505,6 +505,7 @@ zygosity (ZygosityData *zd)
 		log_errno_fatal ("Failed to close '%s'", zd->path);
 
 	hash_free (chr_tid);
+	hts_idx_destroy (idx);
 	bam_hdr_destroy (hdr);
 	bam_destroy1 (align);
 }
