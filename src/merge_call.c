@@ -42,12 +42,14 @@
 #define DEFAULT_GFF_ATTRIBUTE2        "tag"
 #define DEFAULT_GFF_ATTRIBUTE_VALUE2  "retrogene"
 #define DEFAULT_NEAR_GENE_DISTANCE    3
+#define DEFAULT_THREADS               1
+#define DEFAULT_CROSSING_READS        10
 
 static void
 merge_call (const char *output_dir, const char *prefix, Array *db_files,
 		const char *output_file, int cache_size, int epsilon, int min_pts,
-		Set *blacklist_chr, int parental_dist, int support,
-		int near_gene_dist, const char *blacklist_region,
+		Set *blacklist_chr, int parental_dist, int support, int near_gene_dist,
+		int threads, int crossing_reads, const char *blacklist_region,
 		int padding, const GffFilter *filter)
 {
 	log_trace ("Inside %s", __func__);
@@ -60,6 +62,7 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 	sqlite3_stmt *overlapping_blacklist_stmt = NULL;
 	sqlite3_stmt *retrocopy_stmt = NULL;
 	sqlite3_stmt *cluster_merging_stmt = NULL;
+	sqlite3_stmt *genotype_stmt = NULL;
 
 	Blacklist *blacklist = NULL;
 	ChrStd *cs = NULL;
@@ -116,6 +119,9 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 	// Create cluster merging statement
 	cluster_merging_stmt =
 		db_prepare_cluster_merging_stmt (db);
+
+	// Create genotype statement
+	genotype_stmt = db_prepare_genotype_stmt (db);
 
 	// Get chromosome standardization
 	cs = chr_std_new ();
@@ -185,6 +191,15 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 	// Commit
 	db_end_transaction (db);
 
+	// Begin transaction to speed up
+	db_begin_transaction (db);
+
+	log_info ("Run genotype annotation step for '%s'", db_file);
+	genotype (genotype_stmt, threads, crossing_reads);
+
+	// Commit
+	db_end_transaction (db);
+
 	// Cleanup
 	xfree (db_file);
 	db_finalize (cluster_stmt);
@@ -193,6 +208,7 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 	db_finalize (overlapping_blacklist_stmt);
 	db_finalize (retrocopy_stmt);
 	db_finalize (cluster_merging_stmt);
+	db_finalize (genotype_stmt);
 	db_close (db);
 
 	chr_std_free (cs);
@@ -210,7 +226,7 @@ print_usage (FILE *fp)
 		"       %*c            [-c INT] [-I] [-e INT] [-m INT] [-b STR]\n"
 		"       %*c            [-B FILE] [[-T STR] [[-H|S] KEY=VALUE]]\n"
 		"       %*c            [-P INT] [-x INT] [-g INT] [-n INT]\n"
-		"       %*c            [-i FILE] <FILE> ...\n"
+		"       %*c            [-t INT] [-C INT] [-i FILE] <FILE> ...\n"
 		"\n"
 		"Arguments:\n"
 		"   One or more SQLite3 databases generated in the 'process-sample' step\n"
@@ -267,12 +283,17 @@ print_usage (FILE *fp)
 		"                              (BAM) within a cluster [default:\"%d\"]\n"
 		"   -n, --near-gene-distance   Minimum ranked distance between genes in order to\n"
 		"                              consider them close [default:\"%d\"]\n"
+		"   -t, --threads              Number of threads [default:\"%d\"]\n"
+		"   -C, --crossing-reads       Minimum number of reads crossing the insertion point\n"
+		"                              in order to consider evidence of heterozygosis\n"
+		"                              [default:\"%d\"]\n"
 		"\n",
 		PACKAGE_STRING, PACKAGE, pkg_len, ' ', pkg_len, ' ', pkg_len, ' ', pkg_len, ' ',
 		DEFAULT_OUTPUT_DIR, DEFAULT_PREFIX, DEFAULT_CACHE_SIZE, DEFAULT_EPS, DEFAULT_MIN_PTS,
 		DEFAULT_BLACKLIST_CHR, DEFAULT_BLACKLIST_PADDING, DEFAULT_GFF_FEATURE, DEFAULT_GFF_ATTRIBUTE1,
 		DEFAULT_GFF_ATTRIBUTE_VALUE1, DEFAULT_GFF_ATTRIBUTE2, DEFAULT_GFF_ATTRIBUTE_VALUE2,
-		DEFAULT_PARENTAL_DISTANCE, DEFAULT_SUPPORT, DEFAULT_NEAR_GENE_DISTANCE);
+		DEFAULT_PARENTAL_DISTANCE, DEFAULT_SUPPORT, DEFAULT_NEAR_GENE_DISTANCE,
+		DEFAULT_THREADS, DEFAULT_CROSSING_READS);
 }
 
 static void
@@ -318,6 +339,8 @@ parse_merge_call_command_opt (int argc, char **argv)
 		{"gff-hard-attribute", required_argument, 0, 'H'},
 		{"gff-soft-attribute", required_argument, 0, 'S'},
 		{"near-gene-distance", required_argument, 0, 'n'},
+		{"crossing-reads",     required_argument, 0, 'C'},
+		{"threads",            required_argument, 0, 't'},
 		{0,                    0,                 0,  0 }
 	};
 
@@ -332,6 +355,8 @@ parse_merge_call_command_opt (int argc, char **argv)
 	int         near_gene_dist   = DEFAULT_NEAR_GENE_DISTANCE;
 	int         support          = DEFAULT_SUPPORT;
 	int         padding          = DEFAULT_BLACKLIST_PADDING;
+	int         crossing_reads   = DEFAULT_CROSSING_READS;
+	int         threads          = DEFAULT_THREADS;
 	const char *blacklist_region = DEFAULT_BLACKLIST_REGION;
 	const char *output_dir       = DEFAULT_OUTPUT_DIR;
 	const char *prefix           = DEFAULT_PREFIX;
@@ -352,7 +377,7 @@ parse_merge_call_command_opt (int argc, char **argv)
 	int option_index = 0;
 	int c, i;
 
-	while ((c = getopt_long (argc, argv, "hqdIl:o:p:c:e:m:b:B:P:T:H:S:x:g:n:i:", opt, &option_index)) >= 0)
+	while ((c = getopt_long (argc, argv, "hqdIl:o:p:c:e:m:b:B:P:T:H:S:x:g:n:C:t:i:", opt, &option_index)) >= 0)
 		{
 			switch (c)
 				{
@@ -426,6 +451,16 @@ parse_merge_call_command_opt (int argc, char **argv)
 				case 'n':
 					{
 						near_gene_dist = atoi (optarg);
+						break;
+					}
+				case 'C':
+					{
+						crossing_reads = atoi (optarg);
+						break;
+					}
+				case 't':
+					{
+						threads = atoi (optarg);
 						break;
 					}
 				case 'B':
@@ -584,6 +619,18 @@ parse_merge_call_command_opt (int argc, char **argv)
 			rc = EXIT_FAILURE; goto Exit;
 		}
 
+	if (crossing_reads < 1)
+		{
+			fprintf (stderr, "%s: --crossing-reads must be greater or equal to 1\n", PACKAGE);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
+	if (threads < 1)
+		{
+			fprintf (stderr, "%s: --threads must be greater or equal to 1\n", PACKAGE);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
 	/*Final settings*/
 
 	// Add default blacklisted chr if none
@@ -639,7 +686,8 @@ parse_merge_call_command_opt (int argc, char **argv)
 	merge_call (output_dir, prefix, db_files, output_file,
 			cache_size, epsilon, min_pts, blacklist_chr,
 			parental_dist, support, near_gene_dist,
-			blacklist_region, padding, filter);
+			threads, crossing_reads, blacklist_region,
+			padding, filter);
 
 Exit:
 	logger_free (logger);
