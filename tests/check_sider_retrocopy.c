@@ -82,6 +82,7 @@ populate_db (sqlite3 *db)
 START_TEST (test_retrocopy)
 {
 	char db_file[] = "/tmp/ponga.db.XXXXXX";
+	const int near_dist = 3;
 
 	sqlite3 *db = NULL;
 	sqlite3_stmt *cluster_merging_stmt = NULL;
@@ -95,7 +96,8 @@ START_TEST (test_retrocopy)
 	populate_db (db);
 
 	retrocopy (retrocopy_stmt,
-			cluster_merging_stmt);
+			cluster_merging_stmt,
+			near_dist);
 
 	db_finalize (cluster_merging_stmt);
 	db_finalize (retrocopy_stmt);

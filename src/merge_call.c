@@ -18,6 +18,7 @@
 #include "cluster.h"
 #include "db_merge.h"
 #include "retrocopy.h"
+#include "genotype.h"
 #include "merge_call.h"
 
 #define DEFAULT_CACHE_SIZE            DB_DEFAULT_CACHE_SIZE
@@ -31,7 +32,7 @@
 #define DEFAULT_LOG_FILE              NULL
 #define DEFAULT_INPUT_FILE            NULL
 #define DEFAULT_BLACKLIST_CHR         "chrM"
-#define DEFAULT_DISTANCE              10000
+#define DEFAULT_PARENTAL_DISTANCE     10000
 #define DEFAULT_SUPPORT               1
 #define DEFAULT_BLACKLIST_REGION      NULL
 #define DEFAULT_BLACKLIST_PADDING     0
@@ -40,11 +41,13 @@
 #define DEFAULT_GFF_ATTRIBUTE_VALUE1  "processed_pseudogene"
 #define DEFAULT_GFF_ATTRIBUTE2        "tag"
 #define DEFAULT_GFF_ATTRIBUTE_VALUE2  "retrogene"
+#define DEFAULT_NEAR_GENE_DISTANCE    3
 
 static void
 merge_call (const char *output_dir, const char *prefix, Array *db_files,
 		const char *output_file, int cache_size, int epsilon, int min_pts,
-		Set *blacklist_chr, int distance, int support, const char *blacklist_region,
+		Set *blacklist_chr, int parental_dist, int support,
+		int near_gene_dist, const char *blacklist_region,
 		int padding, const GffFilter *filter)
 {
 	log_trace ("Inside %s", __func__);
@@ -167,7 +170,7 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 	// RUN
 	log_info ("Run clustering step for '%s'", db_file);
 	cluster (cluster_stmt, clustering_stmt, epsilon, min_pts,
-			distance, support, blacklist_chr, blacklist, padding);
+			parental_dist, support, blacklist_chr, blacklist, padding);
 
 	// Commit
 	db_end_transaction (db);
@@ -177,7 +180,7 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 
 	// RUN
 	log_info ("Run retrocopy annotation step for '%s'", db_file);
-	retrocopy (retrocopy_stmt, cluster_merging_stmt);
+	retrocopy (retrocopy_stmt, cluster_merging_stmt, near_gene_dist);
 
 	// Commit
 	db_end_transaction (db);
@@ -206,8 +209,8 @@ print_usage (FILE *fp)
 		"Usage: %s merge-call [-h] [-q] [-d] [-l FILE] [-o DIR] [-p STR]\n"
 		"       %*c            [-c INT] [-I] [-e INT] [-m INT] [-b STR]\n"
 		"       %*c            [-B FILE] [[-T STR] [[-H|S] KEY=VALUE]]\n"
-		"       %*c            [-P INT] [-x INT] [-g INT] [-i FILE]\n"
-		"       %*c            <FILE> ...\n"
+		"       %*c            [-P INT] [-x INT] [-g INT] [-n INT]\n"
+		"       %*c            [-i FILE] <FILE> ...\n"
 		"\n"
 		"Arguments:\n"
 		"   One or more SQLite3 databases generated in the 'process-sample' step\n"
@@ -262,12 +265,14 @@ print_usage (FILE *fp)
 		"                              its putative parental gene [default:\"%d\"]\n"
 		"   -g, --genotype-support     Minimum number of reads comming from a given source\n"
 		"                              (BAM) within a cluster [default:\"%d\"]\n"
+		"   -n, --near-gene-distance   Minimum ranked distance between genes in order to\n"
+		"                              consider them close [default:\"%d\"]\n"
 		"\n",
 		PACKAGE_STRING, PACKAGE, pkg_len, ' ', pkg_len, ' ', pkg_len, ' ', pkg_len, ' ',
 		DEFAULT_OUTPUT_DIR, DEFAULT_PREFIX, DEFAULT_CACHE_SIZE, DEFAULT_EPS, DEFAULT_MIN_PTS,
 		DEFAULT_BLACKLIST_CHR, DEFAULT_BLACKLIST_PADDING, DEFAULT_GFF_FEATURE, DEFAULT_GFF_ATTRIBUTE1,
 		DEFAULT_GFF_ATTRIBUTE_VALUE1, DEFAULT_GFF_ATTRIBUTE2, DEFAULT_GFF_ATTRIBUTE_VALUE2,
-		DEFAULT_DISTANCE, DEFAULT_SUPPORT);
+		DEFAULT_PARENTAL_DISTANCE, DEFAULT_SUPPORT, DEFAULT_NEAR_GENE_DISTANCE);
 }
 
 static void
@@ -312,6 +317,7 @@ parse_merge_call_command_opt (int argc, char **argv)
 		{"gff-feature",        required_argument, 0, 'T'},
 		{"gff-hard-attribute", required_argument, 0, 'H'},
 		{"gff-soft-attribute", required_argument, 0, 'S'},
+		{"near-gene-distance", required_argument, 0, 'n'},
 		{0,                    0,                 0,  0 }
 	};
 
@@ -322,7 +328,8 @@ parse_merge_call_command_opt (int argc, char **argv)
 	int         in_place         = DEFAULT_IN_PLACE;
 	int         epsilon          = DEFAULT_EPS;
 	int         min_pts          = DEFAULT_MIN_PTS;
-	int         distance         = DEFAULT_DISTANCE;
+	int         parental_dist    = DEFAULT_PARENTAL_DISTANCE;
+	int         near_gene_dist   = DEFAULT_NEAR_GENE_DISTANCE;
 	int         support          = DEFAULT_SUPPORT;
 	int         padding          = DEFAULT_BLACKLIST_PADDING;
 	const char *blacklist_region = DEFAULT_BLACKLIST_REGION;
@@ -345,7 +352,7 @@ parse_merge_call_command_opt (int argc, char **argv)
 	int option_index = 0;
 	int c, i;
 
-	while ((c = getopt_long (argc, argv, "hqdIl:o:p:c:e:m:b:B:P:T:H:S:x:g:i:", opt, &option_index)) >= 0)
+	while ((c = getopt_long (argc, argv, "hqdIl:o:p:c:e:m:b:B:P:T:H:S:x:g:n:i:", opt, &option_index)) >= 0)
 		{
 			switch (c)
 				{
@@ -408,12 +415,17 @@ parse_merge_call_command_opt (int argc, char **argv)
 					}
 				case 'x':
 					{
-						distance = atoi (optarg);
+						parental_dist = atoi (optarg);
 						break;
 					}
 				case 'g':
 					{
 						support = atoi (optarg);
+						break;
+					}
+				case 'n':
+					{
+						near_gene_dist = atoi (optarg);
 						break;
 					}
 				case 'B':
@@ -548,7 +560,7 @@ parse_merge_call_command_opt (int argc, char **argv)
 			rc = EXIT_FAILURE; goto Exit;
 		}
 
-	if (distance < 0)
+	if (parental_dist < 0)
 		{
 			fprintf (stderr, "%s: --parental-distance must be greater or equal to 0\n", PACKAGE);
 			rc = EXIT_FAILURE; goto Exit;
@@ -563,6 +575,12 @@ parse_merge_call_command_opt (int argc, char **argv)
 	if (padding < 0)
 		{
 			fprintf (stderr, "%s: --blacklist-padding must be greater or equal to 0\n", PACKAGE);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
+	if (near_gene_dist < 1)
+		{
+			fprintf (stderr, "%s: --near-gene-distance must be greater or equal to 1\n", PACKAGE);
 			rc = EXIT_FAILURE; goto Exit;
 		}
 
@@ -620,8 +638,8 @@ parse_merge_call_command_opt (int argc, char **argv)
 	// RUN FOOLS
 	merge_call (output_dir, prefix, db_files, output_file,
 			cache_size, epsilon, min_pts, blacklist_chr,
-			distance, support, blacklist_region, padding,
-			filter);
+			parental_dist, support, near_gene_dist,
+			blacklist_region, padding, filter);
 
 Exit:
 	logger_free (logger);

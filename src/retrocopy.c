@@ -14,7 +14,6 @@
 #include "correlation.h"
 #include "retrocopy.h"
 
-#define MAX_DIST 3
 #define BLOCK_SIZE 64
 #define SEED 17
 
@@ -146,9 +145,10 @@ overlaps (const char *chr1, const long start1, const long end1,
 
 static inline int
 is_near (const char *chr1, const int dist1,
-		const char *chr2, const int dist2)
+		const char *chr2, const int dist2,
+		const int near_gene_dist)
 {
-	if (!strcmp (chr1, chr2) && abs (dist1 - dist2) <= MAX_DIST)
+	if (!strcmp (chr1, chr2) && abs (dist1 - dist2) <= near_gene_dist)
 		return 1;
 
 	return 0;
@@ -210,7 +210,7 @@ rtc_insert_entry (Hash *h, const int rid)
 
 static void
 cluster_entry_merge_and_classify (sqlite3_stmt *cluster_merging_stmt,
-		Array *stack, Hash *rtc_h, int *rid)
+		Array *stack, Hash *rtc_h, const int near_gene_dist, int *rid)
 {
 	log_trace ("Inside %s", __func__);
 
@@ -245,7 +245,7 @@ cluster_entry_merge_and_classify (sqlite3_stmt *cluster_merging_stmt,
 					level |= RETROCOPY_OVERLAPPED_PARENTALS;
 				}
 			else if (is_near (c_prev->gchr, c_prev->dist,
-						c->gchr, c->dist))
+						c->gchr, c->dist, near_gene_dist))
 				{
 					list_append (to_merge, c);
 					level |= RETROCOPY_NEAR_PARENTALS;
@@ -307,7 +307,8 @@ merge_cluster_init (Array **a, char **chr, long *start, long *end,
 
 static void
 merge_cluster (sqlite3_stmt *cluster_merging_stmt,
-		const int filter, Hash *rtc_h)
+		const int filter, const int near_gene_dist,
+		Hash *rtc_h)
 {
 	log_trace ("Inside %s", __func__);
 
@@ -367,7 +368,7 @@ merge_cluster (sqlite3_stmt *cluster_merging_stmt,
 						cchr, cstart, cend))
 				{
 					cluster_entry_merge_and_classify (cluster_merging_stmt,
-							stack, rtc_h, &rid);
+							stack, rtc_h, near_gene_dist, &rid);
 
 					merge_cluster_init (&stack, &cchr_prev, &cstart_prev, &cend_prev,
 							cchr, cstart, cend);
@@ -387,7 +388,7 @@ merge_cluster (sqlite3_stmt *cluster_merging_stmt,
 
 	if (stack != NULL)
 		cluster_entry_merge_and_classify (cluster_merging_stmt,
-				stack, rtc_h, &rid);
+				stack, rtc_h, near_gene_dist, &rid);
 
 	xfree (cchr_prev);
 	array_free (stack, 1);
@@ -685,11 +686,13 @@ annotate_retrocopy (sqlite3_stmt *retrocopy_stmt, Hash *rtc_h)
 
 void
 retrocopy (sqlite3_stmt *retrocopy_stmt,
-		sqlite3_stmt *cluster_merging_stmt)
+		sqlite3_stmt *cluster_merging_stmt,
+		int near_gene_dist)
 {
 	log_trace ("Inside %s", __func__);
 	assert (retrocopy_stmt != NULL
-			&& cluster_merging_stmt != NULL);
+			&& cluster_merging_stmt != NULL
+			&& near_gene_dist > 0);
 
 	// Keep ID => level
 	Hash *rtc_h = NULL;
@@ -709,7 +712,7 @@ retrocopy (sqlite3_stmt *retrocopy_stmt,
 			sqlite3_db_handle (retrocopy_stmt));
 
 	log_info ("Analise and merge clusters into retrocopies");
-	merge_cluster (cluster_merging_stmt, filter, rtc_h);
+	merge_cluster (cluster_merging_stmt, filter, near_gene_dist, rtc_h);
 
 	log_info ("Calculate retrocopies orientation");
 	calculate_orientation (
