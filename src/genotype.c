@@ -96,6 +96,18 @@ zygosity_data_free (ZygosityData *zd)
 	xfree (zd);
 }
 
+static void
+clean_genotype_table (sqlite3 *db)
+{
+	// Delete all values from
+	// previous runs
+	const char sql[] =
+		"DELETE FROM genotype";
+
+	log_debug ("Clean tables:\n%s", sql);
+	db_exec (db, sql);
+}
+
 static sqlite3_stmt *
 prepare_genotype_query_stmt (sqlite3 *db)
 {
@@ -539,6 +551,9 @@ genotype (sqlite3_stmt *genotype_stmt, int threads, int max_cross)
 	// PATH => @ZYGOSITYDATA
 	path_h = hash_new_full (str_hash, str_equal,
 			xfree, (DestroyNotify) zygosity_data_free);
+
+	log_debug ("Clean genotype table");
+	clean_genotype_table (sqlite3_db_handle (genotype_stmt));
 
 	log_info ("Index all BAM path => retrocopy relationship");
 	genotype_search_db (sqlite3_db_handle (genotype_stmt),
