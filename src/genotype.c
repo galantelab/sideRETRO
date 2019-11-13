@@ -44,7 +44,7 @@ struct _ZygosityData
 	List         *genotype;
 	ChrStd       *cs;
 
-	int           max_cross;
+	int           crossing_reads;
 
 	const char   *path;
 };
@@ -375,7 +375,7 @@ zygosity_linear_search (samFile *fp, bam_hdr_t *hdr, bam1_t *align,
 		{
 			g = list_data (cur);
 
-			if (g->acm > zd->max_cross)
+			if (g->acm >= zd->crossing_reads)
 				g->z = HETEROZYGOUS;
 
 			switch (g->z)
@@ -438,7 +438,7 @@ zygosity_indexed_search (samFile *fp, bam_hdr_t *hdr, bam1_t *align,
 					if (cross_insertion_point (align, r->insertion_point))
 						g->acm++;
 
-					if (g->acm > zd->max_cross)
+					if (g->acm >= zd->crossing_reads)
 						{
 							g->z = HETEROZYGOUS;
 							break;
@@ -523,10 +523,12 @@ zygosity (ZygosityData *zd)
 }
 
 void
-genotype (sqlite3_stmt *genotype_stmt, int threads, int max_cross)
+genotype (sqlite3_stmt *genotype_stmt, int threads,
+		int crossing_reads)
 {
 	log_trace ("Inside %s", __func__);
-	assert (genotype_stmt != NULL && threads > 0 && max_cross >= 0);
+	assert (genotype_stmt != NULL && threads > 0
+			&& crossing_reads > 0);
 
 	threadpool thpool = NULL;
 
@@ -567,10 +569,10 @@ genotype (sqlite3_stmt *genotype_stmt, int threads, int max_cross)
 			log_debug ("Look for retrocopies zygosity of file '%s'", path);
 
 			// Don't forget to give chromosome standardization,
-			// genotype statement and max_cross
+			// genotype statement and crossing_reads
 			zd->cs = cs;
 			zd->stmt = genotype_stmt;
-			zd->max_cross = max_cross;
+			zd->crossing_reads = crossing_reads;
 
 			// Let's rock!
 			thpool_add_work (thpool, (void *) zygosity, (void *) zd);
