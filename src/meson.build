@@ -1,8 +1,6 @@
 sider_sources = files(
   'abnormal.c',
   'abnormal.h',
-  'align.c',
-  'align.h',
   'array.c',
   'array.h',
   'bed.c',
@@ -11,8 +9,6 @@ sider_sources = files(
   'bitree.h',
   'blacklist.c',
   'blacklist.h',
-  'bwa.c',
-  'bwa.h',
   'chr.c',
   'chr.h',
   'cluster.c',

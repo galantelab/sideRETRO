@@ -90,16 +90,11 @@ htslib_dep = dependency('htslib', version : '>= 1.9', fallback : ['htslib', 'hts
 # required for building and installing
 check_dep = dependency('check', required : false)
 
-# BWA aligner is linked against the main binary
-bwa_proj = subproject('bwa')
-bwa_dep = bwa_proj.get_variable('bwa_dep')
-
 # All required deps
 deps = [
   thread_dep,
   sqlite_dep,
   htslib_dep,
-  bwa_dep,
   zlib_dep,
   m_dep,
   dl_dep

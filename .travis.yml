@@ -34,8 +34,6 @@ after_success:
     --exclude builddir/meson-private
     --exclude subprojects
     --exclude tests
-    --exclude src/align.c
-    --exclude src/bwa.c
     --exclude src/log.c
     --exclude src/logger.c
     --exclude src/main.c
