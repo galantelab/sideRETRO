@@ -1,3 +1,71 @@
+2019-11-14 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* Version 0.12.0
+
+	* REMOVE: align.c, bwa.c: BWA subproject
+
+	Remove bwa subproject, because it won't be used any longer
+
+2019-11-13 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* FIX: .travis.yml: Change (-t) timeout 2 -> 3
+
+	* ADD: genotype.c (dump_genotype): Save genotype
+
+	* FIX: genotype.c (prepare_genotype_query_stmt)
+
+	Add DISTINCT clause to SQL query in order to remove duplicated entries
+
+	* ADD: merge_call.c (genotype): Genotyping step
+
+	Add genotype step and its options: --threads and --crossing-reads
+
+	* CHANGE: genotype.c: max_cross -> crossing_reads
+
+	* ADD: retrocopy.c (retrocopy): Option for near gene
+
+	Add option --near-gene-distance in order to make dynamic the MAX_DIST
+	value
+
+	* ADD: genotype.c (clean_genotype_table)
+
+2019-11-12 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* FIX: genotype.c (zygosity): hts_idx_destroy
+
+	Clean up memmory leak in hts_idx_t
+
+	* FIX: check_sider_{genotype,gff,wrapper}.c
+
+	Memmory leaks in test
+
+	* FIX: .travis.yml: Turn off libcheck timeout
+
+	* ADD: check_sider_genotype.c test
+
+	* ADD: genotype.c (max_cross, db_insert_genotype)
+
+	Add option max_cross (override MAX_CROSS). And finally, dump genotype to
+	database
+
+	* ADD: db.c (db_{prepare,insert}_genotype): genotype
+
+2019-11-11 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* FIX: README.md (coveralls badge): master branch
+
+	* ADD: genotype.c (zygosity_{indexed,linear}_search)
+
+	If the BAM index is found, perform a fast search for each retrocopy
+	region, else index all regions inside an intervalar tree and make a slow
+	linear search all over the file
+
+2019-11-09 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: genotype.c interface
+
+	* FIX: retrocopy.h: include db.h
+
 2019-11-07 Thiago L. A. Miller <tmiller@mochsl.org.br>
 
 	* Version 0.11.0
