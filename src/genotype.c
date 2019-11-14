@@ -324,6 +324,26 @@ index_region (const List *genotype, Hash *chr_tid)
 	return ir;
 }
 
+static inline void
+dump_genotype (sqlite3_stmt *stmt, const Genotype *g)
+{
+	switch (g->z)
+		{
+		case HETEROZYGOUS:
+			{
+				log_debug ("retrocopy [%d %d] is heterozygous", g->retrocopy_id, g->source_id);
+				db_insert_genotype (stmt, g->source_id, g->retrocopy_id, 1);
+				break;
+			}
+		case HOMOZYGOUS:
+			{
+				log_debug ("retrocopy [%d %d] is homozygous", g->retrocopy_id, g->source_id);
+				db_insert_genotype (stmt, g->source_id, g->retrocopy_id, 0);
+				break;
+			}
+		}
+}
+
 static void
 cross_window (IBiTreeLookupData *ldata, void *user_data)
 {
@@ -378,21 +398,7 @@ zygosity_linear_search (samFile *fp, bam_hdr_t *hdr, bam1_t *align,
 			if (g->acm >= zd->crossing_reads)
 				g->z = HETEROZYGOUS;
 
-			switch (g->z)
-				{
-				case HETEROZYGOUS:
-					{
-						log_debug ("retrocopy [%d %d] is heterozygous", g->retrocopy_id, g->source_id);
-						db_insert_genotype (zd->stmt, g->source_id, g->retrocopy_id, 1);
-						break;
-					}
-				case HOMOZYGOUS:
-					{
-						log_debug ("retrocopy [%d %d] is homozygous", g->retrocopy_id, g->source_id);
-						db_insert_genotype (zd->stmt, g->source_id, g->retrocopy_id, 0);
-						break;
-					}
-				}
+			dump_genotype (zd->stmt, g);
 		}
 
 	hash_free (ir);
@@ -448,23 +454,9 @@ zygosity_indexed_search (samFile *fp, bam_hdr_t *hdr, bam1_t *align,
 			if (rc < -1)
 				log_fatal ("Failed to read sam alignment");
 
-			sam_itr_destroy (itr);
+			dump_genotype (zd->stmt, g);
 
-			switch (g->z)
-				{
-				case HETEROZYGOUS:
-					{
-						log_debug ("retrocopy [%d %d] is heterozygous", g->retrocopy_id, g->source_id);
-						db_insert_genotype (zd->stmt, g->source_id, g->retrocopy_id, 1);
-						break;
-					}
-				case HOMOZYGOUS:
-					{
-						log_debug ("retrocopy [%d %d] is homozygous", g->retrocopy_id, g->source_id);
-						db_insert_genotype (zd->stmt, g->source_id, g->retrocopy_id, 0);
-						break;
-					}
-				}
+			sam_itr_destroy (itr);
 		}
 }
 
