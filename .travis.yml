@@ -24,7 +24,7 @@ script:
   - meson -Db_coverage=true builddir
   - ninja -C builddir
   - meson test -C builddir
-  - meson test -C builddir --wrap='valgrind --leak-check=full --error-exitcode=1' -t 2
+  - meson test -C builddir --wrap='valgrind --leak-check=full --error-exitcode=1' -t 3
 
 after_success:
   - >
