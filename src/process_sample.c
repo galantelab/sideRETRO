@@ -31,17 +31,49 @@
 #define DEFAULT_OUTPUT_DIR      "."
 #define DEFAULT_LOG_SILENT      0
 #define DEFAULT_LOG_LEVEL       LOG_INFO
-#define DEFAULT_LOG_FILE        NULL
-#define DEFAULT_GFF_FILE        NULL
-#define DEFAULT_INPUT_FILE      NULL
 #define DEFAULT_PHRED_QUALITY   8
 #define DEFAULT_MAX_BASE_FREQ   0.75
 
+struct _ProcessSample
+{
+	// Mandatory
+	Array       *sam_files;
+	const char  *gff_file;
+
+	// I/O
+	const char  *input_file;
+	const char  *output_dir;
+	const char  *prefix;
+
+	// Log
+	Logger      *logger;
+	const char  *log_file;
+	int          log_level;
+	int          silent;
+
+	// SQLite3
+	int          cache_size;
+
+	// Read Quality
+	float        max_base_freq;
+	int          phred_quality;
+	int          deduplicate;
+
+	// Processing
+	int          threads;
+	int          sorted;
+	int          max_distance;
+	float        exon_frac;
+	float        alignment_frac;
+	int          alignment_frac_set;
+	int          reciprocal;
+	int          either;
+};
+
+typedef struct _ProcessSample ProcessSample;
+
 static void
-process_sample (const char *output_dir, const char *prefix, const Array *sam_files,
-		const char *gff_file, int threads, int cache_size, int sorted, int deduplicate,
-		int phred_quality, int max_distance, float max_base_freq, float exon_frac,
-		float alignment_frac, int either)
+run (ProcessSample *ps)
 {
 	log_trace ("Inside %s", __func__);
 
@@ -63,17 +95,18 @@ process_sample (const char *output_dir, const char *prefix, const Array *sam_fil
 	struct tm *lt = NULL;
 
 	const char *sam_file = NULL;
-	const int num_files = array_len (sam_files);
+	const int num_files = array_len (ps->sam_files);
 	char *db_file = NULL;
 	int i = 0;
 
 	// Assemble database output filename
-	xasprintf_concat (&db_file, "%s/%s.db", output_dir, prefix);
+	xasprintf_concat (&db_file, "%s/%s.db",
+			ps->output_dir, ps->prefix);
 
 	log_info (">>> Process Sample step <<<");
 
-	log_info ("Create output dir '%s'", output_dir);
-	mkdir_p (output_dir);
+	log_info ("Create output dir '%s'", ps->output_dir);
+	mkdir_p (ps->output_dir);
 
 	// Create and connect to database
 	log_info ("Create and connect to database '%s'", db_file);
@@ -85,7 +118,7 @@ process_sample (const char *output_dir, const char *prefix, const Array *sam_fil
 	overlapping_stmt = db_prepare_overlapping_stmt (db);
 
 	// Increase the cache size
-	db_cache_size (db, cache_size);
+	db_cache_size (db, ps->cache_size);
 
 	// Begin transaction to speed up
 	db_begin_transaction (db);
@@ -107,18 +140,18 @@ process_sample (const char *output_dir, const char *prefix, const Array *sam_fil
 	// Index protein coding genes into the database
 	// and its exons into an intervalar tree by
 	// chromosome
-	log_info ("Index annotation file '%s'", gff_file);
+	log_info ("Index annotation file '%s'", ps->gff_file);
 	exon_tree = exon_tree_new (exon_stmt, overlapping_stmt, cs);
-	exon_tree_index_dump (exon_tree, gff_file);
+	exon_tree_index_dump (exon_tree, ps->gff_file);
 
 	log_info ("Create thread pool");
-	thpool = thpool_init (threads);
+	thpool = thpool_init (ps->threads);
 
 	AbnormalArg *ab_args = xcalloc (num_files, sizeof (AbnormalArg));
 
 	for (i = 0; i < num_files; i++)
 		{
-			sam_file = array_get (sam_files, i);
+			sam_file = array_get (ps->sam_files, i);
 
 			// Init abnormal_filter arg
 			ab_args[i] = (AbnormalArg)
@@ -126,16 +159,16 @@ process_sample (const char *output_dir, const char *prefix, const Array *sam_fil
 				.tid              = i + 1,
 				.inc_step         = num_files,
 				.sam_file         = sam_file,
-				.either           = either,
-				.exon_frac        = exon_frac,
-				.alignment_frac   = alignment_frac,
+				.either           = ps->either,
+				.exon_frac        = ps->exon_frac,
+				.alignment_frac   = ps->alignment_frac,
 				.exon_tree        = exon_tree,
 				.cs               = cs,
 				.alignment_stmt   = alignment_stmt,
-				.queryname_sorted = sorted,
-				.max_distance     = max_distance,
-				.phred_quality    = phred_quality,
-				.max_base_freq    = max_base_freq
+				.queryname_sorted = ps->sorted,
+				.max_distance     = ps->max_distance,
+				.phred_quality    = ps->phred_quality,
+				.max_base_freq    = ps->max_base_freq
 			};
 
 			log_debug ("Dump source entry '%s'", sam_file);
@@ -152,7 +185,7 @@ process_sample (const char *output_dir, const char *prefix, const Array *sam_fil
 	// Commit database
 	db_end_transaction (db);
 
-	if (deduplicate)
+	if (ps->deduplicate)
 		{
 			// Begin transaction to speed up
 			db_begin_transaction (db);
@@ -261,6 +294,178 @@ print_try_help (FILE *fp)
 			PACKAGE);
 }
 
+static void
+process_sample_init (ProcessSample *ps)
+{
+	*ps = (ProcessSample) {
+		.sam_files          = array_new (xfree),
+		.gff_file           = NULL,
+		.input_file         = NULL,
+		.output_dir         = DEFAULT_OUTPUT_DIR,
+		.prefix             = DEFAULT_PREFIX,
+		.logger             = NULL,
+		.log_file           = NULL,
+		.log_level          = DEFAULT_LOG_LEVEL,
+		.silent             = DEFAULT_LOG_SILENT,
+		.cache_size         = DEFAULT_CACHE_SIZE,
+		.max_base_freq      = DEFAULT_MAX_BASE_FREQ,
+		.phred_quality      = DEFAULT_PHRED_QUALITY,
+		.deduplicate        = DEFAULT_DEDUPLICATE,
+		.threads            = DEFAULT_THREADS,
+		.sorted             = DEFAULT_SORTED,
+		.max_distance       = DEFAULT_MAX_DISTANCE,
+		.exon_frac          = DEFAULT_EXON_FRAC,
+		.alignment_frac     = DEFAULT_ALIGNMENT_FRAC,
+		.alignment_frac_set = 0,
+		.reciprocal         = DEFAULT_RECIPROCAL,
+		.either             = DEFAULT_EITHER
+	};
+}
+
+static void
+process_sample_destroy (ProcessSample *ps)
+{
+	if (ps == NULL)
+		return;
+
+	array_free (ps->sam_files, 1);
+	logger_free (ps->logger);
+
+	memset (ps, 0, sizeof (ProcessSample));
+}
+
+static int
+process_sample_validate (ProcessSample *ps)
+{
+	int rc = EXIT_SUCCESS;
+	int i = 0;
+
+	/*
+	* Validate arguments and mandatory options
+	*/
+
+	// If no one file was passed, throw an error
+	if (array_len (ps->sam_files) == 0)
+		{
+			fprintf (stderr, "%s: Missing alignment files (SAM/BAM)\n", PACKAGE);
+			print_try_help (stderr);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
+	// Test if all alignment files axist
+	for (i = 0; i < array_len (ps->sam_files); i++)
+		{
+			const char *sam_file = array_get (ps->sam_files, i);
+			if (!exists (sam_file))
+				{
+					fprintf (stderr, "%s: alignment file '%s': No such file\n", PACKAGE, sam_file);
+					rc = EXIT_FAILURE; goto Exit;
+				}
+		}
+
+	// If no annotation-file was passed, throw an error
+	if (ps->gff_file == NULL)
+		{
+			fprintf (stderr, "%s: Missing annotation file (GTF/GFF3)\n", PACKAGE);
+			print_try_help (stderr);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
+	// Test if annotation file exists
+	if (!exists (ps->gff_file))
+		{
+			fprintf (stderr, "%s: annotation file '%s': No such file\n", PACKAGE, ps->gff_file);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
+	/*
+	* Validate options
+	*/
+
+	// If --reciprocal, set alignment_frac to exon_frac
+	if (ps->reciprocal)
+		{
+			if (ps->alignment_frac_set)
+				{
+					fprintf (stderr, "%s: --reciprocal must be set solely with '-f'\n", PACKAGE);
+					rc = EXIT_FAILURE; goto Exit;
+				}
+			ps->alignment_frac = ps->exon_frac;
+		}
+
+	// Validate exon_frac: ]0, 1]
+	if (ps->exon_frac > 1 || ps->exon_frac <= 0)
+		{
+			fprintf (stderr, "%s: --exon-frac must be in the interval of ]0, 1]\n", PACKAGE);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
+	// Validate alignment_frac ]0, 1]
+	if (ps->alignment_frac > 1 || ps->alignment_frac <= 0)
+		{
+			fprintf (stderr, "%s: --alignment-frac must be in the interval of ]0, 1]\n", PACKAGE);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
+	// Validate threads > 0
+	if (ps->threads < 1)
+		{
+			fprintf (stderr, "%s: --threads must be greater or equal to 1\n", PACKAGE);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
+	// Validate cache_size >= DEFAULT_CACHE_SIZE
+	if (ps->cache_size < DEFAULT_CACHE_SIZE)
+		{
+			fprintf (stderr, "%s: --cache-size must be greater or equal to %uKiB\n",
+					PACKAGE, DEFAULT_CACHE_SIZE);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
+	// Validate max_distance >= 0
+	if (ps->max_distance < 0)
+		{
+			fprintf (stderr, "%s: --max-distance must be a positive value\n", PACKAGE);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
+	if (ps->max_base_freq <= 0.25 || ps->max_base_freq > 1)
+		{
+			fprintf (stderr, "%s: --max-base-frac must be in the range of ]0.25, 1]\n", PACKAGE);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
+	// Validate phred_quality >= 0
+	if (ps->phred_quality < 0)
+		{
+			fprintf (stderr, "%s: --phred-quality must be a positive value\n", PACKAGE);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
+	/*
+	* Final settings
+	*/
+
+	// Avoid to include repetitive files
+	array_uniq (ps->sam_files, cmpstringp);
+
+	// If it's silent and no log file
+	// was passsed, then set log_level
+	// to LOG_ERROR - At least print
+	// errors
+	if (ps->silent && ps->log_file == NULL)
+		{
+			ps->silent = 0;
+			ps->log_level = LOG_ERROR;
+		}
+
+	ps->logger = logger_new (ps->log_file, ps->log_level,
+			ps->silent, 1);
+
+Exit:
+	return rc;
+}
+
 int
 parse_process_sample_command_opt (int argc, char **argv)
 {
@@ -300,31 +505,11 @@ parse_process_sample_command_opt (int argc, char **argv)
 	};
 
 	// Init variables to default values
-	int         silent         = DEFAULT_LOG_SILENT;
-	int         log_level      = DEFAULT_LOG_LEVEL;
-	int         threads        = DEFAULT_THREADS;
-	int         sorted         = DEFAULT_SORTED;
-	int         deduplicate    = DEFAULT_DEDUPLICATE;
-	int         phred_quality  = DEFAULT_PHRED_QUALITY;
-	int         max_distance   = DEFAULT_MAX_DISTANCE;
-	float       max_base_freq  = DEFAULT_MAX_BASE_FREQ;
-	int         cache_size     = DEFAULT_CACHE_SIZE;
-	int         either         = DEFAULT_EITHER;
-	int         reciprocal     = DEFAULT_RECIPROCAL;
-	float       exon_frac      = DEFAULT_EXON_FRAC;
-	float       alignment_frac = DEFAULT_ALIGNMENT_FRAC;
-	const char *output_dir     = DEFAULT_OUTPUT_DIR;
-	const char *prefix         = DEFAULT_PREFIX;
-	const char *log_file       = DEFAULT_LOG_FILE;
-	const char *gff_file       = DEFAULT_GFF_FILE;
-	const char *input_file     = DEFAULT_INPUT_FILE;
-
-	Array *sam_files = array_new (xfree);
-	Logger *logger = NULL;
+	ProcessSample ps = {};
+	process_sample_init (&ps);
 
 	int rc = EXIT_SUCCESS;
 	int option_index = 0;
-	int alignment_frac_set = 0;
 	int c, i;
 
 	while ((c = getopt_long (argc, argv, "hqdsDl:a:o:p:t:m:M:c:Q:f:F:eri:", opt, &option_index)) >= 0)
@@ -339,93 +524,93 @@ parse_process_sample_command_opt (int argc, char **argv)
 					}
 				case 'q':
 					{
-						silent = 1;
+						ps.silent = 1;
 						break;
 					}
 				case 'd':
 					{
-						log_level = LOG_DEBUG;
+						ps.log_level = LOG_DEBUG;
 						break;
 					}
 				case 'l':
 					{
-						log_file = optarg;
+						ps.log_file = optarg;
 						break;
 					}
 				case 'a':
 					{
-						gff_file = optarg;
+						ps.gff_file = optarg;
 						break;
 					}
 				case 'o':
 					{
-						output_dir = optarg;
+						ps.output_dir = optarg;
 						break;
 					}
 				case 'p':
 					{
-						prefix = optarg;
+						ps.prefix = optarg;
 						break;
 					}
 				case 't':
 					{
-						threads = atoi (optarg);
+						ps.threads = atoi (optarg);
 						break;
 					}
 				case 'c':
 					{
-						cache_size = atoi (optarg);
+						ps.cache_size = atoi (optarg);
 						break;
 					}
 				case 'Q':
 					{
-						phred_quality = atoi (optarg);
+						ps.phred_quality = atoi (optarg);
 						break;
 					}
 				case 'm':
 					{
-						max_distance = atoi (optarg);
+						ps.max_distance = atoi (optarg);
 						break;
 					}
 				case 'M':
 					{
-						max_base_freq = atof (optarg);
+						ps.max_base_freq = atof (optarg);
 						break;
 					}
 				case 'D':
 					{
-						deduplicate = 1;
+						ps.deduplicate = 1;
 						break;
 					}
 				case 's':
 					{
-						sorted = 1;
+						ps.sorted = 1;
 						break;
 					}
 				case 'f':
 					{
-						exon_frac = atof (optarg);
+						ps.exon_frac = atof (optarg);
 						break;
 					}
 				case 'F':
 					{
-						alignment_frac = atof (optarg);
-						alignment_frac_set = 1;
+						ps.alignment_frac = atof (optarg);
+						ps.alignment_frac_set = 1;
 						break;
 					}
 				case 'e':
 					{
-						either = 1;
+						ps.either = 1;
 						break;
 					}
 				case 'r':
 					{
-						reciprocal = 1;
+						ps.reciprocal = 1;
 						break;
 					}
 				case 'i':
 					{
-						input_file = optarg;
+						ps.input_file = optarg;
 						break;
 					}
 				case '?':
@@ -441,143 +626,26 @@ parse_process_sample_command_opt (int argc, char **argv)
 	// Catch all alignment files passed
 	// as argument
 	for (i = optind + 1; i < argc; i++)
-		array_add (sam_files, xstrdup (argv[i]));
+		array_add (ps.sam_files, xstrdup (argv[i]));
 
 	// Catch all alignment files passed into
 	// --input-file
-	if (input_file != NULL)
-		read_file_lines (sam_files, input_file);
+	if (ps.input_file != NULL)
+		read_file_lines (ps.sam_files, ps.input_file);
 
-	/*
-	* Validate arguments and mandatory options
-	*/
+	// Validate and init logger
+	rc = process_sample_validate (&ps);
 
-	// If no one file was passed, throw an error
-	if (array_len (sam_files) == 0)
+	// If no error
+	if (rc == EXIT_SUCCESS)
 		{
-			fprintf (stderr, "%s: Missing alignment files (SAM/BAM)\n", PACKAGE);
-			print_try_help (stderr);
-			rc = EXIT_FAILURE; goto Exit;
+			/*
+			* RUN FOOLS
+			*/
+			run (&ps);
 		}
-
-	// Test if all alignment files axist
-	for (i = 0; i < array_len (sam_files); i++)
-		{
-			const char *sam_file = array_get (sam_files, i);
-			if (!exists (sam_file))
-				{
-					fprintf (stderr, "%s: alignment file '%s': No such file\n", PACKAGE, sam_file);
-					rc = EXIT_FAILURE; goto Exit;
-				}
-		}
-
-	// If no annotation-file was passed, throw an error
-	if (gff_file == NULL)
-		{
-			fprintf (stderr, "%s: Missing annotation file (GTF/GFF3)\n", PACKAGE);
-			print_try_help (stderr);
-			rc = EXIT_FAILURE; goto Exit;
-		}
-
-	// Test if annotation file exists
-	if (!exists (gff_file))
-		{
-			fprintf (stderr, "%s: annotation file '%s': No such file\n", PACKAGE, gff_file);
-			rc = EXIT_FAILURE; goto Exit;
-		}
-
-	/*
-	* Validate options
-	*/
-
-	// If --reciprocal, set alignment_frac to exon_frac
-	if (reciprocal)
-		{
-			if (alignment_frac_set)
-				{
-					fprintf (stderr, "%s: --reciprocal must be set solely with '-f'\n", PACKAGE);
-					rc = EXIT_FAILURE; goto Exit;
-				}
-			alignment_frac = exon_frac;
-		}
-
-	// Validate exon_frac: ]0, 1]
-	if (exon_frac > 1 || exon_frac <= 0)
-		{
-			fprintf (stderr, "%s: --exon-frac must be in the interval of ]0, 1]\n", PACKAGE);
-			rc = EXIT_FAILURE; goto Exit;
-		}
-
-	// Validate alignment_frac ]0, 1]
-	if (alignment_frac > 1 || alignment_frac <= 0)
-		{
-			fprintf (stderr, "%s: --alignment-frac must be in the interval of ]0, 1]\n", PACKAGE);
-			rc = EXIT_FAILURE; goto Exit;
-		}
-
-	// Validate threads > 0
-	if (threads < 1)
-		{
-			fprintf (stderr, "%s: --threads must be greater or equal to 1\n", PACKAGE);
-			rc = EXIT_FAILURE; goto Exit;
-		}
-
-	// Validate cache_size >= DEFAULT_CACHE_SIZE
-	if (cache_size < DEFAULT_CACHE_SIZE)
-		{
-			fprintf (stderr, "%s: --cache-size must be greater or equal to %uKiB\n",
-					PACKAGE, DEFAULT_CACHE_SIZE);
-			rc = EXIT_FAILURE; goto Exit;
-		}
-
-	// Validate max_distance >= 0
-	if (max_distance < 0)
-		{
-			fprintf (stderr, "%s: --max-distance must be a positive value\n", PACKAGE);
-			rc = EXIT_FAILURE; goto Exit;
-		}
-
-	if (max_base_freq <= 0.25 || max_base_freq > 1)
-		{
-			fprintf (stderr, "%s: --max-base-frac must be in the range of ]0.25, 1]\n", PACKAGE);
-			rc = EXIT_FAILURE; goto Exit;
-		}
-
-	// Validate phred_quality >= 0
-	if (phred_quality < 0)
-		{
-			fprintf (stderr, "%s: --phred-quality must be a positive value\n", PACKAGE);
-			rc = EXIT_FAILURE; goto Exit;
-		}
-
-	/*
-	* Final settings
-	*/
-
-	// Avoid to include repetitive files
-	array_uniq (sam_files, cmpstringp);
-
-	// If it's silent and no log file
-	// was passsed, then set log_level
-	// to LOG_ERROR - At least print
-	// errors
-	if (silent && log_file == NULL)
-		{
-			silent = 0;
-			log_level = LOG_ERROR;
-		}
-
-	logger = logger_new (log_file, log_level, silent, 1);
-
-	/*
-	* RUN FOOLS
-	*/
-	process_sample (output_dir, prefix, sam_files, gff_file, threads,
-			cache_size, sorted, deduplicate, phred_quality, max_distance,
-			max_base_freq, exon_frac, alignment_frac, either);
 
 Exit:
-	logger_free (logger);
-	array_free (sam_files, 1);
+	process_sample_destroy (&ps);
 	return rc;
 }
