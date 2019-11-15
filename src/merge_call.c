@@ -67,6 +67,7 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 	Blacklist *blacklist = NULL;
 	ChrStd *cs = NULL;
 
+	int num_clusters = 0;
 	char *db_file = NULL;
 
 	log_info (">>> Merge Call step <<<");
@@ -173,32 +174,40 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 	// Begin transaction to speed up
 	db_begin_transaction (db);
 
-	// RUN
+	// Clustering
 	log_info ("Run clustering step for '%s'", db_file);
-	cluster (cluster_stmt, clustering_stmt, epsilon, min_pts,
+	num_clusters = cluster (cluster_stmt, clustering_stmt, epsilon, min_pts,
 			parental_dist, support, blacklist_chr, blacklist, padding);
 
 	// Commit
 	db_end_transaction (db);
 
-	// Begin transaction to speed up
-	db_begin_transaction (db);
+	if (!num_clusters)
+		{
+			log_warn ("No cluster has been found!");
+		}
+	else
+		{
+			// Begin transaction to speed up
+			db_begin_transaction (db);
 
-	// RUN
-	log_info ("Run retrocopy annotation step for '%s'", db_file);
-	retrocopy (retrocopy_stmt, cluster_merging_stmt, near_gene_dist);
+			// Filtering and Annotation
+			log_info ("Run retrocopy annotation step for '%s'", db_file);
+			retrocopy (retrocopy_stmt, cluster_merging_stmt, near_gene_dist);
 
-	// Commit
-	db_end_transaction (db);
+			// Commit
+			db_end_transaction (db);
 
-	// Begin transaction to speed up
-	db_begin_transaction (db);
+			// Begin transaction to speed up
+			db_begin_transaction (db);
 
-	log_info ("Run genotype annotation step for '%s'", db_file);
-	genotype (genotype_stmt, threads, crossing_reads);
+			// Genotyping
+			log_info ("Run genotype annotation step for '%s'", db_file);
+			genotype (genotype_stmt, threads, crossing_reads);
 
-	// Commit
-	db_end_transaction (db);
+			// Commit
+			db_end_transaction (db);
+		}
 
 	// Cleanup
 	xfree (db_file);
