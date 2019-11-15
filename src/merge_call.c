@@ -29,12 +29,9 @@
 #define DEFAULT_IN_PLACE              0
 #define DEFAULT_EPS                   300
 #define DEFAULT_MIN_PTS               10
-#define DEFAULT_LOG_FILE              NULL
-#define DEFAULT_INPUT_FILE            NULL
 #define DEFAULT_BLACKLIST_CHR         "chrM"
 #define DEFAULT_PARENTAL_DISTANCE     10000
 #define DEFAULT_SUPPORT               1
-#define DEFAULT_BLACKLIST_REGION      NULL
 #define DEFAULT_BLACKLIST_PADDING     0
 #define DEFAULT_GFF_FEATURE           "gene"
 #define DEFAULT_GFF_ATTRIBUTE1        "gene_type"
@@ -45,12 +42,50 @@
 #define DEFAULT_THREADS               1
 #define DEFAULT_CROSSING_READS        10
 
+struct _MergeCall
+{
+	// Mandatory
+	Array       *db_files;
+
+	// I/O
+	const char  *input_file;
+	const char  *output_dir;
+	const char  *output_file;
+	const char  *prefix;
+	int          in_place;
+
+	// Log
+	Logger      *logger;
+	const char  *log_file;
+	int          log_level;
+	int          silent;
+
+	// SQLite3
+	int          cache_size;
+
+	// Clustering
+	int          epsilon;
+	int          min_pts;
+
+	// Filtering & Annotation
+	const char  *blacklist_region;
+	Set         *blacklist_chr;
+	GffFilter   *filter;
+	ChrStd      *cs;
+	int          padding;
+	int          parental_dist;
+	int          support;
+	int          near_gene_dist;
+
+	// Genotyping
+	int          crossing_reads;
+	int          threads;
+};
+
+typedef struct _MergeCall MergeCall;
+
 static void
-merge_call (const char *output_dir, const char *prefix, Array *db_files,
-		const char *output_file, int cache_size, int epsilon, int min_pts,
-		Set *blacklist_chr, int parental_dist, int support, int near_gene_dist,
-		int threads, int crossing_reads, const char *blacklist_region,
-		int padding, const GffFilter *filter)
+run (MergeCall *mc)
 {
 	log_trace ("Inside %s", __func__);
 
@@ -65,21 +100,20 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 	sqlite3_stmt *genotype_stmt = NULL;
 
 	Blacklist *blacklist = NULL;
-	ChrStd *cs = NULL;
 
 	int num_clusters = 0;
 	char *db_file = NULL;
 
 	log_info (">>> Merge Call step <<<");
 
-	log_info ("Create output dir '%s'", output_dir);
-	mkdir_p (output_dir);
+	log_info ("Create output dir '%s'", mc->output_dir);
+	mkdir_p (mc->output_dir);
 
 	// Merge all databases
-	if (output_file != NULL)
+	if (mc->output_file != NULL)
 		{
 			// Use first database
-			db_file = xstrdup (output_file);
+			db_file = xstrdup (mc->output_file);
 
 			log_info ("Connect to database '%s'", db_file);
 
@@ -90,7 +124,7 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 		{
 			// Assemble database output filename
 			xasprintf_concat (&db_file, "%s/%s.db",
-					output_dir, prefix);
+					mc->output_dir, mc->prefix);
 
 			log_info ("Create and connect to database '%s'", db_file);
 
@@ -99,7 +133,7 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 		}
 
 	// Increase the cache size
-	db_cache_size (db, cache_size);
+	db_cache_size (db, mc->cache_size);
 
 	// Create cluster statement
 	cluster_stmt = db_prepare_cluster_stmt (db);
@@ -124,32 +158,29 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 	// Create genotype statement
 	genotype_stmt = db_prepare_genotype_stmt (db);
 
-	// Get chromosome standardization
-	cs = chr_std_new ();
-
 	// Index blacklisted regions
 	blacklist = blacklist_new (blacklist_stmt,
-			overlapping_blacklist_stmt, cs);
+			overlapping_blacklist_stmt, mc->cs);
 
 	// If the user passed blacklisted regions
-	if (blacklist_region != NULL)
+	if (mc->blacklist_region != NULL)
 		{
 			// Begin transaction to speed up
 			db_begin_transaction (db);
 
-			if (gff_looks_like_gff_file (blacklist_region))
+			if (gff_looks_like_gff_file (mc->blacklist_region))
 				{
 					log_info ("Index blacklist entries from GTF/GFF3 file '%s'",
-							blacklist_region);
+							mc->blacklist_region);
 					blacklist_index_dump_from_gff (blacklist,
-							blacklist_region, filter);
+							mc->blacklist_region, mc->filter);
 				}
 			else
 				{
 					log_info ("Index blacklist entries from BED file '%s'",
-							blacklist_region);
+							mc->blacklist_region);
 					blacklist_index_dump_from_bed (blacklist,
-							blacklist_region);
+							mc->blacklist_region);
 				}
 
 			// Commit
@@ -157,15 +188,15 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 		}
 
 	// If there are files to merge with ...
-	if (array_len (db_files))
+	if (array_len (mc->db_files))
 		{
 			// Begin transaction to speed up
 			db_begin_transaction (db);
 
 			// Time to merge them all!
 			log_info ("Merge all files with '%s'", db_file);
-			db_merge (db, array_len (db_files),
-					(char **) array_data (db_files));
+			db_merge (db, array_len (mc->db_files),
+					(char **) array_data (mc->db_files));
 
 			// Commit
 			db_end_transaction (db);
@@ -176,8 +207,9 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 
 	// Clustering
 	log_info ("Run clustering step for '%s'", db_file);
-	num_clusters = cluster (cluster_stmt, clustering_stmt, epsilon, min_pts,
-			parental_dist, support, blacklist_chr, blacklist, padding);
+	num_clusters = cluster (cluster_stmt, clustering_stmt,
+			mc->epsilon, mc->min_pts, mc->parental_dist, mc->support,
+			mc->blacklist_chr, blacklist, mc->padding);
 
 	// Commit
 	db_end_transaction (db);
@@ -193,7 +225,7 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 
 			// Filtering and Annotation
 			log_info ("Run retrocopy annotation step for '%s'", db_file);
-			retrocopy (retrocopy_stmt, cluster_merging_stmt, near_gene_dist);
+			retrocopy (retrocopy_stmt, cluster_merging_stmt, mc->near_gene_dist);
 
 			// Commit
 			db_end_transaction (db);
@@ -203,7 +235,7 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 
 			// Genotyping
 			log_info ("Run genotype annotation step for '%s'", db_file);
-			genotype (genotype_stmt, threads, crossing_reads);
+			genotype (genotype_stmt, mc->threads, mc->crossing_reads);
 
 			// Commit
 			db_end_transaction (db);
@@ -220,7 +252,6 @@ merge_call (const char *output_dir, const char *prefix, Array *db_files,
 	db_finalize (genotype_stmt);
 	db_close (db);
 
-	chr_std_free (cs);
 	blacklist_free (blacklist);
 }
 
@@ -320,6 +351,199 @@ print_try_help (FILE *fp)
 			PACKAGE);
 }
 
+static void
+merge_call_init (MergeCall *mc)
+{
+	*mc = (MergeCall) {
+		.db_files         = array_new (xfree),
+		.input_file       = NULL,
+		.output_dir       = DEFAULT_OUTPUT_DIR,
+		.output_file      = NULL,
+		.prefix           = DEFAULT_PREFIX,
+		.in_place         = DEFAULT_IN_PLACE,
+		.logger           = NULL,
+		.log_file         = NULL,
+		.log_level        = DEFAULT_LOG_LEVEL,
+		.silent           = DEFAULT_LOG_SILENT,
+		.cache_size       = DEFAULT_CACHE_SIZE,
+		.epsilon          = DEFAULT_EPS,
+		.min_pts          = DEFAULT_MIN_PTS,
+		.blacklist_region = NULL,
+		.blacklist_chr    = set_new_full (str_hash, str_equal, NULL),
+		.filter           = gff_filter_new (),
+		.cs               = chr_std_new (),
+		.padding          = DEFAULT_BLACKLIST_PADDING,
+		.parental_dist    = DEFAULT_PARENTAL_DISTANCE,
+		.support          = DEFAULT_SUPPORT,
+		.near_gene_dist   = DEFAULT_NEAR_GENE_DISTANCE,
+		.crossing_reads   = DEFAULT_CROSSING_READS,
+		.threads          = DEFAULT_THREADS
+	};
+}
+
+static void
+merge_call_destroy (MergeCall *mc)
+{
+	if (mc == NULL)
+		return;
+
+	array_free (mc->db_files, 1);
+	set_free (mc->blacklist_chr);
+	gff_filter_free (mc->filter);
+	chr_std_free (mc->cs);
+	logger_free (mc->logger);
+	xfree ((void *) mc->output_file);
+
+	memset (mc, 0, sizeof (MergeCall));
+}
+
+static int
+merge_call_validate (MergeCall *mc)
+{
+	int rc = EXIT_SUCCESS;
+	int i = 0;
+
+	/*Validate arguments and mandatory options*/
+
+	// If no one file was passed, throw an error
+	if (array_len (mc->db_files) == 0)
+		{
+			fprintf (stderr, "%s: Missing SQLite3 databases\n", PACKAGE);
+			print_try_help (stderr);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
+	// Test if all alignment files axist
+	for (i = 0; i < array_len (mc->db_files); i++)
+		{
+			const char *db_file = array_get (mc->db_files, i);
+			if (!exists (db_file))
+				{
+					fprintf (stderr, "%s: SQLite3 database '%s': No such file\n", PACKAGE, db_file);
+					rc = EXIT_FAILURE; goto Exit;
+				}
+		}
+
+	/*Validate options*/
+
+	// Validate blacklist_region file
+	if (mc->blacklist_region != NULL && !exists (mc->blacklist_region))
+		fprintf (stderr, "%s: --blacklist-region '%s': No such file\n", PACKAGE,
+				mc->blacklist_region);
+
+	// Validate cache_size >= DEFAULT_CACHE_SIZE
+	if (mc->cache_size < DEFAULT_CACHE_SIZE)
+		{
+			fprintf (stderr, "%s: --cache-size must be greater or equal to %uKiB\n",
+					PACKAGE, DEFAULT_CACHE_SIZE);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
+	if (mc->epsilon < 0)
+		{
+			fprintf (stderr, "%s: --epsilon must be greater or equal to 0\n", PACKAGE);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
+	if (mc->min_pts < 3)
+		{
+			fprintf (stderr, "%s: --min_pts must be greater than 2\n", PACKAGE);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
+	if (mc->parental_dist < 0)
+		{
+			fprintf (stderr, "%s: --parental-distance must be greater or equal to 0\n", PACKAGE);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
+	if (mc->support < 0)
+		{
+			fprintf (stderr, "%s: --genotype-support must be greater or equal to 0\n", PACKAGE);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
+	if (mc->padding < 0)
+		{
+			fprintf (stderr, "%s: --blacklist-padding must be greater or equal to 0\n", PACKAGE);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
+	if (mc->near_gene_dist < 1)
+		{
+			fprintf (stderr, "%s: --near-gene-distance must be greater or equal to 1\n", PACKAGE);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
+	if (mc->crossing_reads < 1)
+		{
+			fprintf (stderr, "%s: --crossing-reads must be greater or equal to 1\n", PACKAGE);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
+	if (mc->threads < 1)
+		{
+			fprintf (stderr, "%s: --threads must be greater or equal to 1\n", PACKAGE);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
+	/*Final settings*/
+
+	// Add default blacklisted chr if none
+	// has been passed
+	if (set_size (mc->blacklist_chr) == 0)
+		set_insert (mc->blacklist_chr,
+				chr_std_lookup (mc->cs, DEFAULT_BLACKLIST_CHR));
+
+	// If gff_feature was not set
+	if (mc->filter->feature == NULL)
+		gff_filter_insert_feature (mc->filter, DEFAULT_GFF_FEATURE);
+
+	// If gff_attribute_values was not set
+	if (gff_filter_hard_attribute_size (mc->filter) == 0
+			&& gff_filter_soft_attribute_size (mc->filter) == 0)
+		{
+			gff_filter_insert_soft_attribute (mc->filter, DEFAULT_GFF_ATTRIBUTE1,
+					DEFAULT_GFF_ATTRIBUTE_VALUE1);
+			gff_filter_insert_soft_attribute (mc->filter, DEFAULT_GFF_ATTRIBUTE2,
+					DEFAULT_GFF_ATTRIBUTE_VALUE2);
+		}
+
+	// Copy the name of possible output file, if the
+	// user chose --in-place
+	if (mc->in_place)
+		{
+			// Copy first file to use it as the final
+			// database
+			mc->output_file = xstrdup (array_get (mc->db_files, 0));
+			i = 0;
+
+			// Remove all repetitive output_file from list
+			while (array_find_with_equal_fun (mc->db_files,
+						mc->output_file, equalstring, &i))
+				array_remove_index (mc->db_files, i);
+		}
+
+	// Avoid to include repetitive files
+	array_uniq (mc->db_files, cmpstringp);
+
+	// If it's silent and no log file
+	// was passsed, then set log_level
+	// to LOG_ERROR - At least print
+	// errors
+	if (mc->silent && mc->log_file == NULL)
+		{
+			mc->silent = 0;
+			mc->log_level = LOG_ERROR;
+		}
+
+	mc->logger = logger_new (mc->log_file,
+			mc->log_level, mc->silent, 1);
+
+Exit:
+	return rc;
+}
+
 int
 parse_merge_call_command_opt (int argc, char **argv)
 {
@@ -362,33 +586,8 @@ parse_merge_call_command_opt (int argc, char **argv)
 	};
 
 	// Init variables to default values
-	int         silent           = DEFAULT_LOG_SILENT;
-	int         log_level        = DEFAULT_LOG_LEVEL;
-	int         cache_size       = DEFAULT_CACHE_SIZE;
-	int         in_place         = DEFAULT_IN_PLACE;
-	int         epsilon          = DEFAULT_EPS;
-	int         min_pts          = DEFAULT_MIN_PTS;
-	int         parental_dist    = DEFAULT_PARENTAL_DISTANCE;
-	int         near_gene_dist   = DEFAULT_NEAR_GENE_DISTANCE;
-	int         support          = DEFAULT_SUPPORT;
-	int         padding          = DEFAULT_BLACKLIST_PADDING;
-	int         crossing_reads   = DEFAULT_CROSSING_READS;
-	int         threads          = DEFAULT_THREADS;
-	const char *blacklist_region = DEFAULT_BLACKLIST_REGION;
-	const char *output_dir       = DEFAULT_OUTPUT_DIR;
-	const char *prefix           = DEFAULT_PREFIX;
-	const char *log_file         = DEFAULT_LOG_FILE;
-	const char *input_file       = DEFAULT_INPUT_FILE;
-
-
-	char *output_file = NULL;
-	int index_ = 0;
-
-	Array *db_files = array_new (xfree);
-	ChrStd *cs = chr_std_new ();
-	Set *blacklist_chr = set_new_full (str_hash, str_equal, NULL);
-	GffFilter *filter = gff_filter_new ();
-	Logger *logger = NULL;
+	MergeCall mc = {};
+	merge_call_init (&mc);
 
 	int rc = EXIT_SUCCESS;
 	int option_index = 0;
@@ -406,93 +605,93 @@ parse_merge_call_command_opt (int argc, char **argv)
 					}
 				case 'q':
 					{
-						silent = 1;
+						mc.silent = 1;
 						break;
 					}
 				case 'd':
 					{
-						log_level = LOG_DEBUG;
+						mc.log_level = LOG_DEBUG;
 						break;
 					}
 				case 'I':
 					{
-						in_place = 1;
+						mc.in_place = 1;
 						break;
 					}
 				case 'l':
 					{
-						log_file = optarg;
+						mc.log_file = optarg;
 						break;
 					}
 				case 'o':
 					{
-						output_dir = optarg;
+						mc.output_dir = optarg;
 						break;
 					}
 				case 'p':
 					{
-						prefix = optarg;
+						mc.prefix = optarg;
 						break;
 					}
 				case 'c':
 					{
-						cache_size = atoi (optarg);
+						mc.cache_size = atoi (optarg);
 						break;
 					}
 				case 'e':
 					{
-						epsilon = atoi (optarg);
+						mc.epsilon = atoi (optarg);
 						break;
 					}
 				case 'm':
 					{
-						min_pts = atoi (optarg);
+						mc.min_pts = atoi (optarg);
 						break;
 					}
 				case 'b':
 					{
-						set_insert (blacklist_chr,
-								chr_std_lookup (cs, optarg));
+						set_insert (mc.blacklist_chr,
+								chr_std_lookup (mc.cs, optarg));
 						break;
 					}
 				case 'x':
 					{
-						parental_dist = atoi (optarg);
+						mc.parental_dist = atoi (optarg);
 						break;
 					}
 				case 'g':
 					{
-						support = atoi (optarg);
+						mc.support = atoi (optarg);
 						break;
 					}
 				case 'n':
 					{
-						near_gene_dist = atoi (optarg);
+						mc.near_gene_dist = atoi (optarg);
 						break;
 					}
 				case 'C':
 					{
-						crossing_reads = atoi (optarg);
+						mc.crossing_reads = atoi (optarg);
 						break;
 					}
 				case 't':
 					{
-						threads = atoi (optarg);
+						mc.threads = atoi (optarg);
 						break;
 					}
 				case 'B':
 					{
-						blacklist_region = optarg;
+						mc.blacklist_region = optarg;
 						break;
 					}
 				case 'P':
 					{
-						padding = atoi (optarg);
+						mc.padding = atoi (optarg);
 						break;
 					}
 				case 'T':
 					{
-						gff_filter_insert_feature (filter, optarg);
+						gff_filter_insert_feature (mc.filter, optarg);
 						break;
 					}
 				case 'H':
@@ -513,7 +712,7 @@ parse_merge_call_command_opt (int argc, char **argv)
 								rc = EXIT_FAILURE; goto Exit;
 							}
 
-						gff_filter_insert_hard_attribute (filter,
+						gff_filter_insert_hard_attribute (mc.filter,
 								key, value);
 						break;
 					}
@@ -535,13 +734,13 @@ parse_merge_call_command_opt (int argc, char **argv)
 								rc = EXIT_FAILURE; goto Exit;
 							}
 
-						gff_filter_insert_soft_attribute (filter,
+						gff_filter_insert_soft_attribute (mc.filter,
 								key, value);
 						break;
 					}
 				case 'i':
 					{
-						input_file = optarg;
+						mc.input_file = optarg;
 						break;
 					}
 				case '?':
@@ -557,161 +756,24 @@ parse_merge_call_command_opt (int argc, char **argv)
 	// Catch all alignment files passed
 	// as argument
 	for (i = optind + 1; i < argc; i++)
-		array_add (db_files, xstrdup (argv[i]));
+		array_add (mc.db_files, xstrdup (argv[i]));
 
 	// Catch all alignment files passed into
 	// --input-file
-	if (input_file != NULL)
-		read_file_lines (db_files, input_file);
+	if (mc.input_file != NULL)
+		read_file_lines (mc.db_files, mc.input_file);
 
-	/*Validate arguments and mandatory options*/
+	// Validate and init logger
+	rc = merge_call_validate (&mc);
 
-	// If no one file was passed, throw an error
-	if (array_len (db_files) == 0)
+	// If no error
+	if (rc == EXIT_SUCCESS)
 		{
-			fprintf (stderr, "%s: Missing SQLite3 databases\n", PACKAGE);
-			print_try_help (stderr);
-			rc = EXIT_FAILURE; goto Exit;
+			// RUN FOOLS
+			run (&mc);
 		}
-
-	// Test if all alignment files axist
-	for (i = 0; i < array_len (db_files); i++)
-		{
-			const char *db_file = array_get (db_files, i);
-			if (!exists (db_file))
-				{
-					fprintf (stderr, "%s: SQLite3 database '%s': No such file\n", PACKAGE, db_file);
-					rc = EXIT_FAILURE; goto Exit;
-				}
-		}
-
-	/*Validate options*/
-
-	// Validate blacklist_region file
-	if (blacklist_region != NULL && !exists (blacklist_region))
-		fprintf (stderr, "%s: --blacklist-region '%s': No such file\n", PACKAGE,
-				blacklist_region);
-
-	// Validate cache_size >= DEFAULT_CACHE_SIZE
-	if (cache_size < DEFAULT_CACHE_SIZE)
-		{
-			fprintf (stderr, "%s: --cache-size must be greater or equal to %uKiB\n",
-					PACKAGE, DEFAULT_CACHE_SIZE);
-			rc = EXIT_FAILURE; goto Exit;
-		}
-
-	if (epsilon < 0)
-		{
-			fprintf (stderr, "%s: --epsilon must be greater or equal to 0\n", PACKAGE);
-			rc = EXIT_FAILURE; goto Exit;
-		}
-
-	if (min_pts < 3)
-		{
-			fprintf (stderr, "%s: --min_pts must be greater than 2\n", PACKAGE);
-			rc = EXIT_FAILURE; goto Exit;
-		}
-
-	if (parental_dist < 0)
-		{
-			fprintf (stderr, "%s: --parental-distance must be greater or equal to 0\n", PACKAGE);
-			rc = EXIT_FAILURE; goto Exit;
-		}
-
-	if (support < 0)
-		{
-			fprintf (stderr, "%s: --genotype-support must be greater or equal to 0\n", PACKAGE);
-			rc = EXIT_FAILURE; goto Exit;
-		}
-
-	if (padding < 0)
-		{
-			fprintf (stderr, "%s: --blacklist-padding must be greater or equal to 0\n", PACKAGE);
-			rc = EXIT_FAILURE; goto Exit;
-		}
-
-	if (near_gene_dist < 1)
-		{
-			fprintf (stderr, "%s: --near-gene-distance must be greater or equal to 1\n", PACKAGE);
-			rc = EXIT_FAILURE; goto Exit;
-		}
-
-	if (crossing_reads < 1)
-		{
-			fprintf (stderr, "%s: --crossing-reads must be greater or equal to 1\n", PACKAGE);
-			rc = EXIT_FAILURE; goto Exit;
-		}
-
-	if (threads < 1)
-		{
-			fprintf (stderr, "%s: --threads must be greater or equal to 1\n", PACKAGE);
-			rc = EXIT_FAILURE; goto Exit;
-		}
-
-	/*Final settings*/
-
-	// Add default blacklisted chr if none
-	// has been passed
-	if (set_size (blacklist_chr) == 0)
-		set_insert (blacklist_chr,
-				chr_std_lookup (cs, DEFAULT_BLACKLIST_CHR));
-
-	// If gff_feature was not set
-	if (filter->feature == NULL)
-		gff_filter_insert_feature (filter, DEFAULT_GFF_FEATURE);
-
-	// If gff_attribute_values was not set
-	if (gff_filter_hard_attribute_size (filter) == 0
-			&& gff_filter_soft_attribute_size (filter) == 0)
-		{
-			gff_filter_insert_soft_attribute (filter, DEFAULT_GFF_ATTRIBUTE1,
-					DEFAULT_GFF_ATTRIBUTE_VALUE1);
-			gff_filter_insert_soft_attribute (filter, DEFAULT_GFF_ATTRIBUTE2,
-					DEFAULT_GFF_ATTRIBUTE_VALUE2);
-		}
-
-	// Copy the name of possible output file, if the
-	// user chose --in-place
-	if (in_place)
-		{
-			// Copy first file to use it as the final
-			// database
-			output_file = xstrdup (array_get (db_files, 0));
-
-			// Remove all repetitive output_file from list
-			while (array_find_with_equal_fun (db_files,
-						output_file, equalstring, &index_))
-				array_remove_index (db_files, index_);
-		}
-
-	// Avoid to include repetitive files
-	array_uniq (db_files, cmpstringp);
-
-	// If it's silent and no log file
-	// was passsed, then set log_level
-	// to LOG_ERROR - At least print
-	// errors
-	if (silent && log_file == NULL)
-		{
-			silent = 0;
-			log_level = LOG_ERROR;
-		}
-
-	logger = logger_new (log_file, log_level, silent, 1);
-
-	// RUN FOOLS
-	merge_call (output_dir, prefix, db_files, output_file,
-			cache_size, epsilon, min_pts, blacklist_chr,
-			parental_dist, support, near_gene_dist,
-			threads, crossing_reads, blacklist_region,
-			padding, filter);
 
 Exit:
-	logger_free (logger);
-	chr_std_free (cs);
-	set_free (blacklist_chr);
-	gff_filter_free (filter);
-	array_free (db_files, 1);
-	xfree (output_file);
+	merge_call_destroy (&mc);
 	return rc;
 }
