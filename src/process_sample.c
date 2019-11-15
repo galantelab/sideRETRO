@@ -207,7 +207,7 @@ print_usage (FILE *fp)
 		"                           arguments are set concomitantly, then the union of\n"
 		"                           all alignment files is used\n"
 		"\n"
-		"Options:\n"
+		"Input/Output Options:\n"
 		"   -h, --help              Show help options\n"
 		"   -q, --quiet             Decrease verbosity to error messages only\n"
 		"                           or supress terminal outputs at all if\n"
@@ -218,19 +218,25 @@ print_usage (FILE *fp)
 		"   -o, --output-dir        Output directory. Create the directory if it does\n"
 		"                           not exist [default:\"%s\"]\n"
 		"   -p, --prefix            Prefix output files [default:\"%s\"]\n"
-		"   -t, --threads           Number of threads [default:\"%d\"]\n"
-		"   -c, --cache-size        Set SQLite3 cache size in KiB [default: \"%d\"]\n"
-		"   -s, --sorted            Assume all reads are grouped by queryname, even if\n"
-		"                           there is no SAM/BAM header tag 'SO:queryname'\n"
-		"   -D, --deduplicate       Remove duplicated reads. Reads are considered\n"
-		"                           duplicates when they share the 5 prime positions\n"
-		"                           of both reads and read-pairs\n"
+		"\n"
+		"SQLite3 Options:\n"
+		"   -c, --cache-size        Set SQLite3 cache size in KiB [default:\"%d\"]\n"
+		"\n"
+		"Read Quality Options:\n"
 		"   -Q, --phred-quality     Minimum phred quality score required\n"
-		"                           [default:\"%d\"]\n"
-		"   -m, --max-distance      Maximum distance allowed between paired-end reads\n"
 		"                           [default:\"%d\"]\n"
 		"   -M, --max-base-freq     Maximum base frequency fraction allowed\n"
 		"                           [default:\"%.2f\"]\n"
+		"   -D, --deduplicate       Remove duplicated reads. Reads are considered\n"
+		"                           duplicates when they share the 5 prime positions\n"
+		"                           of both reads and read-pairs\n"
+		"\n"
+		"Processing Options:\n"
+		"   -s, --sorted            Assume all reads are grouped by queryname, even if\n"
+		"                           there is no SAM/BAM header tag 'SO:queryname'\n"
+		"   -t, --threads           Number of threads [default:\"%d\"]\n"
+		"   -m, --max-distance      Maximum distance allowed between paired-end reads\n"
+		"                           [default:\"%d\"]\n"
 		"   -f, --exon-frac         Minimum overlap required as a fraction of exon\n"
 		"                           [default:\"%.0e\"; 1 base]\n"
 		"   -F, --alignment-frac    Minimum overlap required as a fraction of\n"
@@ -243,8 +249,8 @@ print_usage (FILE *fp)
 		"                           0.5 as well\n"
 		"\n",
 		PACKAGE_STRING, PACKAGE, pkg_len, ' ', pkg_len, ' ', pkg_len, ' ', pkg_len, ' ',
-		DEFAULT_OUTPUT_DIR, DEFAULT_PREFIX, DEFAULT_THREADS, DEFAULT_CACHE_SIZE,
-		DEFAULT_PHRED_QUALITY, DEFAULT_MAX_DISTANCE, DEFAULT_MAX_BASE_FREQ,
+		DEFAULT_OUTPUT_DIR, DEFAULT_PREFIX, DEFAULT_CACHE_SIZE, DEFAULT_PHRED_QUALITY,
+		DEFAULT_MAX_BASE_FREQ, DEFAULT_THREADS, DEFAULT_MAX_DISTANCE,
 		DEFAULT_EXON_FRAC, DEFAULT_ALIGNMENT_FRAC);
 }
 
