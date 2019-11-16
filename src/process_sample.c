@@ -12,6 +12,7 @@
 #include "log.h"
 #include "logger.h"
 #include "io.h"
+#include "str.h"
 #include "thpool.h"
 #include "exon.h"
 #include "abnormal.h"
@@ -102,8 +103,6 @@ run (ProcessSample *ps)
 	// Assemble database output filename
 	xasprintf_concat (&db_file, "%s/%s.db",
 			ps->output_dir, ps->prefix);
-
-	log_info (">>> Process Sample step <<<");
 
 	log_info ("Create output dir '%s'", ps->output_dir);
 	mkdir_p (ps->output_dir);
@@ -466,6 +465,79 @@ Exit:
 	return rc;
 }
 
+static void
+process_sample_print (const ProcessSample *ps)
+{
+	String *msg = string_sized_new (BUFSIZ);
+	int i = 0;
+
+	string_concat_printf (msg, ">> Process Sample step <<\n"
+		"\n"
+		"#\n"
+		"# %s\n"
+		"#\n"
+		"\n"
+		"## Command line parsing with default values\n"
+		"\n"
+		"# Input BAM/SAM files\n"
+		"$ cat my-inputfile.txt\n",
+		PACKAGE_STRING);
+
+	for (i = 0; i < array_len (ps->sam_files); i++)
+		string_concat_printf (msg, "%s\n",
+				(char *) array_get (ps->sam_files, i));
+
+	string_concat_printf (msg,
+		"\n"
+		"# Run %s\n"
+		"$ %s process-sample\n"
+		"  --input-file='my-inputfile.txt' \\\n"
+		"  --annotation-file='%s' \\\n"
+		"  --output-dir='%s' \\\n"
+		"  --prefix='%s' \\\n",
+		PACKAGE, PACKAGE, ps->gff_file, ps->output_dir, ps->prefix);
+
+	if (ps->log_file != NULL)
+		string_concat_printf (msg, "  --log-file='%s' \\\n", ps->log_file);
+
+	if (ps->log_level <= LOG_DEBUG)
+		string_concat_printf (msg, "  --debug \\\n");
+
+	if (ps->silent)
+		string_concat_printf (msg, "  --silent \\\n");
+
+	string_concat_printf (msg,
+		"  --cache-size=%d \\\n"
+		"  --max-base-freq=%.2f \\\n"
+		"  --phred-quality=%d \\\n",
+		ps->cache_size, ps->max_base_freq,  ps->phred_quality);
+
+	if (ps->deduplicate)
+		string_concat_printf (msg, "  --deduplicate \\\n");
+
+	if (ps->sorted)
+		string_concat_printf (msg, "  --sorted \\\n");
+
+	string_concat_printf (msg,
+		"  --threads=%d \\\n"
+		"  --max-distance=%d \\\n"
+		"  --exon-frac=%e \\\n"
+		"  --alignment-frac=%e",
+		ps->threads, ps->max_distance, ps->exon_frac,
+		ps->alignment_frac);
+
+	if (ps->either)
+		{
+			string_concat_printf (msg, " \\\n");
+			string_concat_printf (msg, "  --either");
+		}
+
+	string_concat_printf (msg, "\n");
+
+	log_info ("%s", msg->str);
+	string_free (msg, 1);
+}
+
 int
 parse_process_sample_command_opt (int argc, char **argv)
 {
@@ -642,6 +714,7 @@ parse_process_sample_command_opt (int argc, char **argv)
 			/*
 			* RUN FOOLS
 			*/
+			process_sample_print (&ps);
 			run (&ps);
 		}
 
