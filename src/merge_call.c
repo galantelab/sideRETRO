@@ -10,8 +10,10 @@
 #include "logger.h"
 #include "utils.h"
 #include "wrapper.h"
+#include "list.h"
 #include "set.h"
 #include "gff.h"
+#include "str.h"
 #include "chr.h"
 #include "array.h"
 #include "blacklist.h"
@@ -71,6 +73,8 @@ struct _MergeCall
 	const char  *blacklist_region;
 	Set         *blacklist_chr;
 	GffFilter   *filter;
+	List        *hard_attributes;
+	List        *soft_attributes;
 	ChrStd      *cs;
 	int          padding;
 	int          parental_dist;
@@ -103,8 +107,6 @@ run (MergeCall *mc)
 
 	int num_clusters = 0;
 	char *db_file = NULL;
-
-	log_info (">>> Merge Call step <<<");
 
 	log_info ("Create output dir '%s'", mc->output_dir);
 	mkdir_p (mc->output_dir);
@@ -371,6 +373,8 @@ merge_call_init (MergeCall *mc)
 		.blacklist_region = NULL,
 		.blacklist_chr    = set_new_full (str_hash, str_equal, NULL),
 		.filter           = gff_filter_new (),
+		.hard_attributes  = list_new (xfree),
+		.soft_attributes  = list_new (xfree),
 		.cs               = chr_std_new (),
 		.padding          = DEFAULT_BLACKLIST_PADDING,
 		.parental_dist    = DEFAULT_PARENTAL_DISTANCE,
@@ -390,6 +394,8 @@ merge_call_destroy (MergeCall *mc)
 	array_free (mc->db_files, 1);
 	set_free (mc->blacklist_chr);
 	gff_filter_free (mc->filter);
+	list_free (mc->hard_attributes);
+	list_free (mc->soft_attributes);
 	chr_std_free (mc->cs);
 	logger_free (mc->logger);
 	xfree ((void *) mc->output_file);
@@ -503,6 +509,16 @@ merge_call_validate (MergeCall *mc)
 	if (gff_filter_hard_attribute_size (mc->filter) == 0
 			&& gff_filter_soft_attribute_size (mc->filter) == 0)
 		{
+			char *key_value = NULL;
+
+			xasprintf (&key_value, "%s=%s", DEFAULT_GFF_ATTRIBUTE1,
+					DEFAULT_GFF_ATTRIBUTE_VALUE1);
+			list_append (mc->soft_attributes, key_value);
+
+			xasprintf (&key_value, "%s=%s", DEFAULT_GFF_ATTRIBUTE2,
+					DEFAULT_GFF_ATTRIBUTE_VALUE2);
+			list_append (mc->soft_attributes, key_value);
+
 			gff_filter_insert_soft_attribute (mc->filter, DEFAULT_GFF_ATTRIBUTE1,
 					DEFAULT_GFF_ATTRIBUTE_VALUE1);
 			gff_filter_insert_soft_attribute (mc->filter, DEFAULT_GFF_ATTRIBUTE2,
@@ -542,6 +558,104 @@ merge_call_validate (MergeCall *mc)
 
 Exit:
 	return rc;
+}
+
+static void
+merge_call_print (const MergeCall *mc)
+{
+	String *msg = NULL;
+	ListElmt *cur = NULL;
+	int i = 0;
+
+	msg = string_sized_new (BUFSIZ);
+
+	string_concat_printf (msg, ">> Merge Call step <<\n"
+		"\n"
+		"#\n"
+		"# %s\n"
+		"#\n"
+		"\n"
+		"## Command line parsing with default values\n"
+		"\n"
+		"# Input SQLite3 databases\n"
+		"$ cat my-inputfile.txt\n",
+		PACKAGE_STRING);
+
+	if (mc->output_file != NULL)
+		string_concat_printf (msg, "%s\n", mc->output_file);
+
+	for (i = 0; i < array_len (mc->db_files); i++)
+		string_concat_printf (msg, "%s\n",
+				(char *) array_get (mc->db_files, i));
+
+	string_concat_printf (msg,
+		"\n"
+		"# Run %s\n"
+		"$ %s merge-call\n"
+		"  --input-file='my-inputfile.txt' \\\n"
+		"  --output-dir='%s' \\\n"
+		"  --prefix='%s' \\\n",
+		PACKAGE, PACKAGE, mc->output_dir, mc->prefix);
+
+	if (mc->log_file != NULL)
+		string_concat_printf (msg, "  --log-file='%s' \\\n",
+				mc->log_file);
+
+	if (mc->log_level <= LOG_DEBUG)
+		string_concat_printf (msg, "  --debug \\\n");
+
+	if (mc->silent)
+		string_concat_printf (msg, "  --silent \\\n");
+
+	if (mc->in_place)
+		string_concat_printf (msg, "  --in-place \\\n");
+
+	string_concat_printf (msg,
+		"  --cache-size=%d \\\n"
+		"  --epsilon=%d \\\n"
+		"  --min-pts=%d \\\n",
+		mc->cache_size, mc->epsilon, mc->min_pts);
+
+	cur = list_head (set_list (mc->blacklist_chr));
+	for (; cur != NULL; cur = list_next (cur))
+		string_concat_printf (msg, "  --blacklist-chr='%s' \\\n",
+				(char *) list_data (cur));
+
+	if (mc->blacklist_region != NULL)
+		{
+			string_concat_printf (msg,
+				"  --blacklist-region='%s' \\\n"
+				"  --blacklist-padding=%d \\\n",
+				mc->blacklist_region, mc->padding);
+
+			if (gff_looks_like_gff_file (mc->blacklist_region))
+				{
+					string_concat_printf (msg, "  --gff-feature='%s' \\\n",
+							mc->filter->feature);
+
+					cur = list_head (mc->hard_attributes);
+					for (; cur != NULL; cur = list_next (cur))
+						string_concat_printf (msg, "  --gff-hard-attribute='%s' \\\n",
+								(char *) list_data (cur));
+
+					cur = list_head (mc->soft_attributes);
+					for (; cur != NULL; cur = list_next (cur))
+						string_concat_printf (msg, "  --gff-soft-attribute='%s' \\\n",
+								(char *) list_data (cur));
+				}
+		}
+
+	string_concat_printf (msg,
+		"  --parental-distance=%d \\\n"
+		"  --genotype-support=%d \\\n"
+		"  --near-gene-distance=%d \\\n"
+		"  --threads=%d \\\n"
+		"  --crossing-reads=%d\n",
+		mc->parental_dist, mc->support, mc->near_gene_dist,
+		mc->threads, mc->crossing_reads);
+
+	log_info ("%s", msg->str);
+	string_free (msg, 1);
 }
 
 int
@@ -712,8 +826,13 @@ parse_merge_call_command_opt (int argc, char **argv)
 								rc = EXIT_FAILURE; goto Exit;
 							}
 
+						char *key_value = NULL;
+						xasprintf (&key_value, "%s=%s", key, value);
+
+						list_append (mc.hard_attributes, key_value);
 						gff_filter_insert_hard_attribute (mc.filter,
 								key, value);
+
 						break;
 					}
 				case 'S':
@@ -734,6 +853,10 @@ parse_merge_call_command_opt (int argc, char **argv)
 								rc = EXIT_FAILURE; goto Exit;
 							}
 
+						char *key_value = NULL;
+						xasprintf (&key_value, "%s=%s", key, value);
+
+						list_append (mc.soft_attributes, key_value);
 						gff_filter_insert_soft_attribute (mc.filter,
 								key, value);
 						break;
@@ -770,6 +893,7 @@ parse_merge_call_command_opt (int argc, char **argv)
 	if (rc == EXIT_SUCCESS)
 		{
 			// RUN FOOLS
+			merge_call_print (&mc);
 			run (&mc);
 		}
 
