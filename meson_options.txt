@@ -1,0 +1,28 @@
+option('sphinx_target',
+     type : 'combo',
+    value : 'html',
+  choices : [
+    'html',
+    'dirhtml',
+    'singlehtml',
+    'pickle',
+    'json',
+    'htmlhelp',
+    'qthelp',
+    'devhelp',
+    'epub',
+    'latex',
+    'latexpdf',
+    'latexpdfja',
+    'text',
+    'man',
+    'texinfo',
+    'gettext',
+    'changes',
+    'xml',
+    'pseudoxml',
+    'linkcheck',
+    'doctest',
+    'coverage'
+  ]
+)

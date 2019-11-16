@@ -90,6 +90,9 @@ htslib_dep = dependency('htslib', version : '>= 1.9', fallback : ['htslib', 'hts
 # required for building and installing
 check_dep = dependency('check', required : false)
 
+# Sphinx documentation generator
+sphinx_build = find_program('sphinx-build', required : false)
+
 # All required deps
 deps = [
   thread_dep,
@@ -108,3 +111,6 @@ subdir('src')
 
 # Testing
 subdir('tests')
+
+# Documentation
+subdir('docs')
