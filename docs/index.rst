@@ -10,10 +10,10 @@ Welcome to sideRETRO's documentation!
    :maxdepth: 2
    :caption: Contents:
 
+   intro.rst
+   install.rst
+   usage.rst
+   method.rst
+   authors.rst
 
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
 * :ref:`search`

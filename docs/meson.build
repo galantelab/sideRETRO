@@ -1,5 +1,11 @@
 doc_sources = files(
-  'index.rst'
+  'authors.rst',
+  'index.rst',
+  'install.rst',
+  'intro.rst',
+  'conf.py',
+  'method.rst',
+  'usage.rst'
 )
 
 sphinx_source_dir = join_paths(meson.source_root(), 'docs')

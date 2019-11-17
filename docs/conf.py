@@ -21,7 +21,7 @@ import sphinx_rtd_theme
 # -- Project information -----------------------------------------------------
 
 project = u'sideRETRO'
-copyright = u'2019, Thiago L. A. Miller'
+copyright = u'2019, The sideRETRO Team'
 author = u'Thiago L. A. Miller'
 
 # The short X.Y version
