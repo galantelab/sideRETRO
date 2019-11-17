@@ -81,7 +81,9 @@ step :code:`merge-call`, which **processes** the database and
      --annotation-file='my-annotation.gtf' \
      --input-file='my-bam-list.txt'
 
-   $ ls
+   $ ls -1
+   my-annotation.gtf
+   my-bam-list.txt
    out.db
 
    # Run merge-call step
