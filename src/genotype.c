@@ -332,13 +332,13 @@ dump_genotype (sqlite3_stmt *stmt, const Genotype *g)
 		case HETEROZYGOUS:
 			{
 				log_debug ("retrocopy [%d %d] is heterozygous", g->retrocopy_id, g->source_id);
-				db_insert_genotype (stmt, g->source_id, g->retrocopy_id, 1);
+				db_insert_genotype (stmt, g->source_id, g->retrocopy_id, g->acm, 1);
 				break;
 			}
 		case HOMOZYGOUS:
 			{
 				log_debug ("retrocopy [%d %d] is homozygous", g->retrocopy_id, g->source_id);
-				db_insert_genotype (stmt, g->source_id, g->retrocopy_id, 0);
+				db_insert_genotype (stmt, g->source_id, g->retrocopy_id, g->acm, 0);
 				break;
 			}
 		}
@@ -440,19 +440,14 @@ zygosity_indexed_search (samFile *fp, bam_hdr_t *hdr, bam1_t *align,
 						r->chr, r->window_start, r->window_end, zd->path);
 
 			while ((rc = sam_itr_next (fp, itr, align)) >= 0)
-				{
-					if (cross_insertion_point (align, r->insertion_point))
-						g->acm++;
-
-					if (g->acm >= zd->crossing_reads)
-						{
-							g->z = HETEROZYGOUS;
-							break;
-						}
-				}
+				if (cross_insertion_point (align, r->insertion_point))
+					g->acm++;
 
 			if (rc < -1)
 				log_fatal ("Failed to read sam alignment");
+
+			if (g->acm >= zd->crossing_reads)
+				g->z = HETEROZYGOUS;
 
 			dump_genotype (zd->stmt, g);
 

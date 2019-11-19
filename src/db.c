@@ -361,6 +361,7 @@ db_create_tables (sqlite3 *db)
 		"CREATE TABLE genotype (\n"
 		"	source_id INTEGER NOT NULL,\n"
 		"	retrocopy_id INTEGER NOT NULL,\n"
+		"	reference_depth INTEGER NOT NULL,\n"
 		"	heterozygous INTEGER NOT NULL,\n"
 		"	FOREIGN KEY (source_id) REFERENCES source(id),\n"
 		"	FOREIGN KEY (retrocopy_id) REFERENCES retrocopy(id),\n"
@@ -921,15 +922,15 @@ db_prepare_genotype_stmt (sqlite3 *db)
 	assert (db != NULL);
 
 	const char sql[] =
-		"INSERT INTO genotype (source_id,retrocopy_id,heterozygous)\n"
-		"VALUES (?1,?2,?3)";
+		"INSERT INTO genotype (source_id,retrocopy_id,reference_depth,heterozygous)\n"
+		"VALUES (?1,?2,?3,?4)";
 
 	return db_prepare (db, sql);
 }
 
 void
 db_insert_genotype (sqlite3_stmt *stmt, int source_id, int retrocopy_id,
-		int heterozygous)
+		int reference_depth, int heterozygous)
 {
 	log_trace ("Inside %s", __func__);
 	assert (stmt != NULL);
@@ -941,7 +942,8 @@ db_insert_genotype (sqlite3_stmt *stmt, int source_id, int retrocopy_id,
 
 	db_bind_int (stmt, 1, source_id);
 	db_bind_int (stmt, 2, retrocopy_id);
-	db_bind_int (stmt, 3, heterozygous);
+	db_bind_int (stmt, 3, reference_depth);
+	db_bind_int (stmt, 4, heterozygous);
 
 	db_step (stmt);
 
