@@ -58,6 +58,8 @@ sider_sources = files(
   'types.h',
   'utils.c',
   'utils.h',
+  'vcf.c',
+  'vcf.h',
   'wrapper.c',
   'wrapper.h'
 )
