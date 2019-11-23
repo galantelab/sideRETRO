@@ -3,6 +3,15 @@
 
 #include "db.h"
 
-void vcf (sqlite3 *db, const char *fasta_file, const char *output_file);
+struct _VCFOption
+{
+	long        near_gene_distance;
+	float       alpha_error;
+	const char *fasta_file;
+};
+
+typedef struct _VCFOption VCFOption;
+
+void vcf (sqlite3 *db, const char *output_file, VCFOption *opt);
 
 #endif /* vcf.h */

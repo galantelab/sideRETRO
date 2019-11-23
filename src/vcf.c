@@ -13,31 +13,68 @@
 #include "vcf.h"
 
 #define VCF_VERSION "VCFv4.2"
-#define ALPHA_ERROR 0.05
 
-struct _Header
+struct _VCFHeader
 {
 	int         id;
 	const char *name;
 };
 
-typedef struct _Header Header;
+typedef struct _VCFHeader VCFHeader;
 
-struct _Genotype
+struct _VCFBody
+{
+	// Retrocopy ID
+	int         id;
+
+	// Contig
+	const char *chr;
+
+	// Confidence interval for
+	// IMPRECISE
+	long        window_start;
+	long        window_end;
+
+	// Parental gene
+	const char *parental_gene_name;
+	const char *parental_strand;
+	int         level;
+
+	// Pos
+	long        insertion_point;
+	int         insertion_point_type;
+
+	// Orientation/Strand
+	double      orientation_rho;
+	double      orientation_p_value;
+
+	// Depth
+	int         acm;
+	int         sr_acm;
+
+	// Host and Near genes
+	const char *exonic;
+	const char *intragenic;
+	const char *near;
+};
+
+typedef struct _VCFBody VCFBody;
+
+struct _VCFGenotype
 {
 	int heterozygous;
 	int reference_depth;
 	int alternative_depth;
 };
 
-typedef struct _Genotype Genotype;
+typedef struct _VCFGenotype VCFGenotype;
 
-static Header *
-header_new (const int id, const char *name)
+static VCFHeader *
+vcf_header_new (const int id, const char *name)
 {
-	Header *h = xcalloc (1, sizeof (Header));
+	VCFHeader *h = xcalloc (1, sizeof (VCFHeader));
 
-	*h = (Header) {
+	*h = (VCFHeader) {
 		.id   = id,
 		.name = name
 	};
@@ -46,7 +83,7 @@ header_new (const int id, const char *name)
 }
 
 static void
-header_free (Header *h)
+vcf_header_free (VCFHeader *h)
 {
 	if (h == NULL)
 		return;
@@ -61,7 +98,7 @@ vcf_get_header_line (sqlite3 *db)
 	log_trace ("Inside %s", __func__);
 
 	sqlite3_stmt *stmt = NULL;
-	Header *h = NULL;
+	VCFHeader *h = NULL;
 	List *hl = NULL;
 
 	int id = 0;
@@ -73,7 +110,7 @@ vcf_get_header_line (sqlite3 *db)
 		"FROM source\n"
 		"ORDER BY id ASC";
 
-	hl = list_new ((DestroyNotify) header_free);
+	hl = list_new ((DestroyNotify) vcf_header_free);
 
 	log_debug ("Query schema:\n%s", sql);
 	stmt = db_prepare (db, sql);
@@ -85,7 +122,7 @@ vcf_get_header_line (sqlite3 *db)
 
 			basename = path_file (path, 1);
 
-			h = header_new (id, basename);
+			h = vcf_header_new (id, basename);
 			list_append (hl, h);
 		}
 
@@ -98,7 +135,7 @@ vcf_print_header (const List *hl, FILE *fp)
 {
 	log_trace ("Inside %s", __func__);
 
-	const Header *h = NULL;
+	const VCFHeader *h = NULL;
 	const ListElmt *cur = NULL;
 
 	char timestamp[32] = {};
@@ -118,7 +155,10 @@ vcf_print_header (const List *hl, FILE *fp)
 		"##source=%sv%s\n"
 		"##INFO=<ID=CIPOS,Number=2,Type=Integer,Description=\"Confidence interval around POS for imprecise variants\">\n"
 		"##INFO=<ID=DP,Number=1,Type=Integer,Description=\"Read Depth of segment containing breakpoint\">\n"
+		"##INFO=<ID=EXONIC,Number=1,Type=String,Description=\"Exon IDs separated by '/' for intragenic retrocopy\">\n"
 		"##INFO=<ID=IMPRECISE,Number=0,Type=Flag,Description=\"Imprecise structural variation\">\n"
+		"##INFO=<ID=INTRONIC,Number=1,Type=String,Description=\"Intron IDs separated by '/' for intragenic retrocopy\">\n"
+		"##INFO=<ID=NEAR,Number=1,Type=String,Description=\"Near Gene IDs separated by '/' for intergenic retrocopy\">\n"
 		"##INFO=<ID=ORHO,Number=1,Type=Float,Description=\"Spearman's rho to detect the polarity\">\n"
 		"##INFO=<ID=PG,Number=1,Type=String,Description=\"Parental Gene IDs separated by '/'\">\n"
 		"##INFO=<ID=PGTYPE,Number=1,Type=String,Description=\"Provides information about parental gene:"
@@ -143,15 +183,57 @@ vcf_print_header (const List *hl, FILE *fp)
 }
 
 static sqlite3_stmt *
-prepare_retrocopy_query_stmt (sqlite3 *db)
+prepare_retrocopy_query_stmt (sqlite3 *db, const long near_gene_distance)
 {
 	log_trace ("Inside %s", __func__);
 
+	sqlite3_stmt *stmt = NULL;
+
 	const char sql[] =
 		"WITH\n"
-		"	gene (gene_name, strand) AS (\n"
-		"		SELECT DISTINCT gene_name, strand\n"
+		"	gene (gene_name, strand, chr, start, end) AS (\n"
+		"		SELECT gene_name, strand, chr, MIN(start), MAX(end)\n"
 		"		FROM exon\n"
+		"		GROUP BY gene_name\n"
+		"	),\n"
+		"	intragenic (rid, host) AS (\n"
+		"		SELECT DISTINCT r.id, g.gene_name\n"
+		"		FROM retrocopy AS r\n"
+		"		CROSS JOIN gene AS g\n"
+		"		WHERE r.chr = g.chr\n"
+		"			AND r.insertion_point BETWEEN g.start AND g.end\n"
+		"	),\n"
+		"	intragenic_g (rid, host) AS (\n"
+		"		SELECT rid, GROUP_CONCAT(host, '/')\n"
+		"		FROM intragenic\n"
+		"		GROUP BY rid\n"
+		"	),\n"
+		"	exonic (rid, host) AS (\n"
+		"		SELECT DISTINCT r.id, e.gene_name\n"
+		"		FROM retrocopy AS r\n"
+		"		CROSS JOIN exon AS e\n"
+		"		WHERE r.chr = e.chr\n"
+		"			AND r.insertion_point BETWEEN e.start AND e.end\n"
+		"	),\n"
+		"	exonic_g (rid, host) AS (\n"
+		"		SELECT rid, GROUP_CONCAT(host, '/')\n"
+		"		FROM exonic\n"
+		"		GROUP BY rid\n"
+		"	),\n"
+		"	near (rid, gene) AS (\n"
+		"		SELECT DISTINCT r.id, g.gene_name\n"
+		"		FROM retrocopy AS r\n"
+		"		CROSS JOIN gene AS g\n"
+		"		WHERE r.chr = g.chr\n"
+		"			AND ((r.insertion_point BETWEEN g.start - 1\n"
+		"					AND g.start - $DIST)\n"
+		"				OR (r.insertion_point BETWEEN g.end + 1\n"
+		"					AND g.end + $DIST))\n"
+		"	),\n"
+		"	near_g (rid, gene) AS (\n"
+		"		SELECT rid, GROUP_CONCAT(gene, '/')\n"
+		"		FROM near\n"
+		"		GROUP BY rid\n"
 		"	),\n"
 		"	genotype (retrocopy_id, acm) AS (\n"
 		"		SELECT retrocopy_id, COUNT(*)\n"
@@ -180,13 +262,15 @@ prepare_retrocopy_query_stmt (sqlite3 *db)
 		"				ON a.id = c.alignment_id\n"
 		"			WHERE a.flag & 0x800\n"
 		"				AND (\n"
-		"					((cigar LIKE '%M%S' OR cigar LIKE '%M%H') AND (a.pos + a.rlen) = insertion_point)\n"
-		"						OR ((cigar LIKE '%S%M' OR cigar LIKE '%H%M') AND a.pos = insertion_point)\n"
+		"					((cigar LIKE '%M%S' OR cigar LIKE '%M%H')\n"
+		"							AND (a.pos + a.rlen) = insertion_point)\n"
+		"						OR ((cigar LIKE '%S%M' OR cigar LIKE '%H%M')\n"
+		"							AND a.pos = insertion_point)\n"
 		"				)\n"
 		"		)\n"
 		"		GROUP BY retrocopy_id\n"
 		"	)\n"
-		"SELECT r.id, chr, window_start, window_end,\n"
+		"SELECT r.id, r.chr, window_start, window_end,\n"
 		"	parental_gene_name,\n"
 		"	CASE\n"
 		"		WHEN strand IS NOT NULL\n"
@@ -206,6 +290,21 @@ prepare_retrocopy_query_stmt (sqlite3 *db)
 		"		WHEN sr_acm IS NOT NULL\n"
 		"			THEN sr_acm\n"
 		"		ELSE 0\n"
+		"	END,\n"
+		"	CASE\n"
+		"		WHEN e.host IS NOT NULL\n"
+		"			THEN e.host\n"
+		"		ELSE '?'\n"
+		"	END,\n"
+		"	CASE\n"
+		"		WHEN i.host IS NOT NULL\n"
+		"			THEN i.host\n"
+		"		ELSE '?'\n"
+		"	END,\n"
+		"	CASE\n"
+		"		WHEN n.gene IS NOT NULL\n"
+		"			THEN n.gene\n"
+		"		ELSE '?'\n"
 		"	END\n"
 		"FROM retrocopy AS r\n"
 		"LEFT JOIN gene AS g\n"
@@ -213,10 +312,23 @@ prepare_retrocopy_query_stmt (sqlite3 *db)
 		"INNER JOIN genotype AS gn\n"
 		"	ON r.id = gn.retrocopy_id\n"
 		"LEFT JOIN genotype_sr AS gn_sr\n"
-		"	ON r.id = gn_sr.retrocopy_id";
+		"	ON r.id = gn_sr.retrocopy_id\n"
+		"LEFT JOIN near_g AS n\n"
+		"	ON r.id = n.rid\n"
+		"LEFT JOIN intragenic_g AS i\n"
+		"	ON r.id = i.rid\n"
+		"LEFT JOIN exonic_g AS e\n"
+		"	ON r.id = e.rid\n"
+		"ORDER BY r.chr ASC, insertion_point ASC";
 
 	log_debug ("Query schema:\n%s", sql);
-	return db_prepare (db, sql);
+	stmt = db_prepare (db, sql);
+
+	db_bind_int64 (stmt,
+			sqlite3_bind_parameter_index (stmt, "$DIST"),
+			near_gene_distance);
+
+	return stmt;
 }
 
 static sqlite3_stmt *
@@ -269,12 +381,12 @@ human_haploid_chr (void)
 }
 
 static Hash *
-index_genotype (sqlite3_stmt *stmt, const int retrocopy_id)
+vcf_index_genotype (sqlite3_stmt *stmt, const int retrocopy_id)
 {
 	log_trace ("Inside %s", __func__);
 
 	Hash *gi = NULL;
-	Genotype *g = NULL;
+	VCFGenotype *g = NULL;
 
 	int source_id = 0;
 	int heterozygous = 0;
@@ -299,8 +411,8 @@ index_genotype (sqlite3_stmt *stmt, const int retrocopy_id)
 			source_id_alloc = xcalloc (1, sizeof (int));
 			*source_id_alloc = source_id;
 
-			g = xcalloc (1, sizeof (Genotype));
-			*g = (Genotype) {
+			g = xcalloc (1, sizeof (VCFGenotype));
+			*g = (VCFGenotype) {
 				.heterozygous      = heterozygous,
 				.reference_depth   = reference_depth,
 				.alternative_depth = alternative_depth
@@ -313,7 +425,28 @@ index_genotype (sqlite3_stmt *stmt, const int retrocopy_id)
 }
 
 static void
-vcf_print_body (sqlite3 *db, const List *hl, FILE *fp)
+vcf_get_body_line (sqlite3_stmt *stmt, VCFBody *b)
+{
+	b->id                   = db_column_int    (stmt, 0);
+	b->chr                  = db_column_text   (stmt, 1);
+	b->window_start         = db_column_int64  (stmt, 2);
+	b->window_end           = db_column_int64  (stmt, 3);
+	b->parental_gene_name   = db_column_text   (stmt, 4);
+	b->parental_strand      = db_column_text   (stmt, 5);
+	b->level                = db_column_int    (stmt, 6);
+	b->insertion_point      = db_column_int64  (stmt, 7);
+	b->insertion_point_type = db_column_int    (stmt, 8);
+	b->orientation_rho      = db_column_double (stmt, 9);
+	b->orientation_p_value  = db_column_double (stmt, 10);
+	b->acm                  = db_column_int    (stmt, 11);
+	b->sr_acm               = db_column_int    (stmt, 12);
+	b->exonic               = db_column_text   (stmt, 13);
+	b->intragenic           = db_column_text   (stmt, 14);
+	b->near                 = db_column_text   (stmt, 15);
+}
+
+static void
+vcf_print_body (sqlite3 *db, const List *hl, FILE *fp, VCFOption *opt)
 {
 	log_trace ("Inside %s", __func__);
 
@@ -321,88 +454,88 @@ vcf_print_body (sqlite3 *db, const List *hl, FILE *fp)
 	sqlite3_stmt *genotype_stmt = NULL;
 
 	ListElmt *cur = NULL;
-	Header *h = NULL;
+	VCFHeader *h = NULL;
 	Hash *gi = NULL;
 	Hash *hc = NULL;
 
-	Genotype *g = NULL;
-
-	int id = 0;
-	const char *chr = NULL;
-	long window_start = 0;
-	long window_end = 0;
-	const char *parental_gene_name = NULL;
-	const char *parental_strand = NULL;
-	int level = 0;
-	long insertion_point = 0;
-	int insertion_point_type = 0;
-	double orientation_rho = 0;
-	double orientation_p_value = 0;
-	int acm = 0;
-	int sr_acm = 0;
+	VCFGenotype *g = NULL;
+	VCFBody b = {};
 
 	// List of haploid chromosomes
 	hc = human_haploid_chr ();
 
-	retrocopy_stmt = prepare_retrocopy_query_stmt (db);
+	// Prepare retrocopy query
+	retrocopy_stmt = prepare_retrocopy_query_stmt (db,
+			opt->near_gene_distance);
+
+	// Prepare genotype query
 	genotype_stmt = prepare_genotype_query_stmt (db);
 
 	while (db_step (retrocopy_stmt) == SQLITE_ROW)
 		{
-			id                   = db_column_int    (retrocopy_stmt, 0);
-			chr                  = db_column_text   (retrocopy_stmt, 1);
-			window_start         = db_column_int64  (retrocopy_stmt, 2);
-			window_end           = db_column_int64  (retrocopy_stmt, 3);
-			parental_gene_name   = db_column_text   (retrocopy_stmt, 4);
-			parental_strand      = db_column_text   (retrocopy_stmt, 5);
-			level                = db_column_int    (retrocopy_stmt, 6);
-			insertion_point      = db_column_int64  (retrocopy_stmt, 7);
-			insertion_point_type = db_column_int    (retrocopy_stmt, 8);
-			orientation_rho      = db_column_double (retrocopy_stmt, 9);
-			orientation_p_value  = db_column_double (retrocopy_stmt, 10);
-			acm                  = db_column_int    (retrocopy_stmt, 11);
-			sr_acm               = db_column_int    (retrocopy_stmt, 12);
-
-			gi = index_genotype (genotype_stmt, id);
+			vcf_get_body_line (retrocopy_stmt, &b);
+			gi = vcf_index_genotype (genotype_stmt, b.id);
 
 			fprintf (fp,
 				"%s\t%li\t.\tN\t<INS:ME:RTC>\t.\tPASS\tSVTYPE=INS",
-				chr, insertion_point == 1 ? insertion_point : insertion_point - 1);
+				b.chr, b.insertion_point == 1 ? b.insertion_point : b.insertion_point - 1);
 
 			// Imprecise retrocopies
-			if (insertion_point_type == RETROCOPY_INSERTION_POINT_WINDOW_MEAN)
+			if (b.insertion_point_type == RETROCOPY_INSERTION_POINT_WINDOW_MEAN)
 				{
 					fprintf (fp,
 						";IMPRECISE;CIPOS=%li,%li",
-						window_start - insertion_point,
-						window_end - insertion_point);
+						b.window_start - b.insertion_point,
+						b.window_end - b.insertion_point);
 				}
 
 			// Polarity
-			if (level == RETROCOPY_PASS
-					&& orientation_p_value <= ALPHA_ERROR)
+			if (b.level == RETROCOPY_PASS
+					&& b.orientation_p_value <= opt->alpha_error)
 				{
 					fprintf (fp,
 						";ORHO=%f;POLARITY=%c",
-						orientation_rho,
-						orientation_rho >= 0.0
-							? !strcmp (parental_strand, "+")
+						b.orientation_rho,
+						b.orientation_rho >= 0.0
+							? !strcmp (b.parental_strand, "+")
 								? '+'
 								: '-'
-							: !strcmp (parental_strand, "+")
+							: !strcmp (b.parental_strand, "+")
 								? '-'
 								: '+');
 				}
 
+			// Parental gene
 			fprintf (fp,
-				";PG=%s;PGTYPE=%d;DP=%d",
-				parental_gene_name, level, acm);
+				";PG=%s;PGTYPE=%d",
+				b.parental_gene_name, b.level);
+
+			// Print HOST and NEAR genes
+			if (strcmp (b.intragenic, "?"))
+				{
+					// Exonic
+					if (strcmp (b.exonic, "?"))
+						fprintf (fp, ";EXONIC=%s", b.exonic);
+
+					// If not exonic, but intragenic - or
+					// exonic different than intragenic, then
+					// it is intronic
+					if (strcmp (b.exonic, b.intragenic))
+						fprintf (fp, ";INTRONIC=%s", b.intragenic);
+				}
+			// If not intragenic, it may be near
+			// some gene
+			else if (strcmp (b.near, "?"))
+				fprintf (fp, ";NEAR=%s", b.near);
+
+			// Depth
+			fprintf (fp, ";DP=%d", b.acm);
 
 			// Splitted reads for precise retrocopies
-			if (insertion_point_type
+			if (b.insertion_point_type
 					== RETROCOPY_INSERTION_POINT_SUPPLEMENTARY_MODE)
 				{
-					fprintf (fp, ";SR=%d", sr_acm);
+					fprintf (fp, ";SR=%d", b.sr_acm);
 				}
 
 			// FORMAT
@@ -416,7 +549,7 @@ vcf_print_body (sqlite3 *db, const List *hl, FILE *fp)
 					g = hash_lookup (gi, &h->id);
 
 					// Is not haploid?
-					if (hash_lookup (hc, chr) == NULL)
+					if (hash_lookup (hc, b.chr) == NULL)
 						{
 							// Print diploid chromosomes
 							if (g == NULL)
@@ -457,8 +590,9 @@ vcf_print_body (sqlite3 *db, const List *hl, FILE *fp)
 }
 
 void
-vcf (sqlite3 *db, const char *fasta_file, const char *output_file)
+vcf (sqlite3 *db, const char *output_file, VCFOption *opt)
 {
+	assert (db != NULL && opt != NULL);
 	log_trace ("Inside %s", __func__);
 
 	FILE *fp = NULL;
@@ -468,7 +602,7 @@ vcf (sqlite3 *db, const char *fasta_file, const char *output_file)
 	hl = vcf_get_header_line (db);
 
 	vcf_print_header (hl, fp);
-	vcf_print_body (db, hl, fp);
+	vcf_print_body (db, hl, fp, opt);
 
 	xfclose (fp);
 	list_free (hl);
