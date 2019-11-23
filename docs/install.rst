@@ -14,14 +14,22 @@ Building requirements
 - `Python 3 <https://www.python.org/>`_
 - `Ninja <https://github.com/ninja-build/ninja/>`_
 
-**Meson** can be obtained using package manager or from source. For example, using
-`Ubuntu <https://ubuntu.com/>`_ distribution::
+The building requirements for **Meson** can be obtained using package manager or
+from source. For example, using `Ubuntu <https://ubuntu.com/>`_ distribution::
 
   $ sudo apt-get install python3 \
                          python3-pip \
                          python3-setuptools \
                          python3-wheel \
                          ninja-build
+
+Installing Meson
+================
+
+The recommended way to install the most up-to-date version of
+**Meson** is through :code:`pip3`::
+
+  $ pip3 install --user meson
 
 For more information about using and installing Meson, see:
 https://mesonbuild.com/Quick-guide.html
