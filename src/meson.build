@@ -25,6 +25,8 @@ sider_sources = files(
   'dedup.h',
   'exon.c',
   'exon.h',
+  'fasta.c',
+  'fasta.h',
   'genotype.c',
   'genotype.h',
   'gff.c',

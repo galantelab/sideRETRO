@@ -1,0 +1,273 @@
+#include "config.h"
+
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <check.h>
+#include "check_sider.h"
+
+#include "../src/utils.h"
+#include "../src/wrapper.h"
+#include "../src/fasta.h"
+
+static void
+handle_sigabrt (int sig)
+{
+	if (sig == SIGABRT)
+		exit (1);
+}
+
+static int num_line = 17;
+static const char *fasta_body =
+	";PONGA test\n"
+	"; Comment and more comment\n"
+	">chr1 example\n"
+	"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\n"
+	"TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT\n"
+	"CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC\n"
+	"GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG\n"
+	"; Another comment\n"
+	">chr2|example\n"
+	"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\n"
+	"TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT\n"
+	"; It is possible?\n"
+	"CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC\n"
+	"GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG\n"
+	"; Again\n"
+	">chrN\n"
+	"NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN"
+	"NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN"
+	"NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN"
+	"NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN"
+	"NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN"
+	"NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN"
+	"NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN"
+	"NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN"
+	"NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN"
+	"NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN"
+	"NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN"
+	"NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN"
+	"NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN"
+	"NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN\n";
+
+static const char *fasta_id1 = "chr1";
+static const char *fasta_seq1 =
+	"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+	"TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
+	"CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC"
+	"GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG";
+
+static const char *fasta_id2 = "chr2";
+static const char *fasta_seq2 = 
+	"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+	"TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
+	"CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC"
+	"GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG";
+
+static const char *fasta_id3 = "chrN";
+static const char *fasta_seq3 =
+	"NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN"
+	"NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN"
+	"NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN"
+	"NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN"
+	"NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN"
+	"NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN"
+	"NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN"
+	"NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN"
+	"NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN"
+	"NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN"
+	"NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN"
+	"NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN"
+	"NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN"
+	"NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN";
+
+static void
+create_fasta (const char *fasta, char *path)
+{
+	FILE *fp = NULL;
+	int fd;
+
+	fd = xmkstemp (path);
+	fp = xfdopen (fd, "w");
+
+	xfprintf (fp, "%s", fasta);
+
+	xfclose (fp);
+}
+
+START_TEST (test_fasta_read)
+{
+	FastaFile *fasta = NULL;
+	FastaEntry *entry = NULL;
+
+	// Create gtf file
+	char fasta_path[] = "/tmp/ponga.fa.XXXXXX";
+	create_fasta (fasta_body, fasta_path);
+
+	fasta = fasta_open_for_reading (fasta_path);
+	entry = fasta_entry_new ();
+
+	int i = 0;
+	const int loops = 3;
+
+	const char *contigs[] = {
+		fasta_id1,
+		fasta_id2,
+		fasta_id3
+	};
+
+	const char *seqs[] = {
+		fasta_seq1,
+		fasta_seq2,
+		fasta_seq3
+	};
+
+	while (fasta_read (fasta, entry))
+		{
+			ck_assert_str_eq (contigs[i], entry->contig->str);
+			ck_assert_str_eq (seqs[i], entry->sequence->str);
+			i++;
+		}
+
+	ck_assert_int_eq (loops, i);
+	ck_assert_int_eq (num_line, entry->num_line);
+	
+	// Coverage
+	fasta_close (NULL);
+	fasta_entry_free (NULL);
+
+	fasta_close (fasta);
+	fasta_entry_free (entry);
+	xunlink (fasta_path);
+}
+END_TEST
+
+START_TEST (test_empty_file)
+{
+	FastaFile *fasta = NULL;
+	FastaEntry *entry = NULL;
+	char fasta_path[] = "/tmp/ponga.fa.XXXXXX";
+
+	create_fasta ("", fasta_path);
+	fasta = fasta_open_for_reading (fasta_path);
+	entry = fasta_entry_new ();
+
+	ck_assert_int_eq (fasta_read (fasta, entry), 0);
+
+	fasta_entry_free (entry);
+	fasta_close (fasta);
+	xunlink (fasta_path);
+}
+END_TEST
+
+START_TEST (test_open_fatal)
+{
+	char fasta_path[] = "/tmp/ponga.fa.XXXXXX";
+	fasta_open_for_reading (fasta_path);
+}
+END_TEST
+
+START_TEST (test_close_fatal)
+{
+	FastaFile *fasta;
+	char fasta_path[] = "/tmp/ponga.fa.XXXXXX";
+
+	create_fasta (fasta_body, fasta_path);
+	fasta = fasta_open_for_reading (fasta_path);
+
+	fasta_close (fasta);
+	fasta_close (fasta);
+
+	xunlink (fasta_path);
+}
+END_TEST
+
+START_TEST (test_contig_fatal)
+{
+	FastaFile *fasta = NULL;
+	FastaEntry *entry = NULL;
+	char fasta_path[] = "/tmp/ponga.fa.XXXXXX";
+
+	create_fasta ("ATCG\n", fasta_path);
+	fasta = fasta_open_for_reading (fasta_path);
+	entry = fasta_entry_new ();
+
+	while (fasta_read (fasta, entry))
+		;
+
+	fasta_entry_free (entry);
+	fasta_close (fasta);
+	xunlink (fasta_path);
+}
+END_TEST
+
+START_TEST (test_seq1_fatal)
+{
+	FastaFile *fasta = NULL;
+	FastaEntry *entry = NULL;
+	char fasta_path[] = "/tmp/ponga.fa.XXXXXX";
+
+	create_fasta (">PONGA\n", fasta_path);
+	fasta = fasta_open_for_reading (fasta_path);
+	entry = fasta_entry_new ();
+
+	while (fasta_read (fasta, entry))
+		;
+
+	fasta_entry_free (entry);
+	fasta_close (fasta);
+	xunlink (fasta_path);
+}
+END_TEST
+
+START_TEST (test_seq2_fatal)
+{
+	FastaFile *fasta = NULL;
+	FastaEntry *entry = NULL;
+	char fasta_path[] = "/tmp/ponga.fa.XXXXXX";
+
+	create_fasta (">PONGA1\n>PONGA2\n", fasta_path);
+	fasta = fasta_open_for_reading (fasta_path);
+	entry = fasta_entry_new ();
+
+	while (fasta_read (fasta, entry))
+		;
+
+	fasta_entry_free (entry);
+	fasta_close (fasta);
+	xunlink (fasta_path);
+}
+END_TEST
+
+Suite *
+make_fasta_suite (void)
+{
+	setup_signal (SIGABRT, handle_sigabrt);
+
+	Suite *s;
+	TCase *tc_core;
+	TCase *tc_abort;
+
+	s = suite_create ("FASTA");
+
+	/* Core test case */
+	tc_core = tcase_create ("Core");
+
+	/* Abort test case */
+	tc_abort = tcase_create ("Abort");
+
+	tcase_add_test (tc_core, test_fasta_read);
+	tcase_add_test (tc_core, test_empty_file);
+
+	tcase_add_exit_test (tc_abort, test_open_fatal, 1);
+	tcase_add_exit_test (tc_abort, test_close_fatal, 1);
+	tcase_add_exit_test (tc_abort, test_contig_fatal, 1);
+	tcase_add_exit_test (tc_abort, test_seq1_fatal, 1);
+	tcase_add_exit_test (tc_abort, test_seq2_fatal, 1);
+
+	suite_add_tcase (s, tc_core);
+	suite_add_tcase (s, tc_abort);
+
+	return s;
+}
