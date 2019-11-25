@@ -56,7 +56,8 @@ string_concat (String *s, const char *str)
 			size_t str_len = strlen (str);
 			string_maybe_expand (s, s->len + str_len + 1);
 
-			s->str = strncat (s->str, str, str_len);
+			memcpy (s->str + s->len, str,
+					sizeof (char) * (str_len + 1));
 			s->len += str_len;
 		}
 
