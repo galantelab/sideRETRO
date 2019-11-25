@@ -20,6 +20,8 @@ String * string_set           (String *s, const char *str);
 String * string_clear         (String *s);
 String * string_concat        (String *s, const char *str);
 
+#define string_reset(s) ((s)->str[0] = '\0', (s)->len = 0)
+
 String * string_printf        (String *s, const char *fmt, ...)
 	__attribute__((format (printf, 2, 3)));
 String * string_concat_printf (String *s, const char *fmt, ...)
