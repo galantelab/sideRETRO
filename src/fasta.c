@@ -204,7 +204,7 @@ fasta_get_seq (FastaFile *fasta, FastaEntry *entry)
 					num_line_old++;
 					continue;
 				}
-			
+
 			if (fasta->buf[0] == '>')
 				{
 					if ((num_line_old + 1) == fasta->num_line)

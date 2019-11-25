@@ -7,9 +7,13 @@
 #include "wrapper.h"
 #include "utils.h"
 #include "list.h"
+#include "array.h"
 #include "hash.h"
+#include "utils.h"
 #include "log.h"
+#include "str.h"
 #include "retrocopy.h"
+#include "fasta.h"
 #include "vcf.h"
 
 #define VCF_VERSION "VCFv4.2"
@@ -75,8 +79,7 @@ vcf_header_new (const int id, const char *name)
 	VCFHeader *h = xcalloc (1, sizeof (VCFHeader));
 
 	*h = (VCFHeader) {
-		.id   = id,
-		.name = name
+		.id   = id, .name = name
 	};
 
 	return h;
@@ -90,6 +93,41 @@ vcf_header_free (VCFHeader *h)
 
 	xfree ((void *) h->name);
 	xfree (h);
+}
+
+static void
+fasta_string_free (String *s)
+{
+	string_free (s, 1);
+}
+
+static Hash *
+vcf_index_fasta (const char *fasta_file)
+{
+	log_trace ("Inside %s", __func__);
+
+	Hash *idx = NULL;
+	FastaFile *fasta = NULL;
+	FastaEntry *entry = NULL;
+
+	fasta = fasta_open_for_reading (fasta_file);
+	entry = fasta_entry_new ();
+
+	idx = hash_new_full (str_hash, str_equal, xfree,
+			(DestroyNotify) fasta_string_free);
+
+	while (fasta_read (fasta, entry))
+		hash_insert (idx, xstrdup (entry->contig->str),
+				string_new (entry->sequence->str));
+
+	if (!hash_size (idx))
+		log_fatal ("FASTA file '%s' has no entries",
+				fasta_file);
+
+	fasta_entry_free (entry);
+	fasta_close (fasta);
+
+	return idx;
 }
 
 static List *
@@ -131,12 +169,18 @@ vcf_get_header_line (sqlite3 *db)
 }
 
 static void
-vcf_print_header (const List *hl, FILE *fp)
+vcf_print_header (const List *hl, Hash *fidx,
+		FILE *fp, VCFOption *opt)
 {
 	log_trace ("Inside %s", __func__);
 
 	const VCFHeader *h = NULL;
 	const ListElmt *cur = NULL;
+
+	Array *contigs = NULL;
+	const char *contig = NULL;
+	const String *seq = NULL;
+	int i = 0;
 
 	char timestamp[32] = {};
 	time_t t = 0;
@@ -148,11 +192,36 @@ vcf_print_header (const List *hl, FILE *fp)
 	timestamp[strftime (timestamp, sizeof (timestamp),
 			"%Y-%m-%d %H:%M:%S", lt)] = '\0';
 
-	// IMPRECISE = No one SR at breakpoint
 	fprintf (fp,
 		"##fileformat=%s\n"
 		"##fileDate=%s\n"
-		"##source=%sv%s\n"
+		"##source=%sv%s\n",
+		VCF_VERSION, timestamp, PACKAGE_NAME, PACKAGE_VERSION);
+
+	if (fidx != NULL && opt->fasta_file != NULL)
+		{
+			fprintf (fp,
+				"##reference=file://%s\n",
+				opt->fasta_file);
+
+			contigs = hash_get_keys_as_array (fidx);
+			array_sort (contigs, cmpstringp);
+
+			for (i = 0; i < contigs->len; i++)
+				{
+					contig = array_get (contigs, i);
+					seq = hash_lookup (fidx, contig);
+
+					assert (seq != NULL);
+
+					fprintf (fp,
+						"##contig=<ID=%s,length=%zu>\n",
+						contig, seq->len);
+				}
+		}
+
+	// IMPRECISE = No one SR at breakpoint
+	fprintf (fp,
 		"##INFO=<ID=CIPOS,Number=2,Type=Integer,Description=\"Confidence interval around POS for imprecise variants\">\n"
 		"##INFO=<ID=DP,Number=1,Type=Integer,Description=\"Read Depth of segment containing breakpoint\">\n"
 		"##INFO=<ID=EXONIC,Number=1,Type=String,Description=\"Exon IDs separated by '/' for intragenic retrocopy\">\n"
@@ -170,8 +239,7 @@ vcf_print_header (const List *hl, FILE *fp)
 		"##ALT=<ID=INS:ME:RTC,Description=\"Insertion of a Retrocopy\">\n"
 		"##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Read Depth of segment containing breakpoint\">\n"
 		"##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n"
-		"#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT",
-		VCF_VERSION, timestamp, PACKAGE_NAME, PACKAGE_VERSION);
+		"#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT");
 
 	for (cur = list_head (hl); cur != NULL; cur = list_next (cur))
 		{
@@ -446,7 +514,7 @@ vcf_get_body_line (sqlite3_stmt *stmt, VCFBody *b)
 }
 
 static void
-vcf_print_body (sqlite3 *db, const List *hl, FILE *fp, VCFOption *opt)
+vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp, VCFOption *opt)
 {
 	log_trace ("Inside %s", __func__);
 
@@ -460,6 +528,10 @@ vcf_print_body (sqlite3 *db, const List *hl, FILE *fp, VCFOption *opt)
 
 	VCFGenotype *g = NULL;
 	VCFBody b = {};
+
+	String *seq = NULL;
+	long pos = 0;
+	char base = 0;
 
 	// List of haploid chromosomes
 	hc = human_haploid_chr ();
@@ -476,9 +548,36 @@ vcf_print_body (sqlite3 *db, const List *hl, FILE *fp, VCFOption *opt)
 			vcf_get_body_line (retrocopy_stmt, &b);
 			gi = vcf_index_genotype (genotype_stmt, b.id);
 
+			// Pos is 1 position before the insertion
+			pos = b.insertion_point == 1
+				? b.insertion_point
+				: b.insertion_point - 1;
+
+			if (fidx != NULL)
+				{
+					seq = hash_lookup (fidx, b.chr);
+
+					if (seq == NULL)
+						{
+							log_warn ("Contig %s has no reference at '%s'",
+									b.chr, opt->fasta_file);
+							base = 'N';
+						}
+					else if (seq->len < pos)
+						{
+							log_warn ("Retrocopy at %s:%li is outside contig range %li",
+									b.chr, b.insertion_point, seq->len);
+							base = 'N';
+						}
+					else
+						base = seq->str[pos - 1];
+				}
+			else
+				base = 'N';
+
 			fprintf (fp,
-				"%s\t%li\t.\tN\t<INS:ME:RTC>\t.\tPASS\tSVTYPE=INS",
-				b.chr, b.insertion_point == 1 ? b.insertion_point : b.insertion_point - 1);
+				"%s\t%li\t.\t%c\t<INS:ME:RTC>\t.\tPASS\tSVTYPE=INS",
+				b.chr, pos, base >= 'a' && base <= 'z' ? base - 32 : base);
 
 			// Imprecise retrocopies
 			if (b.insertion_point_type == RETROCOPY_INSERTION_POINT_WINDOW_MEAN)
@@ -597,13 +696,31 @@ vcf (sqlite3 *db, const char *output_file, VCFOption *opt)
 
 	FILE *fp = NULL;
 	List *hl = NULL;
+	Hash *fidx = NULL;
 
+	log_info ("Create VCF file '%s'", output_file);
 	fp = xfopen (output_file, "w");
+
+	if (opt->fasta_file != NULL)
+		{
+			log_info ("Index genome '%s'", opt->fasta_file);
+			fidx = vcf_index_fasta (opt->fasta_file);
+		}
+	else
+		log_warn (
+			"With no reference genome, "
+			"it is not possible to determine the VCF's REF field");
+
+	log_info ("Get VCF header line");
 	hl = vcf_get_header_line (db);
 
-	vcf_print_header (hl, fp);
-	vcf_print_body (db, hl, fp, opt);
+	log_info ("Write VCF header");
+	vcf_print_header (hl, fidx, fp, opt);
+
+	log_info ("Write VCF body");
+	vcf_print_body (db, hl, fidx, fp, opt);
 
 	xfclose (fp);
 	list_free (hl);
+	hash_free (fidx);
 }
