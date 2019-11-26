@@ -43,6 +43,7 @@
 #define DEFAULT_NEAR_GENE_DISTANCE    3
 #define DEFAULT_THREADS               1
 #define DEFAULT_CROSSING_READS        10
+#define DEFAULT_PHRED_QUALITY         8
 
 struct _MergeCall
 {
@@ -84,6 +85,7 @@ struct _MergeCall
 	// Genotyping
 	int          crossing_reads;
 	int          threads;
+	int          phred_quality;
 };
 
 typedef struct _MergeCall MergeCall;
@@ -237,7 +239,7 @@ run (MergeCall *mc)
 
 			// Genotyping
 			log_info ("Run genotype annotation step for '%s'", db_file);
-			genotype (genotype_stmt, mc->threads, mc->crossing_reads);
+			genotype (genotype_stmt, mc->threads, mc->crossing_reads, mc->phred_quality);
 
 			// Commit
 			db_end_transaction (db);
@@ -268,7 +270,8 @@ print_usage (FILE *fp)
 		"       %*c            [-c INT] [-I] [-e INT] [-m INT] [-b STR]\n"
 		"       %*c            [-B FILE] [[-T STR] [[-H|S] KEY=VALUE]]\n"
 		"       %*c            [-P INT] [-x INT] [-g INT] [-n INT]\n"
-		"       %*c            [-t INT] [-C INT] [-i FILE] <FILE> ...\n"
+		"       %*c            [-t INT] [-C INT] [-Q INT]\n"
+		"       %*c            [-i FILE] <FILE> ...\n"
 		"\n"
 		"Arguments:\n"
 		"   One or more SQLite3 databases generated in the 'process-sample' step\n"
@@ -337,13 +340,15 @@ print_usage (FILE *fp)
 		"   -C, --crossing-reads       Minimum number of reads crossing the insertion point\n"
 		"                              in order to consider evidence of heterozygosis\n"
 		"                              [default:\"%d\"]\n"
+		"   -Q, --phred-quality        Minimum phred quality score required for\n"
+		"                              crossing reads [default:\"%d\"]\n"
 		"\n",
-		PACKAGE_STRING, PACKAGE, pkg_len, ' ', pkg_len, ' ', pkg_len, ' ', pkg_len, ' ',
+		PACKAGE_STRING, PACKAGE, pkg_len, ' ', pkg_len, ' ', pkg_len, ' ', pkg_len, ' ', pkg_len, ' ',
 		DEFAULT_OUTPUT_DIR, DEFAULT_PREFIX, DEFAULT_CACHE_SIZE, DEFAULT_EPS, DEFAULT_MIN_PTS,
 		DEFAULT_BLACKLIST_CHR, DEFAULT_BLACKLIST_PADDING, DEFAULT_GFF_FEATURE, DEFAULT_GFF_ATTRIBUTE1,
 		DEFAULT_GFF_ATTRIBUTE_VALUE1, DEFAULT_GFF_ATTRIBUTE2, DEFAULT_GFF_ATTRIBUTE_VALUE2,
 		DEFAULT_PARENTAL_DISTANCE, DEFAULT_SUPPORT, DEFAULT_NEAR_GENE_DISTANCE,
-		DEFAULT_THREADS, DEFAULT_CROSSING_READS);
+		DEFAULT_THREADS, DEFAULT_CROSSING_READS, DEFAULT_PHRED_QUALITY);
 }
 
 static void
@@ -484,6 +489,12 @@ merge_call_validate (MergeCall *mc)
 	if (mc->crossing_reads < 1)
 		{
 			fprintf (stderr, "%s: --crossing-reads must be greater or equal to 1\n", PACKAGE);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
+	if (mc->phred_quality < 0)
+		{
+			fprintf (stderr, "%s: --phred-quality must be greater or equal to 0\n", PACKAGE);
 			rc = EXIT_FAILURE; goto Exit;
 		}
 
@@ -650,9 +661,10 @@ merge_call_print (const MergeCall *mc)
 		"  --genotype-support=%d \\\n"
 		"  --near-gene-distance=%d \\\n"
 		"  --threads=%d \\\n"
-		"  --crossing-reads=%d\n",
+		"  --crossing-reads=%d \\\n"
+		"  --phred-quality=%d\n",
 		mc->parental_dist, mc->support, mc->near_gene_dist,
-		mc->threads, mc->crossing_reads);
+		mc->threads, mc->crossing_reads, mc->phred_quality);
 
 	log_info ("%s", msg->str);
 	string_free (msg, 1);
@@ -695,6 +707,7 @@ parse_merge_call_command_opt (int argc, char **argv)
 		{"gff-soft-attribute", required_argument, 0, 'S'},
 		{"near-gene-distance", required_argument, 0, 'n'},
 		{"crossing-reads",     required_argument, 0, 'C'},
+		{"phred-quality",      required_argument, 0, 'Q'},
 		{"threads",            required_argument, 0, 't'},
 		{0,                    0,                 0,  0 }
 	};
@@ -707,7 +720,7 @@ parse_merge_call_command_opt (int argc, char **argv)
 	int option_index = 0;
 	int c, i;
 
-	while ((c = getopt_long (argc, argv, "hqdIl:o:p:c:e:m:b:B:P:T:H:S:x:g:n:C:t:i:", opt, &option_index)) >= 0)
+	while ((c = getopt_long (argc, argv, "hqdIl:o:p:c:e:m:b:B:P:T:H:S:x:g:n:C:Q:t:i:", opt, &option_index)) >= 0)
 		{
 			switch (c)
 				{
@@ -786,6 +799,11 @@ parse_merge_call_command_opt (int argc, char **argv)
 				case 'C':
 					{
 						mc.crossing_reads = atoi (optarg);
+						break;
+					}
+				case 'Q':
+					{
+						mc.phred_quality = atoi (optarg);
 						break;
 					}
 				case 't':

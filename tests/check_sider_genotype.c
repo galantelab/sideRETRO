@@ -142,7 +142,7 @@ START_TEST (test_genotype)
 	index_bam (bam_sorted_file);
 	stmt = db_prepare_genotype_stmt (db);
 
-	genotype (stmt, 2, 1);
+	genotype (stmt, 2, 1, 0);
 
 	db_finalize (stmt);
 	db_close (db);

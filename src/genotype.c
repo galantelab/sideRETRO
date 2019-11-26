@@ -45,11 +45,20 @@ struct _ZygosityData
 	ChrStd       *cs;
 
 	int           crossing_reads;
+	int           phred_quality;
 
 	const char   *path;
 };
 
 typedef struct _ZygosityData ZygosityData;
+
+struct _CrossWindowLinear
+{
+	bam1_t       *align;
+	int           phred_quality;
+};
+
+typedef struct _CrossWindowLinear CrossWindowLinear;
 
 static Region *
 region_new (const char *chr, const long window_start,
@@ -256,7 +265,8 @@ calculate_align_start_end (const bam1_t *align, long *start, long *end)
 }
 
 static inline int
-cross_insertion_point (const bam1_t *align, const long insertion_point)
+cross_insertion_point (const bam1_t *align, const long insertion_point,
+		const int phred_quality)
 {
 	/*
 	* Only test with proper aligned reads
@@ -265,12 +275,16 @@ cross_insertion_point (const bam1_t *align, const long insertion_point)
 	* - mapped
 	* - mate mapped
 	* - not a duplication
+	* - not a supplementary
+	* - phred quality
 	*/
 	if (!(align->core.flag & 0x1)
 			|| !(align->core.flag & 0x2)
 			|| (align->core.flag & 0x4)
 			|| (align->core.flag & 0x8)
-			|| (align->core.flag & 0x400))
+			|| (align->core.flag & 0x400)
+			|| (align->core.flag & 0x800)
+			|| (align->core.qual < phred_quality))
 		{
 			return 0;
 		}
@@ -347,10 +361,10 @@ dump_genotype (sqlite3_stmt *stmt, const Genotype *g)
 static void
 cross_window (IBiTreeLookupData *ldata, void *user_data)
 {
-	const bam1_t *align = user_data;
+	const CrossWindowLinear *c = user_data;
 	Genotype *g = ldata->data;
 
-	if (cross_insertion_point (align, g->region->insertion_point))
+	if (cross_insertion_point (c->align, g->region->insertion_point, c->phred_quality))
 		g->acm++;
 }
 
@@ -367,6 +381,8 @@ zygosity_linear_search (samFile *fp, bam_hdr_t *hdr, bam1_t *align,
 	Genotype *g = NULL;
 	ListElmt *cur = NULL;
 
+	CrossWindowLinear c = {.phred_quality = zd->phred_quality};
+
 	long start = 0;
 	long end = 0;
 
@@ -382,9 +398,10 @@ zygosity_linear_search (samFile *fp, bam_hdr_t *hdr, bam1_t *align,
 				continue;
 
 			calculate_align_start_end (align, &start, &end);
+			c.align = align;
 
 			ibitree_lookup (tree, start, end,
-					-1, -1, 0, cross_window, align);
+					-1, -1, 0, cross_window, &c);
 		}
 
 	if (rc < -1)
@@ -440,7 +457,7 @@ zygosity_indexed_search (samFile *fp, bam_hdr_t *hdr, bam1_t *align,
 						r->chr, r->window_start, r->window_end, zd->path);
 
 			while ((rc = sam_itr_next (fp, itr, align)) >= 0)
-				if (cross_insertion_point (align, r->insertion_point))
+				if (cross_insertion_point (align, r->insertion_point, zd->phred_quality))
 					g->acm++;
 
 			if (rc < -1)
@@ -511,11 +528,12 @@ zygosity (ZygosityData *zd)
 
 void
 genotype (sqlite3_stmt *genotype_stmt, int threads,
-		int crossing_reads)
+		int crossing_reads, int phred_quality)
 {
 	log_trace ("Inside %s", __func__);
 	assert (genotype_stmt != NULL && threads > 0
-			&& crossing_reads > 0);
+			&& crossing_reads > 0
+			&& phred_quality >= 0);
 
 	threadpool thpool = NULL;
 
@@ -560,6 +578,7 @@ genotype (sqlite3_stmt *genotype_stmt, int threads,
 			zd->cs = cs;
 			zd->stmt = genotype_stmt;
 			zd->crossing_reads = crossing_reads;
+			zd->phred_quality = phred_quality;
 
 			// Let's rock!
 			thpool_add_work (thpool, (void *) zygosity, (void *) zd);
