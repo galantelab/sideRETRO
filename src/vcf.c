@@ -248,6 +248,8 @@ vcf_print_header (const List *hl, Hash *fidx,
 		}
 
 	fprintf (fp, "\n");
+
+	array_free (contigs, 1);
 }
 
 static sqlite3_stmt *
