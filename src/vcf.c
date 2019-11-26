@@ -192,7 +192,7 @@ vcf_print_header (const List *hl, Hash *fidx,
 	timestamp[strftime (timestamp, sizeof (timestamp),
 			"%Y-%m-%d %H:%M:%S", lt)] = '\0';
 
-	fprintf (fp,
+	xfprintf (fp,
 		"##fileformat=%s\n"
 		"##fileDate=%s\n"
 		"##source=%sv%s\n",
@@ -200,7 +200,7 @@ vcf_print_header (const List *hl, Hash *fidx,
 
 	if (fidx != NULL && opt->fasta_file != NULL)
 		{
-			fprintf (fp,
+			xfprintf (fp,
 				"##reference=file://%s\n",
 				opt->fasta_file);
 
@@ -214,14 +214,14 @@ vcf_print_header (const List *hl, Hash *fidx,
 
 					assert (seq != NULL);
 
-					fprintf (fp,
+					xfprintf (fp,
 						"##contig=<ID=%s,length=%zu>\n",
 						contig, seq->len);
 				}
 		}
 
 	// IMPRECISE = No one SR at breakpoint
-	fprintf (fp,
+	xfprintf (fp,
 		"##INFO=<ID=CIPOS,Number=2,Type=Integer,Description=\"Confidence interval around POS for imprecise variants\">\n"
 		"##INFO=<ID=DP,Number=1,Type=Integer,Description=\"Read Depth of segment containing breakpoint\">\n"
 		"##INFO=<ID=EXONIC,Number=1,Type=String,Description=\"Exon IDs separated by '/' for intragenic retrocopy\">\n"
@@ -244,10 +244,10 @@ vcf_print_header (const List *hl, Hash *fidx,
 	for (cur = list_head (hl); cur != NULL; cur = list_next (cur))
 		{
 			h = list_data (cur);
-			fprintf (fp, "\t%s", h->name);
+			xfprintf (fp, "\t%s", h->name);
 		}
 
-	fprintf (fp, "\n");
+	xfprintf (fp, "\n");
 
 	array_free (contigs, 1);
 }
@@ -577,14 +577,14 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp, VCFOption *op
 			else
 				base = 'N';
 
-			fprintf (fp,
+			xfprintf (fp,
 				"%s\t%li\t.\t%c\t<INS:ME:RTC>\t.\tPASS\tSVTYPE=INS",
 				b.chr, pos, base >= 'a' && base <= 'z' ? base - 32 : base);
 
 			// Imprecise retrocopies
 			if (b.insertion_point_type == RETROCOPY_INSERTION_POINT_WINDOW_MEAN)
 				{
-					fprintf (fp,
+					xfprintf (fp,
 						";IMPRECISE;CIPOS=%li,%li",
 						b.window_start - b.insertion_point,
 						b.window_end - b.insertion_point);
@@ -594,7 +594,7 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp, VCFOption *op
 			if (b.level == RETROCOPY_PASS
 					&& b.orientation_p_value <= opt->alpha_error)
 				{
-					fprintf (fp,
+					xfprintf (fp,
 						";ORHO=%f;POLARITY=%c",
 						b.orientation_rho,
 						b.orientation_rho >= 0.0
@@ -607,7 +607,7 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp, VCFOption *op
 				}
 
 			// Parental gene
-			fprintf (fp,
+			xfprintf (fp,
 				";PG=%s;PGTYPE=%d",
 				b.parental_gene_name, b.level);
 
@@ -616,31 +616,31 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp, VCFOption *op
 				{
 					// Exonic
 					if (strcmp (b.exonic, "?"))
-						fprintf (fp, ";EXONIC=%s", b.exonic);
+						xfprintf (fp, ";EXONIC=%s", b.exonic);
 
 					// If not exonic, but intragenic - or
 					// exonic different than intragenic, then
 					// it is intronic
 					if (strcmp (b.exonic, b.intragenic))
-						fprintf (fp, ";INTRONIC=%s", b.intragenic);
+						xfprintf (fp, ";INTRONIC=%s", b.intragenic);
 				}
 			// If not intragenic, it may be near
 			// some gene
 			else if (strcmp (b.near, "?"))
-				fprintf (fp, ";NEAR=%s", b.near);
+				xfprintf (fp, ";NEAR=%s", b.near);
 
 			// Depth
-			fprintf (fp, ";DP=%d", b.acm);
+			xfprintf (fp, ";DP=%d", b.acm);
 
 			// Splitted reads for precise retrocopies
 			if (b.insertion_point_type
 					== RETROCOPY_INSERTION_POINT_SUPPLEMENTARY_MODE)
 				{
-					fprintf (fp, ";SR=%d", b.sr_acm);
+					xfprintf (fp, ";SR=%d", b.sr_acm);
 				}
 
 			// FORMAT
-			fprintf (fp, "\tGT:DP");
+			xfprintf (fp, "\tGT:DP");
 
 			// Print genotype
 			for (cur = list_head (hl); cur != NULL; cur = list_next (cur))
@@ -654,10 +654,10 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp, VCFOption *op
 						{
 							// Print diploid chromosomes
 							if (g == NULL)
-								fprintf (fp, "\t0/0:0");
+								xfprintf (fp, "\t0/0:0");
 							else
 								{
-									fprintf (fp,
+									xfprintf (fp,
 										"\t%s:%d",
 										g->heterozygous
 											? "0/1"
@@ -669,17 +669,17 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp, VCFOption *op
 						{
 							// Print haploid chromosomes
 							if (g == NULL)
-								fprintf (fp, "\t0:0");
+								xfprintf (fp, "\t0:0");
 							else
 								{
-									fprintf (fp,
+									xfprintf (fp,
 										"\t%s:%d",
 										"1", g->alternative_depth);
 								}
 						}
 				}
 
-			fprintf (fp, "\n");
+			xfprintf (fp, "\n");
 
 			hash_free (gi);
 			gi = NULL;
