@@ -43,6 +43,8 @@ sider_sources = files(
   'logger.c',
   'logger.h',
   'log.h',
+  'make_vcf.c',
+  'make_vcf.h',
   'merge_call.c',
   'merge_call.h',
   'process_sample.c',

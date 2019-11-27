@@ -8,6 +8,7 @@
 
 #include "process_sample.h"
 #include "merge_call.h"
+#include "make_vcf.h"
 
 static void
 print_version (FILE *fp)
@@ -32,8 +33,9 @@ print_usage (FILE *fp)
 		"   -v, --version    Show current version\n"
 		"\n"
 		"Commands\n"
-		"   ps, process-sample\n"
-		"   mc, merge-call\n",
+		"   ps,  process-sample\n"
+		"   mc,  merge-call\n"
+		"   vcf, make-vcf\n",
 		PACKAGE_STRING, PACKAGE, PACKAGE);
 }
 
@@ -103,6 +105,8 @@ main (int argc, char *argv[])
 		rc = parse_process_sample_command_opt (argc, argv);
 	else if (!strcmp (argv[1], "mc") || !strcmp (argv[1], "merge-call"))
 		rc = parse_merge_call_command_opt (argc, argv);
+	else if (!strcmp (argv[1], "vcf") || !strcmp (argv[1], "make-vcf"))
+		rc = parse_make_vcf_command_opt (argc, argv);
 	else
 		{
 			fprintf (stderr, "%s: '%s' is not a valid command\n", PACKAGE, argv[1]);
