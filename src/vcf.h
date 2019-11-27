@@ -5,8 +5,8 @@
 
 struct _VCFOption
 {
-	long        near_gene_distance;
-	float       alpha_error;
+	long        near_gene_dist;
+	float       orientation_error;
 	const char *fasta_file;
 };
 

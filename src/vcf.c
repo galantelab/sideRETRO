@@ -253,7 +253,7 @@ vcf_print_header (const List *hl, Hash *fidx,
 }
 
 static sqlite3_stmt *
-prepare_retrocopy_query_stmt (sqlite3 *db, const long near_gene_distance)
+prepare_retrocopy_query_stmt (sqlite3 *db, const long near_gene_dist)
 {
 	log_trace ("Inside %s", __func__);
 
@@ -396,7 +396,7 @@ prepare_retrocopy_query_stmt (sqlite3 *db, const long near_gene_distance)
 
 	db_bind_int64 (stmt,
 			sqlite3_bind_parameter_index (stmt, "$DIST"),
-			near_gene_distance);
+			near_gene_dist);
 
 	return stmt;
 }
@@ -540,7 +540,7 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp, VCFOption *op
 
 	// Prepare retrocopy query
 	retrocopy_stmt = prepare_retrocopy_query_stmt (db,
-			opt->near_gene_distance);
+			opt->near_gene_dist);
 
 	// Prepare genotype query
 	genotype_stmt = prepare_genotype_query_stmt (db);
@@ -592,7 +592,7 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp, VCFOption *op
 
 			// Polarity
 			if (b.level == RETROCOPY_PASS
-					&& b.orientation_p_value <= opt->alpha_error)
+					&& b.orientation_p_value <= opt->orientation_error)
 				{
 					xfprintf (fp,
 						";ORHO=%f;POLARITY=%c",
