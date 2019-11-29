@@ -1,3 +1,24 @@
+Version 0.13.0
+
+* Improve usage help by splitting all options
+  according to its category.
+
+* Log all user-given options and arguments.
+
+* Add processing text interface to read 'FASTA'
+  file format.
+
+* Add VCF's writer interface. It was necessary
+  to create new INFO and ALT tags for handle
+  informations related to the retrocopy as:
+  'PG' for parental gene, 'PGTYPE' for
+  parental gene type, EXONIC/INTRONIC/NEAR
+  for retrocopy genomic position - all those
+  tags for INFO - and <INS:ME:RTC> for ALT.
+
+* Add subcommand 'make-vcf' in order to
+  manage VCF's file generation.
+
 Version 0.12.0
 
 * Add genotype and haplotype analysis. If

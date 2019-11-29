@@ -1,3 +1,82 @@
+2019-11-28 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* Version 0.13.0
+
+2019-11-27 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: make_vcf.c: make-vcf command
+
+	* FIX: vcf.c: Some typos in variable names
+
+2019-11-26 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: genotype.c (genotype): phred_qualit
+
+	Filter reads crossing insertion point also by phred quality score
+
+2019-11-25 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* FIX: vcf.c: Change fprintf  to xfprintf
+
+	* FIX: vcf.c (vcf_print_header): Add array_free()
+
+	* ADD: check_sider_vcf.c: Tests for vcf.c interface
+
+	* ADD: vcf.c (vcf_index_fasta): VCF's REF field
+
+	Index FASTA file if passed by the user and use it for annotate the REF's
+	field. Also include the contig metadata at the header for each
+	chromosome
+
+	* ADD: fasta.c interface: Read FASTA file
+
+	* ADD: str.h (string_reset): Macro for reset string
+
+	* FIX: str.c (string_concat): strncat -> memcpy
+
+	strncat is too slow, so implement concatenation with memcpy
+
+2019-11-23 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: vcf.c: Print host information
+
+	Add INFO: EXONIC, INTRONIC and NEAR. EXONIC/INTRONIC annotate host gene
+	detail. We choose to use separated flags, because a retrocopy can be
+	exonic and intronic at the same time - Overlapped parental genes,
+	multiple isoforms. NEAR is used for intergenic retrocopy near some
+	gene
+
+2019-11-21 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: vcf.c interface. Write VCF file as output
+
+2019-11-19 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: db.c, genotype.c: (reference_depth)
+
+	Save the reference depth for the absence of a retrocopy event. It will
+	be useful later when making the annotated outputs
+
+2019-11-16 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: merge_call.c (merge_call_print)
+
+	* ADD: process_sample.c (process_sample_print)
+
+2019-11-15 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: merge_call.c (MergeCall): struct
+
+	* ADD: process_sample.c (ProcessSample): struct
+
+	Add ProcessSample struct in order to hold all option values. Create
+	methods to init, destroy and validate the data. This way, things get
+	more organized and make it easier to dump the log values of the run
+
+	* FIX: merge_call.c (merge_call): Stop if no cluster
+
+	* FIX: process_sample.c, merge_call.c: Improve usage
+
 2019-11-14 Thiago L. A. Miller <tmiller@mochsl.org.br>
 
 	* Version 0.12.0
