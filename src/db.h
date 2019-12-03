@@ -7,7 +7,7 @@
 
 /* Database schema version */
 #define DB_SCHEMA_MAJOR_VERSION 0
-#define DB_SCHEMA_MINOR_VERSION 10
+#define DB_SCHEMA_MINOR_VERSION 11
 
 #define DB_DEFAULT_CACHE_SIZE 2000
 
@@ -91,7 +91,7 @@ void db_insert_retrocopy (sqlite3_stmt *stmt, int id, const char *chr, long wind
 		int insertion_point_type, double orientation_rho, double orientation_p_value);
 
 sqlite3_stmt * db_prepare_genotype_stmt (sqlite3 *db);
-void db_insert_genotype (sqlite3_stmt *stmt, int source_id, int retrocopy_id,
-		int reference_depth, int heterozygous);
+void db_insert_genotype (sqlite3_stmt *stmt, int source_id, int retrocopy_id, double ho_ref_likelihood,
+		double he_likelihood, double ho_alt_likelihood);
 
 #endif /* db.h */

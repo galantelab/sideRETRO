@@ -66,9 +66,10 @@ typedef struct _VCFBody VCFBody;
 
 struct _VCFGenotype
 {
-	int heterozygous;
-	int reference_depth;
-	int alternative_depth;
+	double ho_ref_likelihood;
+	double he_likelihood;
+	double ho_alt_likelihood;
+	int    alternative_depth;
 };
 
 typedef struct _VCFGenotype VCFGenotype;
@@ -239,6 +240,7 @@ vcf_print_header (const List *hl, Hash *fidx,
 		"##ALT=<ID=INS:ME:RTC,Description=\"Insertion of a Retrocopy\">\n"
 		"##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Read Depth of segment containing breakpoint\">\n"
 		"##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n"
+		"##FORMAT=<ID=GL,Number=G,Type=Float,Description=\"Genotype likelihood\">\n"
 		"#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT");
 
 	for (cur = list_head (hl); cur != NULL; cur = list_next (cur))
@@ -422,32 +424,22 @@ prepare_genotype_query_stmt (sqlite3 *db)
 		"		)\n"
 		"		GROUP BY retrocopy_id, source_id\n"
 		"	)\n"
-		"SELECT source_id, heterozygous, reference_depth, acm\n"
+		"SELECT source_id,\n"
+		"	ho_ref_likelihood,\n"
+		"	he_likelihood,\n"
+		"	ho_alt_likelihood,\n"
+		"	CASE\n"
+		"		WHEN acm IS NOT NULL\n"
+		"			THEN acm\n"
+		"		ELSE 0\n"
+		"	END\n"
 		"FROM genotype AS g\n"
-		"INNER JOIN genotype_acm AS ga\n"
+		"LEFT JOIN genotype_acm AS ga\n"
 		"	USING (retrocopy_id, source_id)\n"
 		"WHERE retrocopy_id = ?1";
 
 	log_debug ("Query schema:\n%s", sql);
 	return db_prepare (db, sql);
-}
-
-static Hash *
-human_haploid_chr (void)
-{
-	Hash *hc = NULL;
-	char *chr = NULL;
-
-	hc = hash_new_full (str_hash, str_equal,
-			xfree, NULL);
-
-	chr = xstrdup ("chrY");
-	hash_insert (hc, chr, chr);
-
-	chr = xstrdup ("chrM");
-	hash_insert (hc, chr, chr);
-
-	return hc;
 }
 
 static Hash *
@@ -459,8 +451,9 @@ vcf_index_genotype (sqlite3_stmt *stmt, const int retrocopy_id)
 	VCFGenotype *g = NULL;
 
 	int source_id = 0;
-	int heterozygous = 0;
-	int reference_depth = 0;
+	double ho_ref_likelihood = 0.0;
+	double he_likelihood = 0.0;
+	double ho_alt_likelihood = 0.0;
 	int alternative_depth = 0;
 
 	int *source_id_alloc = NULL;
@@ -473,18 +466,20 @@ vcf_index_genotype (sqlite3_stmt *stmt, const int retrocopy_id)
 
 	while (db_step (stmt) == SQLITE_ROW)
 		{
-			source_id         = db_column_int (stmt, 0);
-			heterozygous      = db_column_int (stmt, 1);
-			reference_depth   = db_column_int (stmt, 2);
-			alternative_depth = db_column_int (stmt, 3);
+			source_id          = db_column_int    (stmt, 0);
+			ho_ref_likelihood  = db_column_double (stmt, 1);
+			he_likelihood      = db_column_double (stmt, 2);
+			ho_alt_likelihood  = db_column_double (stmt, 3);
+			alternative_depth  = db_column_int    (stmt, 4);
 
 			source_id_alloc = xcalloc (1, sizeof (int));
 			*source_id_alloc = source_id;
 
 			g = xcalloc (1, sizeof (VCFGenotype));
 			*g = (VCFGenotype) {
-				.heterozygous      = heterozygous,
-				.reference_depth   = reference_depth,
+				.ho_ref_likelihood = ho_ref_likelihood,
+				.he_likelihood     = he_likelihood,
+				.ho_alt_likelihood = ho_alt_likelihood,
 				.alternative_depth = alternative_depth
 			};
 
@@ -515,6 +510,18 @@ vcf_get_body_line (sqlite3_stmt *stmt, VCFBody *b)
 	b->near                 = db_column_text   (stmt, 15);
 }
 
+static const char *
+genotype_likelihood (const double ho_ref, const double he, const double ho_alt)
+{
+	return ho_ref > he && ho_ref > ho_alt
+		? "0/0"
+		: he > ho_ref && he > ho_alt
+			? "0/1"
+			: ho_alt > ho_ref && ho_alt > he
+				? "1/1"
+				: "./.";
+}
+
 static void
 vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp, VCFOption *opt)
 {
@@ -526,7 +533,6 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp, VCFOption *op
 	ListElmt *cur = NULL;
 	VCFHeader *h = NULL;
 	Hash *gi = NULL;
-	Hash *hc = NULL;
 
 	VCFGenotype *g = NULL;
 	VCFBody b = {};
@@ -534,9 +540,6 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp, VCFOption *op
 	String *seq = NULL;
 	long pos = 0;
 	char base = 0;
-
-	// List of haploid chromosomes
-	hc = human_haploid_chr ();
 
 	// Prepare retrocopy query
 	retrocopy_stmt = prepare_retrocopy_query_stmt (db,
@@ -640,7 +643,7 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp, VCFOption *op
 				}
 
 			// FORMAT
-			xfprintf (fp, "\tGT:DP");
+			xfprintf (fp, "\tGT:DP:GL");
 
 			// Print genotype
 			for (cur = list_head (hl); cur != NULL; cur = list_next (cur))
@@ -648,35 +651,17 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp, VCFOption *op
 					h = list_data (cur);
 
 					g = hash_lookup (gi, &h->id);
+					assert (g != NULL);
 
-					// Is not haploid?
-					if (hash_lookup (hc, b.chr) == NULL)
-						{
-							// Print diploid chromosomes
-							if (g == NULL)
-								xfprintf (fp, "\t0/0:0");
-							else
-								{
-									xfprintf (fp,
-										"\t%s:%d",
-										g->heterozygous
-											? "0/1"
-											: "1/1",
-										g->alternative_depth);
-								}
-						}
-					else
-						{
-							// Print haploid chromosomes
-							if (g == NULL)
-								xfprintf (fp, "\t0:0");
-							else
-								{
-									xfprintf (fp,
-										"\t%s:%d",
-										"1", g->alternative_depth);
-								}
-						}
+					// Print diploid chromosomes
+					xfprintf (fp,
+						"\t%s:%d:%g,%g,%g",
+						genotype_likelihood (g->ho_ref_likelihood,
+							g->he_likelihood, g->ho_alt_likelihood),
+						g->alternative_depth,
+						g->ho_ref_likelihood,
+						g->he_likelihood,
+						g->ho_alt_likelihood);
 				}
 
 			xfprintf (fp, "\n");
@@ -685,7 +670,6 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp, VCFOption *op
 			gi = NULL;
 		}
 
-	hash_free (hc);
 	db_finalize (retrocopy_stmt);
 	db_finalize (genotype_stmt);
 }

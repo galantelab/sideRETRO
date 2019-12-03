@@ -29,7 +29,9 @@ populate_sorted_bam (const char *path)
 	const char bam[] =
 		"@HD\tVN:1.0\tSO:coordinate\n"
 		"@SQ\tSN:chr1\tLN:248956422\n"
+		"@SQ\tSN:chr2\tLN:248956422\n"
 		"@SQ\tSN:chr3\tLN:248956422\n"
+		"@SQ\tSN:chr4\tLN:248956422\n"
 		"@PG\tID:bwa\tPN:bwa\tVN:0.7.17-r1188	CL:bwa mem -t 1 ponga/ponga.fa ponga.fastq\n"
 		"E1\t109\tchr1\t1\t60\t10M\t=\t20\t29\tATCGATCGAT\t~~~~~~~~~~\n"
 		"E2\t157\tchr1\t10\t60\t10M\t=\t20\t29\tATCGATCGAT\t~~~~~~~~~~\n"
@@ -57,7 +59,9 @@ populate_unsorted_bam (const char *path)
 
 	const char bam[] =
 		"@HD\tVN:1.0\tSO:queryname\n"
+		"@SQ\tSN:chr1\tLN:248956422\n"
 		"@SQ\tSN:chr2\tLN:248956422\n"
+		"@SQ\tSN:chr3\tLN:248956422\n"
 		"@SQ\tSN:chr4\tLN:248956422\n"
 		"@PG\tID:bwa\tPN:bwa\tVN:0.7.17-r1188	CL:bwa mem -t 1 ponga/ponga.fa ponga.fastq\n"
 		"E1\t99\tchr2\t1\t60\t10M\t=\t20\t29\tATCGATCGAT\t~~~~~~~~~~\n"

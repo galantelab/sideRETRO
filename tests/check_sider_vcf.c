@@ -192,14 +192,14 @@ populate_db (sqlite3 *db)
 		"INSERT INTO retrocopy VALUES(6,'chr14',1,500,'gene5_1/gene5_2',10,350,1,0.0,0.0);\n"
 		"INSERT INTO retrocopy VALUES(7,'chr14',400,700,'gene5_3/gene5_4',12,600,1,0.0,0.0);\n"
 		"INSERT INTO retrocopy VALUES(8,'chrY',1,300,'gene1',1,101,2,1,0);\n"
-		"INSERT INTO genotype VALUES(1,1,0,0);\n"
-		"INSERT INTO genotype VALUES(1,2,0,0);\n"
-		"INSERT INTO genotype VALUES(1,3,0,0);\n"
-		"INSERT INTO genotype VALUES(1,4,10,1);\n"
-		"INSERT INTO genotype VALUES(1,5,10,1);\n"
-		"INSERT INTO genotype VALUES(1,6,10,1);\n"
-		"INSERT INTO genotype VALUES(1,7,10,1);\n"
-		"INSERT INTO genotype VALUES(1,8,10,1);\n"
+		"INSERT INTO genotype VALUES(1,1,0.0,0.0,0.0);\n"
+		"INSERT INTO genotype VALUES(1,2,0.0,0.0,0.0);\n"
+		"INSERT INTO genotype VALUES(1,3,0.0,0.0,0.0);\n"
+		"INSERT INTO genotype VALUES(1,4,-33.0,-0.1,-5.0);\n"
+		"INSERT INTO genotype VALUES(1,5,-33.0,-0.1,-5.0);\n"
+		"INSERT INTO genotype VALUES(1,6,-33.0,-0.1,-5.0);\n"
+		"INSERT INTO genotype VALUES(1,7,-33.0,-0.1,-5.0);\n"
+		"INSERT INTO genotype VALUES(1,8,-33.0,-0.1,-5.0);\n"
 		"COMMIT;";
 
 	db_exec (db, schema);
