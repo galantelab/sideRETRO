@@ -197,6 +197,10 @@ run (ProcessSample *ps)
 			db_end_transaction (db);
 		}
 
+	log_info ("Process Sample at '%s' is finished. "
+		"Run merge-call command to discover somatic retrocopies",
+		db_file);
+
 	// Time to clean
 	db_finalize (exon_stmt);
 	db_finalize (batch_stmt);

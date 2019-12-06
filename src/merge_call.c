@@ -110,9 +110,6 @@ run (MergeCall *mc)
 	int num_clusters = 0;
 	char *db_file = NULL;
 
-	log_info ("Create output dir '%s'", mc->output_dir);
-	mkdir_p (mc->output_dir);
-
 	// Merge all databases
 	if (mc->output_file != NULL)
 		{
@@ -129,6 +126,9 @@ run (MergeCall *mc)
 			// Assemble database output filename
 			xasprintf_concat (&db_file, "%s/%s.db",
 					mc->output_dir, mc->prefix);
+
+			log_info ("Create output dir '%s'", mc->output_dir);
+			mkdir_p (mc->output_dir);
 
 			log_info ("Create and connect to database '%s'", db_file);
 
@@ -243,6 +243,10 @@ run (MergeCall *mc)
 
 			// Commit
 			db_end_transaction (db);
+
+			log_info ("Merge Call at '%s' is finished. "
+				"Run make-vcf command to generate an annotated retrocopy VCF",
+				db_file);
 		}
 
 	// Cleanup
