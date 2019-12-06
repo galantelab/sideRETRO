@@ -9,7 +9,7 @@
 int
 main (void)
 {
-	log_set_quiet (1);
+	/*log_set_quiet (1);*/
 
 	int number_failed = 0;
 	SRunner *sr = NULL;

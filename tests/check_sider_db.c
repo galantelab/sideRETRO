@@ -240,7 +240,7 @@ START_TEST (test_db_schema)
 	db_insert_cluster_merging (cluster_merge_stmt, 1, 1, 1);
 	db_insert_retrocopy (retrocopy_stmt, 1, "chr1", 1, 200, "ponga1/ponga2",
 			12, 100, 1, -0.87, 0.00001);
-	db_insert_genotype (genotype_stmt, 1, 1, -533.23, -23.67, -123.49);
+	db_insert_genotype (genotype_stmt, 1, 1, 10, 10, -533.23, -23.67, -123.49);
 
 	db_end_transaction (db);
 

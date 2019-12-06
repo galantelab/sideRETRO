@@ -498,8 +498,8 @@ dump_genotype (sqlite3_stmt *stmt, const Genotype *g)
 	log_debug ("retrocopy [%d %d] %.2f,%.2f,%.2f",
 			g->retrocopy_id, g->source_id, ho_ref, he, ho_alt);
 
-	db_insert_genotype (stmt, g->source_id, g->retrocopy_id,
-			ho_ref, he, ho_alt);
+	db_insert_genotype (stmt, g->source_id, g->retrocopy_id, array_len (g->normal_scores),
+			array_len (g->abnormal_scores), ho_ref, he, ho_alt);
 }
 
 static void
