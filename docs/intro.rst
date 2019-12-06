@@ -36,6 +36,11 @@ Parental gene
   The **gene** which **underwent retrotransposition** process,
   giving rise to the retrocopy.
 
+Host gene
+  It may happen that the retrotransposition occurs **inside**
+  another gene - which in turn is called the **host** gene
+  for this retrocopy.
+
 Genomic position
   The genome **coordinate** where occured the retrocopy
   **integration** (chromosome:start-end). It includes the
@@ -59,21 +64,23 @@ How it works
 ============
 
 sideRETRO compiles to an executable called :code:`sider`,
-which has two subcommands: :code:`process-sample` and
-:code:`merge-call`. The :code:`process-sample` subcommand
-reads a list of SAM/BAM files, and captures **abnormal reads**
-that must be related to an event of retrocopy. All those data is
-saved to a **SQLite3 database** and then we come to the second
-step :code:`merge-call`, which **processes** the database and
-**annotate** all the retrocopies found.
+which has three subcommands: :code:`process-sample`,
+:code:`merge-call` and :code:`make-vcf`. The :code:`process-sample`
+subcommand reads a list of SAM/BAM files, and captures
+**abnormal reads** that must be related to an event of retrocopy.
+All those data is saved to a **SQLite3 database** and then we come
+to the second step :code:`merge-call`, which **processes** the database
+and **annotate** all the retrocopies found. Finally we can run the
+subcommand :code:`make-vcf` and generate an annotated retrocopy
+`VCF <https://samtools.github.io/hts-specs/VCFv4.2.pdf>`_.
 
 .. code-block:: sh
 
    # List of BAM files
    $ cat 'my-bam-list.txt'
-   file1.bam
-   file2.bam
-   file3.bam
+   /path/to/file1.bam
+   /path/to/file2.bam
+   /path/to/file3.bam
    ...
 
    # Run process-sample step
@@ -82,12 +89,17 @@ step :code:`merge-call`, which **processes** the database and
      --input-file='my-bam-list.txt'
 
    $ ls -1
+   my-genome.fa
    my-annotation.gtf
    my-bam-list.txt
    out.db
 
    # Run merge-call step
    $ sider merge-call --in-place out.db
+
+   # Run make-vcf step
+   $ sider make-vcf \
+     --reference-file='my-genome.fa' out.db
 
 Take a look at the manual page for :ref:`installation <chap_installation>`
 and :ref:`usage <chap_usage>` information. Also for more details about
