@@ -40,9 +40,8 @@
 #define DEFAULT_GFF_ATTRIBUTE_VALUE1  "processed_pseudogene"
 #define DEFAULT_GFF_ATTRIBUTE2        "tag"
 #define DEFAULT_GFF_ATTRIBUTE_VALUE2  "retrogene"
-#define DEFAULT_NEAR_GENE_DISTANCE    3
+#define DEFAULT_NEAR_GENE_RANK        3
 #define DEFAULT_THREADS               1
-#define DEFAULT_CROSSING_READS        10
 #define DEFAULT_PHRED_QUALITY         8
 
 struct _MergeCall
@@ -80,10 +79,9 @@ struct _MergeCall
 	int          padding;
 	int          parental_dist;
 	int          support;
-	int          near_gene_dist;
+	int          near_gene_rank;
 
 	// Genotyping
-	int          crossing_reads;
 	int          threads;
 	int          phred_quality;
 };
@@ -229,7 +227,7 @@ run (MergeCall *mc)
 
 			// Filtering and Annotation
 			log_info ("Run retrocopy annotation step for '%s'", db_file);
-			retrocopy (retrocopy_stmt, cluster_merging_stmt, mc->near_gene_dist);
+			retrocopy (retrocopy_stmt, cluster_merging_stmt, mc->near_gene_rank);
 
 			// Commit
 			db_end_transaction (db);
@@ -239,7 +237,7 @@ run (MergeCall *mc)
 
 			// Genotyping
 			log_info ("Run genotype annotation step for '%s'", db_file);
-			genotype (genotype_stmt, mc->threads, mc->crossing_reads, mc->phred_quality);
+			genotype (genotype_stmt, mc->threads, mc->phred_quality);
 
 			// Commit
 			db_end_transaction (db);
@@ -274,8 +272,8 @@ print_usage (FILE *fp)
 		"       %*c            [-c INT] [-I] [-e INT] [-m INT] [-b STR]\n"
 		"       %*c            [-B FILE] [[-T STR] [[-H|S] KEY=VALUE]]\n"
 		"       %*c            [-P INT] [-x INT] [-g INT] [-n INT]\n"
-		"       %*c            [-t INT] [-C INT] [-Q INT]\n"
-		"       %*c            [-i FILE] <FILE> ...\n"
+		"       %*c            [-t INT] [-Q INT] [-i FILE]\n"
+		"       %*c            <FILE> ...\n"
 		"\n"
 		"Arguments:\n"
 		"   One or more SQLite3 databases generated in the 'process-sample' step\n"
@@ -336,23 +334,20 @@ print_usage (FILE *fp)
 		"                              its putative parental gene [default:\"%d\"]\n"
 		"   -g, --genotype-support     Minimum number of reads comming from a given source\n"
 		"                              (BAM) within a cluster [default:\"%d\"]\n"
-		"   -n, --near-gene-distance   Minimum ranked distance between genes in order to\n"
+		"   -n, --near-gene-rank       Minimum ranked distance between genes in order to\n"
 		"                              consider them close [default:\"%d\"]\n"
 		"\n"
 		"Genotyping Options:\n"
 		"   -t, --threads              Number of threads [default:\"%d\"]\n"
-		"   -C, --crossing-reads       Minimum number of reads crossing the insertion point\n"
-		"                              in order to consider evidence of heterozygosis\n"
-		"                              [default:\"%d\"]\n"
 		"   -Q, --phred-quality        Minimum phred quality score required for\n"
-		"                              crossing reads [default:\"%d\"]\n"
+		"                              reference allele reads [default:\"%d\"]\n"
 		"\n",
 		PACKAGE_STRING, PACKAGE, pkg_len, ' ', pkg_len, ' ', pkg_len, ' ', pkg_len, ' ', pkg_len, ' ',
 		DEFAULT_OUTPUT_DIR, DEFAULT_PREFIX, DEFAULT_CACHE_SIZE, DEFAULT_EPS, DEFAULT_MIN_PTS,
 		DEFAULT_BLACKLIST_CHR, DEFAULT_BLACKLIST_PADDING, DEFAULT_GFF_FEATURE, DEFAULT_GFF_ATTRIBUTE1,
 		DEFAULT_GFF_ATTRIBUTE_VALUE1, DEFAULT_GFF_ATTRIBUTE2, DEFAULT_GFF_ATTRIBUTE_VALUE2,
-		DEFAULT_PARENTAL_DISTANCE, DEFAULT_SUPPORT, DEFAULT_NEAR_GENE_DISTANCE,
-		DEFAULT_THREADS, DEFAULT_CROSSING_READS, DEFAULT_PHRED_QUALITY);
+		DEFAULT_PARENTAL_DISTANCE, DEFAULT_SUPPORT, DEFAULT_NEAR_GENE_RANK,
+		DEFAULT_THREADS, DEFAULT_PHRED_QUALITY);
 }
 
 static void
@@ -388,8 +383,7 @@ merge_call_init (MergeCall *mc)
 		.padding          = DEFAULT_BLACKLIST_PADDING,
 		.parental_dist    = DEFAULT_PARENTAL_DISTANCE,
 		.support          = DEFAULT_SUPPORT,
-		.near_gene_dist   = DEFAULT_NEAR_GENE_DISTANCE,
-		.crossing_reads   = DEFAULT_CROSSING_READS,
+		.near_gene_rank   = DEFAULT_NEAR_GENE_RANK,
 		.threads          = DEFAULT_THREADS
 	};
 }
@@ -484,15 +478,9 @@ merge_call_validate (MergeCall *mc)
 			rc = EXIT_FAILURE; goto Exit;
 		}
 
-	if (mc->near_gene_dist < 1)
+	if (mc->near_gene_rank < 1)
 		{
-			fprintf (stderr, "%s: --near-gene-distance must be greater or equal to 1\n", PACKAGE);
-			rc = EXIT_FAILURE; goto Exit;
-		}
-
-	if (mc->crossing_reads < 1)
-		{
-			fprintf (stderr, "%s: --crossing-reads must be greater or equal to 1\n", PACKAGE);
+			fprintf (stderr, "%s: --near-gene-rank must be greater or equal to 1\n", PACKAGE);
 			rc = EXIT_FAILURE; goto Exit;
 		}
 
@@ -663,12 +651,11 @@ merge_call_print (const MergeCall *mc)
 	string_concat_printf (msg,
 		"  --parental-distance=%d \\\n"
 		"  --genotype-support=%d \\\n"
-		"  --near-gene-distance=%d \\\n"
+		"  --near-gene-rank=%d \\\n"
 		"  --threads=%d \\\n"
-		"  --crossing-reads=%d \\\n"
 		"  --phred-quality=%d\n",
-		mc->parental_dist, mc->support, mc->near_gene_dist,
-		mc->threads, mc->crossing_reads, mc->phred_quality);
+		mc->parental_dist, mc->support, mc->near_gene_rank,
+		mc->threads, mc->phred_quality);
 
 	log_info ("%s", msg->str);
 	string_free (msg, 1);
@@ -724,7 +711,7 @@ parse_merge_call_command_opt (int argc, char **argv)
 	int option_index = 0;
 	int c, i;
 
-	while ((c = getopt_long (argc, argv, "hqdIl:o:p:c:e:m:b:B:P:T:H:S:x:g:n:C:Q:t:i:", opt, &option_index)) >= 0)
+	while ((c = getopt_long (argc, argv, "hqdIl:o:p:c:e:m:b:B:P:T:H:S:x:g:n:Q:t:i:", opt, &option_index)) >= 0)
 		{
 			switch (c)
 				{
@@ -797,12 +784,7 @@ parse_merge_call_command_opt (int argc, char **argv)
 					}
 				case 'n':
 					{
-						mc.near_gene_dist = atoi (optarg);
-						break;
-					}
-				case 'C':
-					{
-						mc.crossing_reads = atoi (optarg);
+						mc.near_gene_rank = atoi (optarg);
 						break;
 					}
 				case 'Q':

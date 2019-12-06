@@ -48,7 +48,6 @@ struct _ZygosityData
 	List         *genotype;
 	ChrStd       *cs;
 
-	int           crossing_reads;
 	int           phred_quality;
 
 	const char   *path;
@@ -676,12 +675,11 @@ zygosity (ZygosityData *zd)
 }
 
 void
-genotype (sqlite3_stmt *genotype_stmt, int threads,
-		int crossing_reads, int phred_quality)
+genotype (sqlite3_stmt *genotype_stmt, int threads, int phred_quality)
 {
 	log_trace ("Inside %s", __func__);
-	assert (genotype_stmt != NULL && threads > 0
-			&& crossing_reads > 0
+	assert (genotype_stmt != NULL
+			&& threads > 0
 			&& phred_quality >= 0);
 
 	sqlite3 *db = NULL;
@@ -724,11 +722,10 @@ genotype (sqlite3_stmt *genotype_stmt, int threads,
 		{
 			log_debug ("Look for retrocopies zygosity of file '%s'", path);
 
-			// Don't forget to give chromosome standardization,
-			// genotype statement and crossing_reads
+			// Don't forget to give chromosome standardization and
+			// genotype statement
 			zd->cs = cs;
 			zd->stmt = genotype_stmt;
-			zd->crossing_reads = crossing_reads;
 			zd->phred_quality = phred_quality;
 
 			// Let's rock!

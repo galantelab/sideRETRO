@@ -3,6 +3,6 @@
 
 #include "db.h"
 
-void genotype (sqlite3_stmt *genotype_stmt, int threads, int crossing_reads, int phred_quality);
+void genotype (sqlite3_stmt *genotype_stmt, int threads, int phred_quality);
 
 #endif /* genotype.h */
