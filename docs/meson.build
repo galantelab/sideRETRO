@@ -9,7 +9,9 @@ doc_sources = files(
 )
 
 doc_images = files(
+  'images/DBSCAN.png',
   'images/abnormal_alignment_chr.png',
+  'images/abnormal_alignment_clustering.png',
   'images/abnormal_alignment_dist.png',
   'images/abnormal_alignment_exon.png',
   'images/abnormal_alignment_sr.png',

@@ -17,8 +17,8 @@ retrocopy mobilization, such as the absence of
 
 .. note:: For more detail about the jargon, see `Retrocopy in a nutshell <retrocopy.rst>`_
 
-What do you mean when you say "abnormal alignments"?
-====================================================
+Abnormal alignment
+==================
 
 When a structural variation, such as a retrotransposition,
 occurs into an individual and her genome is sequenced with
@@ -50,7 +50,7 @@ We will talk about each one as best as we can in the
 next lines.
 
 Alignment at different exons
-============================
+----------------------------
 
 When paired-end reads are mapped to contiguous exons and they
 came from a genomic sequencing - which of course is not
@@ -65,7 +65,7 @@ retrotransposition for the given parental gene, however it
 is not possible to annotate the **genomic position** of the event.
 
 Alignment at different chromosomes
-==================================
+------------------------------------
 
 When the retrotransposition does not occur into the **same** parental
 gene chromosome, it may happen that one read come from a **near**
@@ -83,7 +83,7 @@ event, but not with so much **precision** concerning to the **insertion
 point**.
 
 Alignment at distant regions
-============================
+-----------------------------
 
 If a retrocopy is inserted into the **same** chromosome of its parental
 gene, possibly it will occur at a **distant** location. As well as
@@ -98,7 +98,7 @@ region**.
    :align: center
 
 Splitted reads
-==============
+--------------
 
 The most **important** kind of alignment when detecting structural variations.
 The splitted read may occur when **part** of the **same** read come from a near
@@ -112,6 +112,9 @@ the splitted part, which is called **supplementary**.
 
 This alignment is useful to detect the **insertion point** with a
 **good precision**.
+
+Taking all together
+-------------------
 
 So far we can resume all abnormal alignments according to their power
 to detect the retrotransposition coordinate and its exact insertion
@@ -133,3 +136,43 @@ sideRETRO uses **only** the abnormal alignments **capable** to
 detect **at least** the coordinate, so those that fall into
 *different exons* are dismissed.
 
+Clustering
+==========
+
+So far we have been talking about abnormal reads **selection**. As
+soon as this step is over, we need to determine if a bunch of
+reads aligned to some genomic region may **represent** a putative
+retrocopy insertion. Therefore, firstly we restrict the abnormal
+reads for those whose **mate is mapped** to a protein coding **exon**,
+and then we **cluster** them according to the chromosome they mapped
+to.
+
+.. image:: images/abnormal_alignment_clustering.png
+   :scale: 25%
+   :align: center
+
+Wherefore, the clustering algorithm plays the role to resolve
+if there really is a retrotransposition event. As the **number**
+of reads **covering** the group is an important feature to take
+into account, one possible choice of algorithm is **DBSCAN**.
+
+DBSCAN
+------
+
+*Density Based Spatial Clustering of Applications with Noise* [1]_
+is a desity based clustering algorithm designed to discover cluster
+in a **spatial database**. In our particular case, the database is
+spatially of **one dimension** (the chromosome extension) and the
+points are represented by the **range** comprising the mapped reads
+start and end.
+
+.. image:: images/DBSCAN.png
+   :scale: 25%
+   :align: center
+
+References
+==========
+
+.. [1] Ester, Martin. (1996).
+   A Density-Based Algorithm for Discovering Clustersin Large Spatial Databases with Noise.
+   KDD. Available at https://www.aaai.org/Papers/KDD/1996/KDD96-037.pdf.
