@@ -430,10 +430,15 @@ cross_insertion_point (const bam1_t *align, const long insertion_point,
 
 	long start = 0;
 	long end = 0;
+	int half_decil = 0;
 
 	calculate_align_start_end (align, &start, &end);
+	half_decil = (end - start + 1) / 20;
 
-	return insertion_point >= start && insertion_point <= end;
+	// The read needs to cover at least the window comprising
+	// the insertion_point +/- read half_decil
+	return (insertion_point - half_decil) >= start
+		&& (insertion_point + half_decil) <= end;
 }
 
 static Hash *
