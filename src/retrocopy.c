@@ -242,7 +242,8 @@ cluster_entry_merge_and_classify (sqlite3_stmt *cluster_merging_stmt,
 						c->gchr, c->gstart, c->gend))
 				{
 					list_append (to_merge, c);
-					level |= RETROCOPY_OVERLAPPED_PARENTALS;
+					if (strcmp (c_prev->gene_name, c->gene_name))
+						level |= RETROCOPY_OVERLAPPED_PARENTALS;
 				}
 			else if (is_near (c_prev->gchr, c_prev->dist,
 						c->gchr, c->dist, near_gene_dist))
@@ -614,7 +615,7 @@ prepare_cluster_merging_query_stmt (sqlite3 *db)
 		"	cluster_merge (rid, id, sid, chr, start, end, gene) AS (\n"
 		"		SELECT retrocopy_id, c.id, c.sid,\n"
 		"			chr, MIN(start), MAX(end),\n"
-		"			GROUP_CONCAT(gene_name,'/')\n"
+		"			REPLACE(GROUP_CONCAT(DISTINCT gene_name),',','/')\n"
 		"		FROM cluster AS c\n"
 		"		INNER JOIN cluster_merging AS m\n"
 		"			ON c.id = m.cluster_id AND c.sid = m.cluster_sid\n"
