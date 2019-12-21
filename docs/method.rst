@@ -116,7 +116,7 @@ This alignment is useful to detect the **insertion point** with a
 Taking all together
 -------------------
 
-So far we can resume all abnormal alignments according to their power
+We can resume all abnormal alignments according to their power
 to detect the retrotransposition coordinate and its exact insertion
 point:
 
@@ -160,7 +160,7 @@ DBSCAN
 ------
 
 *Density Based Spatial Clustering of Applications with Noise* [1]_
-is a desity based clustering algorithm designed to discover cluster
+is a density based clustering algorithm designed to discover cluster
 in a **spatial database**. In our particular case, the database is
 spatially of **one dimension** (the chromosome extension) and the
 points are represented by the **range** comprising the mapped reads
@@ -170,9 +170,49 @@ start and end.
    :scale: 25%
    :align: center
 
+The denser (covered) the region the greater the chance of a
+retrotransposition event there.
+
+For more informations about the algorithm, a good start point
+is the wikipedia article: https://en.wikipedia.org/wiki/DBSCAN.
+
+Genotype
+========
+
+In order to **increase** the putative insertion coverage, it is common
+to **join** analysis of a bunch of individuals. After the discovery
+of the retrocopies, it is necessary to identify **who owns** the
+variation and with what **zygosity** ((heterozygous, homozygous).
+So we have **three** possibilities for biallelic sites [2]_: If *A*
+is the **reference** allele and *B* is the **alternate** allele, the
+ordering of genotypes for the likelihoods is *AA*, *AB*, *BB*. The
+**likelihoods** in turn is calculated according to the *Heng Li*
+paper [3]_:
+
+  Suppose at a site there are *k* reads. Without losing generality,
+  let the first *l* bases be identical to the reference and the rest
+  be different. The error probability of the *j*-th read base is
+  :math:`\epsilon_{j}`. Assuming error independency, we can derive
+  that:
+
+.. math::
+   \delta(g) =
+   \frac{1}{m^k}
+   \prod_{j=1}^{l} [(m-g)\epsilon_{j}+g(1-\epsilon_{j})]
+   \prod_{j=l+1}^{k} [(m-g)(1-\epsilon_{j})+g\epsilon_{j}]
+
 References
 ==========
 
 .. [1] Ester, Martin. (1996).
    A Density-Based Algorithm for Discovering Clustersin Large Spatial Databases with Noise.
    KDD. Available at https://www.aaai.org/Papers/KDD/1996/KDD96-037.pdf.
+
+.. [2] hts-specs. (2019).
+   The Variant Call Format (VCF) Version 4.2 Specificatio.
+   Available at https://samtools.github.io/hts-specs/VCFv4.2.pdf.
+
+.. [3] Li, Heng (2011).
+   A statistical framework for SNP calling, mutation discovery, association mapping and
+   population genetical parameter estimation from sequencing data.
+   Oxford University Press.
