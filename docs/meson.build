@@ -15,6 +15,7 @@ doc_images = files(
   'images/abnormal_alignment_dist.png',
   'images/abnormal_alignment_exon.png',
   'images/abnormal_alignment_sr.png',
+  'images/genotype.png',
   'images/indistinguishable_alignment.png',
   'images/logo_sideRETRO.png',
   'images/retrocopy.png'

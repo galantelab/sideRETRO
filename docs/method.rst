@@ -186,20 +186,74 @@ variation and with what **zygosity** ((heterozygous, homozygous).
 So we have **three** possibilities for biallelic sites [2]_: If *A*
 is the **reference** allele and *B* is the **alternate** allele, the
 ordering of genotypes for the likelihoods is *AA*, *AB*, *BB*. The
-**likelihoods** in turn is calculated according to the *Heng Li*
-paper [3]_:
+**likelihoods** in turn is calculated based on *Heng Li* paper [3]_
+with some assumptions that we are going to dicuss.
 
-  Suppose at a site there are *k* reads. Without losing generality,
-  let the first *l* bases be identical to the reference and the rest
-  be different. The error probability of the *j*-th read base is
-  :math:`\epsilon_{j}`. Assuming error independency, we can derive
-  that:
+Suppose at a given retrotransposition insertion point site there are
+*k* reads. Let the first *l* reads identical to the reference genome
+and the rest be different. The unphred alignment error probability of
+the *j*-th read is :math:`\epsilon_{j}`. Assuming error independency,
+we can derive that:
 
 .. math::
    \delta(g) =
    \frac{1}{m^k}
    \prod_{j=1}^{l} [(m-g)\epsilon_{j}+g(1-\epsilon_{j})]
    \prod_{j=l+1}^{k} [(m-g)(1-\epsilon_{j})+g\epsilon_{j}]
+
+where:
+
++-------------------+--------------------------------------------+
+| :math:`\delta(g)` | Likelihoods for a given genotype           |
++-------------------+--------------------------------------------+
+| :math:`m`         | Ploidy                                     |
++-------------------+--------------------------------------------+
+| :math:`g`         | Genotype (the number of reference alleles) |
++-------------------+--------------------------------------------+
+
+.. note::
+   The way we are modeling the likelihoods probability **differs** a little
+   bit from the **SNP calling** model: We are **treating** the *read* as the
+   **unit**, not the *base*, therefore the error (:math:`\epsilon`) is the
+   **mapping** quality (fifth column of BAM file), instead of the
+   **sequencing** quality.
+
+So we can summarize the formula for homozygous reference (HOR), heterozygous
+(HET) and homozygous alternate (HOA):
+
+HOR
+  .. math::
+     \delta(HOR) =
+     \frac{1}{2^k}
+     \prod_{j=1}^{l} 2(1-\epsilon_{j})
+     \prod_{j=l+1}^{k} 2\epsilon_{j}
+
+HET
+  .. math::
+     \delta(HET) =
+     \frac{1}{2^k}
+
+HOA
+  .. math::
+     \delta(HOA) =
+     \frac{1}{2^k}
+     \prod_{j=1}^{l} 2\epsilon_{j}
+     \prod_{j=l+1}^{k} 2(1-\epsilon_{j})
+
+We determine the insertion point site according to the abnormal alignments
+clustering. Those *reads* will be used as the :math:`k - l` rest of the
+*reads* which differs from reference genome. In order to verify if there
+is evidence of reference allele, we need to come back to the BAM file and
+check for the presence of *reads* **crossing** the insertion point. To
+**mitigate** alignment error - which would otherwise overestimate the
+number of reference allele *reads* - we select the *reads* that cover one
+**decile** of *read* length window containing the insertion point. Then we
+come to the :math:`l` *reads* **identical** to the reference genome and can
+calculate the **genotype likelihoods**.
+
+.. image:: images/genotype.png
+   :scale: 25%
+   :align: center
 
 References
 ==========
