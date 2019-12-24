@@ -309,8 +309,8 @@ So we come to the following proposition:
 |         \-           |   \-    |   \+    |
 +----------------------+---------+---------+
 
-References
-==========
+References and Further Reading
+==============================
 
 .. [1] Ester, Martin. (1996).
    A Density-Based Algorithm for Discovering Clustersin Large Spatial Databases with Noise.
