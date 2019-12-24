@@ -174,7 +174,7 @@ The denser (covered) the region the greater the chance of a
 retrotransposition event there.
 
 For more informations about the algorithm, a good start point
-is the wikipedia article: https://en.wikipedia.org/wiki/DBSCAN.
+is the Wikipedia article: https://en.wikipedia.org/wiki/DBSCAN.
 
 Genotype
 ========
@@ -254,6 +254,60 @@ calculate the **genotype likelihoods**.
 .. image:: images/genotype.png
    :scale: 25%
    :align: center
+
+Orientation
+===========
+
+Other important information that can be obtained from the data is the
+retrocopy **orientation** in relation to its parental gene. The abnormal
+alignment *reads* give us the clue to solve this issue. We catch *reads*
+when one pair aligns against an exon and its mate aligns to some genomic
+region, so we can **sort** the *reads* from the exonic site and analyze
+if their mates will be sorted in **ascending** or **descending** order as
+result. If we observe that they are **directly** proportional, then we can
+assume that the retrocopy is at the **same** parental gene strand, else they
+are at **opposite** strands.
+
+.. warning::
+   This approach disregards the fact that there may have been structural variations,
+   such as chromosomal inversions, which may invalidate these results.
+
+Therefore summarizing:
+
+* Retrocopy and its parental gene are at the same strand
+
+  .. image:: images/orientation_same_strand.png
+     :scale: 25%
+     :align: center
+
+* Retrocopy and its parental gene are at opposite strands
+
+  .. image:: images/orientation_opposite_strand.png
+     :scale: 25%
+     :align: center
+
+Spearman's rank correlation coefficient
+---------------------------------------
+
+We use Spearman's rank correlation coefficient (see Wikipedia article:
+https://en.wikipedia.org/wiki/Spearman%27s_rank_correlation_coefficient) in
+order to have a **measure** of relationship between *reads* from exon and their
+mates from clustering site. As our data is **nonparametric**, the Spearman's rho
+can assess **monotonic** relationship, that is, it can tell us if the genomic
+position of *reads* from exon **increases** when **does** the genomic position of
+their *mates* from clustering site (positive rho) - or the opposite (negative rho).
+
+So we come to the following proposition:
+
++----------------------+---------+---------+
+|                      | Retrocopy strand  |
+| Parental gene strand +---------+---------+
+|                      | rho > 0 | rho < 0 |
++======================+=========+=========+
+|         \+           |   \+    |   \-    |
++----------------------+---------+---------+
+|         \-           |   \-    |   \+    |
++----------------------+---------+---------+
 
 References
 ==========
