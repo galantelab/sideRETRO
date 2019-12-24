@@ -146,20 +146,9 @@ path_file (const char *path, int rm_ext)
 
 	if (rm_ext)
 		{
-			char *dot = NULL;
-
-			if (*file == '.')
-				{
-					dot = strrchr (file, '.');
-					if (dot != NULL && dot != file)
-						*dot = '\0';
-				}
-			else
-				{
-					dot = strchr (file, '.');
-					if (dot != NULL)
-						*dot = '\0';
-				}
+			char *dot = strrchr (file, '.');
+			if (dot != NULL && dot != file)
+				*dot = '\0';
 		}
 
 	xfree (path_copy);
