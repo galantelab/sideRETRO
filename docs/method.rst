@@ -173,9 +173,6 @@ start and end.
 The denser (covered) the region the greater the chance of a
 retrotransposition event there.
 
-For more informations about the algorithm, a good start point
-is the Wikipedia article: https://en.wikipedia.org/wiki/DBSCAN.
-
 Genotype
 ========
 
@@ -289,13 +286,13 @@ Therefore summarizing:
 Spearman's rank correlation coefficient
 ---------------------------------------
 
-We use Spearman's rank correlation coefficient (see Wikipedia article:
-https://en.wikipedia.org/wiki/Spearman%27s_rank_correlation_coefficient) in
-order to have a **measure** of relationship between *reads* from exon and their
-mates from clustering site. As our data is **nonparametric**, the Spearman's rho
-can assess **monotonic** relationship, that is, it can tell us if the genomic
-position of *reads* from exon **increases** when **does** the genomic position of
-their *mates* from clustering site (positive rho) - or the opposite (negative rho).
+We use *Spearman's rank correlation coefficient* [4]_ in order to have a
+**measure** of relationship between *reads* from exon and their mates from
+clustering site.  As our data is **nonparametric**, the Spearman's rho can
+assess **monotonic** relationship, that is, it can tell us if the genomic
+position of *reads* from exon **increases** when **does** the genomic
+position of their *mates* from clustering site (positive rho) - or the
+opposite (negative rho).
 
 So we come to the following proposition:
 
@@ -324,3 +321,8 @@ References and Further Reading
    A statistical framework for SNP calling, mutation discovery, association mapping and
    population genetical parameter estimation from sequencing data.
    Oxford University Press.
+
+.. [4] Fieller, E. C., et al. (1957).
+   Tests for Rank Correlation Coefficients. I.
+   Biometrika, 44(3/4), 470–481. JSTOR.
+   Available at https://www.jstor.org/stable/2332878.
