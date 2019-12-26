@@ -23,7 +23,7 @@
 #include "genotype.h"
 #include "merge_call.h"
 
-#define DEFAULT_CACHE_SIZE            DB_DEFAULT_CACHE_SIZE
+#define DEFAULT_CACHE_SIZE            200000 /* 200MiB */
 #define DEFAULT_PREFIX                "out"
 #define DEFAULT_OUTPUT_DIR            "."
 #define DEFAULT_LOG_SILENT            0
@@ -32,8 +32,8 @@
 #define DEFAULT_EPS                   300
 #define DEFAULT_MIN_PTS               10
 #define DEFAULT_BLACKLIST_CHR         "chrM"
-#define DEFAULT_PARENTAL_DISTANCE     10000
-#define DEFAULT_SUPPORT               1
+#define DEFAULT_PARENTAL_DISTANCE     1000000
+#define DEFAULT_SUPPORT               3
 #define DEFAULT_BLACKLIST_PADDING     0
 #define DEFAULT_GFF_FEATURE           "gene"
 #define DEFAULT_GFF_ATTRIBUTE1        "gene_type"
@@ -275,16 +275,28 @@ print_usage (FILE *fp)
 		"       %*c            [-t INT] [-Q INT] [-i FILE]\n"
 		"       %*c            <FILE> ...\n"
 		"\n"
+		"Discover and annotate retrocopies\n"
+		"\n"
+		"Examples:\n"
+		"   $ sider mc -l mc.log -I in.db\n"
+		"   $ sider mc -e 500 -m 20 -p in1_plus_in2 in1.db in2.db\n"
+		"   $ sider mc -b chrY -B gencode.gff3 -t 10 -Q 20 -i list.txt\n"
+		"\n"
+		"Output:\n"
+		"   Annotate all retrocopies at the first input SQLite3 database\n"
+		"   or generate a new one with all results. Next run 'make-vcf'\n"
+		"\n"
 		"Arguments:\n"
 		"   One or more SQLite3 databases generated in the 'process-sample' step\n"
 		"\n"
 		"Mandatory Options:\n"
-		"   -i, --input-file           FILE containing a list of SQLite3 databases\n"
-		"                              to be processed. They must be separated by newline.\n"
-		"                              This option is not manditory if one or more SQLite3\n"
-		"                              databases are passed as argument. If 'input-file' and\n"
-		"                              arguments are set concomitantly, then the union of\n"
-		"                              all files is used\n"
+		"   -i, --input-file           File containing a newline separated list of\n"
+		"                              SQLite3 databases to be processed. This\n"
+		"                              option is not manditory if one or more\n"
+		"                              SQLite3 databases are passed as argument.\n"
+		"                              If 'input-file' and arguments are set\n"
+		"                              concomitantly, then the union of all files\n"
+		"                              is used\n"
 		"\n"
 		"Input/Output Options:\n"
 		"   -h, --help                 Show help options\n"
@@ -293,7 +305,7 @@ print_usage (FILE *fp)
 		"                              'log-file' is passed\n"
 		"       --silent               Same as '--quiet'\n"
 		"   -d, --debug                Increase verbosity to debug level\n"
-		"   -l, --log-file             Print log messages to a FILE\n"
+		"   -l, --log-file             Print log messages to a file\n"
 		"   -o, --output-dir           Output directory. Create the directory if it does\n"
 		"                              not exist [default:\"%s\"]\n"
 		"   -p, --prefix               Prefix output files [default:\"%s\"]\n"
@@ -339,8 +351,8 @@ print_usage (FILE *fp)
 		"\n"
 		"Genotyping Options:\n"
 		"   -t, --threads              Number of threads [default:\"%d\"]\n"
-		"   -Q, --phred-quality        Minimum phred quality score required for\n"
-		"                              reference allele reads [default:\"%d\"]\n"
+		"   -Q, --phred-quality        Minimum mapping quality used to define reference\n"
+		"                              allele reads [default:\"%d\"]\n"
 		"\n",
 		PACKAGE_STRING, PACKAGE, pkg_len, ' ', pkg_len, ' ', pkg_len, ' ', pkg_len, ' ', pkg_len, ' ',
 		DEFAULT_OUTPUT_DIR, DEFAULT_PREFIX, DEFAULT_CACHE_SIZE, DEFAULT_EPS, DEFAULT_MIN_PTS,
