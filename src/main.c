@@ -25,17 +25,21 @@ print_usage (FILE *fp)
 		"Usage: %s [-hv]\n"
 		"       %s <command> [options]\n"
 		"\n"
-		"Structural-Variation Intercorrences Detection\n"
-		"Environment for Retrocopies\n"
+		"A pipeline for detecting\n"
+		"Somatic Insertion of DE novo RETROcopies\n"
 		"\n"
 		"Options:\n"
-		"   -h, --help       Show help options\n"
-		"   -v, --version    Show current version\n"
+		"   -h, --help            Show help options\n"
+		"   -v, --version         Show current version\n"
 		"\n"
 		"Commands\n"
-		"   ps,  process-sample\n"
-		"   mc,  merge-call\n"
-		"   vcf, make-vcf\n",
+		"   ps,  process-sample   Extract alignments related\n"
+		"                         an event of retrocopy\n"
+		"   mc,  merge-call       Discover and annotate\n"
+		"                         retrocopies\n"
+		"   vcf, make-vcf         Generate VCF file with all\n"
+		"                         annotate retrocopies\n"
+		"\n",
 		PACKAGE_STRING, PACKAGE, PACKAGE);
 }
 
