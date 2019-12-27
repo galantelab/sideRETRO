@@ -5,11 +5,13 @@ doc_sources = files(
   'install.rst',
   'intro.rst',
   'method.rst',
+  'retrocopy.rst',
   'usage.rst'
 )
 
 doc_images = files(
   'images/DBSCAN.png',
+  'images/LINE1.png',
   'images/abnormal_alignment_chr.png',
   'images/abnormal_alignment_clustering.png',
   'images/abnormal_alignment_dist.png',
@@ -18,6 +20,8 @@ doc_images = files(
   'images/genotype.png',
   'images/indistinguishable_alignment.png',
   'images/logo_sideRETRO.png',
+  'images/orientation_opposite_strand.png',
+  'images/orientation_same_strand.png',
   'images/retrocopy.png'
 )
 

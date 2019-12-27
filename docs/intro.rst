@@ -23,8 +23,8 @@ the genome.
    :align: center
 
 Got interested? For a more detailed explanation about what is
-a retrocopy at all, please see our section `Retrocopy in a
-nutshell <retrocopy.rst>`_.
+a retrocopy at all, please see our section :ref:`Retrocopy in a
+nutshell <chap_retrocopy>`.
 
 Functionalities
 ===============
