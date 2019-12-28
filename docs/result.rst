@@ -9,7 +9,7 @@ dataset whereupon we could have control of **true** positive and
 negative values.
 
 Dataset
-=======
+========
 
 Our dataset for testing is composed of 5 simulated human whole-genome
 sequencing with 40x of depth and 10 randomly distributed retrocopies
@@ -126,10 +126,11 @@ part of our subjects.
 Simulation
 ==========
 
-We used the tool SANDY, *A straightforward and complete next-generation sequencing read
-simulator* [1]_, for simulate all 5 genomes according to the structural variations that
-we desgined and the sampling. SANDY demands 2 steps for the task: First we indexed all
-retrocopies for each individual and next we could simulate all whole-genome sequencing.
+We used the **SANDY** tool (version v0.23), *A straightforward and complete next-generation
+sequencing read simulator* [1]_, for simulate all 5 genomes according to the structural
+variations that we desgined and according to the sampling. SANDY demands 2 steps for the
+task: First we indexed all retrocopies for each individual and next we could simulate all
+whole-genome sequencing.
 
 .. code-block:: sh
 
@@ -162,6 +163,54 @@ retrocopies for each individual and next we could simulate all whole-genome sequ
        $REF_FASTA
    done
 
+Running sideRETRO
+=================
+
+After our simulated dataset was ready, we could test the sideRETRO capabilities
+to detect the designed somatic retrocopies.
+
+.. code-block:: sh
+
+   # Our simulated BAM files list
+   LIST=(ind1/out.bam ind2/out.bam ind3/out.bam ind4/out.bam ind5/out.bam)
+
+   # GENCODE annotation v31
+   ANNOTATION=gencode.v31.annotation.gff3.gz
+
+   # GENCODE reference genome
+   REF_FASTA=hg38.fa
+
+   # Run process-sample step
+   sider process-sample \
+     --cache-size=20000000 \
+     --output-dir=result \
+     --threads=5 \
+     --max-distance=15000 \
+     --alignment-frac=0.9 \
+     --phred-quality=20 \
+     --sorted \
+     --log-file=ps.log \
+     --annotation-file=$ANNOTATION \
+     "${LIST[@]}"
+
+   # Run merge-call step
+   sider merge-call \
+     --cache-size=20000000 \
+     --epsilon=500 \
+     --min-pts=20 \
+     --genotype-support=5 \
+     --near-gene-rank=3 \
+     --log-file=mc.log \
+     --threads=10 \
+     --phred-quality=20 \
+     --in-place \
+     result/out.db
+
+   # Finally run make-vcf
+   sider make-vcf --reference-file=$REF_FASTA result/out.db
+
+Analysis
+========
 
 References and Further Reading
 ==============================
