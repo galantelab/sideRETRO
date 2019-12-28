@@ -15,6 +15,7 @@ Welcome to sideRETRO's documentation!
    usage.rst
    retrocopy.rst
    method.rst
+   result.rst
    authors.rst
 
 * :ref:`search`

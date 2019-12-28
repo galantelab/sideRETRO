@@ -5,6 +5,7 @@ doc_sources = files(
   'install.rst',
   'intro.rst',
   'method.rst',
+  'result.rst',
   'retrocopy.rst',
   'usage.rst'
 )
