@@ -212,6 +212,12 @@ to detect the designed somatic retrocopies.
 Analysis
 ========
 
+.. figure:: images/result_heatmap.png
+   :scale: 75%
+   :align: center
+
+   Heatmap summarizing the result for each individual
+
 References and Further Reading
 ==============================
 
