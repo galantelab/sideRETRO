@@ -5,7 +5,7 @@ Introduction
 **sideRETRO** is a bioinformatic tool devoted for the detection
 of somatic (*de novo*) **retrocopy insertion** in whole genome
 and whole exome sequencing data (WGS, WES). The program has been
-written from scratch in C, and use `HTSlib <http://www.htslib.org/>`_
+written from scratch in C, and uses `HTSlib <http://www.htslib.org/>`_
 and `SQLite3 <https://www.sqlite.org>`_ libraries, in order to
 manage SAM/BAM reading and data analysis. The source code is
 distributed under the **GNU General Public License**.
