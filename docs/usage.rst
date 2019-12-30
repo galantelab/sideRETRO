@@ -405,9 +405,9 @@ paths must be supplied at the correspondent option. Files are:
 3. A FASTA file with the gencode's Human referense genome, version 38
    (here :file:`Hg38.fa`).
 
-4. A custom awk or Perl script to do the final analysis over the VCF file
-   and produce the TSV file in a tabular format
-   (`here <misc/analyser.pl>`_ :file:`analyser.pl`).
+4. A custom perl script, :code:`analyser.pl`, to do the final analysis over the VCF file
+   and produce the TSV file in a tabular format. The :code:`analyser.pl` script can be
+   downloaded :download:`here <data/analyser.pl>`.
 
 See the complete command sequence bellow for the whole analysis:
 
@@ -481,10 +481,10 @@ and plot some graphics.
 
 In order to compare, the resultant VCF file shown these general statistics:
 
-* 108 lines without headers.
-* A total of 37 non-fixed and distinct insertions of retrocopies.
-* 21 of them in heterozygosis.
-* 7 of them shared among the two genomes.
+* 207 lines without headers.
+* 26 non-fixed and distinct insertions of retrocopies.
+* 14 of them shared among the two genomes.
+* 0 of them in homozygosis.
 
 .. _run_dck:
 
