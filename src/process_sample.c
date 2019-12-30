@@ -122,7 +122,7 @@ run (ProcessSample *ps)
 	// Begin transaction to speed up
 	db_begin_transaction (db);
 
-	// Get current local datetome as timestamp
+	// Get current local datetime as timestamp
 	// for batch table
 	t = time (NULL);
 	lt = localtime (&t);
@@ -249,7 +249,7 @@ print_usage (FILE *fp)
 		"                           in GTF/GFF3 format\n"
 		"   -i, --input-file        File containing a newline separated list of\n"
 		"                           alignment files in SAM/BAM format.\n"
-		"                           This option is not manditory if one or more\n"
+		"                           This option is not mandatory if one or more\n"
 		"                           SAM/BAM files are passed as argument.\n"
 		"                           If 'input-file' and arguments are set\n"
 		"                           concomitantly, then the union of all alignment\n"
@@ -258,7 +258,7 @@ print_usage (FILE *fp)
 		"Input/Output Options:\n"
 		"   -h, --help              Show help options\n"
 		"   -q, --quiet             Decrease verbosity to error messages only\n"
-		"                           or supress terminal outputs at all if\n"
+		"                           or suppress terminal outputs at all if\n"
 		"                           'log-file' is passed\n"
 		"       --silent            Same as '--quiet'\n"
 		"   -d, --debug             Increase verbosity to debug level\n"
@@ -367,7 +367,7 @@ process_sample_validate (ProcessSample *ps)
 			rc = EXIT_FAILURE; goto Exit;
 		}
 
-	// Test if all alignment files axist
+	// Test if all alignment files exist
 	for (i = 0; i < array_len (ps->sam_files); i++)
 		{
 			const char *sam_file = array_get (ps->sam_files, i);
@@ -465,7 +465,7 @@ process_sample_validate (ProcessSample *ps)
 	array_uniq (ps->sam_files, cmpstringp);
 
 	// If it's silent and no log file
-	// was passsed, then set log_level
+	// was passed, then set log_level
 	// to LOG_ERROR - At least print
 	// errors
 	if (ps->silent && ps->log_file == NULL)
