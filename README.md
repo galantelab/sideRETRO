@@ -8,53 +8,49 @@
   <a href="https://hub.docker.com/r/galantelab/sider"><img alt="" src="https://img.shields.io/docker/cloud/build/galantelab/sider?color=blue" align="center"></a>
 </p>
 
-**sideRETRO** is a bioinformatic tool devoted for the detection of somatic (*de novo*) **retrocopy insertion**
-in whole genome and whole exome sequencing data (WGS, WES). The program has been written from scratch in C, and
-uses [HTSlib](http://www.htslib.org/) and [SQLite3](https://www.sqlite.org) libraries, in order to manage
-SAM/BAM reading and data analysis.
+**sideRETRO** is a bioinformatic tool devoted for the detection of somatic **retrocopy** insertion, also known as
+**retroCNV**, in whole genome and whole exome sequencing data (WGS, WES). The program has been written from scratch
+in C, and uses [HTSlib](http://www.htslib.org/) and [SQLite3](https://www.sqlite.org) libraries, in order to manage
+**SAM/BAM** reading and data analysis.
 
-## Functionalities
+For full documentation, please visit <https://sideretro.readthedocs.io>.
+
+### Features
 
 When detecting retrocopies, **sideRETRO** can annotate several other features related to each event:
 
-* Parental gene
+* **Parental gene**
 
    The gene which underwent retrotransposition process.
 
-* Host gene
-
-   It may happen that the retrotransposition event is inserted into another gene.
-
-* Genomic position
+* **Genomic position**
 
    The genome coordinate where occurred the retrocopy integration event (chromosome:start-end).
    It includes the insertion point (the expected exact point of each retrocopy insertion).
 
-* Strandness
+* **Strandness**
 
    Detects the orientation of the insertion (+/-). It takes into account the orientation of insertion,
    whether in the leading (+) or lagging (-) DNA strand.
 
-* Genotype
+* **Genomic context**
+
+   The retrocopy integration site context: If the retrotransposition event occurred at an intergenic or
+   intragenic region - the latter can be splitted into exonic and intronic according to the host gene.
+
+* **Genotype**
 
    When multiple individuals (genomes) are analyzed, **sideRETRO** discriminates events found in each one.
    That way, it is possible to distinguish whether an event is exclusive or shared among the cohort analyzed.
 
-* Haplotype
+* **Haplotype**
 
    Our tool provides information about the ploidy of the event, i.e., whether it occurs in one or both homologous
    chromosomes (homozygous or heterozygous).
 
-## How it works
+## Getting Started
 
-**sideRETRO** compiles to an executable called `sider`, which has three subcommands: `process-sample`, `merge-call`
-and `make-vcf`. The `process-sample` subcommand processes a list of **SAM/BAM** files, and captures abnormal reads
-that must be related to an event of retrocopy. All those data is saved to a **SQLite3 database** and then we come
-to the second step `merge-call`, which processes the database and annotates all the retrocopies found. Finally we
-can run the subcommand `make-vcf` and generate a file (in **VCF** format) with retrocopies and further information
-about them. 
-
-## Installation
+### Installation
 
 The project depends on [Meson build system](https://mesonbuild.com) and [Ninja](https://github.com/ninja-build/ninja)
 to manage configuration and compilation process. They can be obtained using package manager or from source. For example,
@@ -84,11 +80,44 @@ You can find `sider` executable inside `build/src`. Optionally, install to syste
 
 `$ sudo ninja -C build install`
 
-## Further reading
+### Usage
 
-For more details about installation, usage, examples and our methodology, please take a look at the
-online documentation: <https://sideretro.readthedocs.io>.
+**sideRETRO** compiles to an executable called `sider`, which has three subcommands: `process-sample`, `merge-call`
+and `make-vcf`. The `process-sample` subcommand processes a list of **SAM/BAM** files, and captures abnormal reads
+that must be related to an event of retrocopy. All those data is saved to a **SQLite3 database** and then we come
+to the second step `merge-call`, which processes the database and annotates all the retrocopies found. Finally we
+can run the subcommand `make-vcf` and generate a file (in **VCF** format) with retrocopies and further information
+about them.
 
-## Acknowledgments
+```sh
+# List of BAM files
+$ cat 'my-bam-list.txt'
+/path/to/file1.bam
+/path/to/file2.bam
+/path/to/file3.bam
 
-- Coordination for the Improvement of Higher Level Personnel - [CAPES](http://www.capes.gov.br/)
+# Run process-sample step
+$ sider process-sample \
+    --annotation-file='my-annotation.gtf' \
+    --input-file='my-bam-list.txt'
+
+$ ls -1
+my-genome.fa
+my-annotation.gtf
+my-bam-list.txt
+out.db
+
+# Run merge-call step
+$ sider merge-call --in-place out.db
+
+# Run make-vcf step
+$ sider make-vcf \
+    --reference-file='my-genome.fa' out.db
+```
+
+## License
+
+This is free software, licensed under:
+
+`The GNU General Public License, Version 3, June 2007`
+
