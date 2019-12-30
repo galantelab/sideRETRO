@@ -37,11 +37,11 @@ Parental gene
   giving rise to the retrocopy.
 
 Genomic position
-  The genome **coordinate** where occured the retrocopy
+  The genome **coordinate** where occurred the retrocopy
   **integration** (chromosome:start-end). It includes the
   **insertion point**.
 
-Strandness
+Straitens
   Detects the orientation of the insertion (+/-). It takes into
   account the orientation of insertion, whether in the
   **leading** (+) or **lagging** (-) DNA strand.

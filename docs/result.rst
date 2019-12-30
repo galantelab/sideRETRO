@@ -128,7 +128,7 @@ Simulation
 
 We used the **SANDY** tool (version v0.23), *A straightforward and complete next-generation
 sequencing read simulator* [1]_, for simulate all 5 genomes according to the structural
-variations that we desgined and according to the sampling. SANDY demands 2 steps for the
+variations that we designed and according to the sampling. SANDY demands 2 steps for the
 task: First we indexed all retrocopies for each individual and then we could simulate all
 whole-genome sequencing.
 

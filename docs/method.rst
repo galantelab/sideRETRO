@@ -7,11 +7,11 @@ Methodology
 The sideRETRO **methodology** consists of detecting
 abnormal (discordant) alignments in `SAM/BAM
 <https://samtools.github.io/hts-specs/SAMv1.pdf>`_
-file and, with an **unsupervised mashine learning**
+file and, with an **unsupervised machine learning**
 algorithm, clustering these reads and genotype in order
-to dicover somatic retrocopy insertions. Care is taken
+to discover somatic retrocopy insertions. Care is taken
 to ensure the quality and consistency of the data,
-taking into acount the features that characterize a
+taking into account the features that characterize a
 retrocopy mobilization, such as the absence of
 **intronic** and **regulatory** regions.
 
@@ -184,12 +184,12 @@ So we have **three** possibilities for biallelic sites [2]_: If *A*
 is the **reference** allele and *B* is the **alternate** allele, the
 ordering of genotypes for the likelihoods is *AA*, *AB*, *BB*. The
 **likelihoods** in turn is calculated based on *Heng Li* paper [3]_
-with some assumptions that we are going to dicuss.
+with some assumptions that we are going to discuss.
 
 Suppose at a given retrotransposition insertion point site there are
 *k* reads. Let the first *l* reads identical to the reference genome
 and the rest be different. The unphred alignment error probability of
-the *j*-th read is :math:`\epsilon_{j}`. Assuming error independency,
+the *j*-th read is :math:`\epsilon_{j}`. Assuming error independence,
 we can derive that:
 
 .. math::

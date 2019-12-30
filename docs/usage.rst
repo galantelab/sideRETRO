@@ -7,7 +7,7 @@ Using sideRETRO
 General Syntax
 ==============
 
-**sideRETRO** has a very straightforward syntax. Basicaly, there are three main
+**sideRETRO** has a very straightforward syntax. Basically, there are three main
 commands, each one with a plethora of available options:
 
 * ``process-sample``
@@ -51,7 +51,7 @@ installed software documentation, from command line::
 
   $ sider --help
 
-Please, see :ref:`A Practical Workflow <pract_wf>` and :ref:`Runnin with Docker
+Please, see :ref:`A Practical Workflow <pract_wf>` and :ref:`Running with Docker
 <run_dck>` sections for more examples and tips for using with **Docker**.
 
 Now, to get more familiar with **sideRETRO** main commands and results, let's
@@ -84,7 +84,7 @@ Mandatory Options:
                           in GTF/GFF3 format
   -i, --input-file        File containing a newline separated list of
                           alignment files in SAM/BAM format.
-                          This option is not manditory if one or more
+                          This option is not mandatory if one or more
                           SAM/BAM files are passed as argument.
                           If 'input-file' and arguments are set
                           concomitantly, then the union of all alignment
@@ -93,7 +93,7 @@ Mandatory Options:
 Input/Output Options:
   -h, --help              Show help options
   -q, --quiet             Decrease verbosity to error messages only
-                          or supress terminal outputs at all if
+                          or suppress terminal outputs at all if
                           'log-file' is passed
   --silent                Same as '--quiet'
   -d, --debug             Increase verbosity to debug level
@@ -138,7 +138,7 @@ can type::
       -a annotation_file.gtf
 
 Note the mandatory ``-a`` option specifying the annotation file. And, in this
-unique exception, we supperessed the ``-i`` mandatory option cause all the files
+unique exception, we suppressed the ``-i`` mandatory option cause all the files
 were explicitly called.
 
 Let's see another example that shows the convenient use of the ``-i`` option to
@@ -149,10 +149,10 @@ call a list of input files (e.g. *my_files_list.txt*) instead of them directly::
       -a annotation_file.gtf
 
 Both commands above will produce only one output database file *out.db*
-containig all relevant reads for non-fixed retrocopies search, whose prefix
-*out* can be easily changed whith the ``-p`` option. The abnormal reads from
+containing all relevant reads for non-fixed retrocopies search, whose prefix
+*out* can be easily changed with the ``-p`` option. The abnormal reads from
 all input files will be merged in just one table. To produce one database for
-each intput file separately, user must run one distinct instance of
+each input file separately, user must run one distinct instance of
 **sideRETRO** per file.
 
 Some options' values can affect drastically the output. Let's play a little bit
@@ -174,7 +174,7 @@ Wow! The number of options can be overwhelming.
 Here used ``-o`` option to specify the directory *output_dir* to write our
 database as *my_reads_database.db* (``-p`` option). Also, we chose to save the
 log messages in *my_log_file.log* file (``-l`` option), a cache size of 2Gb
-(``-c`` option), a minimux phred score cutoff of 20 for alignments (``-Q``
+(``-c`` option), a minimum phred score cutoff of 20 for alignments (``-Q``
 option), a minimum overlap ratio of 0.9 for read alignments over exonic regions
 (``-F`` option) and 3 threads to process those files in parallel (``-t`` option).
 
@@ -187,7 +187,7 @@ Command ``merge-call``
 The second step in the **sideRETRO**'s *"journey for the truth of retrocopies"*
 is the command ``merge-call`` or ``mc`` for short. The aim of this command is to
 take the database created by ``process-sample`` step as input and populate more
-tables in it, with information rised from a clustering process over the abnormal
+tables in it, with information risen from a clustering process over the abnormal
 reads regions.
 
 Like ``process-sample``, ``merge-call`` has some mandatory options, which can be
@@ -202,7 +202,7 @@ Arguments:
 Mandatory Options:
    -i, --input-file           File containing a newline separated list of
                               SQLite3 databases to be processed. This
-                              option is not manditory if one or more
+                              option is not mandatory if one or more
                               SQLite3 databases are passed as argument.
                               If 'input-file' and arguments are set
                               concomitantly, then the union of all files
@@ -211,7 +211,7 @@ Mandatory Options:
 Input/Output Options:
    -h, --help                 Show help options
    -q, --quiet                Decrease verbosity to error messages only
-                              or supress terminal outputs at all if
+                              or suppress terminal outputs at all if
                               'log-file' is passed
    --silent                   Same as '--quiet'
    -d, --debug                Increase verbosity to debug level
@@ -254,7 +254,7 @@ Filter & Annotation Options:
                               [default:"gene_type=processed_pseudogene tag=retrogene"]
    -x, --parental-distance    Minimum distance allowed between a cluster and
                               its putative parental gene [default:"1000000"]
-   -g, --genotype-support     Minimum number of reads comming from a given source
+   -g, --genotype-support     Minimum number of reads coming from a given source
                               (BAM) within a cluster [default:"3"]
    -n, --near-gene-rank       Minimum ranked distance between genes in order to
                               consider them close [default:"3"]
@@ -301,8 +301,8 @@ Here, options ``-i``, ``-o``, ``-p``, ``-l``, ``-I``, ``-c``, ``-Q`` and ``-t``
 keeps the same meaning as they have in the ``process-sample`` command.
 The others need some explanation. All we've done here was to ask for a minimum
 number of 5 reads of contribution from each input SAM/BAM file to consider a
-clustering region as a retrocopy cadidate (with ``-g`` option); a minimum
-distance of 1000000 bp from the parental gene to resolve some doubtfull overlaps
+clustering region as a retrocopy candidate (with ``-g`` option); a minimum
+distance of 1000000 bp from the parental gene to resolve some doubtful overlaps
 (``-x`` option), a minimum number of 15 crossing reads over the putative
 insertion point to consider heterozygosis evidence (``-C``) and, importantly,
 a BED file with a list of regions to be ignored at the clustering process called
@@ -317,10 +317,10 @@ please refer to the :ref:`A Practical Workflow <pract_wf>` section.
 Command ``make-vcf``
 ====================
 
-The third and last step to the **sideRETRO**'s *"cruzade to retrocopies"* is the
+The third and last step to the **sideRETRO**'s *"crusade to retrocopies"* is the
 ``make-vcf`` command or ``vcf`` for short. This command takes the already
 clustered tables in the database files populated at the ``merge-call`` step and
-creates one VCF file with all statistically significant retrpocopy insertions
+creates one VCF file with all statistically significant retrocopy insertions
 annotated in a convenient format.
 
 This command has no mandatory options, but it is worth try to discover the
@@ -335,7 +335,7 @@ Arguments:
 Input/Output Options:
    -h, --help                 Show help options
    -q, --quiet                Decrease verbosity to error messages only
-                              or supress terminal outputs at all if
+                              or suppress terminal outputs at all if
                               'log-file' is passed
    --silent                   Same as '--quiet'
    -d, --debug                Increase verbosity to debug level
@@ -370,7 +370,7 @@ the command only for symmetry)::
 
 Command ``make-vcf`` is very simple and don't allow the user to use threads.
 The only new options are ``-r``, which must specify the reference genome in
-FASTA format (like **gencode**'s *Hg38.fa*) and ``-n``, where user can stablish
+FASTA format (like **gencode**'s *Hg38.fa*) and ``-n``, where user can establish
 a distance threshold for genes surrounding insertion points for additional
 information in the output VCF file.
 
@@ -393,7 +393,7 @@ and
 While **sideRETRO** can't deal with CRAN files, we'll need to convert them using
 `samtools <http://www.htslib.org/download/>`_. And, some steps will require
 additional files, so at the beginning of a run, the files listed bellow must be
-at the same directory where the user is runnind **sideRETRO** or their correct
+at the same directory where the user is running **sideRETRO** or their correct
 paths must be supplied at the correspondent option. Files are:
 
 1. A GTF gene annotation file from gencode project
@@ -402,7 +402,7 @@ paths must be supplied at the correspondent option. Files are:
 2. A custom BED file to serve as black list -- genomic regions to be ignored
    (`here <misc/black_list.bed>`_ :file:`black_list.bed`).
 
-3. A FASTA file with the gencode's Human referense genome, version 38
+3. A FASTA file with the gencode's Human reference genome, version 38
    (here :file:`Hg38.fa`).
 
 4. A custom perl script, :code:`analyser.pl`, to do the final analysis over the VCF file
@@ -473,10 +473,10 @@ See the complete command sequence bellow for the whole analysis:
   # Input file: 1000_genomes.vcf
   # Output file: 1000_genomes.tsv
   # Average time: 62m34.541
-  $ perl anlyser.pl 1000_genomes.vcf > 1000_genomes.tsv
+  $ perl analyser.pl 1000_genomes.vcf > 1000_genomes.tsv
 
 This was a simple but complete pipeline to obtain a final TSV file with all
-the relevant results in a tabular format ready to inport in a R or Python script
+the relevant results in a tabular format ready to import in a R or Python script
 and plot some graphics.
 
 In order to compare, the resultant VCF file shown these general statistics:

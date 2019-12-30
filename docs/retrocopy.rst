@@ -30,7 +30,7 @@ LINE
 
 LINEs became the most frequent transposable element, in number of nucleotides,
 corresponding to approximately 17% of the human genome [6]_. In our genome, the most
-numerous family of LINEs is LINE-1 (L1) and when its sequence is full-lenght (about 6 kb),
+numerous family of LINEs is LINE-1 (L1) and when its sequence is full-length (about 6 kb),
 this element has: i) one promoter region; ii) a 5’UTR region; iii) two coding regions (ORF1p
 and ORF2p); iv) a 3’UTR region; v) a poly-A tail inside its transcript; vi) and recently a
 distinct ORF (ORF0, which is 70 amino acids in length, but still with unknown function) was
