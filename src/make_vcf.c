@@ -102,7 +102,7 @@ print_usage (FILE *fp)
 		"Input/Output Options:\n"
 		"   -h, --help                 Show help options\n"
 		"   -q, --quiet                Decrease verbosity to error messages only\n"
-		"                              or supress terminal outputs at all if\n"
+		"                              or suppress terminal outputs at all if\n"
 		"                              'log-file' is passed\n"
 		"       --silent               Same as '--quiet'\n"
 		"   -d, --debug                Increase verbosity to debug level\n"
@@ -206,7 +206,7 @@ make_vcf_validate (MakeVcf *vcf)
 	*/
 
 	// If it's silent and no log file
-	// was passsed, then set log_level
+	// was passed, then set log_level
 	// to LOG_ERROR - At least print
 	// errors
 	if (vcf->silent && vcf->log_file == NULL)
