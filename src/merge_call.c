@@ -292,7 +292,7 @@ print_usage (FILE *fp)
 		"Mandatory Options:\n"
 		"   -i, --input-file           File containing a newline separated list of\n"
 		"                              SQLite3 databases to be processed. This\n"
-		"                              option is not manditory if one or more\n"
+		"                              option is not mandatory if one or more\n"
 		"                              SQLite3 databases are passed as argument.\n"
 		"                              If 'input-file' and arguments are set\n"
 		"                              concomitantly, then the union of all files\n"
@@ -301,7 +301,7 @@ print_usage (FILE *fp)
 		"Input/Output Options:\n"
 		"   -h, --help                 Show help options\n"
 		"   -q, --quiet                Decrease verbosity to error messages only\n"
-		"                              or supress terminal outputs at all if\n"
+		"                              or suppress terminal outputs at all if\n"
 		"                              'log-file' is passed\n"
 		"       --silent               Same as '--quiet'\n"
 		"   -d, --debug                Increase verbosity to debug level\n"
@@ -344,7 +344,7 @@ print_usage (FILE *fp)
 		"                              [default:\"%s=%s %s=%s\"]\n"
 		"   -x, --parental-distance    Minimum distance allowed between a cluster and\n"
 		"                              its putative parental gene [default:\"%d\"]\n"
-		"   -g, --genotype-support     Minimum number of reads comming from a given source\n"
+		"   -g, --genotype-support     Minimum number of reads coming from a given source\n"
 		"                              (BAM) within a cluster [default:\"%d\"]\n"
 		"   -n, --near-gene-rank       Minimum ranked distance between genes in order to\n"
 		"                              consider them close [default:\"%d\"]\n"
@@ -434,7 +434,7 @@ merge_call_validate (MergeCall *mc)
 			rc = EXIT_FAILURE; goto Exit;
 		}
 
-	// Test if all alignment files axist
+	// Test if all alignment files exist
 	for (i = 0; i < array_len (mc->db_files); i++)
 		{
 			const char *db_file = array_get (mc->db_files, i);
@@ -559,7 +559,7 @@ merge_call_validate (MergeCall *mc)
 	array_uniq (mc->db_files, cmpstringp);
 
 	// If it's silent and no log file
-	// was passsed, then set log_level
+	// was passed, then set log_level
 	// to LOG_ERROR - At least print
 	// errors
 	if (mc->silent && mc->log_file == NULL)
