@@ -90,52 +90,104 @@ understanding their potential functions in tumorigenesis and tumor heterogeneity
 References and Further Reading
 ==============================
 
-.. [1] McCLINTOCK, 1950.
+.. [1] MCCLINTOCK, B. (1950).
+   The origin and behavior of mutable loci in maize.
+   Proceedings of the National Academy of Sciences of the United States of America,
+   36(6), 344–355.
 
-.. [2] BURNS, 2017.
+.. [2] BURNS, K. H. (2017).
+   Transposable elements in cancer.
+   Nature reviews. Cancer, 17(7), 415–424.
 
-.. [3] DE KONING et al., 2011.
+.. [3] DE KONING, A. P. J. et al. (2011).
+   Repetitive Elements May Comprise Over Two-Thirds of the Human Genome.
+   PLoS genetics, 7(12), e1002384.
 
-.. [4] KAESSMANN, 2010.
+.. [4] KAESSMANN, H. (2010).
+   Origins, evolution, and phenotypic impact of new genes.
+   Genome research, 20(10), 1313–1326.
 
-.. [5] HELMAN et al., 2014.
+.. [5] HELMAN, E. et al. (2014).
+   Somatic retrotransposition in human cancer revealed by whole-genome and exome sequencing.
+   Genome research, 24(7), 1053–1063.
 
-.. [6] LANDER et al., 2001.
+.. [6] LANDER, E. S. et al. (2001).
+   Initial sequencing and analysis of the human genome.
+   Nature, 409(6822), 860–921.
 
-.. [7] HANCKS and KAZAZIAN, 2016.
+.. [7] HANCKS, D. C. and KAZAZIAN, H. H. (2016).
+   Roles for retrotransposon insertions in human disease.
+   Mobile DNA, 7(9).
 
-.. [8] DENLI et al. 2015.
+.. [8] DENLI, A. M. et al. (2015).
+   Primate-specific ORF0 contributes to retrotransposon-mediated diversity.
+   Cell, 163(3), 583–593.
 
-.. [9] BATZER and DEININGER, 2002.
+.. [9] BATZER and DEININGE. (2002).
+   Alu repeats and human genomic diversity.
+   Nature reviews. Genetics, 3(5), 370–379.
 
-.. [10] KAESSMANN et al., 2009.
+.. [10] KAESSMANN, H. et al. (2009).
+   RNA-based gene duplication: mechanistic and evolutionary insights.
+   Nature reviews. Genetics, 10(1), 19–31.
 
-.. [11] DEININGER, 2011.
+.. [11] DEININGER, P. (2011).
+   Alu elements: know the SINEs.
+   Genome biology, 12(12), 236.
 
-.. [12] BAKSHI et al. 2016.
+.. [12] BAKSHI et al. (2016).
+   DNA methylation variation of human-specific Alu repeats.
+   Epigenetics: official journal of the DNA Methylation Society, 11(2), 163–173.
 
-.. [13] BECK et al., 2010.
+.. [13] BECK et al. (2010).
+   LINE-1 retrotransposition activity in human genomes.
+   Cell, 141(7), 1159–1170.
 
-.. [14] LEE et al., 2012.
+.. [14] LEE, E. et al. (2012).
+   Landscape of somatic retrotransposition in human cancers.
+   Science, 337(6097), 967–971.
 
-.. [15] NAVARRO and GALANTE, 2013.
+.. [15] NAVARRO, F. C. P. and GALANTE, P. A. F. (2013).
+   RCPedia: a database of retrocopied genes.
+   Bioinformatics, 29(9), 1235–1237.
 
-.. [16] NAVARRO and GALANTE, 2015.
+.. [16] NAVARRO, F. C. P. and GALANTE, P. A. F. (2015).
+   A Genome-Wide Landscape of Retrocopies in Primate Genomes.
+   Genome biology and evolution, 7(8), 2265–2275.
 
-.. [17] MIKI et al., 1992.
+.. [17] MIKI, Y. et al. (1992).
+   Disruption of the APC gene by a retrotransposal insertion of L1 sequence in a colon cancer.
+   Cancer research, 52(3), 643–645.
 
-.. [18] SOLYOM et al., 2012.
+.. [18] SOLYOM, S. et al. (2012).
+   Extensive somatic L1 retrotransposition in colorectal tumors.
+   Genome research, 22(12), 2328–2338.
 
-.. [19] COOKE et al., 2014.
+.. [19] COOKE, S. L. et al. (2014).
+   Processed pseudogenes acquired somatically during cancer development.
+   Nature communications, 5, 3644.
 
-.. [20] SUNAMI et al. 2011.
+.. [20] SUNAMI, E. et al. (2011).
+   LINE-1 hypomethylation during primary colon cancer progression.
+   PloS one, 6(4), e18884.
 
-.. [21] HUR et al., 2014.
+.. [21] HUR, K. et al. (2014).
+   Hypomethylation of long interspersed nuclear element-1 (LINE-1) leads to
+   activation of proto-oncogenes in human colorectal cancer metastasis.
+   Gut, 63(4), 635–646.
 
-.. [22] CLAYTON et al. 2016
+.. [22] CLAYTON, E. A. et al. (2016).
+   Patterns of Transposable Element Expression and Insertion in Cancer.
+   Frontiers in molecular biosciences, 3, 76.
 
-.. [23] DEININGER and BATZER, 1999.
+.. [23] DEININGER, P. L. and BATZER, M. A. (1999).
+   Alu repeats and human disease.
+   Molecular genetics and metabolism, 67(3), 183–193.
 
-.. [24] BELANCIO et al. 2010.
+.. [24] BELANCIO et al. (2010).
+   All y’all need to know 'bout retroelements in cancer.
+   Seminars in cancer biology, 20(4), 200–210.
 
-.. [25] POLISENO et al, 2010.
+.. [25] POLISENO, L. et al, (2010).
+   A coding-independent function of gene and pseudogene mRNAs regulates tumour biology.
+   Nature, 465(7301), 1033–1038.
