@@ -26,8 +26,8 @@ Got interested? For a more detailed explanation about what is
 a retrocopy at all, please see our section :ref:`Retrocopy in a
 nutshell <chap_retrocopy>`.
 
-Functionalities
-===============
+Features
+========
 
 When detecting retrocopy mobilization, sideRETRO can annotate
 several other features related to the event:
@@ -36,19 +36,21 @@ Parental gene
   The **gene** which **underwent retrotransposition** process,
   giving rise to the retrocopy.
 
-Host gene
-  It may happen that the retrotransposition occurs **inside**
-  another gene - which in turn is called the **host** gene
-  for this retrocopy.
-
 Genomic position
   The genome **coordinate** where occured the retrocopy
   **integration** (chromosome:start-end). It includes the
   **insertion point**.
 
 Strandness
-  Detects the **strand** (+/-), taking into account the
-  orientation in relation to the parental gene.
+  Detects the orientation of the insertion (+/-). It takes into
+  account the orientation of insertion, whether in the
+  **leading** (+) or **lagging** (-) DNA strand.
+
+Genomic context
+  The retrocopy integration site context: If the retrotransposition
+  event occurred at an **intergenic** or **intragenic** region - the
+  latter can be splitted into **exonic** and **intronic** according
+  to the host gene.
 
 Genotype
   When **multiple** individuals are analysed, annotate the
@@ -57,7 +59,8 @@ Genotype
   among the cohort.
 
 Haplotype
-  If the event occured in one or both **homologous chromosomes**
+  Our tool provides information about the ploidy of the event,
+  i.e., whether it occurs in one or both **homologous** chromosomes
   (homozygous or heterozygous).
 
 How it works
