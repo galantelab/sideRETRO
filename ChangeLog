@@ -1,3 +1,175 @@
+2019-12-31 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* Version 0.14.0
+
+2019-12-30 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	*FIX: make_vcf.c: Aspell fix spelling errors
+
+	*FIX: merge_call.c: Aspell fix spelling errors
+
+	*FIX: process_sample.c: Aspell fix spelling errors
+
+	*FIX: docs/*.rst: Aspell fix spelling errors
+
+	*FIX: usage.rst (A Practical Workflow): Analysis results
+
+	*ADD: analyser.pl
+
+2019-12-30 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	*CHANGE: intro.rst: Functionalities -> Features
+
+	*CHANGE: README.md: Getting Started
+
+2019-12-29 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	*FIX: intro.rst: Typo
+
+	*ADD: README.md: Documentation
+
+	*ADD: retrocopy.rst: Complete references
+
+	*ADD: usage.rst: Usage and examples
+
+	*ADD: result.rst: Finish analysis topic
+
+	*ADD: result.rst: Download simulation data
+
+	*ADD: result.rst: Analysis confusion matrix
+
+2019-12-28 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	*ADD: result.rst: Analysis heatmap image
+
+	*ADD: result.rst: Running sideRETRO
+
+2019-12-27 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	*ADD: result.rst: Dataset and simulation topics
+
+2019-12-26 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	*ADD: retrocopy.rst: Retrocopy in a nutshell
+
+2019-12-25 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	*ADD: README.md: Dockerhub badge
+
+	*ADD: Dockerfile: docker image
+
+	*FIX: method.rst: Change Wikipedia to paper links
+
+	*CHANGE: footer.html: Style of button = normal
+
+2019-12-24 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	*ADD: footer.html: Extend RTD footer with COPYING message
+
+	*ADD: legalcode.txt: COPYING for documentation
+
+	*CHANGE: method.rst: References + Further Reading
+
+2019-12-23 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	*ADD: method.rst: Orientation
+
+2019-12-22 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	*ADD: method.rst (Genotype): More details and image
+
+	Explain in more details the genotype likelihoods, including the formula
+	derivations and an illustrative image
+
+2019-12-20 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	*ADD: method.rst: Genotype
+
+2019-12-11 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	*ADD: method.rst: Clustering
+
+2019-12-09 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	*ADD: method.rst: Abnormal alignments
+
+2019-12-06 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	*ADD: intro.rst: Host gene and make-vcf subcommand
+
+2019-11-23 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	*FIX: install.rst: Add 'Installing Meson'
+
+2019-11-19 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	*CHANGE: README.md: Add sideRETRO logo
+
+	*ADD: logo_sideRETRO.png
+
+	*ADD: install.rst: Installation page
+
+	*FIX: intro.rst: How it works
+
+	*ADD: README.md: readthedocs badge
+
+	*ADD: intro.rst: Introduction page
+
+2019-11-16 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	*ADD: docs: Documentation using sphinx
+
+2019-12-25 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	*ADD: make_vcf.c: Improve help message
+
+	*ADD: merge_call.c: Improve help and defaults
+
+	*ADD: process_sample.c: Improve help and defaults
+
+	*ADD: main.c: Improve help message
+
+2019-12-24 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	*FIX: utils.c (path_file): Remove extension at last dot
+
+2019-12-19 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	*FIX: retrocopy.c: Same parental in overlapped rtc
+
+	When two overlapped clusters share the same parental gene - maybe the
+	edge points are reachable, not core points (DBSCAN) - it would be
+	annotated as overlapped parentals. Now it will be annotated as PASS and
+	the parental gene name wont be duplicated (e.g. PTEN/PTEN)
+
+	*FIX: genotype.c (cross_insertion_point): ref evid
+
+	Evidence for reads covering the reference allele is calculated now by
+	the overlapping between read range and insertion point +/- read half
+	decil. It is necessary in order to avoid superextimation of reads
+	covering the reference allele due to mapping errors
+
+2019-12-06 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	*REMOVE: genotype.c, merge_call.c: --crossing-reads
+
+	*ADD: process_sample.c, merge_call.c: Final messages
+
+2019-12-05 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	*ADD: db.c, genotype.c vcf.c: INFO DP2
+
+	Add reference and alternate depth counts to VCF's info
+
+2019-12-03 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	*CHANGE: db.c, genotype.c, vcf.c: Genotype likelihood
+
+	Implement the genotype estimation by using the likelihood approach as it
+	is defined in Heng Li paper: "A statistical framework for SNP calling,
+	mutation discovery, association mapping and population genetical
+	parameter estimation from sequencing data - 2.2 (eq2)"
+
 2019-11-28 Thiago L. A. Miller <tmiller@mochsl.org.br>
 
 	* Version 0.13.0

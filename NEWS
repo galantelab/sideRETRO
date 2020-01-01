@@ -1,3 +1,36 @@
+Version 0.14.0
+
+* Implement the genotype estimation by using
+  the likelihood approach as it is defined in
+  Heng Li paper: "A statistical framework for
+  SNP calling, mutation discovery, association
+  mapping and population genetical parameter
+  estimation from sequencing data - 2.2 (eq2)".
+
+* Add reference and alternate depth counts to
+  VCF's info.
+
+* Evidence for reads covering the reference
+  allele is calculated now by the overlapping
+  between read range and insertion point +/-
+  read half decil. It is necessary in order to
+  avoid overestimation of reads covering the
+  reference allele due to mapping errors.
+
+* Fix when two overlapped clusters share the
+  same parental gene - maybe the edge points are
+  reachable, not core points (DBSCAN) - it would
+  be annotated as overlapped parentals. Now it
+  will be annotated as PASS and the parental gene
+  name wont be duplicated (e.g. PTEN/PTEN).
+
+* Add Docker image for this project.
+
+* Add documentation using Sphinx. So far, it is
+  ready the topics about installation, usage,
+  molecular gene biology method and simulation
+  results.
+
 Version 0.13.0
 
 * Improve usage help by splitting all options
