@@ -18,12 +18,13 @@ doc_images = files(
   'images/abnormal_alignment_dist.png',
   'images/abnormal_alignment_exon.png',
   'images/abnormal_alignment_sr.png',
+  'images/barbara.jpg',
   'images/genotype.png',
   'images/indistinguishable_alignment.png',
   'images/logo_sideRETRO.png',
   'images/orientation_opposite_strand.png',
   'images/orientation_same_strand.png',
-	'images/result_confusion.png',
+  'images/result_confusion.png',
   'images/result_heatmap.png',
   'images/retrocopy.png'
 )
