@@ -8,6 +8,7 @@ COPY . ${SIDER_ROOT}
 
 RUN apt-get update \
   && apt-get install -y \
+    git \
     ninja-build \
     python3 \
     python3-pip \
