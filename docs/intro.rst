@@ -41,7 +41,7 @@ Genomic position
   **integration** (chromosome:start-end). It includes the
   **insertion point**.
 
-Straitens
+Strandness
   Detects the orientation of the insertion (+/-). It takes into
   account the orientation of insertion, whether in the
   **leading** (+) or **lagging** (-) DNA strand.
