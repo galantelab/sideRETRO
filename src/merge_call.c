@@ -396,7 +396,8 @@ merge_call_init (MergeCall *mc)
 		.parental_dist    = DEFAULT_PARENTAL_DISTANCE,
 		.support          = DEFAULT_SUPPORT,
 		.near_gene_rank   = DEFAULT_NEAR_GENE_RANK,
-		.threads          = DEFAULT_THREADS
+		.threads          = DEFAULT_THREADS,
+		.phred_quality    = DEFAULT_PHRED_QUALITY
 	};
 }
 
