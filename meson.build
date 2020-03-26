@@ -49,12 +49,16 @@ config_in = configure_file(
 # the 'git tag and commit'
 # Read config.h.in and replace the version template
 # generating in turn config.h
-vcs_tag(
+config_out = vcs_tag(
          command : ['git', 'describe', '--tags', '--dirty=+'],
            input : config_in,
           output : 'config.h',
   replace_string : version_t
 )
+
+# Declare 'config.h' as dependency in order to obligate
+# the build system to generate it before compiling
+config_dep = declare_dependency(sources : config_out)
 
 # Compiler flags
 common_flags = ['-DHAVE_CONFIG_H', '-D_GNU_SOURCE']
@@ -95,6 +99,7 @@ sphinx_build = find_program('sphinx-build', required : false)
 
 # All required deps
 deps = [
+  config_dep,
   thread_dep,
   sqlite_dep,
   htslib_dep,

@@ -83,6 +83,7 @@ executable(
   package,
   files('main.c'),
   include_directories : inc,
+         dependencies : config_dep,
             link_with : sider_lib,
               install : true
 )
