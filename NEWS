@@ -1,3 +1,17 @@
+Version 0.14.1
+
+* Add 'git' to Dockerfile. It will avoid
+  errors when picking the right version.
+
+* Fix the default value for 'phred-quality'.
+
+* Fix building: 'config.h' is dynamically
+  generated from template 'config.h.in', so
+  it need to be made before compiling. In order
+  to assure the required order, declare
+  'config.h' as a dependency of library and
+  executable.
+
 Version 0.14.0
 
 * Implement the genotype estimation by using
