@@ -5,8 +5,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
-#include <htslib/bgzf.h>
-#include <htslib/hfile.h>
 #include "sam.h"
 #include "list.h"
 #include "hash.h"
@@ -368,22 +366,24 @@ parse_sorted_sam (AbnormalFilter *argf)
 }
 
 static void
-sam_rewind (samFile *in, bam_hdr_t **hdr)
+sam_rewind (AbnormalFilter *argf)
 {
-	int rc = 0;
+	if (sam_close (argf->in) < 0)
+		log_errno_fatal ("Failed to rewind '%s'",
+				argf->sam_file);
 
-	rc = in->is_bgzf
-		? bgzf_seek (in->fp.bgzf, 0L, SEEK_SET)
-		: hseek (in->fp.hfile, 0L, SEEK_SET);
+	bam_hdr_destroy (argf->hdr);
 
-	if (rc < 0)
-		log_errno_fatal ("Failed to rewind SAM/BAM file");
+	argf->in = sam_open (argf->sam_file, "rb");
+	if (argf->in == NULL)
+		log_errno_fatal ("Failed to rewind '%s'",
+				argf->sam_file);
 
-	bam_hdr_destroy (*hdr);
-	*hdr = sam_hdr_read (in);
-
-	if (*hdr == NULL)
-		log_fatal ("Failed to read sam header in rewinding");
+	// Get the header
+	argf->hdr = sam_hdr_read (argf->in);
+	if (argf->hdr == NULL)
+		log_fatal ("Failed to rewind '%s'",
+				argf->sam_file);
 }
 
 static void
@@ -449,7 +449,7 @@ parse_unsorted_sam (AbnormalFilter *argf)
 
 	// Read file twice in order to catch all
 	// supplementary alignments
-	sam_rewind (argf->in, &argf->hdr);
+	sam_rewind (argf);
 
 	log_debug ("Remove blacklisted fragments from '%s'",
 			argf->sam_file);
