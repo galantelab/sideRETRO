@@ -225,14 +225,14 @@ dump_alignment (AbnormalFilter *argf, const bam1_t *align,
 		{
 			type |= ABNORMAL_EXONIC;
 			argf->exonic_acm++;
-			log_debug ("Alignment [%li] %s %s:%d overlaps %d exons",
+			log_debug ("Alignment [%li] %s %s:%li overlaps %d exons",
 					argf->alignment_id, qname, chr_std,
-					align->core.pos + 1, acm);
+					(long int) align->core.pos + 1, acm);
 		}
 
-	log_debug ("Dump abnormal alignment [%li] %s %d %s:%d type %d",
+	log_debug ("Dump abnormal alignment [%li] %s %d %s:%li type %d",
 			argf->alignment_id, qname, align->core.flag, chr_std,
-			align->core.pos + 1, type);
+			(long int) align->core.pos + 1, type);
 
 	db_insert_alignment (argf->alignment_stmt,
 			argf->alignment_id, qname, align->core.flag,
