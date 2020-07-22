@@ -32,7 +32,7 @@ print_usage (FILE *fp)
 		"   -h, --help            Show help options\n"
 		"   -v, --version         Show current version\n"
 		"\n"
-		"Commands\n"
+		"Commands:\n"
 		"   ps,  process-sample   Extract alignments related\n"
 		"                         an event of retrocopy\n"
 		"   mc,  merge-call       Discover and annotate\n"
