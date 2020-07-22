@@ -58,6 +58,7 @@ config_out = vcs_tag(
 
 # Declare 'config.h' as dependency in order to obligate
 # the build system to generate it before compiling
+# Fix issue #1
 config_dep = declare_dependency(sources : config_out)
 
 # Compiler flags
