@@ -345,7 +345,7 @@ print_usage (FILE *fp)
 		"   -x, --parental-distance    Minimum distance allowed between a cluster and\n"
 		"                              its putative parental gene [default:\"%d\"]\n"
 		"   -g, --genotype-support     Minimum number of reads coming from a given source\n"
-		"                              (BAM) within a cluster [default:\"%d\"]\n"
+		"                              (SAM/BAM/CRAM) within a cluster [default:\"%d\"]\n"
 		"   -n, --near-gene-rank       Minimum ranked distance between genes in order to\n"
 		"                              consider them close [default:\"%d\"]\n"
 		"\n"

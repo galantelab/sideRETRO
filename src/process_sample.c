@@ -242,15 +242,15 @@ print_usage (FILE *fp)
 		"   A SQLite3 database that can be processed at 'merge-call' step\n"
 		"\n"
 		"Arguments:\n"
-		"   One or more alignment file in SAM/BAM format\n"
+		"   One or more alignment file in SAM/BAM/CRAM format\n"
 		"\n"
 		"Mandatory Options:\n"
 		"   -a, --annotation-file   Gene annotation on the reference genome\n"
 		"                           in GTF/GFF3 format\n"
 		"   -i, --input-file        File containing a newline separated list of\n"
-		"                           alignment files in SAM/BAM format.\n"
+		"                           alignment files in SAM/BAM/CRAM format.\n"
 		"                           This option is not mandatory if one or more\n"
-		"                           SAM/BAM files are passed as argument.\n"
+		"                           SAM/BAM/CRAM files are passed as argument.\n"
 		"                           If 'input-file' and arguments are set\n"
 		"                           concomitantly, then the union of all alignment\n"
 		"                           files is used\n"
@@ -281,7 +281,7 @@ print_usage (FILE *fp)
 		"\n"
 		"Processing Options:\n"
 		"   -s, --sorted            Assume all reads are grouped by queryname, even if\n"
-		"                           there is no SAM/BAM header tag 'SO:queryname'\n"
+		"                           there is no SAM/BAM/CRAM header tag 'SO:queryname'\n"
 		"   -t, --threads           Number of threads [default:\"%d\"]\n"
 		"   -m, --max-distance      Maximum distance allowed between paired-end reads\n"
 		"                           [default:\"%d\"]\n"
@@ -362,7 +362,7 @@ process_sample_validate (ProcessSample *ps)
 	// If no one file was passed, throw an error
 	if (array_len (ps->sam_files) == 0)
 		{
-			fprintf (stderr, "%s: Missing alignment files (SAM/BAM)\n", PACKAGE);
+			fprintf (stderr, "%s: Missing alignment files (SAM/BAM/CRAM)\n", PACKAGE);
 			print_try_help (stderr);
 			rc = EXIT_FAILURE; goto Exit;
 		}
@@ -495,7 +495,7 @@ process_sample_print (const ProcessSample *ps)
 		"\n"
 		"## Command line parsing with default values\n"
 		"\n"
-		"# Input BAM/SAM files\n"
+		"# Input SAM/BAM/CRAM files\n"
 		"$ cat my-inputfile.txt\n",
 		PACKAGE_STRING);
 

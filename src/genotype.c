@@ -469,7 +469,7 @@ index_region (const List *genotype, Hash *chr_tid)
 			tid = hash_lookup (chr_tid, r->chr);
 			if (tid == NULL)
 				{
-					log_warn ("No %s contig from retrocopy [%d] found in BAM header",
+					log_warn ("No %s contig from retrocopy [%d] found in SAM header",
 							r->chr, g->retrocopy_id);
 					continue;
 				}
@@ -661,12 +661,12 @@ zygosity (ZygosityData *zd)
 
 	if (idx == NULL)
 		{
-			log_warn ("Failed to open BAM INDEX for '%s'. Make a linear search", zd->path);
+			log_warn ("Failed to open BAM/CRAM INDEX for '%s'. Make a linear search", zd->path);
 			zygosity_linear_search (fp, hdr, align, zd, chr_tid);
 		}
 	else
 		{
-			log_info ("Open BAM INDEX for '%s'. Make an indexed search", zd->path);
+			log_info ("Open BAM/CRAM INDEX for '%s'. Make an indexed search", zd->path);
 			zygosity_indexed_search (fp, hdr, align, idx, zd, chr_tid);
 		}
 
@@ -715,7 +715,7 @@ genotype (sqlite3_stmt *genotype_stmt, int threads, int phred_quality)
 	// RETROCOPY_ID => REGION
 	retrocopy_h = genotype_index_retrocopy (db);
 
-	log_info ("Index all BAM path => retrocopy relationship");
+	log_info ("Index all SAM/BAM/CRAM path => retrocopy relationship");
 
 	// PATH => @ZYGOSITYDATA
 	zygosity_h = genotype_index_zygosity_data (db, retrocopy_h);

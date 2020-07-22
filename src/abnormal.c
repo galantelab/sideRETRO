@@ -44,7 +44,7 @@ typedef struct _AbnormalFilter AbnormalFilter;
 static void
 abnormal_filter_init (AbnormalFilter *argf)
 {
-	// Open SAM/BAM file
+	// Open SAM/BAM/CRAM file
 	argf->in = sam_open (argf->sam_file, "rb");
 	if (argf->in == NULL)
 		log_errno_fatal ("Failed to open '%s' for reading",
@@ -405,7 +405,7 @@ parse_unsorted_sam (AbnormalFilter *argf)
 	List *blacklist_ids = NULL;
 
 	// All abnormal alignments are keeped
-	// into a hash if the BAM/SAM is not sorted
+	// into a hash if the SAM/BAM/CRAM is not sorted
 	// by queryname
 	abnormal_ids = hash_new (xfree, xfree);
 
@@ -496,7 +496,7 @@ abnormal_filter (AbnormalArg *arg)
 	AbnormalFilter argf = {};
 	memcpy (&argf, arg, sizeof (AbnormalArg));
 
-	// Opon SAM/BAM
+	// Opon SAM/BAM/CRAM
 	// Allocate resources
 	abnormal_filter_init (&argf);
 
