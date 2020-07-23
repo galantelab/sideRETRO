@@ -14,7 +14,7 @@ addons:
       - valgrind
 
 install:
-  - pip3 install meson
+  - pip3 install meson==0.54.0
   - pip3 install cpp-coveralls
 
 env:
