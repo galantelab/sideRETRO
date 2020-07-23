@@ -7,7 +7,7 @@ of somatic (*de novo*) **retrocopy insertion** in whole genome
 and whole exome sequencing data (WGS, WES). The program has been
 written from scratch in C, and uses `HTSlib <http://www.htslib.org/>`_
 and `SQLite3 <https://www.sqlite.org>`_ libraries, in order to
-manage SAM/BAM reading and data analysis. The source code is
+manage SAM/BAM/CRAM reading and data analysis. The source code is
 distributed under the **GNU General Public License**.
 
 Wait, what is retrocopy?
@@ -69,7 +69,7 @@ How it works
 sideRETRO compiles to an executable called :code:`sider`,
 which has three subcommands: :code:`process-sample`,
 :code:`merge-call` and :code:`make-vcf`. The :code:`process-sample`
-subcommand reads a list of SAM/BAM files, and captures
+subcommand reads a list of SAM/BAM/CRAM files, and captures
 **abnormal reads** that must be related to an event of retrocopy.
 All those data is saved to a **SQLite3 database** and then we come
 to the second step :code:`merge-call`, which **processes** the database
