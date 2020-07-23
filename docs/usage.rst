@@ -28,7 +28,7 @@ call it without any argument from the command line, like this::
      -h, --help            Show help options
      -v, --version         Show current version
 
-  Commands
+  Commands:
      ps,  process-sample   Extract alignments related
                            an event of retrocopy
      mc,  merge-call       Discover and annotate
@@ -43,7 +43,7 @@ Another classical example is to print **sideRETRO**'s installed version using
 the ``-v`` option::
 
   $ sider --version
-  sideRETRO 0.14.0
+  sideRETRO 0.15.0
 
 And, if the user need further help, he can find it both at the **sideRETRO**'s
 `readthedocs page <https://sideretro.readthedocs.io>`_ or in the already
@@ -83,9 +83,9 @@ Mandatory Options:
   -a, --annotation-file   Gene annotation on the reference genome
                           in GTF/GFF3 format
   -i, --input-file        File containing a newline separated list of
-                          alignment files in SAM/BAM format.
+                          alignment files in SAM/BAM/CRAM format.
                           This option is not mandatory if one or more
-                          SAM/BAM files are passed as argument.
+                          SAM/BAM/CRAM files are passed as argument.
                           If 'input-file' and arguments are set
                           concomitantly, then the union of all alignment
                           files is used
@@ -116,7 +116,7 @@ Read Quality Options:
 
 Processing Options:
   -s, --sorted            Assume all reads are grouped by queryname, even if
-                          there is no SAM/BAM header tag 'SO:queryname'
+                          there is no SAM/BAM/CRAM header tag 'SO:queryname'
   -t, --threads           Number of threads [default:"1"]
   -m, --max-distance      Maximum distance allowed between paired-end reads
                           [default:"10000"]
@@ -255,7 +255,7 @@ Filter & Annotation Options:
    -x, --parental-distance    Minimum distance allowed between a cluster and
                               its putative parental gene [default:"1000000"]
    -g, --genotype-support     Minimum number of reads coming from a given source
-                              (BAM) within a cluster [default:"3"]
+                              (SAM/BAM/CRAM) within a cluster [default:"3"]
    -n, --near-gene-rank       Minimum ranked distance between genes in order to
                               consider them close [default:"3"]
 
@@ -373,6 +373,84 @@ The only new options are ``-r``, which must specify the reference genome in
 FASTA format (like **gencode**'s *Hg38.fa*) and ``-n``, where user can establish
 a distance threshold for genes surrounding insertion points for additional
 information in the output VCF file.
+
+.. _cram:
+
+Dealing with CRAM format
+========================
+
+Working with CRAM files may be a little **tricky**, mainly if you have downloaded
+the data from a public repository. Let's take a look at two possible cases:
+
+* Local alignment
+* External alignment
+
+Local alignment
+---------------
+
+In order to generate an alignment file in the CRAM format, first we need to
+index the reference genome:
+
+.. code-block:: sh
+
+   # Inde for BWA: .fa.amb, .fa.ann, .fa.bwt, .fa.pac, .fa.sa files
+   bwa index hg38.fa
+
+   # Index reference genome for CRAM: .fa.fai file
+   samtools faidx hg38.fa
+
+Then, we can align with :code:`bwa`:
+
+.. code-block:: sh
+
+   # Align with BWA and generate a CRAM
+   bwa mem hg38.fa file_R1.fastq file_R2.fastq | \
+      samtools view -T hg38.fa -C -o file.cram -
+
+The alignment :file:`file.cram` can be processed with :code:`sider`, as long as
+we don't change the reference genome and its index (:file:`.fa.fai`) path. If so,
+we need to set the environment variables :file:`REF_PATH` and :file:`REF_CACHE`,
+see :ref:`External alignment <extern_cram>`.
+
+.. _extern_cram:
+
+External alignment
+------------------
+
+When we download public data already aligned in the CRAM format, we may be
+concerned about the reference genome index. Probably,  we won't have the
+required genome index to read the :file:`.cram`, and the :file:`htslib`
+library - used by :code:`sider` and :code:`samtools` - is able to download
+the index from the `CRAM Reference Registry <http://www.ebi.ac.uk/ena/cram>`_.
+
+However, in order to :file:`htslib` be able to accomplish this task, we need
+to compile the library with the required flags and also we need to have the
+reqeuired dependencies (as `libcurl <https://curl.haxx.se/libcurl/>`_).
+Therefore to be able to read these files, without depending on these details,
+we need to generate a new local index and set the environment variables -
+:file:`REF_PATH` and :file:`REF_CACHE` - to the correct path:
+
+.. code-block:: sh
+
+   # Create cache dir
+   mkdir -p /my/cache
+
+   # Construct the index
+   perl seq_cache_populate.pl -root /my/cache hg38.fa
+
+   # Now before running samtools or sider, we need to
+   # set the environment variables REF_PATH and REF_CACHE
+   export REF_PATH=/my/cache/%2s/%2s/%s:http://www.ebi.ac.uk/ena/cram
+   export REF_CACHE=/my/cache/%2s/%2s/%s
+
+   # So ...
+   sider ps -a annot.gff3.gz -o result file.cram
+
+The script :file:`seq_cache_populate.pl` can be found in the :file:`samtools`,
+or at `seq_cache_populate.pl
+<https://github.com/deweylab/RSEM/blob/master/samtools-1.3/misc/seq_cache_populate.pl>`_.
+
+For more information, see `Samtools Worflow <https://www.htslib.org/workflow/>`_.
 
 .. _pract_wf:
 
