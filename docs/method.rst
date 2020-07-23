@@ -4,8 +4,13 @@
 Methodology
 ***********
 
-The sideRETRO **methodology** consists of detecting
-abnormal (discordant) alignments in `SAM/BAM
+**siderRETRO** uses NGS (*Next Generation Sequencing*) data
+to identify **unfixed** - *dimorphic/polymorphic, germinative,
+or somatic* - retrocopies absent in the reference genome,
+but present in the sequenced genome (by NGS).
+
+Our **methodology** consists of detecting
+abnormal (discordant) alignments in `SAM/BAM/CRAM
 <https://samtools.github.io/hts-specs/SAMv1.pdf>`_
 file and, with an **unsupervised machine learning**
 algorithm, clustering these reads and genotype in order
@@ -212,7 +217,7 @@ where:
    The way we are modeling the likelihoods probability **differs** a little
    bit from the **SNP calling** model: We are **treating** the *read* as the
    **unit**, not the *base*, therefore the error (:math:`\epsilon`) is the
-   **mapping** quality (fifth column of BAM file), instead of the
+   **mapping** quality (fifth column of SAM file), instead of the
    **sequencing** quality.
 
 So we can summarize the formula for homozygous reference (HOR), heterozygous
@@ -240,7 +245,7 @@ HOA
 We determine the insertion point site according to the abnormal alignments
 clustering. Those *reads* will be used as the :math:`k - l` rest of the
 *reads* which differs from reference genome. In order to verify if there
-is evidence of reference allele, we need to come back to the BAM file and
+is evidence of reference allele, we need to come back to the SAM file and
 check for the presence of *reads* **crossing** the insertion point. To
 **mitigate** alignment error - which would otherwise overestimate the
 number of reference allele *reads* - we select the *reads* that cover one
