@@ -468,24 +468,23 @@ genome:
 and
 `NA12778 <ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR323/ERR3239484/NA12778.final.cram>`_.
 
-While **sideRETRO** can't deal with CRAN files, we'll need to convert them using
-`samtools <http://www.htslib.org/download/>`_. And, some steps will require
-additional files, so at the beginning of a run, the files listed bellow must be
-at the same directory where the user is running **sideRETRO** or their correct
-paths must be supplied at the correspondent option. Files are:
+At the beginning of a run, the files listed bellow must be at the same directory where
+the user is running **sideRETRO** or their correct paths must be supplied at the
+correspondent option. Files are:
 
 1. A GTF gene annotation file from gencode project
    (here :file:`gencode.v32.annotation.gtf`).
 
-2. A custom BED file to serve as black list -- genomic regions to be ignored
-   (`here <misc/black_list.bed>`_ :file:`black_list.bed`).
+2. A FASTA file with the gencode's Human reference genome, version 38
+   (here :file:`GRCh38_full_analysis_set_plus_decoy_hla.fa`).
 
-3. A FASTA file with the gencode's Human reference genome, version 38
-   (here :file:`Hg38.fa`).
-
-4. A custom perl script, :code:`analyser.pl`, to do the final analysis over the VCF file
+3. A custom perl script, :code:`analyser.pl`, to do the final analysis over the VCF file
    and produce the TSV file in a tabular format. The :code:`analyser.pl` script can be
    downloaded :download:`here <data/analyser.pl>`.
+
+Also, we will set the environment variables :file:`REF_PATH` and :file:`REF_CACHE`, as
+a requirement to work with CRAM files - more information at
+:ref:`Dealing with CRAM format<extern_cram>`.
 
 See the complete command sequence bellow for the whole analysis:
 
@@ -496,6 +495,23 @@ See the complete command sequence bellow for the whole analysis:
   $ mkdir -p sider_test
   $ cd sider_test
 
+  # Download annotation from gencode
+  wget ftp://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_32/gencode.v32.annotation.gtf.gz
+
+  # Download the reference genome from 1000 genomes
+  wget ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/GRCh38_reference_genome/GRCh38_full_analysis_set_plus_decoy_hla.fa
+
+  # Make the CRAM index
+  # Create cache dir
+  mkdir -p cache
+
+  # create index
+  perl seq_cache_populate.pl -root cache GRCh38_full_analysis_set_plus_decoy_hla.fa
+
+  # Set environment variables
+  export REF_PATH=$PWD/cache/%2s/%2s/%s:http://www.ebi.ac.uk/ena/cram
+  export REF_CACHE=$PWD/cache/%2s/%2s/%s
+
   # Create a download list (WGS.list) containing all files of interest.
   # Average time: irrelevant
   $ echo "ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR323/ERR3239334/NA12878.final.cram" > WGS_download.list
@@ -505,14 +521,9 @@ See the complete command sequence bellow for the whole analysis:
   # Average time: network dependent
   $ wget -c -i WGS_download.list
 
-  # Convert CRAM file format to BAM using samtools view.
-  # Average time: 62m34.541
-  $ samtools view -b -@ 8 -o NA12878.final.bam NA12878.final.cram
-  $ samtools view -b -@ 8 -o NA12778.final.bam NA12778.final.cram
-
   # Create the list of BAM files.
   # Average time: irrelevant
-  $ echo "*.bam" > WGS_genomes.list
+  $ ls *.cram > WGS_genomes.list
 
   # First sideRETRO step: process-sample
   # Input file: WGS_genomes.list
@@ -520,7 +531,7 @@ See the complete command sequence bellow for the whole analysis:
   # Average time: 62m34.541
   $ sider process-sample \
       -i WGS_genomes.list \
-      -a gencode.v32.annotation.gtf \
+      -a gencode.v32.annotation.gtf.gz \
       -p 1000_genomes \
       -c 2000000 \
       -Q 20 \
@@ -535,7 +546,6 @@ See the complete command sequence bellow for the whole analysis:
       -c 2000000 \
       -x 1000000 \
       -g 5 \
-      -B black_list.bed \
       -I \
       -t 2
 
@@ -545,7 +555,7 @@ See the complete command sequence bellow for the whole analysis:
   # Average time: 62m34.541
   $ sider make-vcf 1000_genomes.db \
       -p 1000_genomes \
-      -r Hg38.fa
+      -r GRCh38_full_analysis_set_plus_decoy_hla.fa
 
   # Some analysis over the final VCF file.
   # Input file: 1000_genomes.vcf
@@ -556,13 +566,6 @@ See the complete command sequence bellow for the whole analysis:
 This was a simple but complete pipeline to obtain a final TSV file with all
 the relevant results in a tabular format ready to import in a R or Python script
 and plot some graphics.
-
-In order to compare, the resultant VCF file shown these general statistics:
-
-* 207 lines without headers.
-* 26 non-fixed and distinct insertions of retrocopies.
-* 14 of them shared among the two genomes.
-* 0 of them in homozygosis.
 
 .. _run_dck:
 
