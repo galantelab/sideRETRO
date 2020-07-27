@@ -18,6 +18,8 @@ doc_images = files(
   'images/abnormal_alignment_dist.png',
   'images/abnormal_alignment_exon.png',
   'images/abnormal_alignment_sr.png',
+  'images/alignment_of_CACNA1B.png',
+  'images/abyzov_table2.png',
   'images/barbara.jpg',
   'images/genotype.png',
   'images/indistinguishable_alignment.png',
@@ -25,7 +27,6 @@ doc_images = files(
   'images/orientation_opposite_strand.png',
   'images/orientation_same_strand.png',
   'images/result_confusion.png',
-  'images/result_heatmap.png',
   'images/retrocopy.png'
 )
 
