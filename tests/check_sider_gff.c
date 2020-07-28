@@ -28,6 +28,7 @@ static const char *gff_header =
 static const char *gff_body =
 	"chr1	.	gene	1000	1100	100	+	.	gene_name=g1;gene_id=ENSG1;transcript_id=ENST1;gene_type=lincRNA;transcript_type=protein_coding;\n"
 	"##provider: GENCODE\n"
+	"chr1	.	transcript	1	500	.	-	.	gene_name \"ponga\"; gene_desc \"this is only a test\"; type \"joke\";\n"
 	"chr1	.	transcript	1000	1100	.	+	.	gene_name=g1;gene_id=ENSG1;transcript_id=ENST1;transcript_type=protein_coding;\n"
 	"chr1	.	exon	1000	1100	.	+	1	gene_name=g1;gene_id=ENSG1;transcript_id=ENST1;transcript_type=protein_coding;exon_id=ENSE1;\n"
 	"chr1	.	gene	1000	1100	.	+	.	gene_name=g1;gene_id=ENSG1;transcript_id=ENST1;gene_type=lincRNA;ponga=must_fail;\n"

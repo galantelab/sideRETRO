@@ -282,9 +282,10 @@ gff_read (GffFile *gff, GffEntry *entry)
 
 	int rc, i;
 	char *token, *subtoken;
-	char *saveptr1, *saveptr2;
+	char *attr_key, *attr_value;
+	char *saveptr1, *saveptr2, *saveptr3;
 
-	token = subtoken = saveptr1 = saveptr2 = NULL;
+	token = subtoken = attr_key = attr_value = saveptr1 = saveptr2 = saveptr3 = NULL;
 
 	// end of file
 	if (gff->eof)
@@ -348,33 +349,35 @@ gff_read (GffFile *gff, GffEntry *entry)
 		? atoi (token)
 		: -1 ;
 
-	token = strtok_r (NULL, "\t", &saveptr1);
+	token = strtok_r (NULL, "", &saveptr1);
 	entry->num_attributes = i = 0;
 
 	if (token != NULL)
 		{
-			subtoken = strtok_r (token, ";= ", &saveptr2);
-			while (subtoken != NULL)
+			for (subtoken = strtok_r (token, ";", &saveptr2); subtoken != NULL;
+					subtoken = strtok_r (NULL, ";", &saveptr2))
 				{
-					subtoken = trimc (trim (subtoken), '"');
+					attr_key = strtok_r (subtoken, " =", &saveptr3);
+					attr_value = strtok_r (NULL, "", &saveptr3);
+
+					if (attr_value == NULL)
+						log_fatal ("missing value for attribute %d (%s) at line %zu",
+								i, attr_key, entry->num_line);
 
 					if ((i + 1) > entry->attributes_size)
 						entry->attributes_size = gff_buf_expand ((void **) &entry->attributes,
 								sizeof (GffAttribute), entry->attributes_size, GFF_ATTRSIZ);
 
-					entry->attributes[i].key_size = gff_entry_set (&entry->attributes[i].key,
-							entry->attributes[i].key_size, subtoken);
+					attr_key = trim (attr_key);
 
-					subtoken = strtok_r (NULL, ";= ", &saveptr2);
-					subtoken = trimc (trim (subtoken), '"');
-					if (subtoken == NULL)
-						log_fatal ("missing value for attribute %d (%s) at line %zu",
-								i, entry->attributes[i].key, entry->num_line);
+					entry->attributes[i].key_size = gff_entry_set (&entry->attributes[i].key,
+							entry->attributes[i].key_size, attr_key);
+
+					attr_value = trimc (trim (attr_value), '"');
 
 					entry->attributes[i].value_size = gff_entry_set (&entry->attributes[i].value,
-							entry->attributes[i].value_size, subtoken);
+							entry->attributes[i].value_size, attr_value);
 
-					subtoken = strtok_r (NULL, ";= ", &saveptr2);
 					i++;
 				}
 		}
