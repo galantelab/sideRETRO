@@ -246,7 +246,10 @@ print_usage (FILE *fp)
 		"\n"
 		"Mandatory Options:\n"
 		"   -a, --annotation-file   Gene annotation on the reference genome\n"
-		"                           in GTF/GFF3 format\n"
+		"                           in GTF/GFF3 format. %s will look for 'exon'\n"
+		"                           with the attribute 'transcript_type=protein_coding'.\n"
+		"                           The attributes 'gene_name', 'gene_id' and 'exon_id'\n"
+		"                           are also required\n"
 		"   -i, --input-file        File containing a newline separated list of\n"
 		"                           alignment files in SAM/BAM/CRAM format.\n"
 		"                           This option is not mandatory if one or more\n"
@@ -297,7 +300,7 @@ print_usage (FILE *fp)
 		"                           0.5 as well\n"
 		"\n",
 		PACKAGE_STRING, PACKAGE, pkg_len, ' ', pkg_len, ' ', pkg_len, ' ', pkg_len, ' ',
-		DEFAULT_OUTPUT_DIR, DEFAULT_PREFIX, DEFAULT_CACHE_SIZE, DEFAULT_PHRED_QUALITY,
+		PACKAGE, DEFAULT_OUTPUT_DIR, DEFAULT_PREFIX, DEFAULT_CACHE_SIZE, DEFAULT_PHRED_QUALITY,
 		DEFAULT_MAX_BASE_FREQ, DEFAULT_THREADS, DEFAULT_MAX_DISTANCE,
 		DEFAULT_EXON_FRAC, DEFAULT_ALIGNMENT_FRAC);
 }

@@ -81,7 +81,10 @@ Arguments:
 
 Mandatory Options:
   -a, --annotation-file   Gene annotation on the reference genome
-                          in GTF/GFF3 format
+                          in GTF/GFF3 format. sider will look for 'exon'
+                          with the attribute 'transcript_type=protein_coding'.
+                          The attributes 'gene_name', 'gene_id' and 'exon_id'
+                          are also required
   -i, --input-file        File containing a newline separated list of
                           alignment files in SAM/BAM/CRAM format.
                           This option is not mandatory if one or more
