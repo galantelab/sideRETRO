@@ -9,8 +9,16 @@
 #include <libgen.h>
 #include <string.h>
 #include <signal.h>
+#include <float.h>
+#include <math.h>
 #include "wrapper.h"
 #include "utils.h"
+
+int
+fequal (const double a, const double b)
+{
+	return fabs (a - b) < DBL_EPSILON;
+}
 
 int
 equalstring (const void *a, const void *b)

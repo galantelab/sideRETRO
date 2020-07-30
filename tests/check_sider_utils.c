@@ -13,6 +13,27 @@
 #include "../src/log.h"
 #include "../src/utils.h"
 
+START_TEST (test_fequal)
+{
+	double a, b;
+
+	a = -0.0000000000001;
+	b = -0.0000000000001;
+
+	ck_assert_int_eq (fequal (a, b), 1);
+
+	a = 0.0;
+	b = 0.0;
+
+	ck_assert_int_eq (fequal (a, b), 1);
+
+	a = -0.000000000001;
+	b = -0.0000000000001;
+
+	ck_assert_int_eq (fequal (a, b), 0);
+}
+END_TEST
+
 START_TEST (test_equalstring)
 {
 	const char str1[] = "string test 1";
@@ -288,6 +309,7 @@ make_utils_suite (void)
 	/* Core test case */
 	tc_core = tcase_create ("Core");
 
+	tcase_add_test (tc_core, test_fequal);
 	tcase_add_test (tc_core, test_equalstring);
 	tcase_add_test (tc_core, test_casequalstring);
 	tcase_add_test (tc_core, test_cmpstringp);

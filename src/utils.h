@@ -1,6 +1,7 @@
 #ifndef UTILS_H
 #define UTILS_H
 
+int fequal         (const double a, const double b);
 int equalstring    (const void *a, const void *b);
 int casequalstring (const void *a, const void *b);
 int cmpstringp     (const void *p1, const void *p2);
