@@ -31,6 +31,7 @@ print_usage (FILE *fp)
 		"Options:\n"
 		"   -h, --help            Show help options\n"
 		"   -v, --version         Show current version\n"
+		"   -c, --cite            Show citation in BibTeX\n"
 		"\n"
 		"Commands:\n"
 		"   ps,  process-sample   Extract alignments related\n"
@@ -41,6 +42,25 @@ print_usage (FILE *fp)
 		"                         annotate retrocopies\n"
 		"\n",
 		PACKAGE_STRING, PACKAGE, PACKAGE);
+}
+
+static void
+print_citation (FILE *fp)
+{
+	fprintf (fp,
+		"@article{10.1093/bioinformatics/btaa689,\n"
+		"  author = {Miller, Thiago L A and Orpinelli, Fernanda and Buzzo, "
+		"José Leonel L and Galante, Pedro A F},\n"
+		"  title = \"{sideRETRO: a pipeline for identifying somatic and "
+		"polymorphic insertions of processed pseudogenes or retrocopies}\",\n"
+		"  journal = {Bioinformatics},\n"
+		"  year = {2020},\n"
+		"  month = {07},\n"
+		"  issn = {1367-4803},\n"
+		"  doi = {10.1093/bioinformatics/btaa689},\n"
+		"  url = {https://doi.org/10.1093/bioinformatics/btaa689},\n"
+		"  note = {btaa689},\n"
+		"}\n");
 }
 
 static void
@@ -57,6 +77,7 @@ parse_no_command_opt (int argc, char **argv)
 
 	struct option opt[] =
 	{
+		{"cite",    no_argument, 0, 'c'},
 		{"version", no_argument, 0, 'v'},
 		{"help",    no_argument, 0, 'h'},
 		{0,         0,           0,  0 }
@@ -66,10 +87,16 @@ parse_no_command_opt (int argc, char **argv)
 	int option_index = 0;
 	int c;
 
-	while ((c = getopt_long (argc, argv, "vh", opt, &option_index)) >= 0)
+	while ((c = getopt_long (argc, argv, "cvh", opt, &option_index)) >= 0)
 		{
 			switch (c)
 				{
+				case 'c':
+					{
+						print_citation (stdout);
+						goto Exit;
+						break;
+					}
 				case 'v':
 					{
 						print_version (stdout);
