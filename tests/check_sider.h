@@ -29,5 +29,6 @@ Suite * make_dedup_suite          (void);
 Suite * make_genotype_suite       (void);
 Suite * make_fasta_suite          (void);
 Suite * make_vcf_suite            (void);
+Suite * make_gz_suite             (void);
 
 #endif /* check_sider.h */

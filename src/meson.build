@@ -31,6 +31,8 @@ sider_sources = files(
   'genotype.h',
   'gff.c',
   'gff.h',
+  'gz.c',
+  'gz.h',
   'hash.c',
   'hash.h',
   'ibitree.c',
