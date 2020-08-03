@@ -6,6 +6,7 @@
 #include <zlib.h>
 #include <assert.h>
 #include "wrapper.h"
+#include "utils.h"
 #include "log.h"
 #include "gz.h"
 
@@ -70,28 +71,6 @@ gz_get_num_line (const GzFile *gz)
 	return gz->num_line;
 }
 
-static inline size_t
-nearest_pow (size_t num)
-{
-	size_t n = 1;
-
-	while (n < num && n > 0)
-		n <<= 1;
-
-	return n ? n : num;
-}
-
-static size_t
-gz_buf_expand (void **buf, size_t size,
-		size_t old_nmemb, size_t length)
-{
-	size_t final_nmemb = nearest_pow (old_nmemb + length);
-	*buf = xrealloc (*buf, size * final_nmemb);
-	memset (*buf + old_nmemb * size, 0,
-			size * (final_nmemb - old_nmemb));
-	return final_nmemb;
-}
-
 static void
 gz_check_error (const GzFile *gz)
 {
@@ -126,7 +105,7 @@ gz_getline (GzFile *gz, char **lineptr, size_t *n)
 		{
 			size_t old_size = gz->buf_size;
 
-			gz->buf_size = gz_buf_expand ((void **) &gz->buf,
+			gz->buf_size = buf_expand ((void **) &gz->buf,
 					sizeof (char), gz->buf_size, BUFSIZ);
 
 			line = gzgets (gz->fp, &gz->buf[old_size - 1],

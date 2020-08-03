@@ -298,6 +298,48 @@ START_TEST (test_setup_signal)
 }
 END_TEST
 
+START_TEST (test_buf_expand)
+{
+	char *name = NULL;
+	size_t size = 0;
+	size_t total_size = 0;
+
+	size = 6;
+	name = xcalloc (size, sizeof (char));
+	strncpy (name, "ponga", size);
+	ck_assert_str_eq (name, "ponga");
+
+	size = buf_expand ((void **) &name,
+			sizeof (char), size, 5);
+
+	// 6 + 5 = 11 -> 2^3 == 8 e 2^4 == 16
+	total_size = 16;
+
+	strncpy (name, "pongaponga", size);
+	ck_assert_str_eq (name, "pongaponga");
+	ck_assert_int_eq (size, total_size);
+
+	xfree (name);
+}
+END_TEST
+
+START_TEST (test_entry_size)
+{
+	char *name = NULL;
+	size_t size = 0;
+
+	size = entry_set (&name, size, "ponga");
+	ck_assert_str_eq (name, "ponga");
+	ck_assert_int_eq (size, 8); // 2^3
+
+	size = entry_set (&name, size, "pongaponga");
+	ck_assert_str_eq (name, "pongaponga");
+	ck_assert_int_eq (size, 16); // 2^4
+
+	xfree (name);
+}
+END_TEST
+
 Suite *
 make_utils_suite (void)
 {
@@ -327,6 +369,8 @@ make_utils_suite (void)
 	tcase_add_test (tc_core, test_xasprintf_concat);
 	tcase_add_test (tc_core, test_mkdir_p);
 	tcase_add_test (tc_core, test_setup_signal);
+	tcase_add_test (tc_core, test_buf_expand);
+	tcase_add_test (tc_core, test_entry_size);
 	suite_add_tcase (s, tc_core);
 
 	return s;

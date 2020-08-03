@@ -288,3 +288,38 @@ setup_signal (int sig, void (*handler)(int))
 
 	xsigaction (sig, &action, NULL);
 }
+
+static inline size_t
+nearest_pow (size_t num)
+{
+	size_t n = 1;
+
+	while (n < num && n > 0)
+		n <<= 1;
+
+	return n ? n : num;
+}
+
+size_t
+buf_expand (void **buf, size_t size,
+		size_t old_nmemb, size_t length)
+{
+	size_t final_nmemb = nearest_pow (old_nmemb + length);
+	*buf = xrealloc (*buf, size * final_nmemb);
+	memset (*buf + old_nmemb * size, 0,
+			size * (final_nmemb - old_nmemb));
+	return final_nmemb;
+}
+
+size_t
+entry_set (char **buf, size_t buf_size, const char *entry)
+{
+	size_t entry_size = strlen (entry);
+
+	if (entry_size >= buf_size)
+		buf_size = buf_expand ((void **) buf, sizeof (char),
+				buf_size, entry_size - buf_size + 1);
+
+	*buf = strncpy (*buf, entry, buf_size);
+	return buf_size;
+}
