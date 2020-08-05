@@ -2,17 +2,15 @@
 #define GFF_H
 
 #include <stdlib.h>
-#include <zlib.h>
 #include "hash.h"
+#include "gz.h"
 
 struct _GffFile
 {
-	gzFile        fp;
-	const char   *filename;
+	GzFile       *gz;
 	const char   *header;
 	char         *buf;
 	size_t        buf_size;
-	size_t        num_line;
 	unsigned int  eof:1;
 };
 
