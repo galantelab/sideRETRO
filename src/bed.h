@@ -2,16 +2,14 @@
 #define BED_H
 
 #include <stdlib.h>
-#include <zlib.h>
+#include "gz.h"
 
 struct _BedFile
 {
-	gzFile        fp;
-	const char   *filename;
+	GzFile       *gz;
 	const char   *header;
 	char         *buf;
 	size_t        buf_size;
-	size_t        num_line;
 	unsigned int  eof:1;
 };
 
