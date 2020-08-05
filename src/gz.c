@@ -3,21 +3,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <zlib.h>
 #include <assert.h>
 #include "wrapper.h"
 #include "utils.h"
 #include "log.h"
 #include "gz.h"
-
-struct _GzFile
-{
-	gzFile        fp;
-	const char   *filename;
-	char         *buf;
-	size_t        buf_size;
-	size_t        num_line;
-};
 
 GzFile *
 gz_open_for_reading (const char *path)
@@ -55,20 +45,6 @@ gz_close (GzFile *gz)
 	xfree (gz->buf);
 	xfree ((void *) gz->filename);
 	xfree (gz);
-}
-
-const char *
-gz_get_filename (const GzFile *gz)
-{
-	assert (gz != NULL);
-	return gz->filename;
-}
-
-size_t
-gz_get_num_line (const GzFile *gz)
-{
-	assert (gz != NULL);
-	return gz->num_line;
 }
 
 static void
