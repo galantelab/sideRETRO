@@ -2,16 +2,14 @@
 #define FASTA_H
 
 #include <stdlib.h>
-#include <zlib.h>
+#include "gz.h"
 #include "str.h"
 
 struct _FastaFile
 {
-	gzFile        fp;
-	size_t        buf_alloc;
+	GzFile       *gz;
 	char         *buf;
-	const char   *filename;
-	size_t        num_line;
+	size_t        buf_size;
 	unsigned int  eof:1;
 };
 
