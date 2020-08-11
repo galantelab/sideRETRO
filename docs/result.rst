@@ -1,8 +1,10 @@
-.. _chap_result2:
+.. _chap_result:
 
 *******
 Results
 *******
+
+Here are the results for simulated and real data.
 
 .. note:: **retroCNVs** - *polymorphic retrocopies*
 
