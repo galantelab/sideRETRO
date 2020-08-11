@@ -11,7 +11,7 @@
 **sideRETRO** is a bioinformatic tool devoted for the detection of somatic **retrocopy** insertion, also known as
 **retroCNV**, in whole genome and whole exome sequencing data (WGS, WES). The program has been written from scratch
 in C, and uses [HTSlib](http://www.htslib.org/) and [SQLite3](https://www.sqlite.org) libraries, in order to manage
-**SAM/BAM** reading and data analysis.
+**SAM/BAM/CRAM** reading and data analysis.
 
 For full documentation, please visit <https://sideretro.readthedocs.io>.
 
@@ -83,7 +83,7 @@ You can find `sider` executable inside `build/src`. Optionally, install to syste
 ### Usage
 
 **sideRETRO** compiles to an executable called `sider`, which has three subcommands: `process-sample`, `merge-call`
-and `make-vcf`. The `process-sample` subcommand processes a list of **SAM/BAM** files, and captures abnormal reads
+and `make-vcf`. The `process-sample` subcommand processes a list of **SAM/BAM/CRAM** files, and captures abnormal reads
 that must be related to an event of retrocopy. All those data is saved to a **SQLite3 database** and then we come
 to the second step `merge-call`, which processes the database and annotates all the retrocopies found. Finally we
 can run the subcommand `make-vcf` and generate a file (in **VCF** format) with retrocopies and further information
