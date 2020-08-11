@@ -33,7 +33,7 @@
 #define DEFAULT_MIN_PTS               10
 #define DEFAULT_BLACKLIST_CHR         "chrM"
 #define DEFAULT_PARENTAL_DISTANCE     1000000
-#define DEFAULT_SUPPORT               3
+#define DEFAULT_SUPPORT               1
 #define DEFAULT_BLACKLIST_PADDING     0
 #define DEFAULT_GFF_FEATURE           "gene"
 #define DEFAULT_GFF_ATTRIBUTE1        "gene_type"
