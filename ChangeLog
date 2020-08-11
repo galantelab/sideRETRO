@@ -1,3 +1,127 @@
+2020-08-11 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* Version 1.0.0
+
+	* UPDATE: AUTHORS, docs/authors.rst: Author names
+
+	* ADD: README.md (Citation): Citation in BibTeX
+
+	* ADD: *.[ch]: Attach the copying notices header
+
+	* ADD: docs/intro.rst (Citation): Citation in BibTeX
+
+	* UPDATE: docs/usage.rst (General Syntax)
+
+	* UPDATE: docs/result.rst (Results)
+
+	* UPDATE: check_sider_main.c (main): Control log
+
+	Enable and disable log verbosity according to the environment variable
+	in the macro LOG_DEBUG_KEY
+
+	* CHANGE: merge_call.c (DEFAULT_SUPPORT): 1
+
+	Disbale reclustering (support filtering) by default
+
+	* FIX: vcf.c (genotype_likelihood): 0,0,0
+
+	Set genotype to ./. when the probabilities are 0,0,0
+
+2020-08-05 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* UPDATE: fasta.c: Use 'gz' interface
+
+	* CHANGE: gz.c: Make (GzFile *) public
+
+	* UPDATE: gff.c: Use 'gz' interface
+
+	* UPDATE: bed.c: Use 'gz' interface
+
+2020-08-03 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: utils.c (buf_expand, entry_set): Control buf
+
+	Remove duplicated code by adding these functions to the utils.c
+
+2020-08-01 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: gz.c: Add wrapper for libz
+
+2020-07-29 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: main.c (print_citation): Show citation
+
+	Add citation option. Print it in BibTeX format
+
+	* FIX: vcf.c (genotype_likelihood): Be conservative
+
+	Restructure the genotyping. Compare doubles using 'fequal' and when in
+	case of equality, follow the table:
+
+	HOR HET HOA GENOTYPE
+	2   2   2   0/1
+	2   2   1   0/0
+	2   1   2   0/0
+	1   2   2   0/1
+
+	* ADD: utils.c (fequal): Compare float points
+
+	* UPDATE: process_sample.c, docs/usage.rst: Help
+
+	Update the argument 'annotation-file' help. Explain about the fields
+	required and about the lines that are filtered
+
+2020-07-28 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* FIX: gff.c (gff_read): Spaces into GTF attr
+
+	Solve bug when reading GTF, possibly GFF3 as well, and there is a space
+	into the attr value: gene_name "My gene name". Now, the attr value will
+	correctly split it as: key=gene_name and value='My gene name'
+
+2020-07-26 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* UPDATE: docs/result.rst: Start of text/imgs/codes
+
+2020-07-23 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* FIX: .travis.yml: meson version
+
+	meson 0.55.0 fails when the option '-Db_coverage=true' is set
+
+	* ADD: docs/intro.rst: Add CRAM
+
+	* ADD: docs/method.rst: A new paragraph at beginning
+
+2020-07-22 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* FIX: docs/usage.rst (A Practical Workflow)
+
+	Now sideRETRO works with CRAM format, so fix and update this example of
+	usage
+
+	* ADD: docs/usage.rst (Dealing with CRAM format)
+
+	* UPDATE: *.c: Include CRAM to the input files
+
+	* FIX: main.c: Typo in the help message
+
+	* FIX: meson.build: This closes #1
+
+	* UPDATE: docs/conf.py: Update year
+
+2020-05-24 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* FIX: abnormal.c (dump_alignment): (long) core.pos
+
+	core.pos, in more recent versions of htslib, is declared as long int,
+	and not as int. So, cast core.pos to long int, in order to avoid gcc
+	warnings
+
+2020-04-02 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* FIX: abnormal.c (sam_rewind): Working with CRAM
+
 2020-03-26 Thiago L. A. Miller <tmiller@mochsl.org.br>
 
 	* Version 0.14.1

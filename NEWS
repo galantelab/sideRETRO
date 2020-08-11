@@ -1,3 +1,24 @@
+Version 1.0.0
+
+* Now sideRETRO works with the CRAM file
+  format too.
+
+* Fix bug when reading GTF, possibly GFF3
+  as well, and there is a space into the attr
+  value: gene_name "My gene name". Now, the
+  attr will be correctly splited in:
+  key=gene_name and value='My gene name'.
+
+* Add citation option. Print it in BibTeX
+  format.
+
+* Add 'gz' interface, in order to wrapper
+  'libz' library and remove duplicated
+  code.
+
+* Add the copying notices header to each
+  source script.
+
 Version 0.14.1
 
 * Add 'git' to Dockerfile. It will avoid
