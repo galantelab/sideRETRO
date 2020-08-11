@@ -1,18 +1,26 @@
 #include "config.h"
 
+#include <stdlib.h>
 #include <check.h>
 #include "check_sider.h"
 
 #include "../src/wrapper.h"
 #include "../src/log.h"
 
+#define LOG_DEBUG_KEY "LOG_DEBUG"
+
 int
 main (void)
 {
-	/*log_set_quiet (1);*/
-
+	const char *log_debug = NULL;
 	int number_failed = 0;
 	SRunner *sr = NULL;
+
+	log_set_quiet (1);
+
+	log_debug = secure_getenv (LOG_DEBUG_KEY);
+	if (log_debug != NULL && atoi (log_debug))
+		log_set_quiet (0);
 
 	sr = srunner_create (make_process_sample_suite ());
 	srunner_add_suite (sr, make_list_suite ());
