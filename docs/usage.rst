@@ -27,6 +27,7 @@ call it without any argument from the command line, like this::
   Options:
      -h, --help            Show help options
      -v, --version         Show current version
+     -c, --cite            Show citation in BibTeX
 
   Commands:
      ps,  process-sample   Extract alignments related
@@ -43,7 +44,7 @@ Another classical example is to print **sideRETRO**'s installed version using
 the ``-v`` option::
 
   $ sider --version
-  sideRETRO 0.15.0
+  sideRETRO 1.0.0
 
 And, if the user need further help, he can find it both at the **sideRETRO**'s
 `readthedocs page <https://sideretro.readthedocs.io>`_ or in the already
