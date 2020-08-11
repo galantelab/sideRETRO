@@ -137,6 +137,25 @@ All bug reports should include:
 - The version number of sideRETRO
 - A description of the bug behavior
 
+Citation
+========
+
+If sideRETRO was somehow useful in your research, please cite it:
+
+.. code-block:: bib
+
+   @article{10.1093/bioinformatics/btaa689,
+     author = {Miller, Thiago L A and Orpinelli, Fernanda and Buzzo, José Leonel L and Galante, Pedro A F},
+     title = "{sideRETRO: a pipeline for identifying somatic and polymorphic insertions of processed pseudogenes or retrocopies}",
+     journal = {Bioinformatics},
+     year = {2020},
+     month = {07},
+     issn = {1367-4803},
+     doi = {10.1093/bioinformatics/btaa689},
+     url = {https://doi.org/10.1093/bioinformatics/btaa689},
+     note = {btaa689},
+   }
+
 Further Information
 ===================
 
