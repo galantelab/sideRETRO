@@ -497,15 +497,16 @@ vcf_get_body_line (sqlite3_stmt *stmt, VCFBody *b)
 static const char *
 genotype_likelihood (const double ho_ref, const double he, const double ho_alt)
 {
-	return fequal (ho_ref, he) && fequal (ho_ref, ho_alt)
-		? "0/1"
-		: (ho_ref > he || fequal (ho_ref, he)) && (ho_ref > ho_alt || fequal (ho_ref, ho_alt))
-			? "0/0"
-			: he > ho_ref && (he > ho_alt || fequal (he, ho_alt))
-				? "0/1"
-				: ho_alt > ho_ref && ho_alt > he
-					? "1/1"
-					: "./.";
+	return
+		((ho_ref > he || fequal (ho_ref, he)) && (ho_ref > ho_alt))
+		|| ((ho_ref > ho_alt || fequal (ho_ref, ho_alt)) && (ho_ref > he))
+		? "0/0"
+		: (!fequal (ho_ref, 0) && fequal (ho_ref, he) && fequal (ho_ref, ho_alt))
+			|| (he > ho_ref && (he > ho_alt || fequal (he, ho_alt)))
+			? "0/1"
+			: ho_alt > ho_ref && ho_alt > he
+				? "1/1"
+				: "./.";
 }
 
 static void
