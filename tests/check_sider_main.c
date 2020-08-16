@@ -69,6 +69,7 @@ main (void)
 	srunner_add_suite (sr, make_fasta_suite ());
 	srunner_add_suite (sr, make_vcf_suite ());
 	srunner_add_suite (sr, make_gz_suite ());
+	srunner_add_suite (sr, make_graph_suite ());
 	/*srunner_set_tap (sr, "-");*/
 
 	srunner_run_all (sr, CK_NORMAL);

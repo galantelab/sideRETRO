@@ -16,6 +16,7 @@ test_sources = files(
   'check_sider_fasta.c',
   'check_sider_genotype.c',
   'check_sider_gff.c',
+  'check_sider_graph.c',
   'check_sider_gz.c',
   'check_sider_hash.c',
   'check_sider_ibitree.c',
