@@ -15,6 +15,8 @@ sider_sources = files(
   'cluster.h',
   'correlation.c',
   'correlation.h',
+  'debrujin.c',
+  'debrujin.h',
   'db.c',
   'db.h',
   'db_merge.c',

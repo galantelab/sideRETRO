@@ -49,5 +49,6 @@ Suite * make_fasta_suite          (void);
 Suite * make_vcf_suite            (void);
 Suite * make_gz_suite             (void);
 Suite * make_graph_suite          (void);
+Suite * make_debrujin_suite       (void);
 
 #endif /* check_sider.h */
