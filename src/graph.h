@@ -20,31 +20,30 @@
 #define GRAPH_H
 
 #include <stdlib.h>
+#include "hash.h"
 #include "list.h"
-#include "set.h"
 #include "types.h"
-
-struct _AdjList
-{
-	void          *vertex;
-	Set           *adjacent;
-};
-
-typedef struct _AdjList AdjList;
 
 struct _Graph
 {
 	size_t         vcount;
 	size_t         ecount;
 
-	HashFunc       hash_fun;
-	EqualFun       match_fun;
 	DestroyNotify  destroy_fun;
+	EqualFun       match_fun;
 
-	List          *adjlists;
+	Hash          *adjlists;
 };
 
 typedef struct _Graph Graph;
+
+struct _AdjList
+{
+	void          *vertex;
+	List          *adjacent;
+};
+
+typedef struct _AdjList AdjList;
 
 enum _VertexColor
 {
@@ -55,17 +54,23 @@ enum _VertexColor
 
 typedef enum _VertexColor VertexColor;
 
-Graph   * graph_new_full    (HashFunc hash_fun, EqualFun equal_fun, DestroyNotify destroy_fun);
-void      graph_free        (Graph *graph);
-int       graph_ins_vertex  (Graph *graph, const void *data);
-int       graph_ins_edge    (Graph *graph, const void *data1, const void *data2);
-int       graph_rem_vertex  (Graph *graph, void **data);
-int       graph_rem_edge    (Graph *graph, const void *data1, void **data2);
-AdjList * graph_adjlist     (const Graph *graph, const void *data);
-int       graph_is_adjacent (const Graph *graph, const void *data1, const void *data2);
+Graph   * graph_new_full       (HashFunc hash_fun, EqualFun equal_fun, DestroyNotify destroy_fun);
+void      graph_free           (Graph *graph);
+int       graph_ins_vertex     (Graph *graph, const void *data);
+int       graph_ins_multi_edge (Graph *graph, const void *data1, const void *data2);
+int       graph_ins_edge       (Graph *graph, const void *data1, const void *data2);
+int       graph_rem_vertex     (Graph *graph, void **data);
+int       graph_rem_edge       (Graph *graph, const void *data1, void **data2);
+int       graph_is_adjacent    (const Graph *graph, const void *data1, const void *data2);
 
-#define graph_adjlists(graph) ((graph)->adjlists)
-#define graph_vcount(graph)   ((graph)->vcount)
-#define graph_ecount(graph)   ((graph)->ecount)
+typedef HashIter GraphIter;
+
+#define graph_iter_init(iter, graph)   (hash_iter_init((iter), (graph->adjlists)))
+#define graph_iter_next(iter, adjlist) (hash_iter_next((iter), NULL, (void **) (adjlist)))
+
+#define graph_adjlist(graph, data) (hash_lookup((graph)->adjlists, (data)))
+
+#define graph_vcount(grath) ((grath)->vcount)
+#define graph_ecount(grath) ((grath)->ecount)
 
 #endif /* graph.h */

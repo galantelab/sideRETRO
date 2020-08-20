@@ -110,10 +110,7 @@ START_TEST (test_graph_ins_edge)
 			a = graph_adjlist (g, &i);
 			ck_assert_int_eq (* (int *) (a->vertex), i);
 			for (j = 0; edges[i][j] != -1; j++)
-				{
-					ck_assert_int_eq (set_is_member (a->adjacent, &edges[i][j]), 1);
-					ck_assert_int_eq (graph_is_adjacent (g, &i, &edges[i][j]), 1);
-				}
+				ck_assert_int_eq (graph_is_adjacent (g, &i, &edges[i][j]), 1);
 		}
 
 	// Unknown vetex for adjacency
@@ -127,6 +124,27 @@ START_TEST (test_graph_ins_edge)
 	ck_assert_int_eq (graph_is_adjacent (g, &i, &j), 0);
 
 	graph_free (g);
+}
+END_TEST
+
+START_TEST (test_graph_ins_multi_edge)
+{
+	int i = 0;
+	int n = 3;
+	char *k_mers[] = {"ATCG", "TCGG", "CGGA"};
+	Graph *graph = graph_new_full (str_hash, str_equal, NULL);
+
+	for (i = 0; i < n; i++)
+		graph_ins_vertex (graph, k_mers[i]);
+
+	graph_ins_multi_edge (graph, k_mers[1], k_mers[2]);
+	graph_ins_multi_edge (graph, k_mers[0], k_mers[1]);
+	graph_ins_multi_edge (graph, k_mers[0], k_mers[1]);
+	ck_assert_int_eq (graph_ins_multi_edge (graph, k_mers[0], k_mers[1]), 1);
+
+	ck_assert_int_eq (graph_ecount (graph), 4);
+
+	graph_free (graph);
 }
 END_TEST
 
@@ -170,9 +188,7 @@ START_TEST (test_graph_rem_vertex)
 
 	graph_ins_edge (g, i_alloc, j_alloc);
 	ck_assert_int_eq (graph_rem_vertex (g, (void **) &i_alloc), 0);
-
-	graph_ins_edge (g, i_alloc, i_alloc);
-	ck_assert_int_eq (graph_rem_vertex (g, (void **) &i_alloc), 0);
+	ck_assert_int_eq (graph_rem_vertex (g, (void **) &j_alloc), 0);
 
 	graph_free (g);
 }
@@ -237,6 +253,7 @@ make_graph_suite (void)
 	tcase_add_test (tc_core, test_graph_new);
 	tcase_add_test (tc_core, test_graph_ins_vertex);
 	tcase_add_test (tc_core, test_graph_ins_edge);
+	tcase_add_test (tc_core, test_graph_ins_multi_edge);
 	tcase_add_test (tc_core, test_graph_rem_vertex);
 	tcase_add_test (tc_core, test_graph_rem_edge);
 	suite_add_tcase (s, tc_core);

@@ -36,31 +36,62 @@ START_TEST (test_debrujin_insert)
 {
 	AdjList *adjlist = NULL;
 	ListElmt *cur = NULL;
-	ListElmt *cur_set = NULL;
 	DeBrujinVetex *vertex = NULL;
 
-	DeBrujin *debrujin = debrujin_new (3);
+	DeBrujin *debrujin = debrujin_new (5);
 
 	debrujin_insert (debrujin, "AAGACTC");
 	debrujin_insert (debrujin, "ACTCCGACTG");
 	debrujin_insert (debrujin, "ACTGGGAC");
 	debrujin_insert (debrujin, "GGACTTT");
 
-	cur = list_head (graph_adjlists (debrujin->graph));
-	for (; cur != NULL; cur = list_next (cur))
-		{
-			adjlist = list_data (cur);
-			vertex = adjlist->vertex;
-			log_debug ("k_mer: %s", vertex->k_mer);
+	GraphIter iter;
+	graph_iter_init (&iter, debrujin->graph);
 
-			cur_set = list_head (set_list (adjlist->adjacent));
-			for (; cur_set != NULL; cur_set = list_next (cur_set))
+	while (graph_iter_next (&iter, &adjlist))
+		{
+			vertex = adjlist->vertex;
+			log_debug ("k_mer [%d,%d]: %s",
+					vertex->in_degree, vertex->out_degree,
+					vertex->k_mer);
+
+			cur = list_head (adjlist->adjacent);
+			for (; cur != NULL; cur = list_next (cur))
 				{
-					vertex = list_data (cur_set);
+					vertex = list_data (cur);
 					log_debug ("  adjacent: %s", vertex->k_mer);
 				}
 		}
 
+	debrujin_free (debrujin);
+}
+END_TEST
+
+START_TEST (test_debrujin_assembly)
+{
+	List *seqs = NULL;
+	ListElmt *cur = NULL;
+	const char *seq = "AAGACTCCGACTGGGACTTT";
+
+	DeBrujin *debrujin = debrujin_new (5);
+
+	debrujin_insert (debrujin, "AAGACTC");
+	debrujin_insert (debrujin, "ACTCCGACTG");
+	debrujin_insert (debrujin, "ACTGGGAC");
+	debrujin_insert (debrujin, "GGACTTT");
+
+	seqs = debrujin_assembly (debrujin);
+
+	log_debug (":: SEQ: %s", seq);
+
+	if (seqs != NULL)
+		{
+			cur = list_head (seqs);
+			for (; cur != NULL; cur = list_next (cur))
+				log_debug (":: CONTIG: %s", (char *) list_data (cur));
+		}
+
+	list_free (seqs);
 	debrujin_free (debrujin);
 }
 END_TEST
@@ -78,6 +109,7 @@ make_debrujin_suite (void)
 
 	tcase_add_test (tc_core, test_debrujin_new);
 	tcase_add_test (tc_core, test_debrujin_insert);
+	tcase_add_test (tc_core, test_debrujin_assembly);
 	suite_add_tcase (s, tc_core);
 
 	return s;

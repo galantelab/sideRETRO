@@ -19,13 +19,14 @@
 #ifndef DEBRUJIN_H
 #define DEBRUJIN_H
 
-#include <stdlib.h>
 #include "graph.h"
+#include "list.h"
 
 typedef struct _DeBrujin DeBrujin;
 
-DeBrujin * debrujin_new    (size_t k);
-void       debrujin_free   (DeBrujin *debrujin);
-int        debrujin_insert (DeBrujin *debrujin, const char *seq);
+DeBrujin * debrujin_new      (int k);
+void       debrujin_free     (DeBrujin *debrujin);
+void       debrujin_insert   (DeBrujin *debrujin, const char *seq);
+List     * debrujin_assembly (DeBrujin *debrujin);
 
 #endif /* debrujin.h */
