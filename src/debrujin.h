@@ -19,7 +19,6 @@
 #ifndef DEBRUJIN_H
 #define DEBRUJIN_H
 
-#include "graph.h"
 #include "list.h"
 
 typedef struct _DeBrujin DeBrujin;

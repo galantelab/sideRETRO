@@ -21,12 +21,17 @@
 #include <string.h>
 #include <assert.h>
 #include "wrapper.h"
+#include "hash.h"
+#include "graph.h"
 #include "debrujin.h"
 
 struct _DeBrujin
 {
 	int          k;
-	char        *k_mer_buff;
+	Hash        *k_mers;
+
+	char        *buf;
+
 	Graph       *graph;
 };
 
@@ -34,8 +39,13 @@ struct _DeBrujinVetex
 {
 	int          in_degree;
 	int          out_degree;
+	int          depth;
 
-	const char  *k_mer;
+	int          index;
+	int          lowlink;
+	int          on_stack;
+
+	const char  *k_mer_affix;
 
 	ListElmt    *cur_adj;
 };
@@ -45,21 +55,22 @@ typedef struct _DeBrujinVetex DeBrujinVetex;
 static void
 debrujin_vertex_free (DeBrujinVetex *vertex)
 {
-	xfree ((char *) vertex->k_mer);
+	xfree ((char *) vertex->k_mer_affix);
 	xfree (vertex);
 }
 
 static uint32_t
 debrujin_hash (const DeBrujinVetex *vertex)
 {
-	return str_hash (vertex->k_mer);
+	return str_hash (vertex->k_mer_affix);
 }
 
 static int
 debrujin_equal (const DeBrujinVetex *vertex1,
 		const DeBrujinVetex *vertex2)
 {
-	return str_equal (vertex1->k_mer, vertex2->k_mer);
+	return str_equal (vertex1->k_mer_affix,
+			vertex2->k_mer_affix);
 }
 
 DeBrujin *
@@ -69,12 +80,15 @@ debrujin_new (int k)
 
 	DeBrujin *debrujin = xcalloc (1, sizeof (DeBrujin));
 
+	debrujin->k_mers = hash_new_full (str_hash, str_equal,
+			xfree, xfree);
+
 	debrujin->graph = graph_new_full ((HashFunc) debrujin_hash,
 			(EqualFun) debrujin_equal,
 			(DestroyNotify) debrujin_vertex_free);
 
-	// [k - 1] == '\0'
-	debrujin->k_mer_buff = xcalloc (k, sizeof (char));
+	// [k] == '\0'
+	debrujin->buf = xcalloc (k + 1, sizeof (char));
 	debrujin->k = k;
 
 	return debrujin;
@@ -86,25 +100,27 @@ debrujin_free (DeBrujin *debrujin)
 	if (debrujin == NULL)
 		return;
 
+	xfree (debrujin->buf);
+	hash_free (debrujin->k_mers);
 	graph_free (debrujin->graph);
-	xfree (debrujin->k_mer_buff);
 
 	xfree (debrujin);
 }
 
 static DeBrujinVetex *
-debrujin_insert_k_mer (DeBrujin *debrujin)
+debrujin_insert_k_mer_affix (DeBrujin *debrujin,
+		const char *k_mer_affix)
 {
 	DeBrujinVetex *vertex = NULL;
 	AdjList *adjlist = NULL;
 
-	DeBrujinVetex temp = { .k_mer = debrujin->k_mer_buff };
+	DeBrujinVetex temp = { .k_mer_affix = k_mer_affix };
 	adjlist = graph_adjlist (debrujin->graph, &temp);
 
 	if (adjlist == NULL)
 		{
 			vertex = xcalloc (1, sizeof (DeBrujinVetex));
-			vertex->k_mer = xstrdup (debrujin->k_mer_buff);
+			vertex->k_mer_affix = xstrdup (k_mer_affix);
 			graph_ins_vertex (debrujin->graph, vertex);
 		}
 	else
@@ -120,27 +136,50 @@ debrujin_insert (DeBrujin *debrujin, const char *seq)
 
 	DeBrujinVetex *pref = NULL;
 	DeBrujinVetex *suff = NULL;
+	char non_overlap = 0;
+	int *cov = NULL;
 	int len = 0;
+	int k = 0;
 	int i = 0;
 
+	k = debrujin->k;
+
 	len = strlen (seq);
-	if (len < debrujin->k)
+	if (len < k)
 		return;
 
 	// There are len - k + 1 k_mers into a sequence
-	for (i = 0; i < (len - debrujin->k + 1); i++)
+	for (i = 0; i < (len - k + 1); i++)
 		{
-			// Set prefix k_mer
-			strncpy (debrujin->k_mer_buff, seq + i,
-					debrujin->k - 1);
+			// Set k_mer
+			strncpy (debrujin->buf, seq + i, k);
 
-			pref = debrujin_insert_k_mer (debrujin);
+			cov = hash_lookup (debrujin->k_mers, debrujin->buf);
+			if (cov == NULL)
+				{
+					cov = xcalloc (1, sizeof (int));
+					hash_insert (debrujin->k_mers,
+							xstrdup (debrujin->buf), cov);
+				}
+
+			(*cov)++;
+
+			// Backup non overlap base
+			non_overlap = debrujin->buf[k - 1];
+
+			// Set prefix k_mer
+			debrujin->buf[k - 1] = '\0';
+			pref = debrujin_insert_k_mer_affix (debrujin,
+					debrujin->buf);
+			pref->depth++;
+
+			// Get non overlap base back
+			debrujin->buf[k - 1] = non_overlap;
 
 			// Set suffix k_mer
-			strncpy (debrujin->k_mer_buff, seq + i + 1,
-					debrujin->k - 1);
-
-			suff = debrujin_insert_k_mer (debrujin);
+			suff = debrujin_insert_k_mer_affix (debrujin,
+					debrujin->buf + 1);
+			suff->depth++;
 
 			// Connect path for this k_mer
 			if (graph_ins_edge (debrujin->graph, pref, suff))
@@ -192,7 +231,7 @@ debrujin_has_eulerian_path (const DeBrujin *debrujin)
 		|| (end_nodes == 1 && start_nodes == 1);
 }
 
-AdjList *
+static AdjList *
 debrujin_find_start_node (const DeBrujin *debrujin)
 {
 	AdjList *adjlist = NULL;
@@ -215,7 +254,7 @@ debrujin_find_start_node (const DeBrujin *debrujin)
 }
 
 static void
-debrujin_dfs (DeBrujin *debrujin, AdjList *adjlist, List *k_mers)
+debrujin_dfs (DeBrujin *debrujin, AdjList *adjlist, List *tour)
 {
 	AdjList *clr_adjlist = NULL;
 	DeBrujinVetex *clr_vertex = NULL;
@@ -233,29 +272,142 @@ debrujin_dfs (DeBrujin *debrujin, AdjList *adjlist, List *k_mers)
 
 			// Move one vertex deeper
 			vertex->cur_adj = list_next (vertex->cur_adj);
-			debrujin_dfs (debrujin, clr_adjlist, k_mers);
+			debrujin_dfs (debrujin, clr_adjlist, tour);
 		}
 
 	// Sequence grows backwards
-	list_prepend (k_mers, vertex->k_mer);
+	list_prepend (tour, vertex->k_mer_affix);
 }
 
+///////////////////////////////////////////
+#include "log.h"
+
+static void
+strongconnect (DeBrujin *debrujin, AdjList *adjlist,
+		int *index_p, List *stack)
+{
+	AdjList *clr_adjlist = NULL;
+	DeBrujinVetex *clr_vertex = NULL;
+	DeBrujinVetex *vertex = NULL;
+	ListElmt *cur = NULL;
+
+	vertex = adjlist->vertex;
+	vertex->index = vertex->lowlink = ++ *index_p;
+	vertex->on_stack = 1;
+
+	list_append (stack, adjlist);
+
+	cur = list_head (adjlist->adjacent);
+	for (; cur != NULL; cur = list_next (cur))
+		{
+			clr_vertex = list_data (cur);
+			if (clr_vertex->index == 0)
+				{
+					clr_adjlist = graph_adjlist (debrujin->graph, clr_vertex);
+					strongconnect (debrujin, clr_adjlist, index_p, stack);
+
+					if (clr_vertex->lowlink < vertex->lowlink)
+						vertex->lowlink = clr_vertex->lowlink;
+				}
+			else if (clr_vertex->on_stack
+					&& clr_vertex->index < vertex->lowlink)
+				vertex->lowlink = clr_vertex->index;
+		}
+
+	if (vertex->lowlink == vertex->index)
+		{
+			do
+				{
+					list_remove (stack, list_tail (stack),
+							(void **) &clr_adjlist);
+
+					clr_vertex = clr_adjlist->vertex;
+					clr_vertex->on_stack = 0;
+					log_info ("[%d] [%d %d]: %s", vertex->index, clr_vertex->index,
+							clr_vertex->lowlink, clr_vertex->k_mer_affix);
+				}
+			while (clr_vertex != vertex);
+		}
+}
+
+static void
+tarjan (DeBrujin *debrujin)
+{
+	int index = 0;
+	List *stack = NULL;
+	AdjList *adjlist = NULL;
+	DeBrujinVetex *vertex = NULL;
+	GraphIter iter;
+
+	stack = list_new (NULL);
+
+	graph_iter_init (&iter, debrujin->graph);
+	while (graph_iter_next (&iter, &adjlist))
+		{
+			vertex = adjlist->vertex;
+			if (vertex->index == 0)
+				strongconnect (debrujin, adjlist, &index, stack);
+		}
+
+	log_info (":: stack_size: %ld", list_size (stack));
+	list_free (stack);
+}
+
+/*void*/
+/*debrujin_fix_edges (DeBrujin *debrujin)*/
+/*{*/
+	/*AdjList *adjlist = NULL;*/
+	/*ListElmt *cur = NULL;*/
+	/*DeBrujinVetex *vertex = NULL;*/
+	/*DeBrujinVetex *clr_vertex = NULL;*/
+	/*int diff = 0;*/
+	/*int i = 0;*/
+	/*GraphIter iter;*/
+
+	/*graph_iter_init (&iter, debrujin->graph);*/
+	/*while (graph_iter_next (&iter, &adjlist))*/
+		/*{*/
+			/*vertex = adjlist->vertex;*/
+			/*if (vertex->in_degree > vertex->out_degree)*/
+				/*{*/
+					/*diff = vertex->in_degree - vertex->out_degree;*/
+					/*cur = list_head (adjlist->adjacent);*/
+					/*for (; cur != NULL; cur = list_next (cur))*/
+						/*{*/
+							/*clr_vertex = list_data (cur);*/
+							/*[>if ((clr_vertex->out_degree - clr_vertex->in_degree) == diff)<]*/
+								/*[>{<]*/
+									/*for (i = 0; i < diff; i++)*/
+										/*{*/
+											/*graph_ins_multi_edge (debrujin->graph,*/
+													/*vertex, clr_vertex);*/
+											/*vertex->out_degree++;*/
+											/*clr_vertex->in_degree++;*/
+										/*}*/
+									/*[>break;<]*/
+								/*[>}<]*/
+						/*}*/
+				/*}*/
+		/*}*/
+/*}*/
+///////////////////////////////////////////
+
 static const char *
-debrujin_sequence (const DeBrujin *debrujin, const List *k_mers)
+debrujin_sequence (const DeBrujin *debrujin, const List *tour)
 {
 	ListElmt *cur = NULL;
 	char *seq = NULL;
 	int k = 0;
 	int i = 0;
 
-	cur = list_head (k_mers);
+	cur = list_head (tour);
 	if (cur == NULL)
 		return NULL;
 
 	k = debrujin->k - 1;
 
 	// seq has length num_k-mer + k - 1
-	seq = xcalloc (list_size (k_mers) + k, sizeof (char));
+	seq = xcalloc (list_size (tour) + k, sizeof (char));
 
 	strncpy (seq, list_data (cur), k);
 	for (cur = list_next (cur); cur != NULL; cur = list_next (cur))
@@ -270,27 +422,62 @@ debrujin_assembly (DeBrujin *debrujin)
 	assert (debrujin != NULL);
 
 	List *seqs = NULL;
-	List *k_mers = NULL;
+	List *tour = NULL;
 	const char *seq = NULL;
 
-	if (!debrujin_has_eulerian_path (debrujin))
-		return NULL;
+	/*if (!debrujin_has_eulerian_path (debrujin))*/
+		/*return NULL;*/
 
-	// Reset the vetice color
 	debrujin_reset_path (debrujin);
 
 	seqs = list_new (xfree);
-	k_mers = list_new (NULL);
 
-	debrujin_dfs (debrujin,
-			debrujin_find_start_node (debrujin),
-			k_mers);
+	//
+	AdjList *adjlist = NULL;
+	AdjList *adj_start = NULL;
+	DeBrujinVetex *vertex = NULL;
+	GraphIter iter;
 
-	seq = debrujin_sequence (debrujin, k_mers);
+	graph_iter_init (&iter, debrujin->graph);
+	while (graph_iter_next (&iter, &adjlist))
+		{
+			vertex = adjlist->vertex;
+			if ((vertex->out_degree - vertex->in_degree) == 1)
+				{
+					tour = list_new (NULL);
 
-	if (seq != NULL)
-		list_append (seqs, seq);
+					debrujin_dfs (debrujin,
+							adjlist,
+							tour);
 
-	list_free (k_mers);
+					seq = debrujin_sequence (debrujin, tour);
+
+					if (seq != NULL)
+						list_append (seqs, seq);
+
+					list_free (tour);
+				}
+
+			if (vertex->out_degree > 0)
+				adj_start = adjlist;
+		}
+
+	if (list_size (seqs) == 0 && adj_start != NULL)
+		{
+			tour = list_new (NULL);
+
+			debrujin_dfs (debrujin,
+					adjlist,
+					tour);
+
+			seq = debrujin_sequence (debrujin, tour);
+
+			if (seq != NULL)
+				list_append (seqs, seq);
+
+			list_free (tour);
+		}
+	//
+
 	return seqs;
 }

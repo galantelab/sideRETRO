@@ -38,30 +38,64 @@ START_TEST (test_debrujin_insert)
 	ListElmt *cur = NULL;
 	DeBrujinVetex *vertex = NULL;
 
-	DeBrujin *debrujin = debrujin_new (5);
+	DeBrujin *debrujin = debrujin_new (4);
 
 	debrujin_insert (debrujin, "AAGACTC");
 	debrujin_insert (debrujin, "ACTCCGACTG");
 	debrujin_insert (debrujin, "ACTGGGAC");
 	debrujin_insert (debrujin, "GGACTTT");
 
-	GraphIter iter;
-	graph_iter_init (&iter, debrujin->graph);
+	GraphIter giter;
+	graph_iter_init (&giter, debrujin->graph);
 
-	while (graph_iter_next (&iter, &adjlist))
+	while (graph_iter_next (&giter, &adjlist))
 		{
 			vertex = adjlist->vertex;
-			log_debug ("k_mer [%d,%d]: %s",
-					vertex->in_degree, vertex->out_degree,
-					vertex->k_mer);
+			log_debug ("k_mer (%d) [%d,%d]: %s",
+					vertex->depth, vertex->in_degree,
+					vertex->out_degree, vertex->k_mer_affix);
 
 			cur = list_head (adjlist->adjacent);
 			for (; cur != NULL; cur = list_next (cur))
 				{
 					vertex = list_data (cur);
-					log_debug ("  adjacent: %s", vertex->k_mer);
+					log_debug ("  adjacent: %s",
+							vertex->k_mer_affix);
 				}
 		}
+
+	HashIter hiter;
+	hash_iter_init (&hiter, debrujin->k_mers);
+	const char *k_mer = NULL;
+	int *cov = NULL;
+
+	while (hash_iter_next (&hiter, (void **) &k_mer, (void **) &cov ))
+		log_debug ("k-mer %s => cov %d", k_mer, *cov);
+
+			strncpy (debrujin->buf, "GAC", 4);
+
+			DeBrujinVetex *pref = debrujin_insert_k_mer_affix (debrujin,
+					debrujin->buf);
+
+			// Set suffix k_mer
+			strncpy (debrujin->buf, "ACT", 4);
+
+			DeBrujinVetex *suff = debrujin_insert_k_mer_affix (debrujin,
+					debrujin->buf);
+
+			// Connect path for this k_mer
+			graph_ins_multi_edge (debrujin->graph, pref, suff);
+			graph_ins_multi_edge (debrujin->graph, pref, suff);
+
+			List *seqs = debrujin_assembly (debrujin);
+			if (seqs != NULL)
+				{
+					ListElmt *cur = list_head (seqs);
+					for (; cur != NULL; cur = list_next (cur))
+						log_debug (":: PONGA: %s", (char *) list_data (cur));
+				}
+
+			list_free (seqs);
 
 	debrujin_free (debrujin);
 }
@@ -96,6 +130,21 @@ START_TEST (test_debrujin_assembly)
 }
 END_TEST
 
+START_TEST (test_tarjan)
+{
+	DeBrujin *debrujin = debrujin_new (4);
+
+	debrujin_insert (debrujin, "AAGACTC");
+	debrujin_insert (debrujin, "ACTCCGACTG");
+	debrujin_insert (debrujin, "ACTGGGAC");
+	debrujin_insert (debrujin, "GGACTTT");
+
+	tarjan (debrujin);
+
+	debrujin_free (debrujin);
+}
+END_TEST
+
 Suite *
 make_debrujin_suite (void)
 {
@@ -110,6 +159,7 @@ make_debrujin_suite (void)
 	tcase_add_test (tc_core, test_debrujin_new);
 	tcase_add_test (tc_core, test_debrujin_insert);
 	tcase_add_test (tc_core, test_debrujin_assembly);
+	tcase_add_test (tc_core, test_tarjan);
 	suite_add_tcase (s, tc_core);
 
 	return s;
