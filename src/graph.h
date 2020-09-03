@@ -70,6 +70,9 @@ typedef HashIter GraphIter;
 
 #define graph_adjlist(graph, data) (hash_lookup((graph)->adjlists, (data)))
 
+#define graph_adjlists_as_list(graph)  (hash_get_values_as_list((graph)->adjlists))
+#define graph_adjlists_as_array(graph) (hash_get_values_as_array((graph)->adjlists))
+
 #define graph_vcount(grath) ((grath)->vcount)
 #define graph_ecount(grath) ((grath)->ecount)
 
