@@ -15,6 +15,7 @@ test_sources = files(
   'check_sider_dedup.c',
   'check_sider_exon.c',
   'check_sider_fasta.c',
+  'check_sider_floyd_warshall.c',
   'check_sider_genotype.c',
   'check_sider_gff.c',
   'check_sider_graph.c',

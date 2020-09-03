@@ -29,6 +29,8 @@ sider_sources = files(
   'exon.h',
   'fasta.c',
   'fasta.h',
+  'floyd_warshall.c',
+  'floyd_warshall.h',
   'genotype.c',
   'genotype.h',
   'gff.c',
