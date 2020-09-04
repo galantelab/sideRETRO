@@ -19,38 +19,19 @@
 #ifndef FLOYD_WARSHALL_H
 #define FLOYD_WARSHALL_H
 
-#include <stdlib.h>
 #include "graph.h"
-#include "list.h"
 #include "hash.h"
+#include "list.h"
 #include "types.h"
 
 typedef double (*WFunc) (void *vertex1, void *vertex2);
 
-struct _FloydWarshal
-{
-	Graph   *graph;
-	Hash    *nodes;
-
-	HashFunc hash_fun;
-	EqualFun match_fun;
-	WFunc    weight_fun;
-
-	size_t   size;
-	double **dist;
-	int    **next;
-};
-
 typedef struct _FloydWarshal FloydWarshal;
 
-FloydWarshal * floyd_warshall_new  (const Graph *graph,
-		HashFunc hash_fun, EqualFun match_fun,
-		WFunc weight_fun);
-
-void  floyd_warshall_free (FloydWarshal *fw);
-void  floyd_warshall_run  (FloydWarshal *fw);
-
-double floyd_warshall_dist (FloydWarshal *fw,
-		const void *from, const void *to);
+FloydWarshal * floyd_warshall_new  (const Graph *graph, HashFunc hash_fun, EqualFun match_fun, WFunc weight_fun);
+void           floyd_warshall_free (FloydWarshal *fw);
+void           floyd_warshall_run  (FloydWarshal *fw);
+double         floyd_warshall_dist (const FloydWarshal *fw, const void *from, const void *to);
+List         * floyd_warshall_path (const FloydWarshal *fw, const void *from, const void *to);
 
 #endif /* floyd_warshall.h */

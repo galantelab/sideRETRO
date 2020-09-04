@@ -41,6 +41,8 @@ static double weights_res[4][4] = {
 
 static int nodes[4] = {0, 1, 2, 3};
 
+static int path2to0[] = {2, 3, 1, 0};
+
 static double
 weight_fun (void *vertex1, void *vertex2)
 {
@@ -53,6 +55,8 @@ START_TEST (test_floyd_warshall_run)
 {
 	Graph *graph = NULL;
 	FloydWarshal *fw = NULL;
+	List *path = NULL;
+	ListElmt *cur = NULL;
 	int i, j;
 
 	graph = graph_new_full (int_hash, int_equal, NULL);
@@ -79,6 +83,21 @@ START_TEST (test_floyd_warshall_run)
 	i = j = 100;
 	ck_assert (isnan (floyd_warshall_dist (fw, &i, &j)));
 
+	// See path
+	i = 2; j = 0;
+	path = floyd_warshall_path (fw, &i, &j);
+	ck_assert (path != NULL);
+
+	cur = list_head (path);
+	j = 0;
+
+	for (; cur != NULL; cur = list_next (cur))
+		{
+			i = * (int *) list_data (cur);
+			ck_assert_int_eq (path2to0[j++], i);
+		}
+
+	list_free (path);
 	graph_free (graph);
 	floyd_warshall_free (fw);
 	floyd_warshall_free (NULL);
