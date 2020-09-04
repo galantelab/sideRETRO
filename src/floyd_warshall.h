@@ -21,30 +21,36 @@
 
 #include <stdlib.h>
 #include "graph.h"
-#include "array.h"
+#include "list.h"
+#include "hash.h"
+#include "types.h"
 
 typedef double (*WFunc) (void *vertex1, void *vertex2);
 
 struct _FloydWarshal
 {
 	Graph   *graph;
-	Array   *nodes;
+	Hash    *nodes;
+
+	HashFunc hash_fun;
+	EqualFun match_fun;
+	WFunc    weight_fun;
 
 	size_t   size;
 	double **dist;
 	int    **next;
-
-	WFunc    weight_fun;
 };
 
 typedef struct _FloydWarshal FloydWarshal;
 
-FloydWarshal * floyd_warshall_new  (const Graph *graph, WFunc weight_fun);
-void           floyd_warshall_free (FloydWarshal *fw);
-void           floyd_warshall_run  (FloydWarshal *fw);
+FloydWarshal * floyd_warshall_new  (const Graph *graph,
+		HashFunc hash_fun, EqualFun match_fun,
+		WFunc weight_fun);
 
-#define floyd_warshall_nodes(fw) ((fw)->nodes)
-#define floyd_warshall_dist(fw)  ((fw)->dist)
-#define floyd_warshall_size(fw)  ((fw)->size)
+void  floyd_warshall_free (FloydWarshal *fw);
+void  floyd_warshall_run  (FloydWarshal *fw);
+
+double floyd_warshall_dist (FloydWarshal *fw,
+		const void *from, const void *to);
 
 #endif /* floyd_warshall.h */

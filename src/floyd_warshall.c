@@ -20,6 +20,7 @@
 
 #include <math.h>
 #include <assert.h>
+#include "array.h"
 #include "wrapper.h"
 #include "floyd_warshall.h"
 
@@ -43,18 +44,44 @@
 	} while (0); \
 })
 
-FloydWarshal *
-floyd_warshall_new (const Graph *graph, WFunc weight_fun)
+static void
+floyd_warshall_get_nodes (Hash *nodes, const Graph *graph)
 {
-	assert (graph != NULL && weight_fun != NULL);
+	AdjList *adjlist = NULL;
+	GraphIter iter = {};
+	int i = 0;
+	int *i_alloc = NULL;
+
+	graph_iter_init (&iter, graph);
+	while (graph_iter_next (&iter, &adjlist))
+		{
+			i_alloc = xcalloc (1, sizeof (int));
+			*i_alloc = i++;
+			hash_insert (nodes, adjlist->vertex, i_alloc);
+		}
+}
+
+FloydWarshal *
+floyd_warshall_new  (const Graph *graph,
+		HashFunc hash_fun, EqualFun match_fun,
+		WFunc weight_fun)
+{
+	assert (graph != NULL && hash_fun != NULL
+			&& match_fun != NULL
+			&& weight_fun != NULL);
 
 	FloydWarshal *fw = xcalloc (1, sizeof (FloydWarshal));
-
 	fw->graph = (Graph *) graph;
+
+	fw->hash_fun = hash_fun;
+	fw->match_fun = match_fun;
 	fw->weight_fun = weight_fun;
 
-	fw->nodes = graph_adjlists_as_array (graph);
-	fw->size = array_len (fw->nodes);
+	fw->nodes = hash_new_full (hash_fun, match_fun,
+			NULL, xfree);
+
+	floyd_warshall_get_nodes (fw->nodes, graph);
+	fw->size = hash_size (fw->nodes);
 
 	fw->dist = MTX_NEW (fw->size, double);
 	fw->next = MTX_NEW (fw->size, int);
@@ -68,7 +95,7 @@ floyd_warshall_free (FloydWarshal *fw)
 	if (fw == NULL)
 		return;
 
-	array_free (fw->nodes, 1);
+	hash_free (fw->nodes);
 
 	MTX_FREE (fw->dist, fw->size);
 	MTX_FREE (fw->next, fw->size);
@@ -76,22 +103,24 @@ floyd_warshall_free (FloydWarshal *fw)
 	xfree (fw);
 }
 
-void
-floyd_warshall_run (FloydWarshal *fw)
+static void
+floyd_warshall_run_init (FloydWarshal *fw)
 {
-	assert (fw != NULL);
-
-	AdjList *a = NULL;
-	AdjList *b = NULL;
+	Array *keys = NULL;
+	int *i_alloc = NULL;
+	int *j_alloc = NULL;
+	void *a = NULL;
+	void *b = NULL;
 	double **dist = NULL;
 	int **next = NULL;
-	size_t size, i, j, k;
+	size_t size, i, j;
 
 	size = fw->size;
 	dist = fw->dist;
 	next = fw->next;
 
-	// Init matrixes
+	keys = hash_get_keys_as_array (fw->nodes);
+
 	for (i = 0; i < size; i++)
 		{
 			for (j = 0; j < size; j++)
@@ -103,20 +132,44 @@ floyd_warshall_run (FloydWarshal *fw)
 							}
 						else
 							{
-								a = array_get (fw->nodes, i);
-								b = array_get (fw->nodes, j);
+								// Get nodes
+								a = array_get (keys, i);
+								b = array_get (keys, j);
 
-								if (graph_is_adjacent (fw->graph,
-											a->vertex, b->vertex))
+								// The hash contains the index associated
+								// with each node. So, correct the index
+								i_alloc = hash_lookup (fw->nodes, a);
+								j_alloc = hash_lookup (fw->nodes, b);
+
+								if (graph_is_adjacent (fw->graph, a, b))
 									{
-										dist[i][j] = fw->weight_fun (a->vertex, b->vertex);
-										next[i][j] = j;
+										dist[*i_alloc][*j_alloc] = fw->weight_fun (a, b);
+										next[*i_alloc][*j_alloc] = *j_alloc;
 									}
 								else
-									dist[i][j] = INFINITY;
+									dist[*i_alloc][*j_alloc] = INFINITY;
 							}
 				}
 		}
+
+	array_free (keys, 1);
+}
+
+void
+floyd_warshall_run (FloydWarshal *fw)
+{
+	assert (fw != NULL);
+
+	double **dist = NULL;
+	int **next = NULL;
+	size_t size, i, j, k;
+
+	size = fw->size;
+	dist = fw->dist;
+	next = fw->next;
+
+	// Init matrixes
+	floyd_warshall_run_init (fw);
 
 	// Standard Floyd-Warshall implementation
 	for (k = 0; k < size; k++)
@@ -134,3 +187,27 @@ floyd_warshall_run (FloydWarshal *fw)
 				}
 		}
 }
+
+double
+floyd_warshall_dist (FloydWarshal *fw,
+		const void *from, const void *to)
+{
+	assert (fw != NULL && from != NULL && to != NULL);
+
+	int *i_alloc = NULL;
+	int *j_alloc = NULL;
+
+	i_alloc = hash_lookup (fw->nodes, from);
+	j_alloc = hash_lookup (fw->nodes, to);
+
+	if (i_alloc == NULL || j_alloc == NULL)
+		return NAN;
+
+	return fw->dist[*i_alloc][*j_alloc];
+}
+
+/*List **/
+/*floyd_warshall_path (const FloydWarshal *fw,*/
+		/*const void *from, const void *to)*/
+/*{*/
+/*}*/

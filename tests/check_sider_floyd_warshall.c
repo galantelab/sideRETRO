@@ -51,13 +51,9 @@ weight_fun (void *vertex1, void *vertex2)
 
 START_TEST (test_floyd_warshall_run)
 {
-	Array *nodes_arr = NULL;
-		Graph *graph = NULL;
+	Graph *graph = NULL;
 	FloydWarshal *fw = NULL;
-	AdjList *a = NULL;
-	AdjList *b = NULL;
-	double **dist = NULL;
-	int i, j, ii, jj;
+	int i, j;
 
 	graph = graph_new_full (int_hash, int_equal, NULL);
 
@@ -72,23 +68,16 @@ START_TEST (test_floyd_warshall_run)
 	ck_assert_int_eq (graph_vcount (graph), 4);
 	ck_assert_int_eq (graph_ecount (graph), 5);
 
-	fw = floyd_warshall_new (graph, weight_fun);
+	fw = floyd_warshall_new (graph, int_hash, int_equal, weight_fun);
 	floyd_warshall_run (fw);
 
-	dist = floyd_warshall_dist (fw);
-	nodes_arr = floyd_warshall_nodes (fw);
-
 	for (i = 0; i < 4; i++)
-		{
-			for (j = 0; j < 4; j++)
-				{
-					a = array_get (nodes_arr, i);
-					b = array_get (nodes_arr, j);
-					ii = * (int *) a->vertex;
-					jj = * (int *) b->vertex;
-					ck_assert (fequal (weights_res[ii][jj], dist[i][j]));
-				}
-		}
+		for (j = 0; j < 4; j++)
+			ck_assert (fequal (weights_res[i][j],
+						floyd_warshall_dist (fw, &i, &j)));
+
+	i = j = 100;
+	ck_assert (isnan (floyd_warshall_dist (fw, &i, &j)));
 
 	graph_free (graph);
 	floyd_warshall_free (fw);
