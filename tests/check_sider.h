@@ -51,5 +51,6 @@ Suite * make_gz_suite             (void);
 Suite * make_graph_suite          (void);
 Suite * make_debrujin_suite       (void);
 Suite * make_floyd_warshall_suite (void);
+Suite * make_hungarian_suite      (void);
 
 #endif /* check_sider.h */

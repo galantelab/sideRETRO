@@ -21,6 +21,7 @@ test_sources = files(
   'check_sider_graph.c',
   'check_sider_gz.c',
   'check_sider_hash.c',
+  'check_sider_hungarian.c',
   'check_sider_ibitree.c',
   'check_sider_io.c',
   'check_sider_list.c',
