@@ -19,6 +19,8 @@
 #ifndef UTILS_H
 #define UTILS_H
 
+#include <stdlib.h>
+
 int fequal         (const double a, const double b);
 int equalstring    (const void *a, const void *b);
 int casequalstring (const void *a, const void *b);
