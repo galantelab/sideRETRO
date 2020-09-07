@@ -78,6 +78,45 @@ START_TEST (test_debrujin_insert)
 }
 END_TEST
 
+START_TEST (test_debrujin_shortest_path)
+{
+	List *path = NULL;
+	ListElmt *cur = NULL;
+	DeBrujinVetex *cur_path = NULL;
+	DeBrujinVetex *start = NULL;
+	DeBrujinVetex *end = NULL;
+	DeBrujin *debrujin = debrujin_new (4);
+
+	char *path_res[] = {"AAG", "AGA", "GAC", "ACT", "CTT", "TTT"};
+
+	debrujin_insert (debrujin, "AAGACTC");
+	debrujin_insert (debrujin, "ACTCCGACTG");
+	debrujin_insert (debrujin, "ACTGGGAC");
+	debrujin_insert (debrujin, "GGACTTT");
+
+	start = debrujin_insert_k_mer_affix (debrujin,
+			"AAG");
+
+	end = debrujin_insert_k_mer_affix (debrujin,
+			"TTT");
+
+	path = debrujin_shortest_path (debrujin, start, end);
+
+	cur = list_head (path);
+	for (; cur != NULL; cur = list_next (cur))
+		{
+			cur_path = list_data (cur);
+			ck_assert_str_eq (path_res[cur_path->dist],
+					cur_path->k_mer_affix);
+			log_debug ("path: %d: %s", cur_path->dist,
+					cur_path->k_mer_affix);
+		}
+
+	list_free (path);
+	debrujin_free (debrujin);
+}
+END_TEST
+
 START_TEST (test_debrujin_assembly)
 {
 	List *seqs = NULL;
@@ -121,6 +160,7 @@ make_debrujin_suite (void)
 	tcase_add_test (tc_core, test_debrujin_new);
 	tcase_add_test (tc_core, test_debrujin_insert);
 	tcase_add_test (tc_core, test_debrujin_assembly);
+	tcase_add_test (tc_core, test_debrujin_shortest_path);
 	suite_add_tcase (s, tc_core);
 
 	return s;

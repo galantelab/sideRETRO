@@ -28,23 +28,31 @@
 
 struct _DeBrujin
 {
-	int          k;
-	Hash        *k_mers;
+	int                    k;
+	Hash                  *k_mers;
 
-	char        *buf;
+	char                  *buf;
 
-	Graph       *graph;
+	Graph                 *graph;
 };
 
 struct _DeBrujinVetex
 {
-	int          in_degree;
-	int          out_degree;
-	int          depth;
+	// Coverage and depth
+	int                    in_degree;
+	int                    out_degree;
+	int                    depth;
 
-	const char  *k_mer_affix;
+	// The affix
+	const char            *k_mer_affix;
 
-	ListElmt    *cur_adj;
+	// For BFS/DFS
+	VertexColor            color;
+	int                    dist;
+	struct _DeBrujinVetex *parent;
+
+	// For DFS/Hierholzer
+	ListElmt              *cur_adj;
 };
 
 typedef struct _DeBrujinVetex DeBrujinVetex;
@@ -267,60 +275,119 @@ debrujin_has_eulerian_path (const DeBrujin *debrujin)
 		|| (end_nodes == 1 && start_nodes == 1);
 }
 
-static inline DeBrujinVetex *
-debrujin_adjlist_vertex_w_min_in_degree (const AdjList *adjlist)
-{
-	DeBrujinVetex *vertex = NULL;
-	DeBrujinVetex *found_vertex = NULL;
-	ListElmt *cur = NULL;
-	int diff_degree, found_diff_degree;
-
-	cur = list_head (adjlist->adjacent);
-	found_vertex = list_data (cur);
-	found_diff_degree = found_vertex->out_degree - found_vertex->in_degree;
-
-	for (cur = list_next (cur); cur != NULL; cur = list_next (cur))
-		{
-			vertex = list_data (cur);
-			diff_degree = vertex->out_degree - vertex->in_degree;
-
-			if (diff_degree > found_diff_degree)
-				{
-					found_vertex = vertex;
-					found_diff_degree = diff_degree;
-				}
-		}
-
-	return found_vertex;
-}
-
 static void
-debrujin_route_inspection (DeBrujin *debrujin)
+debrujin_reset_bfs (DeBrujin *debrujin)
 {
 	AdjList *adjlist = NULL;
 	DeBrujinVetex *vertex = NULL;
-	DeBrujinVetex *clr_vertex = NULL;
-	int i, diff_degree;
 	GraphIter iter;
 
 	graph_iter_init (&iter, debrujin->graph);
 	while (graph_iter_next (&iter, &adjlist))
 		{
 			vertex = adjlist->vertex;
-			diff_degree = vertex->in_degree - vertex->out_degree;
-
-			if (diff_degree > 0 && list_size (adjlist->adjacent) > 0)
-				{
-					clr_vertex =
-						debrujin_adjlist_vertex_w_min_in_degree (adjlist);
-
-					log_debug ("Fix edges: Add %d edges between %s -> %s",
-							diff_degree, vertex->k_mer_affix, clr_vertex->k_mer_affix);
-
-					for (i = 0; i < diff_degree; i++)
-						debrujin_insert_multi_edge (debrujin, vertex, clr_vertex);
-				}
+			vertex->color = VERTEX_WHITE;
+			vertex->dist = -1;
+			vertex->parent = NULL;
 		}
+}
+
+static List *
+debrujin_resolve_shortest_path (const DeBrujinVetex *start,
+		const DeBrujinVetex *end)
+{
+	List *path = NULL;
+	DeBrujinVetex *cur = NULL;
+
+	path = list_new (NULL);
+	cur = (DeBrujinVetex *) end;
+
+	do
+		{
+			list_prepend (path, cur);
+
+			if (debrujin_equal (start, cur))
+				break;
+
+			cur = cur->parent;
+		}
+	while (cur != NULL);
+
+	return path;
+}
+
+static List *
+debrujin_shortest_path (DeBrujin *debrujin,
+		DeBrujinVetex *start, DeBrujinVetex *end)
+{
+	List *queue = NULL;
+	AdjList *adjlist = NULL;
+	AdjList *clr_adjlist = NULL;
+	DeBrujinVetex *vertex = NULL;
+	DeBrujinVetex *clr_vertex = NULL;
+	ListElmt *cur = NULL;
+
+	// Init all vertices
+	debrujin_reset_bfs (debrujin);
+
+	// Init start node
+	start->color = VERTEX_GRAY;
+	start->dist = 0;
+
+	// Init start adjlist
+	queue = list_new (NULL);
+	clr_adjlist = graph_adjlist (debrujin->graph, start);
+
+	// Enqueue start adjlist
+	list_append (queue, clr_adjlist);
+
+	// Perform breadth-first search
+	while (list_size (queue) > 0)
+		{
+			// Queue peek
+			adjlist = list_data (list_head (queue));
+			vertex = adjlist->vertex;
+
+			// Found!
+			if (debrujin_equal (vertex, end))
+				break;
+
+			// Traverse each vertex in the current adjacency list
+			cur = list_head (adjlist->adjacent);
+			for (; cur != NULL; cur = list_next (cur))
+				{
+					clr_vertex = list_data (cur);
+					clr_adjlist = graph_adjlist (debrujin->graph, clr_vertex);
+
+					if (clr_vertex->color == VERTEX_WHITE)
+						{
+							// Dicover vertex and set parent and
+							// distance from start node
+							clr_vertex->color = VERTEX_GRAY;
+							clr_vertex->dist = vertex->dist + 1;
+							clr_vertex->parent = vertex;
+
+							// Enqueue adjlist
+							list_append (queue, clr_adjlist);
+						}
+				}
+
+			// Dequeue the current adjacency list and color its vertex black
+			list_remove (queue, list_head (queue), (void **) &adjlist);
+			vertex->color = VERTEX_BLACK;
+		}
+
+	list_free (queue);
+
+	return debrujin_equal (vertex, end)
+		? debrujin_resolve_shortest_path (start, end)
+		: NULL;
+}
+
+static void
+debrujin_route_inspection (DeBrujin *debrujin)
+{
+	// PONGA
 }
 
 static void
@@ -382,8 +449,8 @@ debrujin_assembly (DeBrujin *debrujin)
 	List *tour = NULL;
 	const char *seq = NULL;
 
-	while (!debrujin_has_eulerian_path (debrujin))
-		debrujin_route_inspection (debrujin);
+	/*while (!debrujin_has_eulerian_path (debrujin))*/
+		/*debrujin_route_inspection (debrujin);*/
 
 	debrujin_reset_path (debrujin);
 
