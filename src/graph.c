@@ -107,25 +107,21 @@ __graph_ins_edge (Graph *graph, const void *data1,
 		const void *data2, int is_multi)
 {
 	AdjList *adjlist1 = NULL;
-	AdjList *adjlist2 = NULL;
 
 	adjlist1 = hash_lookup (graph->adjlists, data1);
-	if (adjlist1 == NULL)
-		return 0;
 
-	adjlist2 = hash_lookup (graph->adjlists, data2);
-	if (adjlist2 == NULL)
+	if (adjlist1 == NULL || !hash_contains (graph->adjlists, data2))
 		return 0;
 
 	// In non multi-edge graph, do not allow the insertion of
 	// repetitive vetice into the adjacency list
 	if (!is_multi && __graph_adjlist_elmt (graph, adjlist1,
-				adjlist2->vertex) != NULL)
+				data2) != NULL)
 		return 0;
 
 	// Insert the second vertex into the adjacency
 	// list of the first vertex.
-	list_append (adjlist1->adjacent, adjlist2->vertex);
+	list_append (adjlist1->adjacent, data2);
 	graph->ecount++;
 
 	return 1;
@@ -173,12 +169,10 @@ graph_rem_vertex (Graph *graph, void **data)
 	HashIter iter;
 
 	adjlist = hash_lookup (graph->adjlists, *data);
-	if (adjlist == NULL)
-		return 0;
 
 	// Do not allow removal of the vertex
 	// if its adjacency list is not empty
-	if (list_size (adjlist->adjacent) > 0)
+	if (adjlist == NULL || list_size (adjlist->adjacent) > 0)
 		return 0;
 
 	// Do not allow removal of the vertex

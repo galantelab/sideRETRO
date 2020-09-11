@@ -29,18 +29,24 @@
 struct _DeBrujin
 {
 	int                    k;
-	Hash                  *k_mers;
+	int                    min_depth;
 
 	char                  *buf;
 
+	Hash                  *k_mers;
 	Graph                 *graph;
 };
 
 struct _DeBrujinVetex
 {
-	// Coverage and depth
+	// Degree
 	int                    in_degree;
 	int                    out_degree;
+
+	// Unigraph
+	int                    unipath;
+
+	// Edge depth
 	int                    depth;
 
 	// The affix
@@ -102,14 +108,34 @@ debrujin_new (int k)
 void
 debrujin_free (DeBrujin *debrujin)
 {
+	AdjList *adjlist = NULL;
+	ListElmt *cur = NULL;
+	GraphIter iter = {};
+
 	if (debrujin == NULL)
 		return;
+
+	graph_iter_init (&iter, debrujin->graph);
+	while (graph_iter_next (&iter, &adjlist))
+		{
+			cur = list_head (adjlist->adjacent);
+			for (; cur != NULL; cur = list_next (cur))
+				xfree (list_data (cur));
+		}
 
 	xfree (debrujin->buf);
 	hash_free (debrujin->k_mers);
 	graph_free (debrujin->graph);
 
 	xfree (debrujin);
+}
+
+static inline AdjList *
+debrujin_adjlist (const DeBrujin *debrujin,
+		const char *k_mer_affix)
+{
+	DeBrujinVetex temp = { .k_mer_affix = k_mer_affix };
+	return graph_adjlist (debrujin->graph, &temp);
 }
 
 static inline DeBrujinVetex *
@@ -119,8 +145,7 @@ debrujin_insert_k_mer_affix (DeBrujin *debrujin,
 	DeBrujinVetex *vertex = NULL;
 	AdjList *adjlist = NULL;
 
-	DeBrujinVetex temp = { .k_mer_affix = k_mer_affix };
-	adjlist = graph_adjlist (debrujin->graph, &temp);
+	adjlist = debrujin_adjlist (debrujin, k_mer_affix);
 
 	if (adjlist == NULL)
 		{
@@ -131,7 +156,6 @@ debrujin_insert_k_mer_affix (DeBrujin *debrujin,
 	else
 		vertex = adjlist->vertex;
 
-	vertex->depth++;
 	return vertex;
 }
 
@@ -139,18 +163,45 @@ static inline void
 debrujin_insert_edge (DeBrujin *debrujin,
 		DeBrujinVetex *a, DeBrujinVetex *b)
 {
-	if (graph_ins_edge (debrujin->graph, a, b))
+	DeBrujinVetex *b_adj = NULL;
+	AdjList *adjlist = NULL;
+	ListElmt *cur = NULL;
+
+	adjlist = graph_adjlist (debrujin->graph, a);
+	cur = list_head (adjlist->adjacent);
+
+	for (; cur != NULL; cur = list_next (cur))
+		{
+			b_adj = list_data (cur);
+			if (debrujin_equal (b, b_adj))
+				break;
+		}
+
+	if (cur == NULL)
+		{
+			b_adj = xcalloc (1, sizeof (DeBrujinVetex));
+			b_adj->k_mer_affix = b->k_mer_affix;
+		}
+
+	if (graph_ins_edge (debrujin->graph, a, b_adj))
 		{
 			a->out_degree++;
 			b->in_degree++;
 		}
+
+	b_adj->depth++;
 }
 
 static inline void
 debrujin_insert_multi_edge (DeBrujin *debrujin,
 		DeBrujinVetex *a, DeBrujinVetex *b)
 {
-	if (graph_ins_multi_edge (debrujin->graph, a, b))
+	DeBrujinVetex *b_adj = NULL;
+
+	b_adj = xcalloc (1, sizeof (DeBrujinVetex));
+	b_adj->k_mer_affix = b->k_mer_affix;
+
+	if (graph_ins_multi_edge (debrujin->graph, a, b_adj))
 		{
 			a->out_degree++;
 			b->in_degree++;
@@ -325,6 +376,7 @@ debrujin_shortest_path (DeBrujin *debrujin,
 	AdjList *clr_adjlist = NULL;
 	DeBrujinVetex *vertex = NULL;
 	DeBrujinVetex *clr_vertex = NULL;
+	DeBrujinVetex *adj_vertex = NULL;
 	ListElmt *cur = NULL;
 
 	// Init all vertices
@@ -356,8 +408,10 @@ debrujin_shortest_path (DeBrujin *debrujin,
 			cur = list_head (adjlist->adjacent);
 			for (; cur != NULL; cur = list_next (cur))
 				{
-					clr_vertex = list_data (cur);
-					clr_adjlist = graph_adjlist (debrujin->graph, clr_vertex);
+					adj_vertex = list_data (cur);
+
+					clr_adjlist = graph_adjlist (debrujin->graph, adj_vertex);
+					clr_vertex = clr_adjlist->vertex;
 
 					if (clr_vertex->color == VERTEX_WHITE)
 						{
@@ -394,7 +448,7 @@ static void
 debrujin_dfs (DeBrujin *debrujin, AdjList *adjlist, List *tour)
 {
 	AdjList *clr_adjlist = NULL;
-	DeBrujinVetex *clr_vertex = NULL;
+	DeBrujinVetex *adj_vertex = NULL;
 	DeBrujinVetex *vertex = NULL;
 
 	vertex = adjlist->vertex;
@@ -402,10 +456,10 @@ debrujin_dfs (DeBrujin *debrujin, AdjList *adjlist, List *tour)
 	while (vertex->cur_adj != NULL)
 		{
 			// Determine the color of the next adjacent vertex
-			clr_vertex = list_data (vertex->cur_adj);
+			adj_vertex = list_data (vertex->cur_adj);
 
 			// Get adjacency list of the clr_vertex
-			clr_adjlist = graph_adjlist (debrujin->graph, clr_vertex);
+			clr_adjlist = graph_adjlist (debrujin->graph, adj_vertex);
 
 			// Move one vertex deeper
 			vertex->cur_adj = list_next (vertex->cur_adj);
