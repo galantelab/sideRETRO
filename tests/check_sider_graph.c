@@ -59,6 +59,7 @@ START_TEST (test_graph_ins_edge)
 	int i = 0;
 	int j = 0;
 	int edges[4][10] = {};
+	int degrees[4] = {};
 	int num_vertex = 4;
 	int num_edge = 0;
 	int *i_alloc = NULL;
@@ -92,6 +93,11 @@ START_TEST (test_graph_ins_edge)
 	edges[3][0] = 1;
 	edges[3][1] = -1;
 
+	degrees[0] = 2;
+	degrees[1] = -1;
+	degrees[2] = -1;
+	degrees[3] = 0;
+
 	for (i = 0; i < num_vertex; i++)
 		{
 			for (j = 0; edges[i][j] != -1; j++)
@@ -108,7 +114,10 @@ START_TEST (test_graph_ins_edge)
 	for (i = 0; i < num_vertex; i++)
 		{
 			a = graph_adjlist (g, &i);
+
 			ck_assert_int_eq (* (int *) (a->vertex), i);
+			ck_assert_int_eq (degrees[i], graph_diff_degree (a));
+
 			for (j = 0; edges[i][j] != -1; j++)
 				ck_assert_int_eq (graph_is_adjacent (g, &i, &edges[i][j]), 1);
 		}

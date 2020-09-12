@@ -41,6 +41,7 @@ struct _AdjList
 {
 	void          *vertex;
 	List          *adjacent;
+	List          *parent;
 };
 
 typedef struct _AdjList AdjList;
@@ -75,5 +76,9 @@ typedef HashIter GraphIter;
 
 #define graph_vcount(graph) ((graph)->vcount)
 #define graph_ecount(graph) ((graph)->ecount)
+
+#define graph_in_degree(adjlist)   (list_size ((adjlist)->parent))
+#define graph_out_degree(adjlist)  (list_size ((adjlist)->adjacent))
+#define graph_diff_degree(adjlist) ((int) (graph_out_degree((adjlist)) - graph_in_degree((adjlist))))
 
 #endif /* graph.h */

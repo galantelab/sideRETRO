@@ -56,6 +56,8 @@ graph_free (Graph *graph)
 				graph->destroy_fun (adjlist->vertex);
 
 			list_free (adjlist->adjacent);
+			list_free (adjlist->parent);
+
 			xfree (adjlist);
 		}
 
@@ -78,7 +80,9 @@ graph_ins_vertex (Graph *graph, const void *data)
 	adjlist = xcalloc (1, sizeof (AdjList));
 
 	adjlist->vertex = (void *) data;
+
 	adjlist->adjacent = list_new (NULL);
+	adjlist->parent = list_new (NULL);
 
 	hash_insert (graph->adjlists, data, adjlist);
 	graph->vcount++;
@@ -88,11 +92,11 @@ graph_ins_vertex (Graph *graph, const void *data)
 
 static inline ListElmt *
 __graph_adjlist_elmt (const Graph *graph,
-		const AdjList *adjlist, const void *data)
+		const List *list, const void *data)
 {
 	ListElmt *cur = NULL;
 
-	cur = list_head (adjlist->adjacent);
+	cur = list_head (list);
 	for (; cur != NULL; cur = list_next (cur))
 		{
 			if (graph->match_fun (list_data (cur), data))
@@ -107,21 +111,25 @@ __graph_ins_edge (Graph *graph, const void *data1,
 		const void *data2, int is_multi)
 {
 	AdjList *adjlist1 = NULL;
+	AdjList *adjlist2 = NULL;
 
 	adjlist1 = hash_lookup (graph->adjlists, data1);
+	adjlist2 = hash_lookup (graph->adjlists, data2);
 
-	if (adjlist1 == NULL || !hash_contains (graph->adjlists, data2))
+	if (adjlist1 == NULL || adjlist2 == NULL)
 		return 0;
 
 	// In non multi-edge graph, do not allow the insertion of
 	// repetitive vetice into the adjacency list
-	if (!is_multi && __graph_adjlist_elmt (graph, adjlist1,
-				data2) != NULL)
+	if (!is_multi && __graph_adjlist_elmt (graph,
+				adjlist1->adjacent, data2) != NULL)
 		return 0;
 
 	// Insert the second vertex into the adjacency
 	// list of the first vertex.
 	list_append (adjlist1->adjacent, data2);
+	list_append (adjlist2->parent, adjlist1->vertex);
+
 	graph->ecount++;
 
 	return 1;
@@ -156,7 +164,8 @@ graph_is_adjacent (const Graph *graph, const void *data1,
 
 	// Return whether the second vertex is in the
 	// adjacency list of the first
-	return __graph_adjlist_elmt (graph, adjlist, data2) != NULL;
+	return __graph_adjlist_elmt (graph,
+			adjlist->adjacent, data2) != NULL;
 }
 
 int
@@ -165,29 +174,23 @@ graph_rem_vertex (Graph *graph, void **data)
 	assert (graph != NULL && data != NULL && *data != NULL);
 
 	AdjList *adjlist = NULL;
-	AdjList *iter_adjlist = NULL;
-	HashIter iter;
 
 	adjlist = hash_lookup (graph->adjlists, *data);
 
 	// Do not allow removal of the vertex
 	// if its adjacency list is not empty
-	if (adjlist == NULL || list_size (adjlist->adjacent) > 0)
+	// or if it is in an adjacency list
+	if (adjlist == NULL || list_size (adjlist->adjacent) > 0
+			|| list_size (adjlist->parent) > 0)
 		return 0;
-
-	// Do not allow removal of the vertex
-	// if it is in an adjacency list
-	hash_iter_init (&iter, graph->adjlists);
-	while (hash_iter_next (&iter, NULL, (void **) &iter_adjlist))
-		if (__graph_adjlist_elmt (graph,
-					iter_adjlist, *data) != NULL)
-			return 0;
 
 	hash_remove (graph->adjlists, *data);
 	*data = adjlist->vertex;
 
 	list_free (adjlist->adjacent);
+	list_free (adjlist->parent);
 	xfree (adjlist);
+
 	graph->vcount--;
 
 	return 1;
@@ -199,23 +202,38 @@ graph_rem_edge (Graph *graph, const void *data1, void **data2)
 	assert (graph != NULL && data1 != NULL && data2 != NULL
 			&& *data2 != NULL);
 
-	AdjList *adjlist = NULL;
-	ListElmt *found = NULL;
+	AdjList *adjlist1 = NULL;
+	AdjList *adjlist2 = NULL;
+	ListElmt *found1 = NULL;
+	ListElmt *found2 = NULL;
 
-	// Locate the adjacency list for the first vertex
-	adjlist = hash_lookup (graph->adjlists, data1);
-	if (adjlist == NULL)
+	adjlist1 = hash_lookup (graph->adjlists, data1);
+	adjlist2 = hash_lookup (graph->adjlists, *data2);
+
+	if (adjlist1 == NULL || adjlist2 == NULL)
 		return 0;
 
 	// Locate the second vertex into the adjacency
 	// list of the first vertex
-	found = __graph_adjlist_elmt (graph, adjlist, *data2);
-	if (found == NULL)
+	found2 = __graph_adjlist_elmt (graph,
+			adjlist1->adjacent, *data2);
+
+	// Locate the first vertex into the parent
+	// list of the second vertex
+	found1 = __graph_adjlist_elmt (graph,
+			adjlist2->parent, data1);
+
+	if (found1 == NULL || found2 == NULL)
 		return 0;
+
+	// Remove the first vertex from the parent
+	// list of the second vertex
+	list_remove (adjlist2->parent, found1, NULL);
 
 	// Remove the second vertex from the adjacency
 	// list of the first vertex
-	list_remove (adjlist->adjacent, found, data2);
+	list_remove (adjlist1->adjacent, found2, data2);
+
 	graph->ecount--;
 
 	return 1;
