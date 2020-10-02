@@ -120,3 +120,5 @@ subdir('tests')
 
 # Documentation
 subdir('docs')
+
+subdir('assembly')
