@@ -7,10 +7,14 @@
 #include "../src/log.h"
 #include "../src/utils.h"
 #include "../src/graph.h"
+#include "../src/graph_unipath.h"
 #include "../src/hungarian.h"
 #include "../src/debrujin.c"
 
 #define MYSELF "sucateiro"
+#define K_MER_FILE "K-MERS.tsv"
+#define EDGES_FILE "EDGES.tsv"
+#define DOT_FILE "UNIPATH.dot"
 #define K_MER 55
 #define MIN_COV 3
 
@@ -40,7 +44,7 @@ print_usage (FILE *fp)
 	fprintf (fp,
 			"%s\n"
 			"\n"
-			"Usage: %s [-h] [-q] [-d] [-k] [-c] FILE\n"
+			"Usage: %s [-h] [-q] [-d] [-k] [-c] [-D] FILE\n"
 			"\n"
 			"Assembler for testing purpose\n"
 			"\n"
@@ -53,6 +57,7 @@ print_usage (FILE *fp)
 			"   -d, --debug       Increase verbosity\n"
 			"                     Pass twice for trace\n"
 			"                     verbosity\n"
+			"   -D, --dump        Generate dump files\n"
 			"\n"
 			"Assembly Options:\n"
 			"   -k, --k-mer       K-mer size [%d]\n"
@@ -97,28 +102,169 @@ parse_file_k_mers (const char *file, DeBrujin *d)
 	xfclose (fp);
 }
 
+Hash *
+index_k_mers (const Graph *g)
+{
+	Hash *h = NULL;
+	AdjList *adjlist = NULL;
+	DeBrujinVetex *v = NULL;
+	int *i_alloc = NULL;
+	int i = 0;
+	GraphIter iter;
+
+	h = hash_new_full (str_hash, str_equal,
+			NULL, xfree);
+
+	graph_iter_init (&iter, g);
+	while (graph_iter_next (&iter, &adjlist))
+		{
+			v = adjlist->vertex;
+
+			i_alloc = xcalloc (1, sizeof (int));
+			*i_alloc = ++i;
+
+			hash_insert (h, v->k_mer_affix, i_alloc);
+		}
+
+	return h;
+}
+
 void
-print_k_mers_depth (DeBrujin *d)
+print_k_mers (FILE *fp, const Graph *g, Hash *i)
+{
+	AdjList *adjlist = NULL;
+	DeBrujinVetex *v = NULL;
+	int *kid_alloc = NULL;
+	GraphIter iter;
+
+	fprintf (fp, "#KID\tK-MER\n");
+
+	graph_iter_init (&iter, g);
+	while (graph_iter_next (&iter, &adjlist))
+		{
+			v = adjlist->vertex;
+
+			kid_alloc = hash_lookup (i, v->k_mer_affix);
+
+			fprintf (fp, "%d\t%s\n",
+					*kid_alloc,
+					v->k_mer_affix);
+		}
+}
+
+void
+print_k_mers_edges (FILE *fp, const Graph *g, Hash *i)
 {
 	AdjList *adjlist = NULL;
 	DeBrujinVetex *v = NULL;
 	DeBrujinVetex *u = NULL;
 	ListElmt *cur = NULL;
+	int *kid_alloc = NULL;
+	int *adj_kid_alloc = NULL;
 	GraphIter iter;
 
-	graph_iter_init (&iter, d->graph);
+	fprintf (fp, "#KID\tADJ_KID\tDEPTH\n");
+
+	graph_iter_init (&iter, g);
 	while (graph_iter_next (&iter, &adjlist))
 		{
 			v = adjlist->vertex;
+			kid_alloc = hash_lookup (i, v->k_mer_affix);
 
 			cur = list_head (adjlist->adjacent);
 			for (; cur != NULL; cur = list_next (cur))
 				{
 					u = list_data (cur);
-					log_debug ("K-MER: %s => %s: %d",
-							v->k_mer_affix, u->k_mer_affix, u->depth);
+					adj_kid_alloc = hash_lookup (i, u->k_mer_affix);
+
+					fprintf (fp, "%d\t%d\t%d\n",
+							*kid_alloc,
+							*adj_kid_alloc,
+							u->depth);
 				}
 		}
+}
+
+void
+print_dot (FILE *fp, const Graph *g, Hash *i)
+{
+	DeBrujinVetex *v  = NULL;
+	DeBrujinVetex *u  = NULL;
+	AdjList *adjlist = NULL;
+	ListElmt *cur = NULL;
+	int *kid_alloc = NULL;
+	int *adj_kid_alloc = NULL;
+	GraphIter iter = {};
+
+	fprintf (fp, "digraph G {\n");
+
+	graph_iter_init (&iter, g);
+	while (graph_iter_next (&iter, &adjlist))
+		{
+			v = adjlist->vertex;
+			kid_alloc = hash_lookup (i, v->k_mer_affix);
+
+			cur = list_head (adjlist->adjacent);
+			for (; cur != NULL; cur = list_next (cur))
+				{
+					u = list_data (cur);
+					adj_kid_alloc = hash_lookup (i, u->k_mer_affix);
+
+					fprintf (fp, "\t%d -> %d;\n",
+							*kid_alloc,
+							*adj_kid_alloc);
+				}
+		}
+
+	fprintf (fp, "}\n");
+}
+
+void
+dumper (const DeBrujin *d)
+{
+	Graph *unipath = NULL;
+	Hash *d_index = NULL;
+	FILE *fp = NULL;
+	int i = 0;
+
+	const char *dump_files[3] =
+	{
+		K_MER_FILE,
+		EDGES_FILE,
+		DOT_FILE
+	};
+
+	void (*printer[3])(FILE *,const Graph *,Hash *) =
+	{
+		print_k_mers,
+		print_k_mers_edges,
+		print_dot
+	};
+
+	log_info ("Index k-mers");
+	d_index = index_k_mers (d->graph);
+
+	log_info ("Build unipath graph");
+	unipath = graph_unipath_new (d->graph, (HashFunc) debrujin_hash,
+			(EqualFun) debrujin_equal);
+
+	Graph *graphs[3] =
+	{
+		d->graph,
+		d->graph,
+		unipath
+	};
+
+	for (i = 0; i < 3; i++)
+		{
+			log_info ("Print %s", dump_files[i]);
+			fp = xfopen (dump_files[i], "w");
+			printer[i] (fp, graphs[i], d_index);
+			xfclose (fp);
+		}
+
+	hash_free (d_index);
+	graph_free (unipath);
 }
 
 void
@@ -320,6 +466,7 @@ main (int argc, char *argv[])
 {
 	int k = K_MER;
 	int min_cov = MIN_COV;
+	int dump = 0;
 	int debug = 0;
 	int silent = 0;
 	const char *file = NULL;
@@ -342,11 +489,12 @@ main (int argc, char *argv[])
 		{"help",      no_argument,       0, 'h'},
 		{"quiet",     no_argument,       0, 'q'},
 		{"debug",     no_argument,       0, 'd'},
+		{"dump",      no_argument,       0, 'D'},
 		{"k-mer",     required_argument, 0, 'k'},
 		{"min-cov",   required_argument, 0, 'c'}
 	};
 
-	while ((c = getopt_long (argc, argv, "hqdk:c:", opt, &option_index)) >= 0)
+	while ((c = getopt_long (argc, argv, "hqdDk:c:", opt, &option_index)) >= 0)
 		{
 			switch (c)
 				{
@@ -363,6 +511,11 @@ main (int argc, char *argv[])
 				case 'd':
 					{
 						debug ++;
+						break;
+					}
+				case 'D':
+					{
+						dump = 1;
 						break;
 					}
 				case 'k':
@@ -401,9 +554,14 @@ main (int argc, char *argv[])
 	d = debrujin_new (k);
 	parse_file_k_mers (file, d);
 
+	if (dump)
+		{
+			log_info ("Dump debrujin graph");
+			dumper (d);
+		}
+
 	log_info ("Remove low coverage k-mers");
 	rem_low_coverage_edges (d, min_cov);
-	/*print_k_mers_depth (d);*/
 
 	log_info ("Check if graph is eulerian");
 	route_inspection (d);
