@@ -33,14 +33,14 @@ static int edges[5][2] = {
 	{0, 1}, {1, 2}, {0, 3}, {3, 4}, {5, 1}
 };
 
-static int num_uni_vertices = 3;
-static char *uni_vertices[3] = {
-	"GAC", "ACA", "TAC"
+static int num_uni_vertices = 5;
+static char *uni_vertices[5] = {
+	"GAC", "ACA", "TAC", "CAC", "CTC"
 };
 
-static int num_uni_edges = 2;
-static int uni_edges[2][2] = {
-	{0, 1}, {2, 1}
+static int num_uni_edges = 4;
+static int uni_edges[4][2] = {
+	{0, 1}, {2, 1}, {1, 3}, {2, 4}
 };
 
 START_TEST (test_graph_unipath_new)

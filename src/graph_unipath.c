@@ -28,7 +28,8 @@ graph_unipath_is_non_mergeable (const AdjList *adjlist)
 {
 	return graph_in_degree (adjlist) > 1
 		|| graph_out_degree (adjlist) > 1
-		|| graph_in_degree (adjlist) == 0;
+		|| graph_in_degree (adjlist) == 0
+		|| graph_out_degree (adjlist) == 0;
 }
 
 static inline void *
