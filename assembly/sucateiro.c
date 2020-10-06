@@ -334,6 +334,87 @@ rem_low_coverage_edges (DeBrujin *d, int min_cov)
 	list_free (to_rm);
 }
 
+int
+is_solvable_by_hungarian (double **mtx, int rows, int cols)
+{
+	int *cols_label = NULL;
+	int *rows_w_cols_uniq = NULL;
+	int rc, i, j, row_acm;
+
+	if (rows != cols || rows == 0)
+		return 0;
+
+	// Default to return 0 - non solvable
+	rc = 0;
+
+	cols_label = xcalloc (cols, sizeof (int));
+	rows_w_cols_uniq = xcalloc (cols, sizeof (int));
+
+	/*
+	* Check for all columns == INF for a row
+	* Label the column with the i-index if only
+	* one row choose it, otherwise COL_LABEL_OK
+	* Each cols_label starts with COL_LABEL_MISS
+	*/
+
+#define COL_LABEL_OK   -1
+#define COL_LABEL_MISS -2
+
+	// Fill cols_label wirh COL_LABEL_MISS
+	for (i = 0; i < cols; i++)
+		cols_label[i] = COL_LABEL_MISS;
+
+	for (i = 0; i < cols; i++)
+		{
+			row_acm = 0;
+
+			for (j = 0; j < cols; j++)
+				{
+					if (!isinf (mtx[i][j]))
+						{
+							row_acm++;
+
+							if (cols_label[j] == COL_LABEL_MISS)
+								cols_label[j] = i;
+							else if (cols_label[j] >= 0)
+								cols_label[j] = COL_LABEL_OK;
+						}
+				}
+
+			if (row_acm == 0)
+				goto Exit;
+		}
+
+	// Check for all rows == INF for a column or
+	// for two columns uniquely assgined to the same row
+	for (j = 0; j < cols; j++)
+		{
+			if (cols_label[j] == COL_LABEL_MISS)
+				goto Exit;
+			else if (cols_label[j] != COL_LABEL_OK)
+				{
+					log_info (":: label %d", cols_label[j]);
+					if (rows_w_cols_uniq[cols_label[j]] == 0)
+						rows_w_cols_uniq[cols_label[j]] = 1;
+					else
+						goto Exit;
+				}
+		}
+
+	// Pass all tests
+	rc = 1;
+
+#undef COL_LABEL_OK
+#undef COL_LABEL_MISS
+
+Exit:
+
+	xfree (cols_label);
+	xfree (rows_w_cols_uniq);
+
+	return rc;
+}
+
 void
 route_inspection (DeBrujin *d)
 {
@@ -409,42 +490,47 @@ route_inspection (DeBrujin *d)
 				}
 		}
 
-	log_info ("Solve minimum assignment problem with hungarian method");
-
-	h = hungarian_new (cost, array_len (neg),
-			array_len (pos), HUNGARIAN_MODE_MINIMIZE_COST);
-
-	hungarian_solve (h);
-	assig_res = hungarian_assignment (h);
-
-	log_info ("Fix edges and make the graph eulerian");
-
-	for (i = 0; i < array_len (neg); i++)
+	if (is_solvable_by_hungarian (cost, array_len (neg), array_len (pos)))
 		{
-			n = array_get (neg, i);
-			for (j = 0; j < array_len (pos); j++)
+			log_info ("Solve minimum assignment problem with hungarian method");
+
+			h = hungarian_new (cost, array_len (neg),
+					array_len (pos), HUNGARIAN_MODE_MINIMIZE_COST);
+
+			hungarian_solve (h);
+			assig_res = hungarian_assignment (h);
+
+			log_info ("Fix edges and make the graph eulerian");
+
+			for (i = 0; i < array_len (neg); i++)
 				{
-					p = array_get (pos, j);
-					if (assig_res[i][j])
+					n = array_get (neg, i);
+					for (j = 0; j < array_len (pos); j++)
 						{
-							log_debug ("Find path at %d,%d for %s -> %s",
-									i, j, n->k_mer_affix, p->k_mer_affix);
-
-							path = paths[i][j];
-
-							cur = list_head (path);
-							prev = cur;
-
-							for (cur = list_next (cur); cur != NULL; cur = list_next (cur))
+							p = array_get (pos, j);
+							if (assig_res[i][j])
 								{
-									a = list_data (prev);
-									b = list_data (cur);
-									debrujin_insert_multi_edge (d, a, b);
+									log_debug ("Find path at %d,%d for %s -> %s",
+											i, j, n->k_mer_affix, p->k_mer_affix);
+
+									path = paths[i][j];
+
+									cur = list_head (path);
 									prev = cur;
+
+									for (cur = list_next (cur); cur != NULL; cur = list_next (cur))
+										{
+											a = list_data (prev);
+											b = list_data (cur);
+											debrujin_insert_multi_edge (d, a, b);
+											prev = cur;
+										}
 								}
 						}
 				}
 		}
+	else
+		log_info ("Problem is not solvable by hungarian method");
 
 	if (!debrujin_has_eulerian_path (d))
 		log_fatal ("After all, there is no eulerian path!");
