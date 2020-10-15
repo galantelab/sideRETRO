@@ -16,13 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef DEBRUJIN_UNIPATH_H
-#define DEBRUJIN_UNIPATH_H
+#ifndef GRAPH_UNIPATH_H
+#define GRAPH_UNIPATH_H
 
 #include "graph.h"
 #include "hash.h"
 #include "types.h"
 
-Graph * graph_unipath_new (const Graph *graph, HashFunc hash_fun, EqualFun equal_fun);
+typedef Graph Unipath;
 
-#endif /* debrujin_unipath.h */
+Unipath * graph_unipath_new (const Graph *graph, HashFunc hash_fun, EqualFun equal_fun);
+
+#endif /* graph_unipath.h */

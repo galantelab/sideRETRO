@@ -46,7 +46,7 @@ static int uni_edges[4][2] = {
 START_TEST (test_graph_unipath_new)
 {
 	int i = 0;
-	Graph *u = NULL;
+	Unipath *u = NULL;
 	Graph *g = NULL;
 
 	g = graph_new_full (str_hash, str_equal, NULL);

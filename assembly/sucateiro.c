@@ -222,7 +222,7 @@ print_dot (FILE *fp, const Graph *g, Hash *i)
 void
 dumper (const DeBrujin *d)
 {
-	Graph *unipath = NULL;
+	Unipath *unipath = NULL;
 	Hash *d_index = NULL;
 	FILE *fp = NULL;
 	int i = 0;

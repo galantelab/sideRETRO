@@ -41,7 +41,7 @@ graph_unipath_child (const AdjList *adjlist)
 }
 
 static void
-graph_unipath_build (Graph *unigraph, const Graph *graph, Hash *connect)
+graph_unipath_build (Unipath *unigraph, const Graph *graph, Hash *connect)
 {
 	AdjList *adjlist = NULL;
 	AdjList *adjlist_cpy = NULL;
@@ -88,13 +88,13 @@ graph_unipath_build (Graph *unigraph, const Graph *graph, Hash *connect)
 		}
 }
 
-Graph *
+Unipath *
 graph_unipath_new (const Graph *graph, HashFunc hash_fun,
 		EqualFun equal_fun)
 {
 	assert (graph != NULL);
 
-	Graph *unigraph = NULL;
+	Unipath *unigraph = NULL;
 	Hash *connect = NULL;
 
 	unigraph = graph_new_full (hash_fun, equal_fun, NULL);
