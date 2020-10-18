@@ -37,6 +37,8 @@ sider_sources = files(
   'gff.h',
   'graph.c',
   'graph.h',
+  'graph_enumerate.c',
+  'graph_enumerate.h',
   'graph_unipath.c',
   'graph_unipath.h',
   'gz.c',

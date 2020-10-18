@@ -19,6 +19,7 @@ test_sources = files(
   'check_sider_genotype.c',
   'check_sider_gff.c',
   'check_sider_graph.c',
+  'check_sider_graph_enumerate.c',
   'check_sider_graph_unipath.c',
   'check_sider_gz.c',
   'check_sider_hash.c',
