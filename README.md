@@ -68,6 +68,9 @@ and then:
 
 `$ pip3 install --user meson`
 
+(or: `$ sudo apt install meson`)
+
+
 Finally, clone this repository:
 
 `$ git clone https://github.com/galantelab/sideRETRO.git`
