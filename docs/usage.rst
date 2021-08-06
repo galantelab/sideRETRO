@@ -462,7 +462,7 @@ A Practical Workflow
 ====================
 
 Now, let's do an interesting exercise, with real experimental data from the
-`1000 Genomes Project <https://www.internationalgenome.org/>`_.
+`1000 Genomes Project <https://www.internationalgenome.org/>`_. (Warning: This example requires 16GB of RAM)
 
 In order to run **siderRETRO** searching for retrocopies, we will download 2
 whole-genome sequenced CRAM files, both aligned on the **gencode**'s
@@ -482,7 +482,11 @@ correspondent option. Files are:
 2. A FASTA file with the gencode's Human reference genome, version 38
    (here :file:`GRCh38_full_analysis_set_plus_decoy_hla.fa`).
 
-3. A custom perl script, :code:`analyser.pl`, to do the final analysis over the VCF file
+3. A custom perl script, :code:`seq_cache_populate.pl`, to construct a new local index . 
+   The :code:`seq_cache_populate.pl` script can be found in 
+   `seq_cache_populate.pl <https://github.com/deweylab/RSEM/blob/master/samtools-1.3/misc/seq_cache_populate.pl>`_.
+
+4. A custom perl script, :code:`analyser.pl`, to do the final analysis over the VCF file
    and produce the TSV file in a tabular format. The :code:`analyser.pl` script can be
    downloaded :download:`here <data/analyser.pl>`.
 
@@ -490,7 +494,11 @@ Also, we will set the environment variables :file:`REF_PATH` and :file:`REF_CACH
 a requirement to work with CRAM files - more information at
 :ref:`Dealing with CRAM format<extern_cram>`.
 
-See the complete command sequence bellow for the whole analysis:
+See the complete command sequence below for the whole analysis.
+
+Tip: Copy and paste line by line in your terminal.
+
+Tip 2: If you are running line by line in your terminal don't paste the "$" character. It is already in your terminal.
 
 .. code-block:: sh
 
