@@ -29,7 +29,9 @@ Installing Meson
 The recommended way to install the most up-to-date version of
 **Meson** is through :code:`pip3`::
 
-  $ pip3 install --user meson
+  $ sudo apt install meson
+  
+Or "$ pip3 install --user meson" But in this case, remember to set the environment variables. 
 
 For more information about using and installing Meson, see:
 https://mesonbuild.com/Quick-guide.html
