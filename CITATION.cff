@@ -1,0 +1,31 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: >-
+  sideRETRO: a pipeline for identifying somatic and
+  polymorphic insertions of processed pseudogenes or
+  retrocopies
+message: >-
+  If sideRETRO was somehow useful in your research,
+  please cite it using the metadata from this file.
+type: software
+authors:
+  - given-names: Thiago L. A.
+    email: tmiller@mochsl.org.br
+    family-names: Miller
+  - given-names: Fernanda Orpinelli
+    email: forpinelli@mochsl.org.br
+    family-names: Rego
+  - email: lbuzzo@mochsl.org.br
+    given-names: José Leonel L.
+    family-names: Buzzo
+  - given-names: Pedro A. F.
+    email: pgalante@mochsl.org.br
+    family-names: Galante
+identifiers:
+  - type: doi
+    value: 10.1093/bioinformatics/btaa689
+    description: >-
+      DOI related to the scientific article published
+      in the journal Bioinformatics
