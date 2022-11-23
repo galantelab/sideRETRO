@@ -1,0 +1,67 @@
+name: build
+
+on:
+  push:
+    branches:
+      - master
+      - dev
+      - release/*
+
+jobs:
+  linux:
+    runs-on: ubuntu-18.04
+    name: Build and test CI
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install ubuntu dependencies
+        run: sudo apt-get install -y check ninja-build python3-pip python3-setuptools valgrind
+
+      - name: Install meson and ninja
+        run: pip install meson cpp-coveralls
+
+      - name: Meson setup
+        run: meson -Db_coverage=true builddir
+
+      - name: Ninja build
+        run: ninja -C builddir
+
+      - name: Normal test
+        run: meson test -C builddir
+
+      - name: Valgring test
+        run: meson test -C builddir --wrap='valgrind --leak-check=full --error-exitcode=1' -t 3
+        env:
+          CK_DEFAULT_TIMEOUT: 0
+
+      - name: After sucess
+        run: >
+             coveralls
+             --repo-token ${{ secrets.COVERALLS }}
+             --root .
+             --build-root builddir
+             --exclude builddir/meson-private
+             --exclude subprojects
+             --exclude tests
+             --exclude src/log.c
+             --exclude src/logger.c
+             --exclude src/main.c
+             --exclude src/make_vcf.c
+             --exclude src/merge_call.c
+             --exclude src/process_sample.c
+             --exclude src/sam.c
+             --exclude src/thpool.c
+             --exclude-pattern '.+\.h$'
+             --gcov-options '\-lp'
+        if: success()
+
+      - name: After failure
+        run: |
+          cat builddir/meson-logs/meson-log.txt
+          cat builddir/meson-logs/testlog.txt
+          cat builddir/meson-logs/testlog-valgrind.txt
+        if: failure()
+
