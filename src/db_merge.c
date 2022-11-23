@@ -282,6 +282,42 @@ calc_max_id (sqlite3_stmt *max_id_stmt[NUM_TABLES],
 }
 
 void
+exon_id_init (sqlite3 *db)
+{
+	sqlite3_stmt *sel_stmt = NULL;
+	int id = 0;
+	int *id_copy = NULL;
+	const char *ense = NULL;
+
+	// Prepare select stmt
+	sel_stmt = db_prepare (db, sel_sql[EXON]);
+
+	// Init hash ense => exon_id
+	ense_h = hash_new_full (str_hash, str_equal, xfree, NULL);
+
+	// Init hash exon_id => exon_id
+	exon_id_h = hash_new_full (int_hash, int_equal, xfree, NULL);
+
+	db_reset (sel_stmt);
+
+	while (db_step (sel_stmt) == SQLITE_ROW)
+		{
+			// Get database values
+			id = db_column_int (sel_stmt, 0);
+			ense = db_column_text (sel_stmt, 7);
+
+			id_copy = xcalloc (1, sizeof (int));
+			*id_copy = id;
+
+			// Index to the new hashes
+			hash_insert (ense_h, xstrdup (ense), id_copy);
+			hash_insert (exon_id_h, id_copy, id_copy);
+		}
+
+	db_finalize (sel_stmt);
+}
+
+void
 db_merge (sqlite3 *db, int argc, char **argv)
 {
 	log_trace ("Inside %s", __func__);
@@ -306,11 +342,10 @@ db_merge (sqlite3 *db, int argc, char **argv)
 				: NULL;
 		}
 
-	// Init hash ense => exon_id
-	ense_h = hash_new_full (str_hash, str_equal, xfree, NULL);
-
-	// Init hash exon_id => exon_id
-	exon_id_h = hash_new_full (int_hash, int_equal, xfree, NULL);
+	// Init ense_h and exon_id_h and
+	// index the values already present
+	// in the database
+	exon_id_init (db);
 
 	// Merge all files at argv
 	for (i = 0; i < argc; i++)

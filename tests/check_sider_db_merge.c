@@ -68,6 +68,31 @@ START_TEST (test_db_merge)
 }
 END_TEST
 
+START_TEST (test_db_merge_in_line)
+{
+	int i = 0;
+	int num_db = 3;
+	char db_path1[] = "/tmp/ponga1.db.XXXXXX";
+	char db_path2[] = "/tmp/ponga2.db.XXXXXX";
+	char db_path3[] = "/tmp/ponga3.db.XXXXXX";
+
+	char *db_paths[] = {db_path1, db_path2, db_path3};
+
+	for (i = 0; i < num_db; i++)
+		create_db (db_paths[i]);
+
+	// Merge  databases to the first
+	sqlite3 *db = db_connect (db_path1);
+
+	db_merge (db, num_db - 1, &db_paths[1]);
+
+	db_close (db);
+
+	for (i = 0; i < num_db; i++)
+		xunlink (db_paths[i]);
+}
+END_TEST
+
 Suite *
 make_db_merge_suite (void)
 {
@@ -80,6 +105,8 @@ make_db_merge_suite (void)
 	tc_core = tcase_create ("Core");
 
 	tcase_add_test (tc_core, test_db_merge);
+	tcase_add_test (tc_core, test_db_merge_in_line);
+
 	suite_add_tcase (s, tc_core);
 
 	return s;
