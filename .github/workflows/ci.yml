@@ -98,11 +98,11 @@ jobs:
         run: |
           case ${{ github.ref_name }} in
           master)
-          echo ::set-output name=name::latest ;;
+          echo name=latest >> $GITHUB_OUTPUT ;;
           *.*.*)
-          echo ::set-output name=name::release-${{ github.ref_name }} ;;
+          echo name=release-${{ github.ref_name }} >> $GITHUB_OUTPUT ;;
           *)
-          echo ::set-output name=name::${{ github.ref_name }} ;;
+          echo name=${{ github.ref_name }} >> $GITHUB_OUTPUT ;;
           esac
 
       - name: Set up Docker Buildx
