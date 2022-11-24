@@ -5,12 +5,13 @@ on:
     branches:
       - master
       - dev
-      - release/*
+    tags:
+      - '*.*.*'
 
 jobs:
-  linux:
+  test:
     runs-on: ubuntu-18.04
-    name: Build and test CI
+    name: Build and test
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
@@ -18,7 +19,13 @@ jobs:
           python-version: '3.10'
 
       - name: Install ubuntu dependencies
-        run: sudo apt-get install -y check ninja-build python3-pip python3-setuptools valgrind
+        run: >
+          sudo apt-get install -y
+          check
+          ninja-build
+          python3-pip
+          python3-setuptools
+          valgrind
 
       - name: Install meson and ninja
         run: pip install meson cpp-coveralls
@@ -30,38 +37,83 @@ jobs:
         run: ninja -C builddir
 
       - name: Normal test
+        id: normal_test
         run: meson test -C builddir
 
       - name: Valgring test
-        run: meson test -C builddir --wrap='valgrind --leak-check=full --error-exitcode=1' -t 3
+        id: valgring_test
+        run: >
+          meson test
+          -C builddir
+          --wrap='valgrind --leak-check=full --error-exitcode=1'
+          -t 3
         env:
           CK_DEFAULT_TIMEOUT: 0
 
       - name: After sucess
         run: >
-             coveralls
-             --repo-token ${{ secrets.COVERALLS }}
-             --root .
-             --build-root builddir
-             --exclude builddir/meson-private
-             --exclude subprojects
-             --exclude tests
-             --exclude src/log.c
-             --exclude src/logger.c
-             --exclude src/main.c
-             --exclude src/make_vcf.c
-             --exclude src/merge_call.c
-             --exclude src/process_sample.c
-             --exclude src/sam.c
-             --exclude src/thpool.c
-             --exclude-pattern '.+\.h$'
-             --gcov-options '\-lp'
-        if: success()
+          coveralls
+          --repo-token ${{ secrets.COVERALLS }}
+          --root .
+          --build-root builddir
+          --exclude builddir/meson-private
+          --exclude subprojects
+          --exclude tests
+          --exclude src/log.c
+          --exclude src/logger.c
+          --exclude src/main.c
+          --exclude src/make_vcf.c
+          --exclude src/merge_call.c
+          --exclude src/process_sample.c
+          --exclude src/sam.c
+          --exclude src/thpool.c
+          --exclude-pattern '.+\.h$'
+          --gcov-options '\-lp'
+        if: >
+          steps.normal_test.outcome == 'success'
+          &&
+          steps.valgring_test.outcome == 'success'
 
       - name: After failure
+        uses: actions/upload-artifact@v3
+        with:
+          name: meson-testlog
+          path: builddir/meson-logs/
+        if: >
+          steps.normal_test.outcome == 'failure'
+          ||
+          steps.valgring_test.outcome == 'failure'
+
+  docker:
+    needs: test
+    runs-on: ubuntu-18.04
+    name: Build and deploy docker image
+    steps:
+      - name: Get release tag
+        id: tag
         run: |
-          cat builddir/meson-logs/meson-log.txt
-          cat builddir/meson-logs/testlog.txt
-          cat builddir/meson-logs/testlog-valgrind.txt
-        if: failure()
+          case ${{ github.ref_name }} in
+          master)
+          echo ::set-output name=name::latest ;;
+          *.*.*)
+          echo ::set-output name=name::release-${{ github.ref_name }} ;;
+          *)
+          echo ::set-output name=name::${{ github.ref_name }} ;;
+          esac
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          file: docker/Dockerfile
+          tags: galantelab/sider:${{ steps.tag.outputs.name }}
 
