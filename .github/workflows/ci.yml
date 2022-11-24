@@ -5,6 +5,10 @@ on:
     branches:
       - master
       - dev
+    paths:
+      - '**.c'
+      - '**.h'
+      - docker/Dockerfile
     tags:
       - '*.*.*'
 
