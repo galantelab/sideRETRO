@@ -353,14 +353,14 @@ make_wrapper_suite (void)
 	tcase_add_test (tc_core, test_xfprintf);
 	tcase_add_test (tc_core, test_xsigaction);
 
-	tcase_add_test_raise_signal (tc_abort, test_xfopen_rw_abort,  SIGABRT);
-	tcase_add_test_raise_signal (tc_abort, test_xfopen_w_abort,   SIGABRT);
-	tcase_add_test_raise_signal (tc_abort, test_xfopen_r_abort,   SIGABRT);
-	tcase_add_test_raise_signal (tc_abort, test_xfdopen_rw_abort, SIGABRT);
-	tcase_add_test_raise_signal (tc_abort, test_xfdopen_w_abort,  SIGABRT);
-	tcase_add_test_raise_signal (tc_abort, test_xfdopen_r_abort,  SIGABRT);
-	tcase_add_test_raise_signal (tc_abort, test_xmkdir_abort,     SIGABRT);
-	tcase_add_test_raise_signal (tc_abort, test_xsigaction_abort, SIGABRT);
+	tcase_add_exit_test (tc_abort, test_xfopen_rw_abort,  EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_xfopen_w_abort,   EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_xfopen_r_abort,   EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_xfdopen_rw_abort, EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_xfdopen_w_abort,  EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_xfdopen_r_abort,  EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_xmkdir_abort,     EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_xsigaction_abort, EXIT_FAILURE);
 	tcase_add_test (tc_abort, test_xpopen_r_abort);
 	tcase_add_test (tc_abort, test_xpopen_w_abort);
 

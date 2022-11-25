@@ -293,7 +293,6 @@ make_bed_suite (void)
 	Suite *s;
 	TCase *tc_core;
 	TCase *tc_abort;
-	TCase *tc_segfault;
 
 	s = suite_create ("BED");
 
@@ -303,22 +302,17 @@ make_bed_suite (void)
 	/* Abort test case */
 	tc_abort = tcase_create ("Abort");
 
-	/* Segfault test case */
-	tc_segfault = tcase_create ("Segfault");
-
 	tcase_add_test (tc_core, test_bed_header);
 	tcase_add_loop_test (tc_core, test_beds, 0, 10);
 
-	tcase_add_test_raise_signal (tc_abort, test_open_fatal,        SIGABRT);
-	tcase_add_test_raise_signal (tc_abort, test_chrom_fatal,       SIGABRT);
-	tcase_add_test_raise_signal (tc_abort, test_chrom_start_fatal, SIGABRT);
-	tcase_add_test_raise_signal (tc_abort, test_chrom_end_fatal,   SIGABRT);
-
-	tcase_add_test_raise_signal (tc_segfault, test_close_fatal,    SIGSEGV);
+	tcase_add_exit_test (tc_abort, test_open_fatal,        EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_chrom_fatal,       EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_chrom_start_fatal, EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_chrom_end_fatal,   EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_close_fatal,       EXIT_FAILURE);
 
 	suite_add_tcase (s, tc_core);
 	suite_add_tcase (s, tc_abort);
-	suite_add_tcase (s, tc_segfault);
 
 	return s;
 }

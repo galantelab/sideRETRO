@@ -293,20 +293,20 @@ make_db_suite (void)
 	tcase_add_test (tc_core, test_db_prepare);
 	tcase_add_test (tc_core, test_db_schema);
 
-	tcase_add_test_raise_signal (tc_abort, test_db_open_abort,          SIGABRT);
-	tcase_add_test_raise_signal (tc_abort, test_db_close_abort,         SIGABRT);
-	tcase_add_test_raise_signal (tc_abort, test_db_exec_abort,          SIGABRT);
-	tcase_add_test_raise_signal (tc_abort, test_db_prepare_abort,       SIGABRT);
-	tcase_add_test_raise_signal (tc_abort, test_db_step_abort,          SIGABRT);
-	tcase_add_test_raise_signal (tc_abort, test_db_reset_abort,         SIGABRT);
-	tcase_add_test_raise_signal (tc_abort, test_db_bind_int_abort,      SIGABRT);
-	tcase_add_test_raise_signal (tc_abort, test_db_bind_int64_abort,    SIGABRT);
-	tcase_add_test_raise_signal (tc_abort, test_db_bind_double_abort,   SIGABRT);
-	tcase_add_test_raise_signal (tc_abort, test_db_bind_text_abort,     SIGABRT);
-	tcase_add_test_raise_signal (tc_abort, test_db_column_int_abort,    SIGABRT);
-	tcase_add_test_raise_signal (tc_abort, test_db_column_int64_abort,  SIGABRT);
-	tcase_add_test_raise_signal (tc_abort, test_db_column_double_abort, SIGABRT);
-	tcase_add_test_raise_signal (tc_abort, test_db_column_text_abort,   SIGABRT);
+	tcase_add_exit_test (tc_abort, test_db_open_abort,          EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_db_close_abort,         EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_db_exec_abort,          EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_db_prepare_abort,       EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_db_step_abort,          EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_db_reset_abort,         EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_db_bind_int_abort,      EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_db_bind_int64_abort,    EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_db_bind_double_abort,   EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_db_bind_text_abort,     EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_db_column_int_abort,    EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_db_column_int64_abort,  EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_db_column_double_abort, EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_db_column_text_abort,   EXIT_FAILURE);
 
 	suite_add_tcase (s, tc_core);
 	suite_add_tcase (s, tc_abort);

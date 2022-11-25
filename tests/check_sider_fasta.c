@@ -257,7 +257,6 @@ make_fasta_suite (void)
 	Suite *s;
 	TCase *tc_core;
 	TCase *tc_abort;
-	TCase *tc_segfault;
 
 	s = suite_create ("FASTA");
 
@@ -267,22 +266,17 @@ make_fasta_suite (void)
 	/* Abort test case */
 	tc_abort = tcase_create ("Abort");
 
-	/* Segfault test case */
-	tc_segfault = tcase_create ("Segfault");
-
 	tcase_add_test (tc_core, test_fasta_read);
 	tcase_add_test (tc_core, test_empty_file);
 
-	tcase_add_test_raise_signal (tc_abort, test_open_fatal,     SIGABRT);
-	tcase_add_test_raise_signal (tc_abort, test_contig_fatal,   SIGABRT);
-	tcase_add_test_raise_signal (tc_abort, test_seq1_fatal,     SIGABRT);
-	tcase_add_test_raise_signal (tc_abort, test_seq2_fatal,     SIGABRT);
-
-	tcase_add_test_raise_signal (tc_segfault, test_close_fatal, SIGSEGV);
+	tcase_add_exit_test (tc_abort, test_open_fatal,   EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_contig_fatal, EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_seq1_fatal,   EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_seq2_fatal,   EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_close_fatal,  EXIT_FAILURE);
 
 	suite_add_tcase (s, tc_core);
 	suite_add_tcase (s, tc_abort);
-	suite_add_tcase (s, tc_segfault);
 
 	return s;
 }

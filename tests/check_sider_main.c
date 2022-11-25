@@ -23,9 +23,16 @@
 #include "check_sider.h"
 
 #include "../src/wrapper.h"
+#include "../src/utils.h"
 #include "../src/log.h"
 
 #define LOG_DEBUG_KEY "LOG_DEBUG"
+
+void
+handle_signal (int signal)
+{
+	exit (EXIT_FAILURE);
+}
 
 int
 main (void)
@@ -33,6 +40,13 @@ main (void)
 	const char *log_debug = NULL;
 	int number_failed = 0;
 	SRunner *sr = NULL;
+
+	// It is not reproducible to catch
+	// SIGABRT and SIGSEGV separately, so
+	// we overload those signals and return
+	// a EXIT_FAILURE
+	setup_signal (SIGABRT, handle_signal);
+	setup_signal (SIGSEGV, handle_signal);
 
 	log_set_quiet (1);
 
