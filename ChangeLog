@@ -1,3 +1,102 @@
+2022-11-25 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* Version 1.1.0
+
+	* FIX: ci.yml (runs-on): ubuntu-18.04 to 20.04
+
+	* CHANGE: Dockerfile (FROM): ubuntu:18.04 to 20.04
+
+	* FIX: check_sider_*.c: Handle SIGABRT and SIGSEGV
+
+	It is not reproducible to catch SIGABRT and SIGSEGV separately, so
+	we overload those signals and return a EXIT_FAILURE.
+
+	* FIX: tests/check_sider_*.c: libcheck version
+
+	Drop 'setup_signal' and use native 'libcheck' to handle signals and exit
+	codes.
+
+2022-11-24 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* FIX: ci.yml: Deprecating save-state
+
+	Move from echo echo "::set-output name={name}::{value}" to
+	echo "{name}={value}" >> $GITHUB_OUTPUT.
+
+	* ADD: README.pm: Docker badge
+
+	* ADD: ci.yml (paths): Filter.c, .h and Dockerfile
+
+	* ADD: ci.yml (docker): Build and deploy image
+
+	* CHANGE: ci_meson.yml: ci.yml
+
+2022-11-23 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* FIX: db_merge.c (db_merge): 'in-place' error
+
+	When using the option '--in-place', all the databases are merged into
+	the first one of the list. In order to avoid that the same exon is
+	stored twice, we index the values in a hash. An error arise about the
+	'ense id', because the values already stored in the database to merge
+	to are not taken into acount.
+
+	Try to fix it indexing the pre-recorded values before starting to merge
+	the databases.
+
+	* CHANGE: README.md: Drop travis, dockerhub badges
+
+	* REMOVE: .travis.yml: Migrate to github actions
+
+	* ADD: .github/workflows/ci_meson.yml
+
+2022-06-17 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* UPDATE: CITATION.cff: Citing article
+
+	Citing article instead of software. Use the 'preferred-citation' in
+	order to make Github show the citation of the published paper.
+
+2022-06-16 Author Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: CITATION.cff: Citation File Format (CFF)
+
+2021-08-13 bioinfomochsl <dtohara@mochsl.org.br>
+
+	* Merge pull request #2 from ceciliaromaro/patch-3
+
+	Update usage.rst
+
+	* Merge pull request #3 from ceciliaromaro/patch-2
+
+	Update install.rst
+
+	* Merge pull request #4 from ceciliaromaro/patch-1
+
+	Update README.md
+
+2021-08-06 ceciliaromaro <31550800+ceciliaromaro@users.noreply.github.com>
+
+	* Update usage.rst
+
+	bellow -> below
+	Tips
+	Memory consumption warning.
+
+	* Update install.rst
+
+	$ sudo apt install meson
+
+	Or "$ pip3 install --user meson" But in this case, remember to set the environment
+	variables.
+
+2021-08-03 ceciliaromaro <31550800+ceciliaromaro@users.noreply.github.com>
+
+	* Update README.md
+
+	The command "pip3 install --user meson" may require setting the environment variable.
+	This one "sudo apt install meson" doesn't require it.
+
 2020-08-11 Thiago L. A. Miller <tmiller@mochsl.org.br>
 
 	* Version 1.0.0

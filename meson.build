@@ -1,6 +1,6 @@
 project(
   'sideRETRO', 'c',
-          version : '1.0.0',
+          version : '1.1.0',
           license : 'GPL3',
     meson_version : '>= 0.48.0',
   default_options : ['c_std=c99']

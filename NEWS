@@ -1,3 +1,17 @@
+Version 1.1.0
+
+* Fix bug in 'merge-call' subcommand when
+  merging databases with the option 'in-place'
+  active.
+
+* Fix testing to handle SIGABRT and SIGSEGV.
+
+* Move from Travis-CI to Github Actions. Test
+  the code, build and deploy to Dockerhub.
+
+* Update Dockerfile base image to ubuntu
+  version 20.04.
+
 Version 1.0.0
 
 * Now sideRETRO works with the CRAM file
