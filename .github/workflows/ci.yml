@@ -14,7 +14,7 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     name: Build and test
     steps:
       - uses: actions/checkout@v3
@@ -27,11 +27,9 @@ jobs:
           sudo apt-get install -y
           check
           ninja-build
-          python3-pip
-          python3-setuptools
           valgrind
 
-      - name: Install meson and ninja
+      - name: Install meson and coveralls
         run: pip install meson cpp-coveralls
 
       - name: Meson setup
@@ -54,7 +52,17 @@ jobs:
         env:
           CK_DEFAULT_TIMEOUT: 0
 
-      - name: After sucess
+      - name: After failure
+        uses: actions/upload-artifact@v3
+        with:
+          name: meson-testlog
+          path: builddir/meson-logs/
+        if: >
+          failure() &&
+          (steps.normal_test.outcome == 'failure' ||
+          steps.valgring_test.outcome == 'failure')
+
+      - name: Run lcov and send data to coveralls
         run: >
           coveralls
           --repo-token ${{ secrets.COVERALLS }}
@@ -73,24 +81,10 @@ jobs:
           --exclude src/thpool.c
           --exclude-pattern '.+\.h$'
           --gcov-options '\-lp'
-        if: >
-          steps.normal_test.outcome == 'success'
-          &&
-          steps.valgring_test.outcome == 'success'
-
-      - name: After failure
-        uses: actions/upload-artifact@v3
-        with:
-          name: meson-testlog
-          path: builddir/meson-logs/
-        if: >
-          steps.normal_test.outcome == 'failure'
-          ||
-          steps.valgring_test.outcome == 'failure'
 
   docker:
     needs: test
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     name: Build and deploy docker image
     steps:
       - name: Get release tag
