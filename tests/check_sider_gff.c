@@ -29,13 +29,6 @@
 #include "../src/wrapper.h"
 #include "../src/gff.h"
 
-static void
-handle_sigabrt (int sig)
-{
-	if (sig == SIGABRT)
-		exit (1);
-}
-
 static const char *gff_header =
 	"##description: evidence-based annotation of the human genome (GRCh38), version 30 (Ensembl 96)\n"
 	"##provider: GENCODE\n"
@@ -445,11 +438,10 @@ END_TEST
 Suite *
 make_gff_suite (void)
 {
-	setup_signal (SIGABRT, handle_sigabrt);
-
 	Suite *s;
 	TCase *tc_core;
 	TCase *tc_abort;
+	TCase *tc_segfault;
 
 	s = suite_create ("GFF");
 
@@ -459,25 +451,30 @@ make_gff_suite (void)
 	/* Abort test case */
 	tc_abort = tcase_create ("Abort");
 
+	/* Segfault test case */
+	tc_segfault = tcase_create ("Segfault");
+
 	tcase_add_test (tc_core, test_gff_header);
 	tcase_add_test (tc_core, test_gff_read);
 	tcase_add_test (tc_core, test_gff_filter);
 	tcase_add_test (tc_core, test_gff_looks_like_gff_file);
 
-	tcase_add_exit_test (tc_abort, test_open_fatal, 1);
-	tcase_add_exit_test (tc_abort, test_close_fatal, 1);
-	tcase_add_exit_test (tc_abort, test_seqname_fatal, 1);
-	tcase_add_exit_test (tc_abort, test_source_fatal, 1);
-	tcase_add_exit_test (tc_abort, test_feature_fatal, 1);
-	tcase_add_exit_test (tc_abort, test_start_fatal, 1);
-	tcase_add_exit_test (tc_abort, test_end_fatal, 1);
-	tcase_add_exit_test (tc_abort, test_score_fatal, 1);
-	tcase_add_exit_test (tc_abort, test_strand_fatal, 1);
-	tcase_add_exit_test (tc_abort, test_frame_fatal, 1);
-	tcase_add_exit_test (tc_abort, test_key_value_fatal, 1);
+	tcase_add_test_raise_signal (tc_abort, test_open_fatal,      SIGABRT);
+	tcase_add_test_raise_signal (tc_abort, test_seqname_fatal,   SIGABRT);
+	tcase_add_test_raise_signal (tc_abort, test_source_fatal,    SIGABRT);
+	tcase_add_test_raise_signal (tc_abort, test_feature_fatal,   SIGABRT);
+	tcase_add_test_raise_signal (tc_abort, test_start_fatal,     SIGABRT);
+	tcase_add_test_raise_signal (tc_abort, test_end_fatal,       SIGABRT);
+	tcase_add_test_raise_signal (tc_abort, test_score_fatal,     SIGABRT);
+	tcase_add_test_raise_signal (tc_abort, test_strand_fatal,    SIGABRT);
+	tcase_add_test_raise_signal (tc_abort, test_frame_fatal,     SIGABRT);
+	tcase_add_test_raise_signal (tc_abort, test_key_value_fatal, SIGABRT);
+
+	tcase_add_test_raise_signal (tc_segfault, test_close_fatal,  SIGSEGV);
 
 	suite_add_tcase (s, tc_core);
 	suite_add_tcase (s, tc_abort);
+	suite_add_tcase (s, tc_segfault);
 
 	return s;
 }

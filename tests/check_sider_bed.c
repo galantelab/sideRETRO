@@ -29,13 +29,6 @@
 #include "../src/wrapper.h"
 #include "../src/bed.h"
 
-static void
-handle_sigabrt (int sig)
-{
-	if (sig == SIGABRT)
-		exit (1);
-}
-
 static const char *bed_header =
 	"browser position chr7:127471196-127495720\n"
 	"browser hide all\n"
@@ -297,11 +290,10 @@ END_TEST
 Suite *
 make_bed_suite (void)
 {
-	setup_signal (SIGABRT, handle_sigabrt);
-
 	Suite *s;
 	TCase *tc_core;
 	TCase *tc_abort;
+	TCase *tc_segfault;
 
 	s = suite_create ("BED");
 
@@ -311,17 +303,22 @@ make_bed_suite (void)
 	/* Abort test case */
 	tc_abort = tcase_create ("Abort");
 
+	/* Segfault test case */
+	tc_segfault = tcase_create ("Segfault");
+
 	tcase_add_test (tc_core, test_bed_header);
 	tcase_add_loop_test (tc_core, test_beds, 0, 10);
 
-	tcase_add_exit_test (tc_abort, test_open_fatal, 1);
-	tcase_add_exit_test (tc_abort, test_close_fatal, 1);
-	tcase_add_exit_test (tc_abort, test_chrom_fatal, 1);
-	tcase_add_exit_test (tc_abort, test_chrom_start_fatal, 1);
-	tcase_add_exit_test (tc_abort, test_chrom_end_fatal, 1);
+	tcase_add_test_raise_signal (tc_abort, test_open_fatal,        SIGABRT);
+	tcase_add_test_raise_signal (tc_abort, test_chrom_fatal,       SIGABRT);
+	tcase_add_test_raise_signal (tc_abort, test_chrom_start_fatal, SIGABRT);
+	tcase_add_test_raise_signal (tc_abort, test_chrom_end_fatal,   SIGABRT);
+
+	tcase_add_test_raise_signal (tc_segfault, test_close_fatal,    SIGSEGV);
 
 	suite_add_tcase (s, tc_core);
 	suite_add_tcase (s, tc_abort);
+	suite_add_tcase (s, tc_segfault);
 
 	return s;
 }

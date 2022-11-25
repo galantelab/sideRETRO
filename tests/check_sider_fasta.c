@@ -29,13 +29,6 @@
 #include "../src/wrapper.h"
 #include "../src/fasta.h"
 
-static void
-handle_sigabrt (int sig)
-{
-	if (sig == SIGABRT)
-		exit (1);
-}
-
 static int num_line = 17;
 static const char *fasta_body =
 	";PONGA test\n"
@@ -77,7 +70,7 @@ static const char *fasta_seq1 =
 	"GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG";
 
 static const char *fasta_id2 = "chr2";
-static const char *fasta_seq2 = 
+static const char *fasta_seq2 =
 	"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 	"TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
 	"CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC"
@@ -150,7 +143,7 @@ START_TEST (test_fasta_read)
 
 	ck_assert_int_eq (loops, i);
 	ck_assert_int_eq (num_line, entry->num_line);
-	
+
 	// Coverage
 	fasta_close (NULL);
 	fasta_entry_free (NULL);
@@ -261,11 +254,10 @@ END_TEST
 Suite *
 make_fasta_suite (void)
 {
-	setup_signal (SIGABRT, handle_sigabrt);
-
 	Suite *s;
 	TCase *tc_core;
 	TCase *tc_abort;
+	TCase *tc_segfault;
 
 	s = suite_create ("FASTA");
 
@@ -275,17 +267,22 @@ make_fasta_suite (void)
 	/* Abort test case */
 	tc_abort = tcase_create ("Abort");
 
+	/* Segfault test case */
+	tc_segfault = tcase_create ("Segfault");
+
 	tcase_add_test (tc_core, test_fasta_read);
 	tcase_add_test (tc_core, test_empty_file);
 
-	tcase_add_exit_test (tc_abort, test_open_fatal, 1);
-	tcase_add_exit_test (tc_abort, test_close_fatal, 1);
-	tcase_add_exit_test (tc_abort, test_contig_fatal, 1);
-	tcase_add_exit_test (tc_abort, test_seq1_fatal, 1);
-	tcase_add_exit_test (tc_abort, test_seq2_fatal, 1);
+	tcase_add_test_raise_signal (tc_abort, test_open_fatal,     SIGABRT);
+	tcase_add_test_raise_signal (tc_abort, test_contig_fatal,   SIGABRT);
+	tcase_add_test_raise_signal (tc_abort, test_seq1_fatal,     SIGABRT);
+	tcase_add_test_raise_signal (tc_abort, test_seq2_fatal,     SIGABRT);
+
+	tcase_add_test_raise_signal (tc_segfault, test_close_fatal, SIGSEGV);
 
 	suite_add_tcase (s, tc_core);
 	suite_add_tcase (s, tc_abort);
+	suite_add_tcase (s, tc_segfault);
 
 	return s;
 }

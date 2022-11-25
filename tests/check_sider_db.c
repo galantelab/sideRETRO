@@ -28,13 +28,6 @@
 #include "../src/wrapper.h"
 #include "../src/db.h"
 
-static void
-handle_sigabrt (int sig)
-{
-	if (sig == SIGABRT)
-		exit (1);
-}
-
 static sqlite3 *
 create_db (char *path)
 {
@@ -282,8 +275,6 @@ END_TEST
 Suite *
 make_db_suite (void)
 {
-	setup_signal (SIGABRT, handle_sigabrt);
-
 	Suite *s;
 	TCase *tc_core;
 	TCase *tc_abort;
@@ -302,20 +293,20 @@ make_db_suite (void)
 	tcase_add_test (tc_core, test_db_prepare);
 	tcase_add_test (tc_core, test_db_schema);
 
-	tcase_add_exit_test (tc_abort, test_db_open_abort, 1);
-	tcase_add_exit_test (tc_abort, test_db_close_abort, 1);
-	tcase_add_exit_test (tc_abort, test_db_exec_abort, 1);
-	tcase_add_exit_test (tc_abort, test_db_prepare_abort, 1);
-	tcase_add_exit_test (tc_abort, test_db_step_abort, 1);
-	tcase_add_exit_test (tc_abort, test_db_reset_abort, 1);
-	tcase_add_exit_test (tc_abort, test_db_bind_int_abort, 1);
-	tcase_add_exit_test (tc_abort, test_db_bind_int64_abort, 1);
-	tcase_add_exit_test (tc_abort, test_db_bind_double_abort, 1);
-	tcase_add_exit_test (tc_abort, test_db_bind_text_abort, 1);
-	tcase_add_exit_test (tc_abort, test_db_column_int_abort, 1);
-	tcase_add_exit_test (tc_abort, test_db_column_int64_abort, 1);
-	tcase_add_exit_test (tc_abort, test_db_column_double_abort, 1);
-	tcase_add_exit_test (tc_abort, test_db_column_text_abort, 1);
+	tcase_add_test_raise_signal (tc_abort, test_db_open_abort,          SIGABRT);
+	tcase_add_test_raise_signal (tc_abort, test_db_close_abort,         SIGABRT);
+	tcase_add_test_raise_signal (tc_abort, test_db_exec_abort,          SIGABRT);
+	tcase_add_test_raise_signal (tc_abort, test_db_prepare_abort,       SIGABRT);
+	tcase_add_test_raise_signal (tc_abort, test_db_step_abort,          SIGABRT);
+	tcase_add_test_raise_signal (tc_abort, test_db_reset_abort,         SIGABRT);
+	tcase_add_test_raise_signal (tc_abort, test_db_bind_int_abort,      SIGABRT);
+	tcase_add_test_raise_signal (tc_abort, test_db_bind_int64_abort,    SIGABRT);
+	tcase_add_test_raise_signal (tc_abort, test_db_bind_double_abort,   SIGABRT);
+	tcase_add_test_raise_signal (tc_abort, test_db_bind_text_abort,     SIGABRT);
+	tcase_add_test_raise_signal (tc_abort, test_db_column_int_abort,    SIGABRT);
+	tcase_add_test_raise_signal (tc_abort, test_db_column_int64_abort,  SIGABRT);
+	tcase_add_test_raise_signal (tc_abort, test_db_column_double_abort, SIGABRT);
+	tcase_add_test_raise_signal (tc_abort, test_db_column_text_abort,   SIGABRT);
 
 	suite_add_tcase (s, tc_core);
 	suite_add_tcase (s, tc_abort);
