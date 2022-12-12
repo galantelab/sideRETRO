@@ -11,7 +11,7 @@ To build and install sideRETRO, type the following commands:
 By default, sideRETRO will install under '/usr/local'.
 The configure script can customize the prefix directory. Run:
 
-    $ meson build configure
+    $ meson configure build
 
 for instructions and other installation options.
 
