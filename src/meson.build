@@ -11,6 +11,8 @@ sider_sources = files(
   'blacklist.h',
   'chr.c',
   'chr.h',
+  'cigar.c',
+  'cigar.h',
   'cluster.c',
   'cluster.h',
   'correlation.c',

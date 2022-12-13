@@ -6,6 +6,7 @@ test_sources = files(
   'check_sider_bitree.c',
   'check_sider_blacklist.c',
   'check_sider_chr.c',
+  'check_sider_cigar.c',
   'check_sider_cluster.c',
   'check_sider_correlation.c',
   'check_sider_db.c',
