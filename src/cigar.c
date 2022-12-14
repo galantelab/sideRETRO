@@ -25,11 +25,35 @@
 
 #include "cigar.h"
 
-enum _CigarYYTokenType
+#define CIGAR_STR        "MIDNSHP=XB"
+#define CIGAR_STR_SAFE   CIGAR_STR "??????"
+#define CIGAR_SHIFT      4
+#define CIGAR_MASK       0xf
+#define CIGAR_TYPE       0x3C1A7
+
+#define cigar_idx(t)     ((t) - CIGAR_MATCH)
+#define cigar_chr(t)     (CIGAR_STR_SAFE[cigar_idx(t)])
+
+#define cigar_opidx(c)   ((c) & CIGAR_MASK)
+#define cigar_op(c)      (cigar_opidx(c) + CIGAR_MATCH)
+#define cigar_oplen(c)   ((c) >> CIGAR_SHIFT)
+#define cigar_opchr(c)   (CIGAR_STR_SAFE[cigar_opidx(c)])
+
+
+enum _CigarTokenType
 {
-	CIGAR_YY_OP    = 258,
-	CIGAR_YY_OPLEN = 259,
-	CIGAR_YY_ERROR = 260
+	CIGAR_MATCH      = 258,
+	CIGAR_INS        = 259,
+	CIGAR_DEL        = 260,
+	CIGAR_REF_SKIP   = 261,
+	CIGAR_SOFT_CLIP  = 262,
+	CIGAR_HARD_CLIP  = 263,
+	CIGAR_PAD        = 264,
+	CIGAR_EQUAL      = 265,
+	CIGAR_DIFF       = 266,
+	CIGAR_BACK       = 267,
+	CIGAR_LENGTH     = 268,
+	CIGAR_ERROR      = 269
 };
 
 int
@@ -64,37 +88,30 @@ cigar_yylex (const char *cigar_str, const char **cache,
 			c--;
 
 			*yyval = i;
-			token = CIGAR_YY_OPLEN;
-
-			goto Return;
+			token = CIGAR_LENGTH;
 		}
-
-	switch (*c)
+	else
 		{
-			case 'M':
-			case 'I':
-			case 'D':
-			case 'N':
-			case 'S':
-			case 'H':
-			case 'P':
-			case '=':
-			case 'X':
-			case 'B':
+			switch (*c)
 				{
-					*yyval = *c;
-					token = CIGAR_YY_OP;
-
-					goto Return;
-				}
-			default:
-				{
-					log_error ("Invalid CIGAR operation: '%c'", *c);
-					token = CIGAR_YY_ERROR;
+				case 'M': {token = CIGAR_MATCH;     break;}
+				case 'I': {token = CIGAR_INS;       break;}
+				case 'D': {token = CIGAR_DEL;       break;}
+				case 'N': {token = CIGAR_REF_SKIP;  break;}
+				case 'S': {token = CIGAR_SOFT_CLIP; break;}
+				case 'H': {token = CIGAR_HARD_CLIP; break;}
+				case 'P': {token = CIGAR_PAD;       break;}
+				case '=': {token = CIGAR_EQUAL;     break;}
+				case 'X': {token = CIGAR_DIFF;      break;}
+				case 'B': {token = CIGAR_BACK;      break;}
+				default:
+					{
+						log_error ("Invalid CIGAR operation: '%c'", *c);
+						token = CIGAR_ERROR;
+					}
 				}
 		}
 
-Return:
 	*cache = c + 1;
 	return token;
 }
@@ -109,17 +126,19 @@ cigar_yyparser (const char *cigar_str, uint32_t *n_cigar)
 	const char *cache = NULL;
 	uint32_t yyval = 0;
 	int token = 0;
+	int prev_token = 0;
 
 	// Operations
-	uint32_t *cigar_o = NULL;
-	uint32_t op = 0;
-	int32_t n_ops = 0;
-	char op_char = 0;
-	char prev_op_char = 0;
+	uint32_t op_pair = 0;
 	uint32_t op_len = 0;
 
+	// Object
+	uint32_t n_ops = 0;
+	uint32_t alloc = 8;
+	uint32_t *cigar = xcalloc (alloc, sizeof (uint32_t));
+
 	// Initial state
-	int state = CIGAR_YY_OPLEN;
+	int init_op = 0;
 	int soft_end = 0;
 	int hard_end = 0;
 
@@ -127,76 +146,74 @@ cigar_yyparser (const char *cigar_str, uint32_t *n_cigar)
 			token;
 			token = cigar_yylex (NULL, &cache, &yyval))
 		{
-			if (token == CIGAR_YY_OP)
+			if (token == CIGAR_ERROR)
 				{
-					op_char = (char) yyval;
-
-					if (state == CIGAR_YY_OPLEN)
+					log_error ("Error parsing cigar '%s'", cigar_str);
+					goto Error;
+				}
+			else if (token == CIGAR_LENGTH)
+				{
+					op_len = yyval;
+					init_op = 1;
+				}
+			else
+				{
+					if (!init_op)
 						{
 							log_error ("Missing length to operation '%c' at cigar '%s'",
-									op_char, cigar_str);
+								cigar_chr (token), cigar_str);
 							goto Error;
 						}
 
 					if (hard_end)
 						{
 							log_error ("Premature ending at cigar '%s'",
-									cigar_str);
+								cigar_str);
 							goto Error;
 						}
 
-					switch (op_char)
+					if (token == CIGAR_HARD_CLIP)
 						{
-						case 'H':
-							{
-								if (n_ops > 0)
-									hard_end = 1;
-
-								break;
-							}
-						case 'S':
-							{
-								if (n_ops > 0 && prev_op_char != 'H')
-									soft_end = 1;
-
-								break;
-							}
-						default:
-							{
-								if (soft_end)
-									{
-										log_error ("Premature ending at cigar '%s'",
-												cigar_str);
-										goto Error;
-									}
-							}
+							if (n_ops > 0)
+								hard_end = 1;
+						}
+					else if (token == CIGAR_SOFT_CLIP)
+						{
+							if (n_ops > 0 && prev_token != CIGAR_HARD_CLIP)
+								soft_end = 1;
+						}
+					else
+						{
+							if (soft_end)
+								{
+									log_error ("Premature ending at cigar '%s'",
+										cigar_str);
+									goto Error;
+								}
 						}
 
-					n_ops++;
-					prev_op_char = op_char;
-					state = CIGAR_YY_OPLEN;
-				}
-			else if (token == CIGAR_YY_OPLEN)
-				{
-					op_len = yyval;
-					state = CIGAR_YY_OP;
-				}
-			else
-			{
-				log_error ("Error parsing cigar '%s'", cigar_str);
-				goto Error;
+				// Set operation: 4 bits = char and 28 bits = len
+				op_pair = (op_len << CIGAR_SHIFT) | cigar_idx (token);
+				cigar[n_ops++] = op_pair;
+
+				if (n_ops >= alloc)
+					cigar = xrealloc (cigar, sizeof (uint32_t) * (alloc += 8));
+
+				prev_token = token;
+				init_op = 0;
 			}
 		}
 
-	if (state == CIGAR_YY_OP)
+	if (init_op)
 		{
 			log_error ("Truncated cigar '%s'", cigar_str);
 			goto Error;
 		}
 
-	return cigar_o;
+	*n_cigar = n_ops;
+	return xrealloc (cigar, sizeof (uint32_t) * n_ops);
 
 Error:
-	xfree (cigar_o);
+	xfree (cigar);
 	return NULL;
 }
