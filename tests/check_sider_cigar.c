@@ -25,34 +25,54 @@
 
 START_TEST (test_cigar_yylex)
 {
-	int n_cigar = 4;
+	int n_cigar = 9;
 
 	char *cigar_strs[] = {
 		"35M",
-		"10H100S1024M2I10M20S12H",
+		"10H100S1024M",
 		"55M46S",
-		"55S46M"
+		"10M20I",
+		"10M5D20M",
+		"100M10P",
+		"25=10X",
+		"101M5N",
+		"66M34B"
 	};
 
 	int n_ops[] = {
 		1,
-		7,
+		3,
+		2,
+		2,
+		3,
+		2,
+		2,
 		2,
 		2
 	};
 
-	uint32_t ops[][7] = {
-		{'M', '0', '0', '0', '0', '0', '0'},
-		{'H', 'S', 'M', 'I', 'M', 'S', 'H'},
-		{'M', 'S', '0', '0', '0', '0', '0'},
-		{'S', 'M', '0', '0', '0', '0', '0'}
+	int ops[][3] = {
+		{CIGAR_MATCH,     0,                         0},
+		{CIGAR_HARD_CLIP, CIGAR_SOFT_CLIP, CIGAR_MATCH},
+		{CIGAR_MATCH,     CIGAR_SOFT_CLIP,           0},
+		{CIGAR_MATCH,     CIGAR_INS,                 0},
+		{CIGAR_MATCH,     CIGAR_DEL,       CIGAR_MATCH},
+		{CIGAR_MATCH,     CIGAR_PAD,                 0},
+		{CIGAR_EQUAL,     CIGAR_DIFF,                0},
+		{CIGAR_MATCH,     CIGAR_REF_SKIP,            0},
+		{CIGAR_MATCH,     CIGAR_BACK,                0}
 	};
 
-	uint32_t lens[][7] = {
-		{35,   0,    0, 0,  0,  0,  0},
-		{10, 100, 1024, 2, 10, 20, 12},
-		{55,  46,    0, 0,  0,  0,  0},
-		{55,  46,    0, 0,  0,  0,  0},
+	uint32_t lens[][3] = {
+		{35,   0,    0},
+		{10, 100, 1024},
+		{55,  46,    0},
+		{10,  20,    0},
+		{10,   5,   20},
+		{100, 10,    0},
+		{25,  10,    0},
+		{101,  5,    0},
+		{66,  34,    0}
 	};
 
 	const char *cache = NULL;
@@ -69,12 +89,12 @@ START_TEST (test_cigar_yylex)
 					token;
 					token = cigar_yylex (NULL, &cache, &val))
 				{
-					ck_assert_int_ne (token, CIGAR_YY_ERROR);
+					ck_assert_int_ne (token, CIGAR_ERROR);
 
-					if (token == CIGAR_YY_OP)
-						ck_assert_uint_eq (val,  ops[i][j++]);
+					if (token == CIGAR_LENGTH)
+						ck_assert_uint_eq (val, lens[i][j]);
 					else
-						ck_assert_int_eq (val, lens[i][j]);
+						ck_assert_int_eq (token,  ops[i][j++]);
 				}
 
 			ck_assert_int_eq (j, n_ops[i]);
