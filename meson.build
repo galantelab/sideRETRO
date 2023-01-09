@@ -93,7 +93,7 @@ htslib_dep = dependency('htslib', version : '>= 1.9', fallback : ['htslib', 'hts
 
 # Libcheck framework is used for testing, so it is not
 # required for building and installing
-check_dep = dependency('check', required : false)
+check_dep = dependency('check', version : '>= 0.15.0', required : false)
 
 # Sphinx documentation generator
 sphinx_build = find_program('sphinx-build', required : false)
