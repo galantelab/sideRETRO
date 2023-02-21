@@ -172,36 +172,32 @@ cigar_yyparser (const char *cigar_str, uint32_t *n_cigar)
 							goto Error;
 						}
 
-					if (token == CIGAR_HARD_CLIP)
+					if (token == CIGAR_HARD_CLIP && n_ops > 0)
 						{
-							if (n_ops > 0)
-								hard_end = 1;
+							hard_end = 1;
 						}
-					else if (token == CIGAR_SOFT_CLIP)
+					else if (token == CIGAR_SOFT_CLIP
+							&& (n_ops > 0 && prev_token != CIGAR_HARD_CLIP))
 						{
-							if (n_ops > 0 && prev_token != CIGAR_HARD_CLIP)
-								soft_end = 1;
+							soft_end = 1;
 						}
-					else
+					else if (soft_end)
 						{
-							if (soft_end)
-								{
-									log_error ("Premature ending at cigar '%s'",
-										cigar_str);
-									goto Error;
-								}
+							log_error ("Premature ending at cigar '%s'",
+								cigar_str);
+							goto Error;
 						}
 
-				// Set operation: 4 bits = char and 28 bits = len
-				op_pair = (op_len << CIGAR_SHIFT) | cigar_idx (token);
-				cigar[n_ops++] = op_pair;
+					// Set operation: 4 bits = char and 28 bits = len
+					op_pair = (op_len << CIGAR_SHIFT) | cigar_idx (token);
+					cigar[n_ops++] = op_pair;
 
-				if (n_ops >= alloc)
-					cigar = xrealloc (cigar, sizeof (uint32_t) * (alloc += 8));
+					if (n_ops >= alloc)
+						cigar = xrealloc (cigar, sizeof (uint32_t) * (alloc += 8));
 
-				prev_token = token;
-				init_op = 0;
-			}
+					prev_token = token;
+					init_op = 0;
+				}
 		}
 
 	if (init_op)
