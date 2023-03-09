@@ -45,6 +45,17 @@ int    xasprintf_concat (char **strp, const char *fmt, ...)
 
 void setup_signal (int sig, void (*handler)(int));
 
+static inline size_t
+nearest_pow (size_t num)
+{
+	size_t n = 1;
+
+	while (n < num && n > 0)
+		n <<= 1;
+
+	return n ? n : num;
+}
+
 size_t buf_expand (void **buf, size_t size,
 		size_t old_nmemb, size_t length);
 size_t entry_set  (char **buf, size_t buf_size,

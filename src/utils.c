@@ -192,9 +192,11 @@ xstrdup_concat (char *dest, const char *src)
 		len_dest = strlen (dest);
 
 	dest = xrealloc (dest, sizeof (char) * (len_dest + len_src + 1));
-	memset (dest + len_dest, 0, sizeof (char) * (len_src + 1));
 
-	return strncat (dest, src, len_src);
+	memcpy (dest + len_dest, src, sizeof (char) * len_src);
+	dest[len_dest + len_src] = '\0';
+
+	return dest;
 }
 
 int
@@ -240,8 +242,9 @@ which (const char *cmd)
 	if (paths == NULL)
 		return found;
 
-	strncpy (paths_copy, paths, BUFSIZ - 1);
+	strncpy (paths_copy, paths, BUFSIZ);
 	paths_copy[BUFSIZ - 1] = '\0';
+
 	path = strtok_r (paths_copy, ":", &scratch);
 
 	while (path != NULL)
@@ -275,7 +278,7 @@ mkdir_p (const char *path)
 	char path_copy[BUFSIZ];
 	char *p;
 
-	strncpy (path_copy, path, BUFSIZ - 1);
+	strncpy (path_copy, path, BUFSIZ);
 	path_copy[BUFSIZ - 1] = '\0';
 
 	/* Iterate the string */
@@ -307,17 +310,6 @@ setup_signal (int sig, void (*handler)(int))
 	xsigaction (sig, &action, NULL);
 }
 
-static inline size_t
-nearest_pow (size_t num)
-{
-	size_t n = 1;
-
-	while (n < num && n > 0)
-		n <<= 1;
-
-	return n ? n : num;
-}
-
 size_t
 buf_expand (void **buf, size_t size,
 		size_t old_nmemb, size_t length)
@@ -338,6 +330,8 @@ entry_set (char **buf, size_t buf_size, const char *entry)
 		buf_size = buf_expand ((void **) buf, sizeof (char),
 				buf_size, entry_size - buf_size + 1);
 
-	*buf = strncpy (*buf, entry, buf_size);
+	memcpy (*buf, entry, sizeof (char) * entry_size);
+	(*buf)[entry_size] = '\0';
+
 	return buf_size;
 }

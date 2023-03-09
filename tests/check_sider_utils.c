@@ -233,8 +233,9 @@ END_TEST
 START_TEST (test_xstrdup_concat)
 {
 	char *surname = "ponguita";
-	char *full_name = xstrdup ("ponga");
+	char *full_name = NULL;
 
+	full_name = xstrdup_concat (full_name, "ponga");
 	full_name = xstrdup_concat (full_name, " ");
 	full_name = xstrdup_concat (full_name, surname);
 
