@@ -22,6 +22,7 @@
 #include <check.h>
 #include "check_sider.h"
 
+#include "../src/utils.h"
 #include "../src/wrapper.h"
 #include "../src/str.h"
 
@@ -31,7 +32,7 @@ START_TEST (test_string_new)
 	String *s = string_new (str);
 
 	ck_assert_int_eq (s->len, strlen (str));
-	ck_assert_int_eq (s->alloc, strlen (str) + 1);
+	ck_assert_int_eq (s->alloc, nearest_pow (strlen (str) + 1));
 	ck_assert_str_eq (s->str, str);
 
 	char *s_str = string_free (s, 1);
@@ -56,12 +57,12 @@ START_TEST (test_string_set)
 {
 	const char *str = "PONGA";
 	String *s = string_new (NULL);
-	ck_assert_int_eq (s->alloc, 1);
+	ck_assert_int_eq (s->alloc, nearest_pow (1));
 	ck_assert_int_eq (s->len, 0);
 
 	s = string_set (s, str);
 	ck_assert_int_eq (s->len, strlen (str));
-	ck_assert_int_eq (s->alloc, strlen (str) + 1);
+	ck_assert_int_eq (s->alloc, nearest_pow (strlen (str) + 1));
 	ck_assert_str_eq (s->str, str);
 
 	char *s_str = string_free (s, 1);
@@ -81,7 +82,7 @@ START_TEST (test_string_concat)
 	s = string_concat (s, str2);
 
 	ck_assert_int_eq (s->len, strlen (str));
-	ck_assert_int_eq (s->alloc, strlen (str) + 1);
+	ck_assert_int_eq (s->alloc, nearest_pow (strlen (str) + 1));
 	ck_assert_str_eq (s->str, str);
 
 	char *s_str = string_free (s, 1);
@@ -99,7 +100,7 @@ START_TEST (test_string_printf)
 	s = string_printf (s, "%s_%s", str1, str2);
 
 	ck_assert_int_eq (s->len, strlen (str));
-	ck_assert_int_eq (s->alloc, strlen (str) + 1);
+	ck_assert_int_eq (s->alloc, nearest_pow (strlen (str) + 1));
 	ck_assert_str_eq (s->str, str);
 
 	char *s_str = string_free (s, 1);
@@ -117,7 +118,7 @@ START_TEST (test_string_concat_printf)
 	s = string_concat_printf (s, "_%s", str2);
 
 	ck_assert_int_eq (s->len, strlen (str));
-	ck_assert_int_eq (s->alloc, strlen (str) + 1);
+	ck_assert_int_eq (s->alloc, nearest_pow (strlen (str) + 1));
 	ck_assert_str_eq (s->str, str);
 
 	char *s_str = string_free (s, 1);

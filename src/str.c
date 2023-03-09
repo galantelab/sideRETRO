@@ -22,6 +22,7 @@
 #include <string.h>
 #include <assert.h>
 #include "wrapper.h"
+#include "utils.h"
 #include "str.h"
 
 static inline void
@@ -29,6 +30,7 @@ string_maybe_expand (String *s, size_t len)
 {
 	if (len > s->alloc)
 		{
+			len = nearest_pow (len);
 			s->str = xrealloc (s->str, sizeof (char) * len);
 			memset (s->str + s->alloc, 0,
 					sizeof (char) * (len - s->alloc));
@@ -46,7 +48,7 @@ string_set (String *s, const char *str)
 			size_t str_len = strlen (str);
 			string_maybe_expand (s, str_len + 1);
 
-			s->str = strncpy (s->str, str, str_len + 1);
+			memcpy (s->str, str, sizeof (char) * (str_len + 1));
 			s->len = str_len;
 		}
 
