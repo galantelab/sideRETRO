@@ -1,3 +1,8 @@
+Version 1.1.1
+
+* Fix testing. Point the right 'libcheck'
+  version (>= 0.15.0) in 'meson.build'.
+
 Version 1.1.0
 
 * Fix bug in 'merge-call' subcommand when

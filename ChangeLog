@@ -1,3 +1,22 @@
+2023-01-09 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: ci.yml (paths): meson.build
+
+	Test and deploy when 'meson.build' changes.
+
+2023-01-09 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* FIX: meson.build (check): Version '>= 0.15.0'
+
+	Point out 'check' to the right version.
+
+2022-12-12 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* FIX: INSTALL: meson configure
+
+	Fix ordering in meson command: 'meson build configure' to
+	'meson configure build'
+
 2022-11-25 Thiago L. A. Miller <tmiller@mochsl.org.br>
 
 	* Version 1.1.0
