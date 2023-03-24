@@ -1,10 +1,21 @@
+2023-03-09 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* CHANGE: Dockerfile: multi-stage builds
+
+	Improve docker image size by using multi-stage builds.
+
+	* ADD: str.c (string_maybe_expand): 'nearest_pow'
+
+	* FIX: utils.c (xstrdup_concat, entry_set): Truncat
+
+	Deal with possible vulnerability in 'strncat' and 'strcpy' inside loop.
+	Replace with 'memcpy'.
+
 2023-01-09 Thiago L. A. Miller <tmiller@mochsl.org.br>
 
 	* ADD: ci.yml (paths): meson.build
 
 	Test and deploy when 'meson.build' changes.
-
-2023-01-09 Thiago L. A. Miller <tmiller@mochsl.org.br>
 
 	* FIX: meson.build (check): Version '>= 0.15.0'
 

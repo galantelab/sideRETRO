@@ -1,3 +1,12 @@
+Version 1.1.2
+
+* Fix a possible vulnerability in 'strncat'
+  and 'strcpy' inside a loop, replacing them
+  with 'memcpy'.
+
+* Use multi-stage build to decrease the final
+  docker image size.
+
 Version 1.1.1
 
 * Fix testing. Point the right 'libcheck'
