@@ -39,6 +39,8 @@ sider_sources = files(
   'ibitree.h',
   'io.c',
   'io.h',
+  'kv.c',
+  'kv.h',
   'list.c',
   'list.h',
   'log.c',

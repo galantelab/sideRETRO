@@ -20,6 +20,7 @@ test_sources = files(
   'check_sider_hash.c',
   'check_sider_ibitree.c',
   'check_sider_io.c',
+  'check_sider_kv.c',
   'check_sider_list.c',
   'check_sider_main.c',
   'check_sider_process_sample.c',
