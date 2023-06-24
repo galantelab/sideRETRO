@@ -50,6 +50,12 @@ teardown (void)
 	xfree (path);
 }
 
+START_TEST (test_kv_path)
+{
+	ck_assert_ptr_nonnull (kv_path (kv));
+}
+END_TEST
+
 START_TEST (test_kv_insert)
 {
 	int i = 0;
@@ -65,18 +71,6 @@ START_TEST (test_kv_insert)
 			xfree (key);
 			key = NULL;
 		}
-	/*int n = 7;*/
-	/*int i = 0;*/
-
-	/*char *all[] = {*/
-		/*"I",  "you",  "he",  "she", "it",  "we",  "they",*/
-		/*"my", "your", "his", "her", "its", "our", "their"*/
-	/*};*/
-
-	/*for (i = 0; i < n; i++)*/
-		/*kv_insert (kv, all[i], all[i+n]);*/
-
-	/*ck_assert_int_eq (kv_count (kv), n);*/
 }
 END_TEST
 
@@ -99,6 +93,63 @@ START_TEST (test_kv_count)
 }
 END_TEST
 
+START_TEST (test_kv_del_key)
+{
+	kv_insert (kv, "one key", "one value");
+	ck_assert_int_eq (kv_contains (kv, "one key"), 1);
+
+	kv_del_key (kv, "one key");
+	ck_assert_int_eq (kv_contains (kv, "one key"), 0);
+}
+END_TEST
+
+START_TEST (test_kv_get_value)
+{
+	int n = 7;
+	int i = 0;
+
+	char *all[] = {
+		"I",  "you",  "he",  "she", "it",  "we",  "they",
+		"my", "your", "his", "her", "its", "our", "their"
+	};
+
+	for (i = 0; i < n; i++)
+		kv_insert (kv, all[i], all[i+n]);
+
+	for (i = 0; i < n; i++)
+		ck_assert_str_eq (kv_get_value (kv, all[i]), all[i+n]);
+}
+END_TEST
+
+static void
+foreach (const char *key, const char *value, void *user_data)
+{
+	char **data = user_data;
+	int i = 0;
+
+	for (i = 0; data[i] != NULL; i++)
+		if (!strcmp (data[i], key))
+			break;
+
+	ck_assert_str_eq (data[i], key);
+	ck_assert_str_eq (key, value);
+}
+
+START_TEST (test_kv_foreach)
+{
+	char *data[] = {
+		"eu", "tu", "ele", "ela", "nos", "vos", "eles", "elas", NULL
+	};
+
+	int i = 0;
+
+	for (i = 0; data[i] != NULL; i++)
+		kv_insert (kv, data[i], NULL);
+
+	kv_foreach (kv, foreach, data);
+}
+END_TEST
+
 Suite *
 make_kv_suite (void)
 {
@@ -111,8 +162,12 @@ make_kv_suite (void)
 	tc_core = tcase_create ("Core");
 	tcase_add_checked_fixture (tc_core, setup, teardown);
 
+	tcase_add_test (tc_core, test_kv_path);
 	tcase_add_test (tc_core, test_kv_insert);
 	tcase_add_test (tc_core, test_kv_count);
+	tcase_add_test (tc_core, test_kv_del_key);
+	tcase_add_test (tc_core, test_kv_get_value);
+	tcase_add_test (tc_core, test_kv_foreach);
 	suite_add_tcase (s, tc_core);
 
 	return s;
