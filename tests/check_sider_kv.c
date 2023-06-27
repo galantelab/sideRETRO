@@ -50,6 +50,12 @@ teardown (void)
 	xfree (path);
 }
 
+START_TEST (test_kv_free_null)
+{
+	kv_free (NULL);
+}
+END_TEST
+
 START_TEST (test_kv_path)
 {
 	ck_assert_ptr_nonnull (kv_path (kv));
@@ -100,6 +106,9 @@ START_TEST (test_kv_del_key)
 
 	kv_del_key (kv, "one key");
 	ck_assert_int_eq (kv_contains (kv, "one key"), 0);
+
+	// Delete an unknown row. Do not throw an error!
+	kv_del_key (kv, "ponga");
 }
 END_TEST
 
@@ -162,6 +171,7 @@ make_kv_suite (void)
 	tc_core = tcase_create ("Core");
 	tcase_add_checked_fixture (tc_core, setup, teardown);
 
+	tcase_add_test (tc_core, test_kv_free_null);
 	tcase_add_test (tc_core, test_kv_path);
 	tcase_add_test (tc_core, test_kv_insert);
 	tcase_add_test (tc_core, test_kv_count);
