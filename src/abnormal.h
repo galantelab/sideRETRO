@@ -39,6 +39,7 @@ struct _AbnormalArg
 	int            tid;
 	int            inc_step;
 	const char    *sam_file;
+	const char    *output_dir;
 	ExonTree      *exon_tree;
 	ChrStd        *cs;
 	sqlite3_stmt  *alignment_stmt;

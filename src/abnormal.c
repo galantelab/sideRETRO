@@ -30,6 +30,7 @@
 #include "log.h"
 #include "utils.h"
 #include "str.h"
+#include "kv.h"
 #include "abnormal.h"
 
 struct _AbnormalFilter
@@ -37,6 +38,7 @@ struct _AbnormalFilter
 	int            tid;
 	int            inc_step;
 	const char    *sam_file;
+	const char    *output_dir;
 	ExonTree      *exon_tree;
 	ChrStd        *cs;
 	sqlite3_stmt  *alignment_stmt;
@@ -405,31 +407,23 @@ sam_rewind (AbnormalFilter *argf)
 }
 
 static void
-purge_blacklist (const char *name, Hash *ids)
-{
-	if (hash_remove (ids, name))
-		log_debug ("Remove blacklisted alignment '%s'",
-				name);
-}
-
-static void
 parse_unsorted_sam (AbnormalFilter *argf)
 {
-	int rc = 0;
-	const char *name = NULL;
+	KV *abnormal_ids = NULL;
+	char *kv_file = NULL;
+	const char *key = NULL;
+	const void *value = NULL;
+	AbnormalType stype = 0;
 	AbnormalType type = 0;
-	AbnormalType *type_copy = NULL;
-	Hash *abnormal_ids = NULL;
-	List *blacklist_ids = NULL;
+	int rc = 0;
+
+	xasprintf_concat (&kv_file, "%s/.kv%d.db",
+			argf->output_dir, argf->tid);
 
 	// All abnormal alignments are keeped
-	// into a hash if the SAM/BAM/CRAM is not sorted
-	// by queryname
-	abnormal_ids = hash_new (xfree, xfree);
-
-	// Keep all alignments, whose at least
-	// one read not pass the constraints
-	blacklist_ids = list_new (xfree);
+	// into a KV database if the SAM/BAM/CRAM
+	// is not sorted by queryname
+	abnormal_ids = kv_new (kv_file);
 
 	log_debug ("Index all fragment ids from '%s'", argf->sam_file);
 
@@ -440,22 +434,23 @@ parse_unsorted_sam (AbnormalFilter *argf)
 			if (!abnormal_classifier (argf->align, argf->max_distance,
 						argf->phred_quality, argf->max_base_freq, &type))
 				{
-					name = xstrdup (bam_get_qname (argf->align));
-					list_append (blacklist_ids, name);
+					key = bam_get_qname (argf->align);
+					stype = ABNORMAL_NONE;
+					kv_insert (abnormal_ids, key, &stype, sizeof (AbnormalType));
 				}
 			else if (type != ABNORMAL_NONE)
 				{
-					type_copy = hash_lookup (abnormal_ids,
-							bam_get_qname (argf->align));
+					key = bam_get_qname (argf->align);
+					value = kv_get_value (abnormal_ids, key);
 
-					if (type_copy == NULL)
+					if (value == NULL || * (AbnormalType *) value != ABNORMAL_NONE)
 						{
-							name = xstrdup (bam_get_qname (argf->align));
-							type_copy = xcalloc (1, sizeof (AbnormalType));
-							hash_insert (abnormal_ids, name, type_copy);
-						}
+							stype = value == NULL
+								? type
+								: * (AbnormalType *) value | type;
 
-					*type_copy |= type;
+							kv_insert (abnormal_ids, key, &stype, sizeof (AbnormalType));
+						}
 				}
 		}
 
@@ -469,25 +464,18 @@ parse_unsorted_sam (AbnormalFilter *argf)
 	// supplementary alignments
 	sam_rewind (argf);
 
-	log_debug ("Remove blacklisted fragments from '%s'",
-			argf->sam_file);
-
-	// Remove blacklisted alignments
-	list_foreach (blacklist_ids, (Func) purge_blacklist,
-			abnormal_ids);
-
 	log_debug ("Catch all indexed abnormal fragments from '%s'",
 			argf->sam_file);
 
 	// Get all reads from indexed fragments
 	while ((rc = sam_read1 (argf->in, argf->hdr, argf->align)) >= 0)
 		{
-			type_copy = hash_lookup (abnormal_ids,
-					bam_get_qname (argf->align));
+			key = bam_get_qname (argf->align);
+			value = kv_get_value (abnormal_ids, key);
 
-			if (type_copy != NULL)
+			if (value != NULL && * (AbnormalType *) value != ABNORMAL_NONE)
 				{
-					dump_alignment (argf, argf->align, *type_copy);
+					dump_alignment (argf, argf->align, * (AbnormalType *) value);
 					argf->abnormal_acm++;
 				}
 		}
@@ -499,14 +487,15 @@ parse_unsorted_sam (AbnormalFilter *argf)
 				argf->sam_file);
 
 	// Clean
-	hash_free (abnormal_ids);
-	list_free (blacklist_ids);
+	kv_free (abnormal_ids);
+	xfree (kv_file);
 }
 
 void
 abnormal_filter (AbnormalArg *arg)
 {
-	assert (arg != NULL && arg->sam_file != NULL
+	assert (arg != NULL
+			&& arg->sam_file != NULL && arg->output_dir != NULL
 			&& arg->alignment_stmt != NULL && arg->exon_tree
 			&& arg->cs && arg->tid >= 0 && arg->inc_step > 0
 			&& arg->phred_quality >= 0 && arg->max_base_freq > 0);

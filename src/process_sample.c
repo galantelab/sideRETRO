@@ -176,6 +176,7 @@ run (ProcessSample *ps)
 				.tid              = i + 1,
 				.inc_step         = num_files,
 				.sam_file         = sam_file,
+				.output_dir       = ps->output_dir,
 				.either           = ps->either,
 				.exon_frac        = ps->exon_frac,
 				.alignment_frac   = ps->alignment_frac,
