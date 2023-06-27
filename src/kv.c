@@ -172,11 +172,12 @@ kv_count (KV *kv)
 void
 kv_insert (KV *kv, const char *key, const char *value)
 {
-	assert (kv != NULL);
-	assert (key != NULL);
+	assert (kv != NULL && key != NULL);
 
 	if (value == NULL)
 		value = key;
+
+	sqlite3_mutex_enter (sqlite3_db_mutex (sqlite3_db_handle (kv->in_stmt)));
 
 	db_reset (kv->in_stmt);
 	db_clear_bindings (kv->in_stmt);
@@ -185,13 +186,16 @@ kv_insert (KV *kv, const char *key, const char *value)
 	db_bind_text (kv->in_stmt, 2, value);
 
 	db_step (kv->in_stmt);
+
+	sqlite3_mutex_leave (sqlite3_db_mutex (sqlite3_db_handle (kv->in_stmt)));
 }
 
 void
 kv_del_key (KV *kv, const char *key)
 {
-	assert (kv != NULL);
-	assert (key != NULL);
+	assert (kv != NULL && key != NULL);
+
+	sqlite3_mutex_enter (sqlite3_db_mutex (sqlite3_db_handle (kv->del_stmt)));
 
 	db_reset (kv->del_stmt);
 	db_clear_bindings (kv->del_stmt);
@@ -199,13 +203,14 @@ kv_del_key (KV *kv, const char *key)
 	db_bind_text (kv->del_stmt, 1, key);
 
 	db_step (kv->del_stmt);
+
+	sqlite3_mutex_leave (sqlite3_db_mutex (sqlite3_db_handle (kv->del_stmt)));
 }
 
 const char *
 kv_get_value (KV *kv, const char *key)
 {
-	assert (kv != NULL);
-	assert (key != NULL);
+	assert (kv != NULL && key != NULL);
 
 	const char *value = NULL;
 
