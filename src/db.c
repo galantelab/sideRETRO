@@ -25,6 +25,22 @@
 
 /* Low-level wrapper for sqlite3 interface */
 
+/*static int*/
+/*db_busy_handler (void *data, int reentrance)*/
+/*{*/
+	/*// Return SQLITE_BUSY if the number*/
+	/*// of atempts to unlock the database*/
+	/*// is greater than DB_TIMEOUT_LIMIT*/
+	/*if (reentrance >= DB_TIMEOUT_LIMIT)*/
+		/*return 0;*/
+
+	/*log_warn ("PONGA");*/
+
+	/*xusleep (DB_TIMEOUT_MS);*/
+
+	/*return 1;*/
+/*}*/
+
 sqlite3 *
 db_open (const char *path, int flags)
 {
@@ -38,6 +54,12 @@ db_open (const char *path, int flags)
 	if (rc != SQLITE_OK)
 		log_fatal ("Failed sqlite3_open_v2 '%s': %s",
 				path, sqlite3_errmsg (db));
+
+	/*rc = sqlite3_busy_handler (db, db_busy_handler, NULL);*/
+
+	/*if (rc != SQLITE_OK)*/
+		/*log_fatal ("Failed to set sqlite3_busy_handler to '%s': %s",*/
+				/*path, sqlite3_errmsg (db));*/
 
 	return db;
 }
@@ -204,6 +226,21 @@ db_bind_text (sqlite3_stmt *stmt,
 				i, value, sqlite3_errmsg (sqlite3_db_handle (stmt)));
 }
 
+void
+db_bind_blob (sqlite3_stmt *stmt,
+		int i, const void *value, int n)
+{
+	assert (stmt != NULL);
+
+	int rc = 0;
+
+	rc = sqlite3_bind_blob (stmt, i, value, n, SQLITE_TRANSIENT);
+
+	if (rc != SQLITE_OK)
+		log_fatal ("Failed sqlite3_bind_blob at '[%d] BLOB': %s",
+				i, sqlite3_errmsg (sqlite3_db_handle (stmt)));
+}
+
 int
 db_column_int (sqlite3_stmt *stmt, int i)
 {
@@ -246,6 +283,17 @@ db_column_text (sqlite3_stmt *stmt, int i)
 		log_fatal ("Failed sqlite3_column_text at %d: Wrong type", i);
 
 	return (const char *) sqlite3_column_text (stmt, i);
+}
+
+const void *
+db_column_blob (sqlite3_stmt *stmt, int i)
+{
+	assert (stmt != NULL);
+
+	if (sqlite3_column_type (stmt, i) != SQLITE_BLOB)
+		log_fatal ("Failed sqlite3_column_blob at %d: Wrong type", i);
+
+	return sqlite3_column_blob (stmt, i);
 }
 
 /* db management functions */

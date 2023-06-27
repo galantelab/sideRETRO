@@ -29,6 +29,9 @@
 
 #define DB_DEFAULT_CACHE_SIZE 2000
 
+#define DB_TIMEOUT_MS 10000000 // 10s
+#define DB_TIMEOUT_LIMIT 10
+
 /* Low-level functions */
 
 sqlite3 *      db_open (const char *path, int flags);
@@ -47,11 +50,13 @@ void           db_bind_int (sqlite3_stmt *stmt, int i, int value);
 void           db_bind_int64 (sqlite3_stmt *stmt, int i, int64_t value);
 void           db_bind_double (sqlite3_stmt *stmt, int i, double value);
 void           db_bind_text (sqlite3_stmt *stmt, int i, const char *value);
+void           db_bind_blob (sqlite3_stmt *stmt, int i, const void *value, int n);
 
 int            db_column_int (sqlite3_stmt *stmt, int i);
 int64_t        db_column_int64 (sqlite3_stmt *stmt, int i);
 double         db_column_double (sqlite3_stmt *stmt, int i);
 const char   * db_column_text (sqlite3_stmt *stmt, int i);
+const void   * db_column_blob (sqlite3_stmt *stmt, int i);
 
 /* database interface  */
 
