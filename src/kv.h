@@ -19,7 +19,7 @@
 #ifndef KV_H
 #define KV_H
 
-typedef void (*KVFunc) (const char *key, const char *value, void *user_data);
+typedef void (*KVFunc) (const char *key, const void *value, void *user_data);
 
 typedef struct _KV KV;
 
@@ -29,9 +29,9 @@ void         kv_free      (KV *kv);
 const char * kv_path      (KV *kv);
 int          kv_count     (KV *kv);
 
-void         kv_insert    (KV *kv, const char *key, const char *value);
+void         kv_insert    (KV *kv, const char *key, const void *value, int n);
 void         kv_del_key   (KV *kv, const char *key);
-const char * kv_get_value (KV *kv, const char *key);
+const void * kv_get_value (KV *kv, const char *key);
 
 void         kv_foreach   (KV *kv, KVFunc func, void *user_data);
 

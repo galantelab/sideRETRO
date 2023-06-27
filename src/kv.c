@@ -40,7 +40,7 @@ kv_create_table (sqlite3 *db)
 	const char sql[] =
 		"CREATE TABLE IF NOT EXISTS kv (\n"
 		" key TEXT PRIMARY KEY,\n"
-		" value TEXT NOT NULL)";
+		" value BLOB NOT NULL)";
 
 	db_exec (db, sql);
 }
@@ -170,12 +170,17 @@ kv_count (KV *kv)
 }
 
 void
-kv_insert (KV *kv, const char *key, const char *value)
+kv_insert (KV *kv, const char *key, const void *value, int n)
 {
 	assert (kv != NULL && key != NULL);
 
+	int default_value = 1;
+
 	if (value == NULL)
-		value = key;
+		{
+			value = &default_value;
+			n = sizeof (int);
+		}
 
 	sqlite3_mutex_enter (sqlite3_db_mutex (sqlite3_db_handle (kv->in_stmt)));
 
@@ -183,7 +188,7 @@ kv_insert (KV *kv, const char *key, const char *value)
 	db_clear_bindings (kv->in_stmt);
 
 	db_bind_text (kv->in_stmt, 1, key);
-	db_bind_text (kv->in_stmt, 2, value);
+	db_bind_blob (kv->in_stmt, 2, value, n);
 
 	db_step (kv->in_stmt);
 
@@ -207,12 +212,12 @@ kv_del_key (KV *kv, const char *key)
 	sqlite3_mutex_leave (sqlite3_db_mutex (sqlite3_db_handle (kv->del_stmt)));
 }
 
-const char *
+const void *
 kv_get_value (KV *kv, const char *key)
 {
 	assert (kv != NULL && key != NULL);
 
-	const char *value = NULL;
+	const void *value = NULL;
 
 	db_reset (kv->test_stmt);
 	db_clear_bindings (kv->test_stmt);
@@ -220,7 +225,7 @@ kv_get_value (KV *kv, const char *key)
 	db_bind_text (kv->test_stmt, 1, key);
 
 	if (db_step (kv->test_stmt) == SQLITE_ROW)
-		value = (const char *) db_column_text (kv->test_stmt, 0);
+		value = db_column_blob (kv->test_stmt, 0);
 
 	return value;
 }
@@ -231,14 +236,14 @@ kv_foreach (KV *kv, KVFunc func, void *user_data)
 	assert (kv != NULL && func != NULL);
 
 	const char *key = NULL;
-	const char *value = NULL;
+	const void *value = NULL;
 
 	db_reset (kv->all_stmt);
 
 	while (db_step (kv->all_stmt) == SQLITE_ROW)
 		{
-			key   = (const char *) db_column_text (kv->all_stmt, 0);
-			value = (const char *) db_column_text (kv->all_stmt, 1);
+			key   = db_column_text (kv->all_stmt, 0);
+			value = db_column_blob (kv->all_stmt, 1);
 
 			func (key, value, user_data);
 		}

@@ -19,6 +19,7 @@
 #include "config.h"
 
 #include <check.h>
+#include <string.h>
 #include "check_sider.h"
 #include "../src/wrapper.h"
 #include "../src/kv.h"
@@ -72,7 +73,7 @@ START_TEST (test_kv_insert)
 		{
 			xasprintf (&key, "key %i", i);
 
-			kv_insert (kv, key, NULL);
+			kv_insert (kv, key, NULL, -1);
 
 			xfree (key);
 			key = NULL;
@@ -90,7 +91,7 @@ START_TEST (test_kv_count)
 		{
 			xasprintf (&key, "key %i", i);
 
-			kv_insert (kv, key, key);
+			kv_insert (kv, key, NULL, -1);
 			ck_assert_int_eq (i + 1, kv_count (kv));
 
 			xfree (key);
@@ -101,7 +102,9 @@ END_TEST
 
 START_TEST (test_kv_del_key)
 {
-	kv_insert (kv, "one key", "one value");
+	const char value[] = "one value";
+
+	kv_insert (kv, "one key", value, sizeof (value));
 	ck_assert_int_eq (kv_contains (kv, "one key"), 1);
 
 	kv_del_key (kv, "one key");
@@ -123,15 +126,15 @@ START_TEST (test_kv_get_value)
 	};
 
 	for (i = 0; i < n; i++)
-		kv_insert (kv, all[i], all[i+n]);
+		kv_insert (kv, all[i], all[i+n], sizeof (all[i+n]));
 
 	for (i = 0; i < n; i++)
-		ck_assert_str_eq (kv_get_value (kv, all[i]), all[i+n]);
+		ck_assert_str_eq ((const char *) kv_get_value (kv, all[i]), all[i+n]);
 }
 END_TEST
 
 static void
-foreach (const char *key, const char *value, void *user_data)
+foreach (const char *key, const void *value, void *user_data)
 {
 	char **data = user_data;
 	int i = 0;
@@ -141,7 +144,7 @@ foreach (const char *key, const char *value, void *user_data)
 			break;
 
 	ck_assert_str_eq (data[i], key);
-	ck_assert_str_eq (key, value);
+	ck_assert_str_eq (key, (const char *) value);
 }
 
 START_TEST (test_kv_foreach)
@@ -153,7 +156,7 @@ START_TEST (test_kv_foreach)
 	int i = 0;
 
 	for (i = 0; data[i] != NULL; i++)
-		kv_insert (kv, data[i], NULL);
+		kv_insert (kv, data[i], data[i], sizeof (data[i]));
 
 	kv_foreach (kv, foreach, data);
 }
