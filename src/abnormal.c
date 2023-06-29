@@ -405,45 +405,31 @@ sam_rewind (AbnormalFilter *argf)
 }
 
 static void
-purge_blacklist (const char *name, Hash *ids)
-{
-	if (hash_remove (ids, name))
-		log_debug ("Remove blacklisted alignment '%s'",
-				name);
-}
-
-static void
 parse_unsorted_sam (AbnormalFilter *argf)
 {
 	int rc = 0;
+	int pass = 0;
 	const char *name = NULL;
 	AbnormalType type = 0;
 	AbnormalType *type_copy = NULL;
 	Hash *abnormal_ids = NULL;
-	List *blacklist_ids = NULL;
 
 	// All abnormal alignments are keeped
 	// into a hash if the SAM/BAM/CRAM is not sorted
 	// by queryname
 	abnormal_ids = hash_new (xfree, xfree);
 
-	// Keep all alignments, whose at least
-	// one read not pass the constraints
-	blacklist_ids = list_new (xfree);
-
 	log_debug ("Index all fragment ids from '%s'", argf->sam_file);
 
+	/*First reading*/
 	while ((rc = sam_read1 (argf->in, argf->hdr, argf->align)) >= 0)
 		{
 			argf->alignment_acm++;
 
-			if (!abnormal_classifier (argf->align, argf->max_distance,
-						argf->phred_quality, argf->max_base_freq, &type))
-				{
-					name = xstrdup (bam_get_qname (argf->align));
-					list_append (blacklist_ids, name);
-				}
-			else if (type != ABNORMAL_NONE)
+			pass = abnormal_classifier (argf->align, argf->max_distance,
+					argf->phred_quality, argf->max_base_freq, &type);
+
+			if (pass && type != ABNORMAL_NONE)
 				{
 					type_copy = hash_lookup (abnormal_ids,
 							bam_get_qname (argf->align));
@@ -465,20 +451,42 @@ parse_unsorted_sam (AbnormalFilter *argf)
 		log_errno_fatal ("Failed to read sam alignment from '%s'",
 				argf->sam_file);
 
-	// Read file twice in order to catch all
-	// supplementary alignments
+	// Read file again to filter
 	sam_rewind (argf);
 
-	log_debug ("Remove blacklisted fragments from '%s'",
+	log_debug ("Filter all indexed abnormal fragments from '%s'",
 			argf->sam_file);
 
-	// Remove blacklisted alignments
-	list_foreach (blacklist_ids, (Func) purge_blacklist,
-			abnormal_ids);
+	// Second reading:
+	// Filter all reads from indexed fragments
+	while ((rc = sam_read1 (argf->in, argf->hdr, argf->align)) >= 0)
+		{
+			type_copy = hash_lookup (abnormal_ids,
+					bam_get_qname (argf->align));
+
+			if (type_copy != NULL)
+				{
+					pass = abnormal_classifier (argf->align, argf->max_distance,
+							argf->phred_quality, argf->max_base_freq, &type);
+
+					if (!pass)
+						hash_remove (abnormal_ids, bam_get_qname (argf->align));
+				}
+		}
+
+	// Catch if it ocurred an error
+	// in reading from input
+	if (rc < -1)
+		log_errno_fatal ("Failed to read sam alignment from '%s'",
+				argf->sam_file);
+
+	// Read file once again in order to catch all abnormal reads
+	sam_rewind (argf);
 
 	log_debug ("Catch all indexed abnormal fragments from '%s'",
 			argf->sam_file);
 
+	// Third reading:
 	// Get all reads from indexed fragments
 	while ((rc = sam_read1 (argf->in, argf->hdr, argf->align)) >= 0)
 		{
@@ -500,7 +508,6 @@ parse_unsorted_sam (AbnormalFilter *argf)
 
 	// Clean
 	hash_free (abnormal_ids);
-	list_free (blacklist_ids);
 }
 
 void
