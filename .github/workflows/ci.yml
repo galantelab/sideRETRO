@@ -2,6 +2,8 @@ name: build
 
 on:
   push:
+    branches:
+    tags:
     paths-ignore:
       - 'docs/**'
 
@@ -97,8 +99,7 @@ jobs:
       - uses: actions/checkout@v3
       - name: Check release tag
         run: |
-          echo Skip the test and deploy for ${{ github.ref_name }}
-          exit 0
+          cancel-action Skip deploying for ${{ github.ref_name }}
         if: steps.tag.outputs.name == 'none'
 
       - name: Set up Docker Buildx
