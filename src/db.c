@@ -540,8 +540,8 @@ db_prepare_exon_stmt (sqlite3 *db)
 }
 
 void
-db_insert_exon (sqlite3_stmt *stmt, int id, const char *gene_name,
-		const char *chr, long start, long end, const char *strand, const char *ensg,
+db_insert_exon (sqlite3_stmt *stmt, int64_t id, const char *gene_name,
+		const char *chr, int64_t start, int64_t end, const char *strand, const char *ensg,
 		const char *ense)
 {
 	log_trace ("Inside %s", __func__);
@@ -553,7 +553,7 @@ db_insert_exon (sqlite3_stmt *stmt, int id, const char *gene_name,
 	db_reset (stmt);
 	db_clear_bindings (stmt);
 
-	db_bind_int (stmt, 1, id);
+	db_bind_int64 (stmt, 1, id);
 	db_bind_text (stmt, 2, gene_name);
 	db_bind_text (stmt, 3, chr);
 	db_bind_int64 (stmt, 4, start);
@@ -580,7 +580,7 @@ db_prepare_batch_stmt (sqlite3 *db)
 }
 
 void
-db_insert_batch (sqlite3_stmt *stmt, int id,
+db_insert_batch (sqlite3_stmt *stmt, int64_t id,
 		const char *timestamp)
 {
 	log_trace ("Inside %s", __func__);
@@ -591,7 +591,7 @@ db_insert_batch (sqlite3_stmt *stmt, int id,
 	db_reset (stmt);
 	db_clear_bindings (stmt);
 
-	db_bind_int (stmt, 1, id);
+	db_bind_int64 (stmt, 1, id);
 	db_bind_text (stmt, 2, timestamp);
 
 	db_step (stmt);
@@ -612,8 +612,8 @@ db_prepare_source_stmt (sqlite3 *db)
 }
 
 void
-db_insert_source (sqlite3_stmt *stmt, int id,
-		int batch_id, const char *path)
+db_insert_source (sqlite3_stmt *stmt, int64_t id,
+		int64_t batch_id, const char *path)
 {
 	log_trace ("Inside %s", __func__);
 	assert (stmt != NULL && path != NULL);
@@ -623,8 +623,8 @@ db_insert_source (sqlite3_stmt *stmt, int id,
 	db_reset (stmt);
 	db_clear_bindings (stmt);
 
-	db_bind_int (stmt, 1, id);
-	db_bind_int (stmt, 2, batch_id);
+	db_bind_int64 (stmt, 1, id);
+	db_bind_int64 (stmt, 2, batch_id);
 	db_bind_text (stmt, 3, path);
 
 	db_step (stmt);
@@ -646,9 +646,9 @@ db_prepare_alignment_stmt (sqlite3 *db)
 }
 
 void
-db_insert_alignment (sqlite3_stmt *stmt, int id, const char *qname, int flag,
-		const char *chr, long pos, int mapq, const char *cigar, int qlen, int rlen,
-		const char *chr_next, long pos_next, int type, int source_id)
+db_insert_alignment (sqlite3_stmt *stmt, int64_t id, const char *qname, int flag,
+		const char *chr, int64_t pos, int mapq, const char *cigar, int qlen, int rlen,
+		const char *chr_next, int64_t pos_next, int type, int64_t source_id)
 {
 	log_trace ("Inside %s", __func__);
 	assert (stmt != NULL && qname != NULL && chr != NULL
@@ -659,7 +659,7 @@ db_insert_alignment (sqlite3_stmt *stmt, int id, const char *qname, int flag,
 	db_reset (stmt);
 	db_clear_bindings (stmt);
 
-	db_bind_int (stmt, 1, id);
+	db_bind_int64 (stmt, 1, id);
 	db_bind_text (stmt, 2, qname);
 	db_bind_int (stmt, 3, flag);
 	db_bind_text (stmt, 4, chr);
@@ -671,7 +671,7 @@ db_insert_alignment (sqlite3_stmt *stmt, int id, const char *qname, int flag,
 	db_bind_text (stmt, 10, chr_next);
 	db_bind_int64 (stmt, 11, pos_next);
 	db_bind_int (stmt, 12, type);
-	db_bind_int (stmt, 13, source_id);
+	db_bind_int64 (stmt, 13, source_id);
 
 	db_step (stmt);
 
@@ -692,8 +692,8 @@ db_prepare_overlapping_stmt (sqlite3 *db)
 }
 
 void
-db_insert_overlapping (sqlite3_stmt *stmt, int exon_id,
-	int alignment_id, long pos, long len)
+db_insert_overlapping (sqlite3_stmt *stmt, int64_t exon_id,
+	int64_t alignment_id, int64_t pos, int64_t len)
 {
 	log_trace ("Inside %s", __func__);
 	assert (stmt != NULL);
@@ -703,8 +703,8 @@ db_insert_overlapping (sqlite3_stmt *stmt, int exon_id,
 	db_reset (stmt);
 	db_clear_bindings (stmt);
 
-	db_bind_int (stmt, 1, exon_id);
-	db_bind_int (stmt, 2, alignment_id);
+	db_bind_int64 (stmt, 1, exon_id);
+	db_bind_int64 (stmt, 2, alignment_id);
 	db_bind_int64 (stmt, 3, pos);
 	db_bind_int64 (stmt, 4, len);
 
@@ -727,8 +727,8 @@ db_prepare_clustering_stmt (sqlite3 *db)
 }
 
 void
-db_insert_clustering (sqlite3_stmt *stmt, int cluster_id, int cluster_sid,
-		int alignment_id, int label, int neighbors)
+db_insert_clustering (sqlite3_stmt *stmt, int64_t cluster_id, int64_t cluster_sid,
+		int64_t alignment_id, int label, int neighbors)
 {
 	log_trace ("Inside %s", __func__);
 	assert (stmt != NULL);
@@ -738,9 +738,9 @@ db_insert_clustering (sqlite3_stmt *stmt, int cluster_id, int cluster_sid,
 	db_reset (stmt);
 	db_clear_bindings (stmt);
 
-	db_bind_int (stmt, 1, cluster_id);
-	db_bind_int (stmt, 2, cluster_sid);
-	db_bind_int (stmt, 3, alignment_id);
+	db_bind_int64 (stmt, 1, cluster_id);
+	db_bind_int64 (stmt, 2, cluster_sid);
+	db_bind_int64 (stmt, 3, alignment_id);
 	db_bind_int (stmt, 4, label);
 	db_bind_int (stmt, 5, neighbors);
 
@@ -763,8 +763,8 @@ db_prepare_cluster_stmt (sqlite3 *db)
 }
 
 void
-db_insert_cluster (sqlite3_stmt *stmt, int id, int sid, const char *chr,
-		long start, long end, const char *gene_name, int filter)
+db_insert_cluster (sqlite3_stmt *stmt, int64_t id, int64_t sid, const char *chr,
+		int64_t start, int64_t end, const char *gene_name, int filter)
 {
 	log_trace ("Inside %s", __func__);
 	assert (stmt != NULL);
@@ -774,8 +774,8 @@ db_insert_cluster (sqlite3_stmt *stmt, int id, int sid, const char *chr,
 	db_reset (stmt);
 	db_clear_bindings (stmt);
 
-	db_bind_int (stmt, 1, id);
-	db_bind_int (stmt, 2, sid);
+	db_bind_int64 (stmt, 1, id);
+	db_bind_int64 (stmt, 2, sid);
 	db_bind_text (stmt, 3, chr);
 	db_bind_int64 (stmt, 4, start);
 	db_bind_int64 (stmt, 5, end);
@@ -801,8 +801,8 @@ db_prepare_blacklist_stmt (sqlite3 *db)
 }
 
 void
-db_insert_blacklist (sqlite3_stmt *stmt, int id, const char *name,
-		const char *chr, long start, long end)
+db_insert_blacklist (sqlite3_stmt *stmt, int64_t id, const char *name,
+		const char *chr, int64_t start, int64_t end)
 {
 	log_trace ("Inside %s", __func__);
 	assert (stmt != NULL && name != NULL && chr != NULL);
@@ -812,7 +812,7 @@ db_insert_blacklist (sqlite3_stmt *stmt, int id, const char *name,
 	db_reset (stmt);
 	db_clear_bindings (stmt);
 
-	db_bind_int (stmt, 1, id);
+	db_bind_int64 (stmt, 1, id);
 	db_bind_text (stmt, 2, name);
 	db_bind_text (stmt, 3, chr);
 	db_bind_int64 (stmt, 4, start);
@@ -837,8 +837,8 @@ db_prepare_overlapping_blacklist_stmt (sqlite3 *db)
 }
 
 void
-db_insert_overlapping_blacklist (sqlite3_stmt *stmt, int blacklist_id,
-	int cluster_id, int cluster_sid, long pos, long len)
+db_insert_overlapping_blacklist (sqlite3_stmt *stmt, int64_t blacklist_id,
+	int64_t cluster_id, int64_t cluster_sid, int64_t pos, int64_t len)
 {
 	log_trace ("Inside %s", __func__);
 	assert (stmt != NULL);
@@ -848,9 +848,9 @@ db_insert_overlapping_blacklist (sqlite3_stmt *stmt, int blacklist_id,
 	db_reset (stmt);
 	db_clear_bindings (stmt);
 
-	db_bind_int (stmt, 1, blacklist_id);
-	db_bind_int (stmt, 2, cluster_id);
-	db_bind_int (stmt, 3, cluster_sid);
+	db_bind_int64 (stmt, 1, blacklist_id);
+	db_bind_int64 (stmt, 2, cluster_id);
+	db_bind_int64 (stmt, 3, cluster_sid);
 	db_bind_int64 (stmt, 4, pos);
 	db_bind_int64 (stmt, 5, len);
 
@@ -873,8 +873,8 @@ db_prepare_cluster_merging_stmt (sqlite3 *db)
 }
 
 void
-db_insert_cluster_merging (sqlite3_stmt *stmt, int retrocopy_id,
-		int cluster_id, int cluster_sid)
+db_insert_cluster_merging (sqlite3_stmt *stmt, int64_t retrocopy_id,
+		int64_t cluster_id, int64_t cluster_sid)
 {
 	log_trace ("Inside %s", __func__);
 	assert (stmt != NULL);
@@ -884,9 +884,9 @@ db_insert_cluster_merging (sqlite3_stmt *stmt, int retrocopy_id,
 	db_reset (stmt);
 	db_clear_bindings (stmt);
 
-	db_bind_int (stmt, 1, retrocopy_id);
-	db_bind_int (stmt, 2, cluster_id);
-	db_bind_int (stmt, 3, cluster_sid);
+	db_bind_int64 (stmt, 1, retrocopy_id);
+	db_bind_int64 (stmt, 2, cluster_id);
+	db_bind_int64 (stmt, 3, cluster_sid);
 
 	db_step (stmt);
 
@@ -908,8 +908,8 @@ db_prepare_retrocopy_stmt (sqlite3 *db)
 }
 
 void
-db_insert_retrocopy (sqlite3_stmt *stmt, int id, const char *chr, long window_start,
-		long window_end, const char *parental_gene_name, int level, long insertion_point,
+db_insert_retrocopy (sqlite3_stmt *stmt, int64_t id, const char *chr, int64_t window_start,
+		int64_t window_end, const char *parental_gene_name, int level, int64_t insertion_point,
 		int insertion_point_type, double orientation_rho, double orientation_p_value)
 {
 	log_trace ("Inside %s", __func__);
@@ -920,7 +920,7 @@ db_insert_retrocopy (sqlite3_stmt *stmt, int id, const char *chr, long window_st
 	db_reset (stmt);
 	db_clear_bindings (stmt);
 
-	db_bind_int    (stmt, 1, id);
+	db_bind_int64  (stmt, 1, id);
 	db_bind_text   (stmt, 2, chr);
 	db_bind_int64  (stmt, 3, window_start);
 	db_bind_int64  (stmt, 4, window_end);
@@ -950,7 +950,7 @@ db_prepare_genotype_stmt (sqlite3 *db)
 }
 
 void
-db_insert_genotype (sqlite3_stmt *stmt, int source_id, int retrocopy_id, int reference_depth,
+db_insert_genotype (sqlite3_stmt *stmt, int64_t source_id, int64_t retrocopy_id, int reference_depth,
 		int alternate_depth, double ho_ref_likelihood, double he_likelihood, double ho_alt_likelihood)
 {
 	log_trace ("Inside %s", __func__);
@@ -961,8 +961,8 @@ db_insert_genotype (sqlite3_stmt *stmt, int source_id, int retrocopy_id, int ref
 	db_reset (stmt);
 	db_clear_bindings (stmt);
 
-	db_bind_int (stmt, 1, source_id);
-	db_bind_int (stmt, 2, retrocopy_id);
+	db_bind_int64 (stmt, 1, source_id);
+	db_bind_int64 (stmt, 2, retrocopy_id);
 	db_bind_int (stmt, 3, reference_depth);
 	db_bind_int (stmt, 4, alternate_depth);
 	db_bind_double (stmt, 5, ho_ref_likelihood);

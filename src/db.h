@@ -62,54 +62,54 @@ void      db_begin_transaction (sqlite3 *db);
 void      db_end_transaction   (sqlite3 *db);
 
 sqlite3_stmt * db_prepare_exon_stmt (sqlite3 *db);
-void db_insert_exon (sqlite3_stmt *stmt, int id, const char *gene_name,
-		const char *chr, long start, long end, const char *strand, const char *ensg,
+void db_insert_exon (sqlite3_stmt *stmt, int64_t id, const char *gene_name,
+		const char *chr, int64_t start, int64_t end, const char *strand, const char *ensg,
 		const char *ense);
 
 sqlite3_stmt *db_prepare_batch_stmt (sqlite3 *db);
-void db_insert_batch (sqlite3_stmt *stmt, int id,
+void db_insert_batch (sqlite3_stmt *stmt, int64_t id,
 		const char *timestamp);
 
 sqlite3_stmt * db_prepare_source_stmt (sqlite3 *db);
-void db_insert_source (sqlite3_stmt *stmt, int id,
-		int batch_id, const char *path);
+void db_insert_source (sqlite3_stmt *stmt, int64_t id,
+		int64_t batch_id, const char *path);
 
 sqlite3_stmt * db_prepare_alignment_stmt (sqlite3 *db);
-void db_insert_alignment (sqlite3_stmt *stmt, int id, const char *name,
-		int flag, const char *chr, long pos, int mapq, const char *cigar, int qlen,
-		int rlen, const char *chr_next, long pos_next, int type, int source_id);
+void db_insert_alignment (sqlite3_stmt *stmt, int64_t id, const char *name,
+		int flag, const char *chr, int64_t pos, int mapq, const char *cigar, int qlen,
+		int rlen, const char *chr_next, int64_t pos_next, int type, int64_t source_id);
 
 sqlite3_stmt * db_prepare_overlapping_stmt (sqlite3 *db);
-void db_insert_overlapping (sqlite3_stmt *stmt, int exon_id,
-	int alignment_id, long pos, long len);
+void db_insert_overlapping (sqlite3_stmt *stmt, int64_t exon_id,
+	int64_t alignment_id, int64_t pos, int64_t len);
 
 sqlite3_stmt * db_prepare_clustering_stmt (sqlite3 *db);
-void db_insert_clustering (sqlite3_stmt *stmt, int cluster_id, int cluster_sid,
-		int alignment_id, int label, int neighbors);
+void db_insert_clustering (sqlite3_stmt *stmt, int64_t cluster_id, int64_t cluster_sid,
+		int64_t alignment_id, int label, int neighbors);
 
 sqlite3_stmt * db_prepare_cluster_stmt (sqlite3 *db);
-void db_insert_cluster (sqlite3_stmt *stmt, int id, int sid, const char *chr,
-		long start, long end, const char *gene_name, int filter);
+void db_insert_cluster (sqlite3_stmt *stmt, int64_t id, int64_t sid, const char *chr,
+		int64_t start, int64_t end, const char *gene_name, int filter);
 
 sqlite3_stmt * db_prepare_blacklist_stmt (sqlite3 *db);
-void db_insert_blacklist (sqlite3_stmt *stmt, int id, const char *name,
-		const char *chr, long start, long end);
+void db_insert_blacklist (sqlite3_stmt *stmt, int64_t id, const char *name,
+		const char *chr, int64_t start, int64_t end);
 
 sqlite3_stmt * db_prepare_overlapping_blacklist_stmt (sqlite3 *db);
-void db_insert_overlapping_blacklist (sqlite3_stmt *stmt, int blacklist_id,
-	int cluster_id, int cluster_sid, long pos, long len);
+void db_insert_overlapping_blacklist (sqlite3_stmt *stmt, int64_t blacklist_id,
+	int64_t cluster_id, int64_t cluster_sid, int64_t pos, int64_t len);
 
 sqlite3_stmt * db_prepare_cluster_merging_stmt (sqlite3 *db);
-void db_insert_cluster_merging (sqlite3_stmt *stmt, int retrocopy_id,
-		int cluster_id, int cluster_sid);
+void db_insert_cluster_merging (sqlite3_stmt *stmt, int64_t retrocopy_id,
+		int64_t cluster_id, int64_t cluster_sid);
 
 sqlite3_stmt * db_prepare_retrocopy_stmt (sqlite3 *db);
-void db_insert_retrocopy (sqlite3_stmt *stmt, int id, const char *chr, long window_start,
-		long window_end, const char *parental_gene_name, int level, long insertion_point,
+void db_insert_retrocopy (sqlite3_stmt *stmt, int64_t id, const char *chr, int64_t window_start,
+		int64_t window_end, const char *parental_gene_name, int level, int64_t insertion_point,
 		int insertion_point_type, double orientation_rho, double orientation_p_value);
 
 sqlite3_stmt * db_prepare_genotype_stmt (sqlite3 *db);
-void db_insert_genotype (sqlite3_stmt *stmt, int source_id, int retrocopy_id, int reference_depth,
+void db_insert_genotype (sqlite3_stmt *stmt, int64_t source_id, int64_t retrocopy_id, int reference_depth,
 		int alternate_depth, double ho_ref_likelihood, double he_likelihood, double ho_alt_likelihood);
 
 #endif /* db.h */
