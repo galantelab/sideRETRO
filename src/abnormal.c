@@ -20,6 +20,7 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
@@ -51,10 +52,10 @@ struct _AbnormalFilter
 	bam_hdr_t     *hdr;
 	bam1_t        *align;
 	String        *cigar;
-	long           alignment_id;
-	long           alignment_acm;
-	long           abnormal_acm;
-	long           exonic_acm;
+	int64_t        alignment_id;
+	int64_t        alignment_acm;
+	int64_t        abnormal_acm;
+	int64_t        exonic_acm;
 };
 
 typedef struct _AbnormalFilter AbnormalFilter;
@@ -243,12 +244,12 @@ dump_alignment (AbnormalFilter *argf, const bam1_t *align,
 		{
 			type |= ABNORMAL_EXONIC;
 			argf->exonic_acm++;
-			log_debug ("Alignment [%li] %s %s:%li overlaps %d exons",
+			log_debug ("Alignment [%" PRId64 "] %s %s:%li overlaps %d exons",
 					argf->alignment_id, qname, chr_std,
 					(long int) align->core.pos + 1, acm);
 		}
 
-	log_debug ("Dump abnormal alignment [%li] %s %d %s:%li type %d",
+	log_debug ("Dump abnormal alignment [%" PRId64 "] %s %d %s:%li type %d",
 			argf->alignment_id, qname, align->core.flag, chr_std,
 			(long int) align->core.pos + 1, type);
 
@@ -540,13 +541,13 @@ abnormal_filter (AbnormalArg *arg)
 			parse_unsorted_sam (&argf);
 		}
 
-	log_info ("Processed %li alignments for '%s'",
+	log_info ("Processed %" PRId64 " alignments for '%s'",
 			argf.alignment_acm, argf.sam_file);
 
 	// Just print the amount of abnormal alignments
 	if (argf.abnormal_acm > 0)
-		log_info ("Found %li abnormal alignments for '%s': "
-			"%li abnormal alignments fall inside some exonic region (%.2f%%)",
+		log_info ("Found %" PRId64 " abnormal alignments for '%s': "
+			"%" PRId64 " abnormal alignments fall inside some exonic region (%.2f%%)",
 			argf.abnormal_acm, argf.sam_file, argf.exonic_acm,
 			(float) (argf.exonic_acm * 100) / argf.abnormal_acm);
 	else

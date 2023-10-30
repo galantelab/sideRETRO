@@ -18,6 +18,8 @@
 
 #include "config.h"
 
+#include <stdint.h>
+#include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
@@ -38,8 +40,8 @@
 struct _ClusterEntry
 {
 	// CLUSTER
-	int         cid;
-	int         sid;
+	int64_t     cid;
+	int64_t     sid;
 	const char *cchr;
 	long        cstart;
 	long        cend;
@@ -64,7 +66,7 @@ struct _RetrocopyEntry
 typedef struct _RetrocopyEntry RetrocopyEntry;
 
 static ClusterEntry *
-cluster_entry_new (int cid, int sid, const char *cchr, long cstart, long cend,
+cluster_entry_new (int64_t cid, int64_t sid, const char *cchr, long cstart, long cend,
 		const char *gene_name, const char *gchr, long gstart, long gend, int dist)
 {
 	ClusterEntry *c = xcalloc (1, sizeof (ClusterEntry));
@@ -195,7 +197,7 @@ cmp_cluster (const void *p1, const void *p2)
 
 static void
 dump_cluster_merge (sqlite3_stmt *cluster_merging_stmt,
-		const List *to_merge, const int rid)
+		const List *to_merge, const int64_t rid)
 {
 	log_trace ("Inside %s", __func__);
 
@@ -206,7 +208,7 @@ dump_cluster_merge (sqlite3_stmt *cluster_merging_stmt,
 		{
 			c = list_data (cur);
 
-			log_debug ("Dump cluster merging [%d %d] into retrocopy %d",
+			log_debug ("Dump cluster merging [%" PRId64 " %" PRId64 "] into retrocopy %" PRId64 "",
 					c->cid, c->sid, rid);
 
 			db_insert_cluster_merging (cluster_merging_stmt,
@@ -215,9 +217,9 @@ dump_cluster_merge (sqlite3_stmt *cluster_merging_stmt,
 }
 
 static inline RetrocopyEntry *
-rtc_insert_entry (Hash *h, const int rid)
+rtc_insert_entry (Hash *h, const int64_t rid)
 {
-	int *rid_alloc = xcalloc (1, sizeof (int));
+	int64_t *rid_alloc = xcalloc (1, sizeof (int64_t));
 	*rid_alloc = rid;
 
 	RetrocopyEntry *e = xcalloc (1, sizeof (RetrocopyEntry));
@@ -228,7 +230,7 @@ rtc_insert_entry (Hash *h, const int rid)
 
 static void
 cluster_entry_merge_and_classify (sqlite3_stmt *cluster_merging_stmt,
-		Array *stack, Hash *rtc_h, const int near_gene_dist, int *rid)
+		Array *stack, Hash *rtc_h, const int near_gene_dist, int64_t *rid)
 {
 	log_trace ("Inside %s", __func__);
 
@@ -337,11 +339,11 @@ merge_cluster (sqlite3_stmt *cluster_merging_stmt,
 	ClusterEntry *c = NULL;
 
 	// Retrocopy ids acm
-	int rid = 0;
+	int64_t rid = 0;
 
 	// CLUSTER
-	int cid = 0;
-	int sid = 0;
+	int64_t cid = 0;
+	int64_t sid = 0;
 	const char *cchr = NULL;
 	long cstart = 0;
 	long cend = 0;
@@ -365,8 +367,8 @@ merge_cluster (sqlite3_stmt *cluster_merging_stmt,
 
 	while (db_step (cluster_query_stmt) == SQLITE_ROW)
 		{
-			cid       = db_column_int   (cluster_query_stmt, 0);
-			sid       = db_column_int   (cluster_query_stmt, 1);
+			cid       = db_column_int64 (cluster_query_stmt, 0);
+			sid       = db_column_int64 (cluster_query_stmt, 1);
 			cchr      = db_column_text  (cluster_query_stmt, 2);
 			cstart    = db_column_int64 (cluster_query_stmt, 3);
 			cend      = db_column_int64 (cluster_query_stmt, 4);
@@ -472,11 +474,11 @@ calculate_orientation (sqlite3 *db, Hash *rtc_h)
 
 	RetrocopyEntry *e = NULL;
 
-	int rid = 0;
+	int64_t rid = 0;
 	long apos = 0;
 	long gpos = 0;
 
-	int rid_prev = 0;
+	int64_t rid_prev = 0;
 
 	double *apos_a = NULL;
 	double *gpos_a = NULL;
@@ -495,7 +497,7 @@ calculate_orientation (sqlite3 *db, Hash *rtc_h)
 
 	while (db_step (orientation_stmt) == SQLITE_ROW)
 		{
-			rid  = db_column_int   (orientation_stmt, 0);
+			rid  = db_column_int64 (orientation_stmt, 0);
 			apos = db_column_int64 (orientation_stmt, 1);
 			gpos = db_column_int64 (orientation_stmt, 2);
 
@@ -665,7 +667,7 @@ annotate_retrocopy (sqlite3_stmt *retrocopy_stmt, Hash *rtc_h)
 
 	sqlite3_stmt *cluster_merging_query_stmt = NULL;
 
-	int rid = 0;
+	int64_t rid = 0;
 	const char *chr = NULL;
 	long start = 0;
 	long end = 0;
@@ -680,7 +682,7 @@ annotate_retrocopy (sqlite3_stmt *retrocopy_stmt, Hash *rtc_h)
 
 	while (db_step (cluster_merging_query_stmt) == SQLITE_ROW)
 		{
-			rid     = db_column_int   (cluster_merging_query_stmt, 0);
+			rid     = db_column_int64 (cluster_merging_query_stmt, 0);
 			chr     = db_column_text  (cluster_merging_query_stmt, 1);
 			start   = db_column_int64 (cluster_merging_query_stmt, 2);
 			end     = db_column_int64 (cluster_merging_query_stmt, 3);
@@ -691,7 +693,7 @@ annotate_retrocopy (sqlite3_stmt *retrocopy_stmt, Hash *rtc_h)
 			e = hash_lookup (rtc_h, &rid);
 			assert (e != NULL);
 
-			log_debug ("%d %s %li %li %s %d %li %d %.6f %.6f",
+			log_debug ("%" PRId64 " %s %li %li %s %d %li %d %.6f %.6f",
 					rid, chr, start, end, gene, e->level, ip, ip_type,
 					e->orientation_rho, e->orientation_p_value);
 

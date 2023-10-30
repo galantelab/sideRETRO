@@ -18,6 +18,7 @@
 
 #include "config.h"
 
+#include <stdint.h>
 #include <assert.h>
 #include "wrapper.h"
 #include "log.h"
@@ -67,9 +68,9 @@ static Hash *exon_id_h = NULL;
 
 static void
 merge_batch (sqlite3_stmt *in_stmt, sqlite3_stmt *sel_stmt,
-		int max_id[NUM_TABLES])
+		int64_t max_id[NUM_TABLES])
 {
-	int id = 0;
+	int64_t id = 0;
 	const char *timestamp = NULL;
 
 	db_reset (sel_stmt);
@@ -77,7 +78,7 @@ merge_batch (sqlite3_stmt *in_stmt, sqlite3_stmt *sel_stmt,
 	while (db_step (sel_stmt) == SQLITE_ROW)
 		{
 			// Catch all values from db2
-			id = db_column_int (sel_stmt, 0);
+			id = db_column_int64 (sel_stmt, 0);
 			timestamp = db_column_text (sel_stmt, 1);
 
 			// Insert them into db
@@ -88,10 +89,10 @@ merge_batch (sqlite3_stmt *in_stmt, sqlite3_stmt *sel_stmt,
 
 static void
 merge_souce (sqlite3_stmt *in_stmt, sqlite3_stmt *sel_stmt,
-		int max_id[NUM_TABLES])
+		int64_t max_id[NUM_TABLES])
 {
-	int id = 0;
-	int batch_id = 0;
+	int64_t id = 0;
+	int64_t batch_id = 0;
 	const char *path = NULL;
 
 	db_reset (sel_stmt);
@@ -99,8 +100,8 @@ merge_souce (sqlite3_stmt *in_stmt, sqlite3_stmt *sel_stmt,
 	while (db_step (sel_stmt) == SQLITE_ROW)
 		{
 			// Catch all values from db2
-			id = db_column_int (sel_stmt, 0);
-			batch_id = db_column_int (sel_stmt, 1);
+			id = db_column_int64 (sel_stmt, 0);
+			batch_id = db_column_int64 (sel_stmt, 1);
 			path = db_column_text (sel_stmt, 2);
 
 			// Insert them into db
@@ -111,9 +112,9 @@ merge_souce (sqlite3_stmt *in_stmt, sqlite3_stmt *sel_stmt,
 
 static void
 merge_exon (sqlite3_stmt *in_stmt, sqlite3_stmt *sel_stmt,
-		int max_id[NUM_TABLES])
+		int64_t max_id[NUM_TABLES])
 {
-	int id = 0;
+	int64_t id = 0;
 	const char *gene_name = NULL;
 	const char *chr = NULL;
 	long start = 0;
@@ -122,15 +123,15 @@ merge_exon (sqlite3_stmt *in_stmt, sqlite3_stmt *sel_stmt,
 	const char *ensg = NULL;
 	const char *ense = NULL;
 
-	const int *exon_id = NULL;
-	int *id_copy = NULL;
+	const int64_t *exon_id = NULL;
+	int64_t *id_copy = NULL;
 
 	db_reset (sel_stmt);
 
 	while (db_step (sel_stmt) == SQLITE_ROW)
 		{
 			// Catch all values from db2
-			id = db_column_int (sel_stmt, 0);
+			id = db_column_int64 (sel_stmt, 0);
 			gene_name = db_column_text (sel_stmt, 1);
 			chr = db_column_text (sel_stmt, 2);
 			start = db_column_int64 (sel_stmt, 3);
@@ -143,7 +144,7 @@ merge_exon (sqlite3_stmt *in_stmt, sqlite3_stmt *sel_stmt,
 
 			if (exon_id == NULL)
 				{
-					id_copy = xcalloc (1, sizeof (int));
+					id_copy = xcalloc (1, sizeof (int64_t));
 					*id_copy = id;
 					hash_insert (ense_h, xstrdup (ense), id_copy);
 					hash_insert (exon_id_h, id_copy, id_copy);
@@ -152,7 +153,7 @@ merge_exon (sqlite3_stmt *in_stmt, sqlite3_stmt *sel_stmt,
 				{
 					if (*exon_id != id)
 						{
-							id_copy = xcalloc (1, sizeof (int));
+							id_copy = xcalloc (1, sizeof (int64_t));
 							*id_copy = id;
 							hash_insert (exon_id_h, id_copy, exon_id);
 						}
@@ -168,11 +169,11 @@ merge_exon (sqlite3_stmt *in_stmt, sqlite3_stmt *sel_stmt,
 
 static void
 merge_alignment (sqlite3_stmt *in_stmt, sqlite3_stmt *sel_stmt,
-		int max_id[NUM_TABLES])
+		int64_t max_id[NUM_TABLES])
 {
 	db_reset (sel_stmt);
 
-	int id = 0;
+	int64_t id = 0;
 	const char *qname = NULL;
 	int flag = 0;
 	const char *chr = NULL;
@@ -184,11 +185,11 @@ merge_alignment (sqlite3_stmt *in_stmt, sqlite3_stmt *sel_stmt,
 	const char *chr_next = NULL;
 	long pos_next = 0;
 	int type = 0;
-	int source_id = 0;
+	int64_t source_id = 0;
 
 	while (db_step (sel_stmt) == SQLITE_ROW)
 		{
-			id = db_column_int (sel_stmt, 0);
+			id = db_column_int64 (sel_stmt, 0);
 			qname = db_column_text (sel_stmt, 1);
 			flag = db_column_int (sel_stmt, 2);
 			chr = db_column_text (sel_stmt, 3);
@@ -200,7 +201,7 @@ merge_alignment (sqlite3_stmt *in_stmt, sqlite3_stmt *sel_stmt,
 			chr_next = db_column_text (sel_stmt, 9);
 			pos_next = db_column_int64 (sel_stmt, 10);
 			type = db_column_int (sel_stmt, 11);
-			source_id = db_column_int (sel_stmt, 12);
+			source_id = db_column_int64 (sel_stmt, 12);
 
 			db_insert_alignment (in_stmt, id + max_id[ALIGNMENT], qname,
 					flag, chr, pos, mapq, cigar, qlen, rlen, chr_next,
@@ -210,21 +211,21 @@ merge_alignment (sqlite3_stmt *in_stmt, sqlite3_stmt *sel_stmt,
 
 static void
 merge_overlapping (sqlite3_stmt *in_stmt, sqlite3_stmt *sel_stmt,
-		int max_id[NUM_TABLES])
+		int64_t max_id[NUM_TABLES])
 {
 	db_reset (sel_stmt);
 
-	int exon_id = 0;
-	int alignment_id = 0;
+	int64_t exon_id = 0;
+	int64_t alignment_id = 0;
 	long pos = 0;
 	long len = 0;
 
-	int *exon_id_align = NULL;
+	int64_t *exon_id_align = NULL;
 
 	while (db_step (sel_stmt) == SQLITE_ROW)
 		{
-			exon_id = db_column_int (sel_stmt, 0);
-			alignment_id = db_column_int (sel_stmt, 1);
+			exon_id = db_column_int64 (sel_stmt, 0);
+			alignment_id = db_column_int64 (sel_stmt, 1);
 			pos = db_column_int64 (sel_stmt, 2);
 			len = db_column_int64 (sel_stmt, 3);
 
@@ -241,7 +242,7 @@ merge_overlapping (sqlite3_stmt *in_stmt, sqlite3_stmt *sel_stmt,
 
 static void
 (*insert[NUM_TABLES]) (sqlite3_stmt *,
-		sqlite3_stmt *, int *) =
+		sqlite3_stmt *, int64_t *) =
 {
 	merge_batch,
 	merge_souce,
@@ -262,7 +263,7 @@ static sqlite3_stmt *
 
 static void
 calc_max_id (sqlite3_stmt *max_id_stmt[NUM_TABLES],
-		int max_id[NUM_TABLES])
+		int64_t max_id[NUM_TABLES])
 {
 	int i = 0;
 
@@ -275,7 +276,7 @@ calc_max_id (sqlite3_stmt *max_id_stmt[NUM_TABLES],
 
 			if (db_step (max_id_stmt[i]) == SQLITE_ROW
 					&& sqlite3_column_type (max_id_stmt[i], 0) != SQLITE_NULL)
-				max_id[i] = db_column_int (max_id_stmt[i], 0);
+				max_id[i] = db_column_int64 (max_id_stmt[i], 0);
 			else
 				max_id[i] = 0;
 		}
@@ -285,8 +286,8 @@ void
 exon_id_init (sqlite3 *db)
 {
 	sqlite3_stmt *sel_stmt = NULL;
-	int id = 0;
-	int *id_copy = NULL;
+	int64_t id = 0;
+	int64_t *id_copy = NULL;
 	const char *ense = NULL;
 
 	// Prepare select stmt
@@ -303,10 +304,10 @@ exon_id_init (sqlite3 *db)
 	while (db_step (sel_stmt) == SQLITE_ROW)
 		{
 			// Get database values
-			id = db_column_int (sel_stmt, 0);
+			id = db_column_int64 (sel_stmt, 0);
 			ense = db_column_text (sel_stmt, 7);
 
-			id_copy = xcalloc (1, sizeof (int));
+			id_copy = xcalloc (1, sizeof (int64_t));
 			*id_copy = id;
 
 			// Index to the new hashes
@@ -329,7 +330,7 @@ db_merge (sqlite3 *db, int argc, char **argv)
 	sqlite3_stmt *sel_stmt[NUM_TABLES];
 	sqlite3_stmt *max_id_stmt[NUM_TABLES];
 
-	int max_id[NUM_TABLES] = {};
+	int64_t max_id[NUM_TABLES] = {};
 	int i = 0;
 	int j = 0;
 

@@ -18,6 +18,7 @@
 
 #include "config.h"
 
+#include <stdint.h>
 #include <string.h>
 #include <assert.h>
 #include "wrapper.h"
@@ -32,7 +33,7 @@
 
 struct _DedupData
 {
-	int       id;
+	int64_t   id;
 	String   *qname;
 
 	String   *chr;
@@ -41,7 +42,7 @@ struct _DedupData
 	String   *chr_next;
 	long      pos_next;
 
-	int       source_id;
+	int64_t   source_id;
 };
 
 typedef struct _DedupData DedupData;
@@ -57,10 +58,10 @@ dedup_data_init (DedupData *data)
 static inline void
 dedup_data_read (DedupData *data, sqlite3_stmt *stmt)
 {
-	data->id        = db_column_int   (stmt, 0);
+	data->id        = db_column_int64 (stmt, 0);
 	data->pos       = db_column_int64 (stmt, 3);
 	data->pos_next  = db_column_int64 (stmt, 5);
-	data->source_id = db_column_int   (stmt, 6);
+	data->source_id = db_column_int64 (stmt, 6);
 
 	string_set (data->qname, db_column_text (stmt, 1));
 	string_set (data->chr, db_column_text (stmt, 2));
@@ -147,14 +148,14 @@ prepare_temp_dup_stmt (sqlite3 *db)
 
 static inline void
 insert_temp_dup (sqlite3_stmt *stmt, const char *qname,
-		const int source_id, const int is_primary)
+		const int64_t source_id, const int is_primary)
 {
 	db_reset (stmt);
 	db_clear_bindings (stmt);
 
-	db_bind_text (stmt, 1, qname);
-	db_bind_int (stmt, 2, source_id);
-	db_bind_int (stmt, 3, is_primary);
+	db_bind_text  (stmt, 1, qname);
+	db_bind_int64 (stmt, 2, source_id);
+	db_bind_int   (stmt, 3, is_primary);
 
 	db_step (stmt);
 }
@@ -210,7 +211,7 @@ mark_dup (sqlite3 *db)
 	int old_alloc = 0;
 
 	// Array of qnames and source_ids
-	int *source_ids = NULL;
+	int64_t *source_ids = NULL;
 	String **qnames = NULL;
 
 	int i = 0;
@@ -259,7 +260,7 @@ mark_dup (sqlite3 *db)
 					alloc += BLOCK_SIZE;
 
 					source_ids = xrealloc (source_ids,
-							sizeof (int) * alloc);
+							sizeof (int64_t) * alloc);
 
 					qnames = xrealloc (qnames,
 							sizeof (String *) * alloc);

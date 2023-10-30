@@ -20,6 +20,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdint.h>
 #include <time.h>
 #include <assert.h>
 #include "wrapper.h"
@@ -37,7 +38,7 @@
 
 struct _VCFHeader
 {
-	int         id;
+	int64_t     id;
 	const char *name;
 };
 
@@ -46,7 +47,7 @@ typedef struct _VCFHeader VCFHeader;
 struct _VCFBody
 {
 	// Retrocopy ID
-	int         id;
+	int64_t     id;
 
 	// Contig
 	const char *chr;
@@ -93,7 +94,7 @@ struct _VCFGenotype
 typedef struct _VCFGenotype VCFGenotype;
 
 static VCFHeader *
-vcf_header_new (const int id, const char *name)
+vcf_header_new (const int64_t id, const char *name)
 {
 	VCFHeader *h = xcalloc (1, sizeof (VCFHeader));
 
@@ -158,7 +159,7 @@ vcf_get_header_line (sqlite3 *db)
 	VCFHeader *h = NULL;
 	List *hl = NULL;
 
-	int id = 0;
+	int64_t id = 0;
 	const char *path = NULL;
 	char *basename = NULL;
 
@@ -174,8 +175,8 @@ vcf_get_header_line (sqlite3 *db)
 
 	while (db_step (stmt) == SQLITE_ROW)
 		{
-			id   = db_column_int  (stmt, 0);
-			path = db_column_text (stmt, 1);
+			id   = db_column_int64 (stmt, 0);
+			path = db_column_text  (stmt, 1);
 
 			basename = path_file (path, 1);
 
@@ -442,38 +443,38 @@ prepare_genotype_query_stmt (sqlite3 *db)
 }
 
 static Hash *
-vcf_index_genotype (sqlite3_stmt *stmt, const int retrocopy_id)
+vcf_index_genotype (sqlite3_stmt *stmt, const int64_t retrocopy_id)
 {
 	log_trace ("Inside %s", __func__);
 
 	Hash *gi = NULL;
 	VCFGenotype *g = NULL;
 
-	int source_id = 0;
+	int64_t source_id = 0;
 	int reference_depth = 0;
 	int alternate_depth = 0;
 	double ho_ref_likelihood = 0.0;
 	double he_likelihood = 0.0;
 	double ho_alt_likelihood = 0.0;
 
-	int *source_id_alloc = NULL;
+	int64_t *source_id_alloc = NULL;
 
 	db_reset (stmt);
 	db_clear_bindings (stmt);
-	db_bind_int (stmt, 1, retrocopy_id);
+	db_bind_int64 (stmt, 1, retrocopy_id);
 
 	gi = hash_new_full (int_hash, int_equal, xfree, xfree);
 
 	while (db_step (stmt) == SQLITE_ROW)
 		{
-			source_id          = db_column_int    (stmt, 0);
+			source_id          = db_column_int64  (stmt, 0);
 			reference_depth    = db_column_int    (stmt, 1);
 			alternate_depth    = db_column_int    (stmt, 2);
 			ho_ref_likelihood  = db_column_double (stmt, 3);
 			he_likelihood      = db_column_double (stmt, 4);
 			ho_alt_likelihood  = db_column_double (stmt, 5);
 
-			source_id_alloc = xcalloc (1, sizeof (int));
+			source_id_alloc = xcalloc (1, sizeof (int64_t));
 			*source_id_alloc = source_id;
 
 			g = xcalloc (1, sizeof (VCFGenotype));
@@ -494,7 +495,7 @@ vcf_index_genotype (sqlite3_stmt *stmt, const int retrocopy_id)
 static void
 vcf_get_body_line (sqlite3_stmt *stmt, VCFBody *b)
 {
-	b->id                   = db_column_int    (stmt, 0);
+	b->id                   = db_column_int64  (stmt, 0);
 	b->chr                  = db_column_text   (stmt, 1);
 	b->window_start         = db_column_int64  (stmt, 2);
 	b->window_end           = db_column_int64  (stmt, 3);

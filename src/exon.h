@@ -19,6 +19,7 @@
 #ifndef EXON_H
 #define EXON_H
 
+#include <stdint.h>
 #include "hash.h"
 #include "chr.h"
 #include "db.h"
@@ -44,6 +45,6 @@ void exon_tree_index_dump (ExonTree *exon_tree, const char *gff_file);
 int exon_tree_lookup_dump (ExonTree *exon_tree, const char *chr,
 		long low, long high, float exon_overlap_frac,
 		float alignment_overlap_frac, int either,
-		long alignment_id);
+		int64_t alignment_id);
 
 #endif /* exon.h */

@@ -18,6 +18,7 @@
 
 #include "config.h"
 
+#include <inttypes.h>
 #include <assert.h>
 #include "wrapper.h"
 #include "log.h"
@@ -29,7 +30,7 @@
 struct _ExonTreeData
 {
 	ExonTree *tree;
-	long      alignment_id;
+	int64_t   alignment_id;
 };
 
 typedef struct _ExonTreeData ExonTreeData;
@@ -84,8 +85,8 @@ exon_tree_index_dump (ExonTree *exon_tree,
 
 	IBiTree *tree = NULL;
 
-	long table_id = 0;
-	long *alloc_id = NULL;
+	int64_t table_id = 0;
+	int64_t *alloc_id = NULL;
 
 	const char *chr_std = NULL;
 	const char *gene_name = NULL;
@@ -124,8 +125,8 @@ exon_tree_index_dump (ExonTree *exon_tree,
 					chr_std, entry->start, entry->end);
 
 			strand[0] = entry->strand;
-			alloc_id = xcalloc (1, sizeof (long));
-			* (long *) alloc_id = ++table_id;
+			alloc_id = xcalloc (1, sizeof (int64_t));
+			* (int64_t *) alloc_id = ++table_id;
 
 			tree = hash_lookup (exon_tree->idx, chr_std);
 
@@ -153,10 +154,10 @@ static void
 dump_if_overlaps_exon (IBiTreeLookupData *ldata,
 		void *user_data)
 {
-	const long *exon_id = ldata->data;
+	const int64_t *exon_id = ldata->data;
 	ExonTreeData *data = user_data;
 
-	log_debug ("Dump overlapping exon [%li] %li-%li with alignment [%li] %li-%li at %li-%li",
+	log_debug ("Dump overlapping exon [%" PRId64 "] %li-%li with alignment [%" PRId64 "] %li-%li at %li-%li",
 			*exon_id, ldata->node_low, ldata->node_high, data->alignment_id,
 			ldata->interval_low, ldata->interval_high, ldata->overlap_pos,
 			ldata->overlap_pos + ldata->overlap_len - 1);
@@ -169,7 +170,7 @@ int
 exon_tree_lookup_dump (ExonTree *exon_tree, const char *chr,
 		long low, long high, float exon_overlap_frac,
 		float alignment_overlap_frac, int either,
-		long alignment_id)
+		int64_t alignment_id)
 {
 	assert (exon_tree != NULL && chr != NULL);
 

@@ -18,6 +18,8 @@
 
 #include "config.h"
 
+#include <stdint.h>
+#include <inttypes.h>
 #include <htslib/sam.h>
 #include <math.h>
 #include <assert.h>
@@ -48,8 +50,8 @@ struct _Genotype
 {
 	Region     *region;
 
-	int         retrocopy_id;
-	int         source_id;
+	int64_t     retrocopy_id;
+	int64_t     source_id;
 
 	int         ploidy;
 
@@ -108,7 +110,7 @@ region_free (Region *r)
 }
 
 static Genotype *
-genotype_new (const int retrocopy_id, const int source_id,
+genotype_new (const int64_t retrocopy_id, const int64_t source_id,
 		const Region *r, int ploidy)
 {
 	Genotype *g = xcalloc (1, sizeof (Genotype));
@@ -177,10 +179,10 @@ genotype_index_retrocopy (sqlite3 *db)
 	Hash *ri = NULL;
 
 	Region *r = NULL;
-	int *id = NULL;
+	int64_t *id = NULL;
 
 	// Database search
-	int retrocopy_id = 0;
+	int64_t retrocopy_id = 0;
 	const char *chr = NULL;
 	long window_start = 0;
 	long window_end = 0;
@@ -198,7 +200,7 @@ genotype_index_retrocopy (sqlite3 *db)
 
 	while (db_step (stmt) == SQLITE_ROW)
 		{
-			retrocopy_id    = db_column_int   (stmt, 0);
+			retrocopy_id    = db_column_int64 (stmt, 0);
 			chr             = db_column_text  (stmt, 1);
 			window_start    = db_column_int64 (stmt, 2);
 			window_end      = db_column_int64 (stmt, 3);
@@ -207,10 +209,10 @@ genotype_index_retrocopy (sqlite3 *db)
 			r = region_new (chr, window_start, window_end,
 					insertion_point);
 
-			id = xcalloc (1, sizeof (int));
+			id = xcalloc (1, sizeof (int64_t));
 			*id = retrocopy_id;
 
-			log_debug ("Index retrocopy region [%d] %s:%li-%li in %li",
+			log_debug ("Index retrocopy region [%" PRId64 "] %s:%li-%li in %li",
 					retrocopy_id, chr, window_start, window_end,
 					insertion_point);
 
@@ -280,8 +282,8 @@ likelihood_HO (const Array *a1, const Array *a2,
 }
 
 static void
-genotype_get_abnormal_scores (sqlite3_stmt *stmt, const int retrocopy_id,
-		const int source_id, Array *a)
+genotype_get_abnormal_scores (sqlite3_stmt *stmt, const int64_t retrocopy_id,
+		const int64_t source_id, Array *a)
 {
 	int mapq = 0;
 	int *q = NULL;
@@ -289,11 +291,11 @@ genotype_get_abnormal_scores (sqlite3_stmt *stmt, const int retrocopy_id,
 	db_reset (stmt);
 	db_clear_bindings (stmt);
 
-	db_bind_int (stmt,
+	db_bind_int64 (stmt,
 			sqlite3_bind_parameter_index (stmt, "$RID"),
 			retrocopy_id);
 
-	db_bind_int (stmt,
+	db_bind_int64 (stmt,
 			sqlite3_bind_parameter_index (stmt, "$SID"),
 			source_id);
 
@@ -324,10 +326,10 @@ genotype_index_zygosity_data (sqlite3 *db, Hash *retrocopy_h)
 
 	HashIter iter = {};
 
-	const int *retrocopy_id = NULL;
+	const int64_t *retrocopy_id = NULL;
 	const char *path_copy = NULL;
 
-	int source_id = 0;
+	int64_t source_id = 0;
 	const char *path = NULL;
 
 	const char sql[] =
@@ -345,10 +347,10 @@ genotype_index_zygosity_data (sqlite3 *db, Hash *retrocopy_h)
 
 	while (db_step (stmt) == SQLITE_ROW)
 		{
-			source_id = db_column_int (stmt, 0);
+			source_id = db_column_int64 (stmt, 0);
 			path = db_column_text (stmt, 1);
 
-			log_debug ("Index source path [%d] %s",
+			log_debug ("Index source path [%" PRId64 "] %s",
 					source_id, path);
 
 			zd = hash_lookup (zi, path);
@@ -487,7 +489,7 @@ index_region (const List *genotype, Hash *chr_tid)
 			tid = hash_lookup (chr_tid, r->chr);
 			if (tid == NULL)
 				{
-					log_warn ("No %s contig from retrocopy [%d] found in SAM header",
+					log_warn ("No %s contig from retrocopy [%" PRId64 "] found in SAM header",
 							r->chr, g->retrocopy_id);
 					continue;
 				}
@@ -517,7 +519,7 @@ dump_genotype (sqlite3_stmt *stmt, const Genotype *g)
 	he = likelihood_HE (array_len (g->normal_scores) +
 			array_len (g->abnormal_scores), g->ploidy);
 
-	log_debug ("retrocopy [%d %d] %.2f,%.2f,%.2f",
+	log_debug ("retrocopy [%" PRId64 " %" PRId64 "] %.2f,%.2f,%.2f",
 			g->retrocopy_id, g->source_id, ho_ref, he, ho_alt);
 
 	db_insert_genotype (stmt, g->source_id, g->retrocopy_id, array_len (g->normal_scores),

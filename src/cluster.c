@@ -18,6 +18,8 @@
 
 #include "config.h"
 
+#include <stdint.h>
+#include <inttypes.h>
 #include <string.h>
 #include <assert.h>
 #include "wrapper.h"
@@ -33,9 +35,9 @@ struct _Clustering
 	Hash         *cluster_h;
 	sqlite3_stmt *stmt;
 	ClusterFilter filter;
-	int           id;
-	int           sid;
-	int           sub;
+	int64_t       id;
+	int64_t       sid;
+	int64_t       sub;
 };
 
 typedef struct _Clustering Clustering;
@@ -54,7 +56,7 @@ cluster_filter_free (Hash *h)
 }
 
 static inline void
-cluster_filter_set (Hash *h, const int id, const int sid,
+cluster_filter_set (Hash *h, const int64_t id, const int64_t sid,
 		const ClusterFilter filter)
 {
 /*
@@ -71,7 +73,7 @@ cluster_filter_set (Hash *h, const int id, const int sid,
 			s_h = hash_new_full (int_hash, int_equal,
 					xfree, xfree);
 
-			int *id_alloc = xcalloc (1, sizeof (int));
+			int64_t *id_alloc = xcalloc (1, sizeof (int64_t));
 			*id_alloc = id;
 
 			hash_insert (h, id_alloc, s_h);
@@ -81,7 +83,7 @@ cluster_filter_set (Hash *h, const int id, const int sid,
 
 	if (filter_alloc == NULL)
 		{
-			int *sid_alloc = xcalloc (1, sizeof (int));
+			int64_t *sid_alloc = xcalloc (1, sizeof (int64_t));
 			*sid_alloc = sid;
 
 			filter_alloc = xcalloc (1,
@@ -94,7 +96,7 @@ cluster_filter_set (Hash *h, const int id, const int sid,
 }
 
 static inline ClusterFilter *
-cluster_filter_get (Hash *h, const int id, const int sid)
+cluster_filter_get (Hash *h, const int64_t id, const int64_t sid)
 {
 /*
  * Get id => sid => filter
@@ -209,10 +211,10 @@ static void
 dump_clustering (Point *p, void *user_data)
 {
 	Clustering *c = user_data;
-	const int *alignment_id = p->data;
+	const int64_t *alignment_id = p->data;
 
-	int id = c->id;
-	int sid = c->sid;
+	int64_t id = c->id;
+	int64_t sid = c->sid;
 
 	// Clustering or reclustering
 	// ('sub'clustering)
@@ -221,7 +223,7 @@ dump_clustering (Point *p, void *user_data)
 	else
 		id += p->id;
 
-	log_debug ("Dump cluster [%d %d] aid = %d label = %d n = %d",
+	log_debug ("Dump cluster [%" PRId64 " %" PRId64 "] aid = %" PRId64 " label = %d n = %d",
 			id, sid, *alignment_id, p->label, p->neighbors);
 
 	// Set id => sid => filter hash
@@ -246,9 +248,9 @@ clustering (sqlite3_stmt *clustering_stmt, const long eps,
 	char *gene_name_prev = NULL;
 	const char *gene_name = NULL;
 
-	int *aid_alloc = NULL;
+	int64_t *aid_alloc = NULL;
 
-	int aid = 0;
+	int64_t aid = 0;
 	long astart = 0;
 	long aend = 0;
 	int acm = 0;
@@ -269,7 +271,7 @@ clustering (sqlite3_stmt *clustering_stmt, const long eps,
 
 	while (db_step (query_stmt) == SQLITE_ROW)
 		{
-			aid       = db_column_int   (query_stmt, 0);
+			aid       = db_column_int64 (query_stmt, 0);
 			chr       = db_column_text  (query_stmt, 1);
 			astart    = db_column_int64 (query_stmt, 2);
 			aend      = db_column_int64 (query_stmt, 3);
@@ -310,7 +312,7 @@ clustering (sqlite3_stmt *clustering_stmt, const long eps,
 					gene_name_prev = xstrdup (gene_name);
 				}
 
-			aid_alloc = xcalloc (1, sizeof (int));
+			aid_alloc = xcalloc (1, sizeof (int64_t));
 			*aid_alloc = aid;
 
 			// Insert a new point
@@ -401,15 +403,15 @@ reclustering (sqlite3_stmt *clustering_stmt, const int support,
 	sqlite3_stmt *filter_support_stmt = NULL;
 
 	ClusterFilter *filter_alloc = NULL;
-	int *aid_alloc = NULL;
+	int64_t *aid_alloc = NULL;
 
-	int cid = 0;
-	int cid_prev = 0;
+	int64_t cid = 0;
+	int64_t cid_prev = 0;
 
-	int sid = 0;
-	int sid_prev = 0;
+	int64_t sid = 0;
+	int64_t sid_prev = 0;
 
-	int aid = 0;
+	int64_t aid = 0;
 	long astart = 0;
 	long aend = 0;
 	int acm = 0;
@@ -429,9 +431,9 @@ reclustering (sqlite3_stmt *clustering_stmt, const int support,
 
 	while (db_step (filter_support_stmt) == SQLITE_ROW)
 		{
-			cid    = db_column_int   (filter_support_stmt, 0);
-			sid    = db_column_int   (filter_support_stmt, 1);
-			aid    = db_column_int   (filter_support_stmt, 2);
+			cid    = db_column_int64 (filter_support_stmt, 0);
+			sid    = db_column_int64 (filter_support_stmt, 1);
+			aid    = db_column_int64 (filter_support_stmt, 2);
 			astart = db_column_int64 (filter_support_stmt, 3);
 			aend   = db_column_int64 (filter_support_stmt, 4);
 
@@ -451,7 +453,7 @@ reclustering (sqlite3_stmt *clustering_stmt, const int support,
 					filter_alloc = cluster_filter_get (cluster_h, cid_prev, sid_prev);
 					assert (filter_alloc != NULL);
 
-					log_debug ("Reclustering cluster [%d %d]", cid_prev, sid_prev);
+					log_debug ("Reclustering cluster [%" PRId64 " %" PRId64 "]", cid_prev, sid_prev);
 
 					c.id = cid_prev;
 					c.sid = sid_prev;
@@ -461,7 +463,7 @@ reclustering (sqlite3_stmt *clustering_stmt, const int support,
 							dump_clustering, &c);
 
 					if (acm)
-						log_debug ("Found %d clusters from [%d %d] after reclustering",
+						log_debug ("Found %d clusters from [%" PRId64 " %" PRId64 "] after reclustering",
 								acm, cid_prev, sid_prev);
 
 					dbscan_free (dbscan);
@@ -471,7 +473,7 @@ reclustering (sqlite3_stmt *clustering_stmt, const int support,
 					sid_prev = sid;
 				}
 
-			aid_alloc = xcalloc (1, sizeof (int));
+			aid_alloc = xcalloc (1, sizeof (int64_t));
 			*aid_alloc = aid;
 
 			// Insert a new point
@@ -488,7 +490,7 @@ reclustering (sqlite3_stmt *clustering_stmt, const int support,
 			filter_alloc = cluster_filter_get (cluster_h, cid_prev, sid_prev);
 			assert (filter_alloc != NULL);
 
-			log_debug ("Reclustering cluster [%d %d]", cid_prev, sid_prev);
+			log_debug ("Reclustering cluster [%" PRId64 " %" PRId64 "]", cid_prev, sid_prev);
 
 			c.id = cid_prev;
 			c.sid = sid_prev;
@@ -498,7 +500,7 @@ reclustering (sqlite3_stmt *clustering_stmt, const int support,
 					dump_clustering, &c);
 
 			if (acm)
-				log_debug ("Found %d clusters from [%d %d] after reclustering",
+				log_debug ("Found %d clusters from [%" PRId64 " %" PRId64 "] after reclustering",
 						acm, cid_prev, sid_prev);
 		}
 
@@ -553,8 +555,8 @@ dump_and_filter_clusters (sqlite3_stmt *cluster_stmt, const int distance,
 	ClusterFilter *filter = NULL;
 
 	// Cluster info
-	int cluster_id = 0;
-	int cluster_sid = 0;
+	int64_t cluster_id = 0;
+	int64_t cluster_sid = 0;
 	const char *cluster_chr = NULL;
 	long cluster_start = 0;
 	long cluster_end = 0;
@@ -585,8 +587,8 @@ dump_and_filter_clusters (sqlite3_stmt *cluster_stmt, const int distance,
 
 	while (db_step (filter_query) == SQLITE_ROW)
 		{
-			cluster_id    = db_column_int   (filter_query, 0);
-			cluster_sid   = db_column_int   (filter_query, 1);
+			cluster_id    = db_column_int64 (filter_query, 0);
+			cluster_sid   = db_column_int64 (filter_query, 1);
 			cluster_chr   = db_column_text  (filter_query, 2);
 			cluster_start = db_column_int64 (filter_query, 3);
 			cluster_end   = db_column_int64 (filter_query, 4);
@@ -619,7 +621,7 @@ dump_and_filter_clusters (sqlite3_stmt *cluster_stmt, const int distance,
 			if (!acm)
 				*filter |= CLUSTER_FILTER_REGION;
 
-			log_debug ("Dump cluster [%d %d] at %s:%li-%li from %s filter %d",
+			log_debug ("Dump cluster [%" PRId64 " %" PRId64 "] at %s:%li-%li from %s filter %d",
 					cluster_id, cluster_sid, cluster_chr, cluster_start,
 					cluster_end, gene_name, *filter);
 

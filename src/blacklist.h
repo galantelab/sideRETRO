@@ -19,6 +19,7 @@
 #ifndef BLACKLIST_H
 #define BLACKLIST_H
 
+#include <stdint.h>
 #include "db.h"
 #include "chr.h"
 #include "set.h"
@@ -47,7 +48,7 @@ void blacklist_index_dump_from_bed (Blacklist *blacklist,
 		const char *bed_file);
 
 int blacklist_lookup (Blacklist *blacklist, const char *chr,
-		long low, long high, long padding, const long cluster_id,
-		const long cluster_sid);
+		long low, long high, long padding, const int64_t cluster_id,
+		const int64_t cluster_sid);
 
 #endif /* blacklist.h */

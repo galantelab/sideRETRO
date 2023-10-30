@@ -18,6 +18,7 @@
 
 #include "config.h"
 
+#include <inttypes.h>
 #include <assert.h>
 #include <regex.h>
 #include "wrapper.h"
@@ -31,8 +32,8 @@
 struct _BlacklistData
 {
 	Blacklist *blacklist;
-	long       cluster_id;
-	long       cluster_sid;
+	int64_t    cluster_id;
+	int64_t    cluster_sid;
 };
 
 typedef struct _BlacklistData BlacklistData;
@@ -97,8 +98,8 @@ blacklist_index_dump_from_gff (Blacklist *blacklist, const char *gff_file, const
 
 	IBiTree *tree = NULL;
 
-	long table_id = 0;
-	long *alloc_id = NULL;
+	int64_t table_id = 0;
+	int64_t *alloc_id = NULL;
 
 	const char *chr_std = NULL;
 	const char *gene_name = NULL;
@@ -115,8 +116,8 @@ blacklist_index_dump_from_gff (Blacklist *blacklist, const char *gff_file, const
 			log_debug ("Index blacklist '%s' at %s:%zu-%zu", gene_name,
 					chr_std, entry->start, entry->end);
 
-			alloc_id = xcalloc (1, sizeof (long));
-			* (long *) alloc_id = ++table_id;
+			alloc_id = xcalloc (1, sizeof (int64_t));
+			* (int64_t *) alloc_id = ++table_id;
 
 			tree = hash_lookup (blacklist->idx, chr_std);
 
@@ -153,8 +154,8 @@ blacklist_index_dump_from_bed (Blacklist *blacklist, const char *bed_file)
 
 	IBiTree *tree = NULL;
 
-	long table_id = 0;
-	long *alloc_id = NULL;
+	int64_t table_id = 0;
+	int64_t *alloc_id = NULL;
 
 	const char *chr_std = NULL;
 	const char *name = NULL;
@@ -170,8 +171,8 @@ blacklist_index_dump_from_bed (Blacklist *blacklist, const char *bed_file)
 			log_debug ("Index blacklist '%s' at %s:%zu-%zu", name,
 					chr_std, entry->chrom_start, entry->chrom_end);
 
-			alloc_id = xcalloc (1, sizeof (long));
-			* (long *) alloc_id = ++table_id;
+			alloc_id = xcalloc (1, sizeof (int64_t));
+			* (int64_t *) alloc_id = ++table_id;
 
 			tree = hash_lookup (blacklist->idx, chr_std);
 
@@ -198,10 +199,10 @@ static void
 dump_if_overlaps_blacklist (IBiTreeLookupData *ldata,
 		void *user_data)
 {
-	const long *blacklist_id = ldata->data;
+	const int64_t *blacklist_id = ldata->data;
 	BlacklistData *data = user_data;
 
-	log_debug ("Dump overlapping blacklist [%li] %li-%li with cluster [%li] %li-%li at %li-%li",
+	log_debug ("Dump overlapping blacklist [%" PRId64 "] %li-%li with cluster [%" PRId64 "] %li-%li at %li-%li",
 			*blacklist_id, ldata->node_low, ldata->node_high, data->cluster_id,
 			ldata->interval_low, ldata->interval_high, ldata->overlap_pos,
 			ldata->overlap_pos + ldata->overlap_len - 1);
@@ -212,8 +213,8 @@ dump_if_overlaps_blacklist (IBiTreeLookupData *ldata,
 
 int
 blacklist_lookup (Blacklist *blacklist, const char *chr,
-		long low, long high, long padding, const long cluster_id,
-		const long cluster_sid)
+		long low, long high, long padding, const int64_t cluster_id,
+		const int64_t cluster_sid)
 {
 	assert (blacklist != NULL && chr != NULL
 			&& padding >= 0);
