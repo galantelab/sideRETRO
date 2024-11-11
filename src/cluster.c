@@ -702,7 +702,7 @@ cluster (sqlite3_stmt *cluster_stmt, sqlite3_stmt *clustering_stmt,
 			blacklist, padding, cluster_h);
 
 	if (num_clusters)
-		log_info ("%d clusters have been passed all controling filters",
+		log_info ("%d clusters have been passed all controlling filters",
 				num_clusters);
 	else
 		goto RET;
