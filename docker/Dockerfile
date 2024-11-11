@@ -1,4 +1,4 @@
-FROM ubuntu:20.04 AS builder
+FROM ubuntu:24.04 AS builder
 
 RUN set -e; \
     \
@@ -23,13 +23,13 @@ RUN set -e; \
       --buildtype=release \
       --default-library=static \
       --wrap-mode=forcefallback \
-      build; \
-    ninja -C build
+      private_build; \
+    meson compile -C private_build
 
-FROM ubuntu:20.04
+FROM ubuntu:24.04
 
 LABEL maintainer="tmiller@mochsl.org.br"
 
-COPY --from=builder /sider/build/src/sider /usr/local/bin/
+COPY --from=builder /sider/private_build/src/sider /usr/local/bin/
 
 ENTRYPOINT ["sider"]
