@@ -19,6 +19,7 @@ jobs:
         run: >
           sudo apt-get install -y
           check
+          lcov
           ninja-build
           valgrind
 
