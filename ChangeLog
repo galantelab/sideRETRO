@@ -1,3 +1,27 @@
+2024-11-12 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* Version 1.1.4
+
+	* FIX docker.yml: Use ubuntu 24.04
+
+	* FIX: readthedocs build
+
+	Add .readthedocs.yml and docs/requirements.txt.
+
+2024-11-11 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* UPDATE: Dockerfile: Use image ubuntu:24.04
+
+	* FIX: README.md: coveralls badge
+
+	* FIX: README.md: readthedocs badge
+
+	* FIX: ci.yml: Use ubuntu 24.04
+
+	* FIX: ci.yml: Install lcov for cpp-coveralls
+
+	* FIX: cluster.c (cluster): Typo 'controling'
+
 2023-07-01 Thiago L. A. Miller <tmiller@mochsl.org.br>
 
 	* Version 1.1.3
