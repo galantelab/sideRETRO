@@ -1,6 +1,6 @@
 option('sphinx_target',
      type : 'combo',
-    value : 'html',
+    value : 'man',
   choices : [
     'html',
     'dirhtml',

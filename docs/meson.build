@@ -31,16 +31,42 @@ doc_images = files(
 )
 
 sphinx_source_dir = join_paths(meson.source_root(), 'docs')
-sphinx_builddir   = join_paths(meson.build_root(), 'meson-docs')
+sphinx_builddir   = join_paths(meson.build_root(),  'docs')
 
 # Test if sphinx is installed
 if sphinx_build.found()
-  custom_target('docs',
-      input : [doc_sources, doc_images],
-     output : ['.'],
-    command : [sphinx_build, '-M', get_option('sphinx_target'),
-      sphinx_source_dir, sphinx_builddir]
-  )
+  sphinx_target = get_option('sphinx_target')
+
+  sphinx_cmd = [
+    sphinx_build,
+    '-b', sphinx_target,
+    sphinx_source_dir,
+    sphinx_builddir
+  ]
+
+  # If the user passed the option '-Dsphinx_target=man', then
+  # we build a man page and set the installation to
+  # /usr/local/man/man1
+  if sphinx_target == 'man'
+    message('Generate man page alongside the executable')
+
+    custom_target('docs',
+                 input : [doc_sources, doc_images],
+                output : ['sider.1'],
+               install : true,
+      build_by_default : true,
+           install_dir : join_paths('man', 'man1'),
+               command : sphinx_cmd
+    )
+  else
+    custom_target('docs',
+                 input : [doc_sources, doc_images],
+                output : ['.'],
+               install : false,
+      build_by_default : false,
+               command : sphinx_cmd
+    )
+  endif
 else
   # Make users aware that without sphinx the documentation
   # cannot be generated
