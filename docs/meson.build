@@ -30,8 +30,8 @@ doc_images = files(
   'images/retrocopy.png'
 )
 
-sphinx_source_dir = join_paths(meson.source_root(), 'docs')
-sphinx_builddir   = join_paths(meson.build_root(),  'docs')
+sphinx_source_dir = join_paths(meson.global_source_root(), 'docs')
+sphinx_builddir   = join_paths(meson.global_build_root(),  'docs')
 
 # Test if sphinx is installed
 if sphinx_build.found()
