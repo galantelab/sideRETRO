@@ -1,3 +1,26 @@
+2024-11-18 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* Version 1.1.5
+
+2024-11-17 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: Create SECURITY.md
+
+2024-11-16 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* UPDATE: meson version to 0.58.0
+
+	* ADD: generate man page by default and set install
+
+	Generate and install the man page, using docs/usage.rst by default. In
+	order to generate the doc site, it is necessary to setup meson with the
+	options '-Dsphinx_target=html' and, in that case, the extension
+	sphinx_rtd_theme will be mandatory.
+
+2024-11-13 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* ADD: README.md: Badge for CodeQL and tag
+
 2024-11-12 Thiago L. A. Miller <tmiller@mochsl.org.br>
 
 	* Version 1.1.4

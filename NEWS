@@ -1,3 +1,13 @@
+Version 1.1.5
+
+* Now, by default, compile and install a man
+  page alongside the sider executable when
+  sphinx-build is present.
+
+* Add CodeQL to test vulnerabilities in code.
+
+* Add a security policy.
+
 Version 1.1.4
 
 * Fix an english typo in cluster.c (cluster).
