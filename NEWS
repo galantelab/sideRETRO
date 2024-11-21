@@ -1,3 +1,11 @@
+Version 1.1.6
+
+* Use 'mandir' variable to handle man page
+  installation. This will be useful when
+  packaging for distributions - like debian.
+
+* Fix an english typo in usage.rst.
+
 Version 1.1.5
 
 * Now, by default, compile and install a man

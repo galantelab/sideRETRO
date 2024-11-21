@@ -1,3 +1,14 @@
+2024-11-21 Thiago L. A. Miller <tmiller@mochsl.org.br>
+
+	* Version 1.1.6
+
+	* Merge pull request #11 from fvcr/master
+
+	FIX: docs/usage.rst. Typo 'bellow'
+	UPDATE: docs/meson.build: Use share/man/man1
+
+	* CHANGE: docs/meson.build: Use get_option('mandir')
+
 2024-11-18 Thiago L. A. Miller <tmiller@mochsl.org.br>
 
 	* Version 1.1.5
