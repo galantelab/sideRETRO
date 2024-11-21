@@ -472,7 +472,7 @@ genome:
 and
 `NA12778 <ftp://ftp.sra.ebi.ac.uk/vol1/run/ERR323/ERR3239484/NA12778.final.cram>`_.
 
-At the beginning of a run, the files listed bellow must be at the same directory where
+At the beginning of a run, the files listed below must be at the same directory where
 the user is running **sideRETRO** or their correct paths must be supplied at the
 correspondent option. Files are:
 
