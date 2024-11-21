@@ -55,7 +55,7 @@ if sphinx_build.found()
                 output : ['sider.1'],
                install : true,
       build_by_default : true,
-           install_dir : join_paths('man', 'man1'),
+           install_dir : join_paths('share', 'man', 'man1'),
                command : sphinx_cmd
     )
   else
