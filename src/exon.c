@@ -92,7 +92,7 @@ exon_tree_index_dump (ExonTree *exon_tree,
 	const char *gene_id = NULL;
 	const char *exon_id = NULL;
 	const char *exon_id_copy = NULL;
-	char strand[1];
+	char strand[2] = {};
 
 	while (gff_read_filtered (gff, entry, filter))
 		{
