@@ -16,45 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "config.h"
+
 #include <stdio.h>
 #include <ctype.h>
+#include <string.h>
 #include <stdint.h>
 #include <assert.h>
 #include "log.h"
 #include "wrapper.h"
-
 #include "cigar.h"
-
-#define CIGAR_STR        "MIDNSHP=XB"
-#define CIGAR_STR_SAFE   CIGAR_STR "??????"
-#define CIGAR_SHIFT      4
-#define CIGAR_MASK       0xf
-#define CIGAR_TYPE       0x3C1A7
-
-#define cigar_idx(t)     ((t) - CIGAR_MATCH)
-#define cigar_chr(t)     (CIGAR_STR_SAFE[cigar_idx(t)])
-
-#define cigar_opidx(c)   ((c) & CIGAR_MASK)
-#define cigar_op(c)      (cigar_opidx(c) + CIGAR_MATCH)
-#define cigar_oplen(c)   ((c) >> CIGAR_SHIFT)
-#define cigar_opchr(c)   (CIGAR_STR_SAFE[cigar_opidx(c)])
-
-
-enum _CigarTokenType
-{
-	CIGAR_MATCH      = 258,
-	CIGAR_INS        = 259,
-	CIGAR_DEL        = 260,
-	CIGAR_REF_SKIP   = 261,
-	CIGAR_SOFT_CLIP  = 262,
-	CIGAR_HARD_CLIP  = 263,
-	CIGAR_PAD        = 264,
-	CIGAR_EQUAL      = 265,
-	CIGAR_DIFF       = 266,
-	CIGAR_BACK       = 267,
-	CIGAR_LENGTH     = 268,
-	CIGAR_ERROR      = 269
-};
 
 int
 cigar_yylex (const char *cigar_str, const char **cache,
@@ -80,15 +51,31 @@ cigar_yylex (const char *cigar_str, const char **cache,
 	if (isdigit (*c))
 		{
 			uint32_t i = *c - '0';
+			int overflow = 0;
 
 			while (isdigit (*(++c)))
-				i = (10 * i) + *c - '0';
+				{
+					// Keep consuming the digits, but avoid
+					// wrapping around uint32_t
+					if (i > (UINT32_MAX - 9) / 10)
+						overflow = 1;
+					else
+						i = (10 * i) + *c - '0';
+				}
 
 			// Unget
 			c--;
 
-			*yyval = i;
-			token = CIGAR_LENGTH;
+			if (overflow)
+				{
+					log_error ("CIGAR operation length overflow");
+					token = CIGAR_ERROR;
+				}
+			else
+				{
+					*yyval = i;
+					token = CIGAR_LENGTH;
+				}
 		}
 	else
 		{
@@ -142,6 +129,19 @@ cigar_yyparser (const char *cigar_str, uint32_t *n_cigar)
 	int soft_end = 0;
 	int hard_end = 0;
 
+	// SAM: '*' means the cigar is unavailable
+	if (cigar_str[0] == '*' && cigar_str[1] == '\0')
+		{
+			*n_cigar = 0;
+			return cigar;
+		}
+
+	if (cigar_str[0] == '\0')
+		{
+			log_error ("Empty cigar");
+			goto Error;
+		}
+
 	for (token = cigar_yylex (cigar_str, &cache, &yyval);
 			token;
 			token = cigar_yylex (NULL, &cache, &yyval))
@@ -153,6 +153,13 @@ cigar_yyparser (const char *cigar_str, uint32_t *n_cigar)
 				}
 			else if (token == CIGAR_LENGTH)
 				{
+					if (yyval > CIGAR_MAX_LEN)
+						{
+							log_error ("Operation length %u is greater than %u at cigar '%s'",
+								yyval, CIGAR_MAX_LEN, cigar_str);
+							goto Error;
+						}
+
 					op_len = yyval;
 					init_op = 1;
 				}
@@ -212,4 +219,123 @@ cigar_yyparser (const char *cigar_str, uint32_t *n_cigar)
 Error:
 	xfree (cigar);
 	return NULL;
+}
+
+void
+cigar_iter_init (CigarIter *iter, const uint32_t *cigar,
+		uint32_t n_cigar, long pos)
+{
+	assert (iter != NULL);
+	assert (cigar != NULL || n_cigar == 0);
+
+	*iter = (CigarIter) {
+		.cigar   = cigar,
+		.n_cigar = n_cigar,
+		.idx     = 0,
+		.qpos    = 0,
+		.rpos    = pos
+	};
+}
+
+int
+cigar_iter_next (CigarIter *iter, CigarOp *op)
+{
+	assert (iter != NULL);
+	assert (op != NULL);
+
+	uint32_t c = 0;
+
+	// End of cigar
+	if (iter->idx >= iter->n_cigar)
+		return 0;
+
+	c = iter->cigar[iter->idx++];
+
+	op->type = cigar_op (c);
+	op->len = cigar_oplen (c);
+
+	// Where the operation starts
+	op->qpos = iter->qpos;
+	op->rpos = iter->rpos;
+
+	// How many bases it consumes. Hard clip and
+	// padding consume neither query nor reference
+	op->qlen = cigar_consumes_query (op->type) ? op->len : 0;
+	op->rlen = cigar_consumes_ref (op->type) ? op->len : 0;
+
+	// Move forward
+	iter->qpos += op->qlen;
+	iter->rpos += op->rlen;
+
+	return 1;
+}
+
+char *
+cigar_op_seq (const CigarOp *op, const char *seq)
+{
+	assert (op != NULL);
+	assert (seq != NULL);
+
+	char *slice = NULL;
+
+	// Operation does not consume the query: D, N, H, P, B
+	if (op->qlen == 0)
+		return NULL;
+
+	if ((size_t) (op->qpos + op->qlen) > strlen (seq))
+		{
+			log_error ("Operation '%c' at %d (len %d) is beyond the sequence length %zu",
+					cigar_chr (op->type), op->qpos, op->qlen, strlen (seq));
+			return NULL;
+		}
+
+	slice = xcalloc (op->qlen + 1, sizeof (char));
+	memcpy (slice, seq + op->qpos, op->qlen);
+
+	return slice;
+}
+
+void
+cigar_soft_clip (const uint32_t *cigar, uint32_t n_cigar,
+		uint32_t *left, uint32_t *right)
+{
+	assert (cigar != NULL || n_cigar == 0);
+	assert (left != NULL);
+	assert (right != NULL);
+
+	int op = 0;
+	int i = 0;
+	int j = 0;
+
+	*left = 0;
+	*right = 0;
+
+	// Soft clip at the beginning - skip hard clip
+	for (i = 0; i < (int) n_cigar; i++)
+		{
+			op = cigar_op (cigar[i]);
+
+			if (op == CIGAR_HARD_CLIP)
+				continue;
+
+			if (op != CIGAR_SOFT_CLIP)
+				break;
+
+			*left += cigar_oplen (cigar[i]);
+		}
+
+	// Soft clip at the end - do not cross
+	// the beginning operations
+	for (j = (int) n_cigar - 1; j > i; j--)
+		{
+			op = cigar_op (cigar[j]);
+
+			if (op == CIGAR_HARD_CLIP)
+				continue;
+
+			if (op != CIGAR_SOFT_CLIP)
+				break;
+
+			*right += cigar_oplen (cigar[j]);
+		}
 }
