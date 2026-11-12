@@ -25,7 +25,7 @@
 
 /* Database schema version */
 #define DB_SCHEMA_MAJOR_VERSION 0
-#define DB_SCHEMA_MINOR_VERSION 12
+#define DB_SCHEMA_MINOR_VERSION 13
 
 #define DB_DEFAULT_CACHE_SIZE 2000
 
@@ -77,7 +77,8 @@ void db_insert_source (sqlite3_stmt *stmt, int id,
 sqlite3_stmt * db_prepare_alignment_stmt (sqlite3 *db);
 void db_insert_alignment (sqlite3_stmt *stmt, int id, const char *name,
 		int flag, const char *chr, long pos, int mapq, const char *cigar, int qlen,
-		int rlen, const char *chr_next, long pos_next, int type, int source_id);
+		int rlen, const char *chr_next, long pos_next, int type, int source_id,
+		const char *seq, const char *qual);
 
 sqlite3_stmt * db_prepare_overlapping_stmt (sqlite3 *db);
 void db_insert_overlapping (sqlite3_stmt *stmt, int exon_id,

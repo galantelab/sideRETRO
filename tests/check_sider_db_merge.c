@@ -33,7 +33,7 @@ create_db (char *path)
 		"INSERT INTO batch VALUES(1,\"2019-02-31\");\n"
 		"INSERT INTO source VALUES(1,1,\"ponga.bam\");\n"
 		"INSERT INTO exon VALUES(1,\"g1\",\"chr1\",1,200,\"+\",\"ENG0066\",\"ENSE0066\");\n"
-		"INSERT INTO alignment VALUES(1,\"r1\",99,\"chr1\",1,20,\"101M\",101,101,\"chr1\",200,0,1);\n"
+		"INSERT INTO alignment VALUES(1,\"r1\",99,\"chr1\",1,20,\"101M\",101,101,\"chr1\",200,0,1,\"*\",\"*\");\n"
 		"INSERT INTO overlapping VALUES(1,1,1,101);";
 
 	int fd = xmkstemp (path);

@@ -115,6 +115,8 @@ run (ProcessSample *ps)
 
 	const char *sam_file = NULL;
 	const int num_files = array_len (ps->sam_files);
+	int pool_threads = 0;
+	int hts_threads = 0;
 	char *db_file = NULL;
 	int i = 0;
 
@@ -161,8 +163,18 @@ run (ProcessSample *ps)
 	exon_tree = exon_tree_new (exon_stmt, overlapping_stmt, cs);
 	exon_tree_index_dump (exon_tree, ps->gff_file);
 
-	log_info ("Create thread pool");
-	thpool = thpool_init (ps->threads);
+	// Each file is processed by one thread. If there are
+	// more threads than files, distribute the spare ones
+	// among the files to decompress BAM/CRAM
+	pool_threads = ps->threads < num_files ? ps->threads : num_files;
+	hts_threads = (ps->threads - pool_threads) / num_files;
+
+	log_info ("Create thread pool with %d threads", pool_threads);
+	thpool = thpool_init (pool_threads);
+
+	if (hts_threads > 0)
+		log_info ("Use %d extra threads per file for decompression",
+				hts_threads);
 
 	AbnormalArg *ab_args = xcalloc (num_files, sizeof (AbnormalArg));
 
@@ -185,7 +197,8 @@ run (ProcessSample *ps)
 				.queryname_sorted = ps->sorted,
 				.max_distance     = ps->max_distance,
 				.phred_quality    = ps->phred_quality,
-				.max_base_freq    = ps->max_base_freq
+				.max_base_freq    = ps->max_base_freq,
+				.hts_threads      = hts_threads
 			};
 
 			log_debug ("Dump source entry '%s'", sam_file);

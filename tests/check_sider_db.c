@@ -242,7 +242,7 @@ START_TEST (test_db_schema)
 	db_insert_exon (exon_stmt, 1, "PONGA", "chr1", 1, 200, "+",
 			"ENSG000666", "ENSE000666");
 	db_insert_alignment (alignment_stmt, 1, "run1", 99, "chr1", 1, 20,
-			"101M", 101, 101, "chr1", 200, 0, 1);
+			"101M", 101, 101, "chr1", 200, 0, 1, "*", "*");
 	db_insert_overlapping (overlapping_stmt, 1, 1, 1, 101);
 	db_insert_clustering (clustering_stmt, 1, 1, 1, 0, 1);
 	db_insert_cluster (cluster_stmt, 1, 1, "chr1", 1, 101, "PONGA", 1);

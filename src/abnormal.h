@@ -49,6 +49,7 @@ struct _AbnormalArg
 	int            either;
 	float          exon_frac;
 	float          alignment_frac;
+	int            hts_threads;
 };
 
 typedef struct _AbnormalArg AbnormalArg;

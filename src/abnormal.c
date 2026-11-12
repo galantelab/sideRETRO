@@ -47,10 +47,14 @@ struct _AbnormalFilter
 	int            either;
 	float          exon_frac;
 	float          alignment_frac;
+	int            hts_threads;
 	samFile       *in;
 	bam_hdr_t     *hdr;
 	bam1_t        *align;
 	String        *cigar;
+	char          *seq;
+	char          *qual;
+	int            seq_alloc;
 	long           alignment_id;
 	long           alignment_acm;
 	long           abnormal_acm;
@@ -60,7 +64,7 @@ struct _AbnormalFilter
 typedef struct _AbnormalFilter AbnormalFilter;
 
 static void
-abnormal_filter_init (AbnormalFilter *argf)
+abnormal_filter_open (AbnormalFilter *argf)
 {
 	// Open SAM/BAM/CRAM file
 	argf->in = sam_open (argf->sam_file, "rb");
@@ -68,11 +72,24 @@ abnormal_filter_init (AbnormalFilter *argf)
 		log_errno_fatal ("Failed to open '%s' for reading",
 				argf->sam_file);
 
+	// Use the spare threads to decompress BAM/CRAM
+	if (argf->hts_threads > 0
+			&& hts_set_threads (argf->in, argf->hts_threads) < 0)
+		log_error ("Failed to set %d decompression threads for '%s'",
+				argf->hts_threads, argf->sam_file);
+
 	// Get the header
 	argf->hdr = sam_hdr_read (argf->in);
 	if (argf->hdr == NULL)
 		log_fatal ("Failed to read sam header from '%s'",
 				argf->sam_file);
+}
+
+static void
+abnormal_filter_init (AbnormalFilter *argf)
+{
+	// Open SAM/BAM/CRAM file and get the header
+	abnormal_filter_open (argf);
 
 	// Alloc alignment fields struct
 	argf->align = bam_init1 ();
@@ -89,6 +106,12 @@ abnormal_filter_init (AbnormalFilter *argf)
 	// Alloc String cigar to avoid
 	// free and realloc often
 	argf->cigar = string_sized_new (128);
+
+	// Alloc sequence and quality buffers for the
+	// same reason. They grow if needed
+	argf->seq_alloc = 256;
+	argf->seq = xcalloc (argf->seq_alloc, sizeof (char));
+	argf->qual = xcalloc (argf->seq_alloc, sizeof (char));
 
 	// Init alignment_id to its thread id
 	// Whenever it is needed to update its value,
@@ -117,6 +140,9 @@ abnormal_filter_destroy (AbnormalFilter *argf)
 	bam_destroy1 (argf->align);
 
 	string_free (argf->cigar, 1);
+
+	xfree (argf->seq);
+	xfree (argf->qual);
 }
 
 static int
@@ -192,6 +218,55 @@ abnormal_classifier (const bam1_t *align, int max_distance,
 }
 
 static void
+fill_seq_qual (AbnormalFilter *argf, const bam1_t *align)
+{
+	uint8_t *seq = NULL;
+	uint8_t *qual = NULL;
+	int len = 0;
+	int i = 0;
+
+	len = align->core.l_qseq;
+
+	// Grow buffers if needed: [len] == '\0'
+	if (len + 1 > argf->seq_alloc)
+		{
+			argf->seq_alloc = len + 1;
+			argf->seq = xrealloc (argf->seq, argf->seq_alloc);
+			argf->qual = xrealloc (argf->qual, argf->seq_alloc);
+		}
+
+	// SAM: '*' means the sequence is not stored
+	if (len == 0)
+		{
+			strcpy (argf->seq, "*");
+			strcpy (argf->qual, "*");
+			return;
+		}
+
+	seq = bam_get_seq (align);
+	qual = bam_get_qual (align);
+
+	// The sequence is always at the forward strand
+	// of the reference - as in the SAM format
+	for (i = 0; i < len; i++)
+		argf->seq[i] = seq_nt16_str[bam_seqi (seq, i)];
+
+	argf->seq[len] = '\0';
+
+	// BAM: 0xff means the quality is not stored
+	if (qual[0] == 0xff)
+		strcpy (argf->qual, "*");
+	else
+		{
+			// Phred+33 as in the SAM format
+			for (i = 0; i < len; i++)
+				argf->qual[i] = qual[i] + 33;
+
+			argf->qual[len] = '\0';
+		}
+}
+
+static void
 dump_alignment (AbnormalFilter *argf, const bam1_t *align,
 		AbnormalType type)
 {
@@ -220,6 +295,9 @@ dump_alignment (AbnormalFilter *argf, const bam1_t *align,
 	len = rlen < 1 ? 1 : rlen;
 
 	qname = bam_get_qname (align);
+
+	// Get sequence and quality as strings
+	fill_seq_qual (argf, align);
 
 	chr = align->core.tid > -1
 		? argf->hdr->target_name[align->core.tid]
@@ -256,7 +334,8 @@ dump_alignment (AbnormalFilter *argf, const bam1_t *align,
 			argf->alignment_id, qname, align->core.flag,
 			chr_std, align->core.pos + 1, align->core.qual,
 			argf->cigar->str, qlen, rlen, chr_std_next,
-			align->core.mpos + 1, type, argf->tid);
+			align->core.mpos + 1, type, argf->tid,
+			argf->seq, argf->qual);
 
 	// sum the number of files - in order to
 	// avoid database insertion chocking and
@@ -392,16 +471,56 @@ sam_rewind (AbnormalFilter *argf)
 
 	bam_hdr_destroy (argf->hdr);
 
-	argf->in = sam_open (argf->sam_file, "rb");
-	if (argf->in == NULL)
-		log_errno_fatal ("Failed to rewind '%s'",
-				argf->sam_file);
+	// Open again, get the header and
+	// set the decompression threads
+	abnormal_filter_open (argf);
+}
 
-	// Get the header
-	argf->hdr = sam_hdr_read (argf->in);
-	if (argf->hdr == NULL)
-		log_fatal ("Failed to rewind '%s'",
-				argf->sam_file);
+/*
+ * For the unsorted mode, each abnormal fragment keeps
+ * the type of the abnormality, if some alignment
+ * failed the classifier and the index (into the file)
+ * of the first abnormal alignment
+ */
+struct _AbnormalFragment
+{
+	AbnormalType   type;
+	int            failed;
+	long           first;
+	List          *buffer;
+};
+
+typedef struct _AbnormalFragment AbnormalFragment;
+
+static AbnormalFragment *
+abnormal_fragment_new (AbnormalType type, long first)
+{
+	AbnormalFragment *frag = xcalloc (1, sizeof (AbnormalFragment));
+
+	frag->type = type;
+	frag->first = first;
+
+	return frag;
+}
+
+static void
+abnormal_fragment_free (AbnormalFragment *frag)
+{
+	if (frag == NULL)
+		return;
+
+	list_free (frag->buffer);
+	xfree (frag);
+}
+
+static void
+abnormal_fragment_fail (AbnormalFragment *frag)
+{
+	frag->failed = 1;
+
+	// Release the alignments - if any
+	list_free (frag->buffer);
+	frag->buffer = NULL;
 }
 
 static void
@@ -409,39 +528,61 @@ parse_unsorted_sam (AbnormalFilter *argf)
 {
 	int rc = 0;
 	int pass = 0;
+	long idx = 0;
 	const char *name = NULL;
+	const ListElmt *cur = NULL;
+	bam1_t *align_copy = NULL;
 	AbnormalType type = 0;
-	AbnormalType *type_copy = NULL;
-	Hash *abnormal_ids = NULL;
+	AbnormalFragment *frag = NULL;
+	Hash *abnormal_frags = NULL;
 
-	// All abnormal alignments are keeped
-	// into a hash if the SAM/BAM/CRAM is not sorted
-	// by queryname
-	abnormal_ids = hash_new (xfree, xfree);
+	/*
+	* An abnormal fragment must have at least one abnormal
+	* alignment and all its alignments must pass the classifier.
+	* When the file is not sorted by queryname, the alignments
+	* of the same fragment may be anywhere into the file,
+	* so we need to read it twice:
+	*
+	* First reading: index all fragments with an abnormal
+	* alignment, saving the position (idx) of the first one.
+	* Any alignment that fails the classifier after that
+	* position marks the fragment as failed.
+	*
+	* Second reading: only the alignments before the first
+	* abnormal alignment are unknown. Keep them into a buffer
+	* until reach the first abnormal alignment. At this point,
+	* all failures are known, so dump the buffer and the
+	* remaining alignments - or discard them all.
+	*/
+	abnormal_frags = hash_new (xfree,
+			(DestroyNotify) abnormal_fragment_free);
 
-	log_debug ("Index all fragment ids from '%s'", argf->sam_file);
+	log_debug ("Index all abnormal fragments from '%s'", argf->sam_file);
 
 	/*First reading*/
-	while ((rc = sam_read1 (argf->in, argf->hdr, argf->align)) >= 0)
+	for (idx = 0; (rc = sam_read1 (argf->in, argf->hdr, argf->align)) >= 0; idx++)
 		{
 			argf->alignment_acm++;
 
 			pass = abnormal_classifier (argf->align, argf->max_distance,
 					argf->phred_quality, argf->max_base_freq, &type);
 
-			if (pass && type != ABNORMAL_NONE)
+			frag = hash_lookup (abnormal_frags,
+					bam_get_qname (argf->align));
+
+			if (frag != NULL)
 				{
-					type_copy = hash_lookup (abnormal_ids,
-							bam_get_qname (argf->align));
-
-					if (type_copy == NULL)
-						{
-							name = xstrdup (bam_get_qname (argf->align));
-							type_copy = xcalloc (1, sizeof (AbnormalType));
-							hash_insert (abnormal_ids, name, type_copy);
-						}
-
-					*type_copy |= type;
+					// Alignment after the first abnormal one
+					if (!pass)
+						frag->failed = 1;
+					else
+						frag->type |= type;
+				}
+			else if (pass && type != ABNORMAL_NONE)
+				{
+					name = xstrdup (bam_get_qname (argf->align));
+					frag = abnormal_fragment_new (type, idx);
+					hash_insert (abnormal_frags, name, frag);
 				}
 		}
 
@@ -451,53 +592,64 @@ parse_unsorted_sam (AbnormalFilter *argf)
 		log_errno_fatal ("Failed to read sam alignment from '%s'",
 				argf->sam_file);
 
-	// Read file again to filter
+	// Read file again to filter and dump
 	sam_rewind (argf);
 
-	log_debug ("Filter all indexed abnormal fragments from '%s'",
+	log_debug ("Filter and catch all indexed abnormal fragments from '%s'",
 			argf->sam_file);
 
-	// Second reading:
-	// Filter all reads from indexed fragments
-	while ((rc = sam_read1 (argf->in, argf->hdr, argf->align)) >= 0)
+	/*Second reading*/
+	for (idx = 0; (rc = sam_read1 (argf->in, argf->hdr, argf->align)) >= 0; idx++)
 		{
-			type_copy = hash_lookup (abnormal_ids,
+			frag = hash_lookup (abnormal_frags,
 					bam_get_qname (argf->align));
 
-			if (type_copy != NULL)
+			if (frag == NULL || frag->failed)
+				continue;
+
+			if (idx < frag->first)
 				{
+					// Unknown alignment: test and keep it
 					pass = abnormal_classifier (argf->align, argf->max_distance,
 							argf->phred_quality, argf->max_base_freq, &type);
 
 					if (!pass)
-						hash_remove (abnormal_ids, bam_get_qname (argf->align));
+						{
+							abnormal_fragment_fail (frag);
+							continue;
+						}
+
+					align_copy = bam_dup1 (argf->align);
+					if (align_copy == NULL)
+						log_fatal ("Failed to duplicate sam alignment");
+
+					if (frag->buffer == NULL)
+						frag->buffer = list_new ((DestroyNotify) bam_destroy1);
+
+					list_append (frag->buffer, align_copy);
+					continue;
 				}
-		}
 
-	// Catch if it ocurred an error
-	// in reading from input
-	if (rc < -1)
-		log_errno_fatal ("Failed to read sam alignment from '%s'",
-				argf->sam_file);
-
-	// Read file once again in order to catch all abnormal reads
-	sam_rewind (argf);
-
-	log_debug ("Catch all indexed abnormal fragments from '%s'",
-			argf->sam_file);
-
-	// Third reading:
-	// Get all reads from indexed fragments
-	while ((rc = sam_read1 (argf->in, argf->hdr, argf->align)) >= 0)
-		{
-			type_copy = hash_lookup (abnormal_ids,
-					bam_get_qname (argf->align));
-
-			if (type_copy != NULL)
+			// Reached the first abnormal alignment: all
+			// failures are known - dump the buffer
+			if (idx == frag->first && frag->buffer != NULL)
 				{
-					dump_alignment (argf, argf->align, *type_copy);
-					argf->abnormal_acm++;
+					for (cur = list_head (frag->buffer); cur != NULL;
+							cur = list_next (cur))
+						{
+							dump_alignment (argf, list_data (cur), frag->type);
+							argf->abnormal_acm++;
+						}
+
+					list_free (frag->buffer);
+					frag->buffer = NULL;
 				}
+
+			// From the first abnormal alignment on, all
+			// alignments passed the classifier - otherwise
+			// the fragment would be marked as failed
+			dump_alignment (argf, argf->align, frag->type);
+			argf->abnormal_acm++;
 		}
 
 	// Catch if it ocurred an error
@@ -507,7 +659,7 @@ parse_unsorted_sam (AbnormalFilter *argf)
 				argf->sam_file);
 
 	// Clean
-	hash_free (abnormal_ids);
+	hash_free (abnormal_frags);
 }
 
 void

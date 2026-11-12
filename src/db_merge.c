@@ -185,6 +185,8 @@ merge_alignment (sqlite3_stmt *in_stmt, sqlite3_stmt *sel_stmt,
 	long pos_next = 0;
 	int type = 0;
 	int source_id = 0;
+	const char *seq = NULL;
+	const char *qual = NULL;
 
 	while (db_step (sel_stmt) == SQLITE_ROW)
 		{
@@ -201,10 +203,12 @@ merge_alignment (sqlite3_stmt *in_stmt, sqlite3_stmt *sel_stmt,
 			pos_next = db_column_int64 (sel_stmt, 10);
 			type = db_column_int (sel_stmt, 11);
 			source_id = db_column_int (sel_stmt, 12);
+			seq = db_column_text (sel_stmt, 13);
+			qual = db_column_text (sel_stmt, 14);
 
 			db_insert_alignment (in_stmt, id + max_id[ALIGNMENT], qname,
 					flag, chr, pos, mapq, cigar, qlen, rlen, chr_next,
-					pos_next, type, source_id + max_id[SOURCE]);
+					pos_next, type, source_id + max_id[SOURCE], seq, qual);
 		}
 }
 

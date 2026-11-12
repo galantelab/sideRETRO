@@ -67,12 +67,19 @@ static const char *sam_sorted =
 	"D3\t145\tchr2\t20000\t60\t10M\t=\t20\t-19990\tCCCCCTTTAG\t~~~~~~~~~~\n"
 	"S4\t99\tchr1\t100\t60\t10M\t=\t120\t30\tAAACCCGGGG\t~~~~~~~~~~\n"
 	"S4\t147\tchr1\t120\t60\t5M5S\t=\t100\t-30\tGGGCCCCCCC\t~~~~~~~~~~\n"
-	"S4\t2195\tchr2\t100\t60\t5H5M\tchr1\t100\t0\tCCCCC\t~~~~~\n";
+	"S4\t2195\tchr2\t100\t60\t5H5M\tchr1\t100\t0\tCCCCC\t~~~~~\n"
+	"F5\t1123\tchr1\t300\t60\t10M\t=\t320\t30\tAAACCCGGGG\t~~~~~~~~~~\n"
+	"F5\t147\tchr1\t320\t60\t5M5S\t=\t300\t-30\tGGGCCCCCCC\t~~~~~~~~~~\n"
+	"F5\t2195\tchr2\t300\t60\t5H5M\tchr1\t300\t0\tCCCCC\t~~~~~\n"
+	"G6\t97\tchr2\t500\t60\t10M\t=\t30000\t29510\tAAAAGGGCCC\t~~~~~~~~~~\n"
+	"G6\t1169\tchr2\t30000\t60\t10M\t=\t500\t-29510\tCCCCCTTTAG\t~~~~~~~~~~\n";
 
 static const char *sam_unsorted =
 	"@SQ\tSN:chr1\tLN:248956422\n"
 	"@SQ\tSN:chr2\tLN:242193529\n"
 	"@PG\tID:bwa\tPN:bwa\tVN:0.7.17-r1188	CL:bwa mem -t 1 ponga/ponga.fa ponga.fastq\n"
+	"F5\t1123\tchr1\t300\t60\t10M\t=\t320\t30\tAAACCCGGGG\t~~~~~~~~~~\n"
+	"G6\t97\tchr2\t500\t60\t10M\t=\t30000\t29510\tAAAAGGGCCC\t~~~~~~~~~~\n"
 	"E1\t109\tchr1\t1\t60\t10M\t=\t20\t29\tATCGATCGAT\t~~~~~~~~~~\n"
 	"E1\t157\tchr1\t1\t60\t10M\t=\t20\t29\tATCGATCGAT\t~~~~~~~~~~\n"
 	"N1\t99\tchr1\t1\t60\t10M\t=\t20\t29\tATCGATCGAT\t~~~~~~~~~~\n"
@@ -83,7 +90,10 @@ static const char *sam_unsorted =
 	"C2\t145\tchr2\t1\t60\t10M\tchr1\t40\t0\tTTTTTGGGGA\t~~~~~~~~~~\n"
 	"D3\t97\tchr2\t20\t60\t10M\t=\t20000\t19990\tAAAAGGGCCC\t~~~~~~~~~~\n"
 	"D3\t145\tchr2\t20000\t60\t10M\t=\t20\t-19990\tCCCCCTTTAG\t~~~~~~~~~~\n"
-	"S4\t2195\tchr2\t100\t60\t5H5M\tchr1\t100\t0\tCCCCC\t~~~~~\n";
+	"S4\t2195\tchr2\t100\t60\t5H5M\tchr1\t100\t0\tCCCCC\t~~~~~\n"
+	"F5\t147\tchr1\t320\t60\t5M5S\t=\t300\t-30\tGGGCCCCCCC\t~~~~~~~~~~\n"
+	"F5\t2195\tchr2\t300\t60\t5H5M\tchr1\t300\t0\tCCCCC\t~~~~~\n"
+	"G6\t1169\tchr2\t30000\t60\t10M\t=\t500\t-29510\tCCCCCTTTAG\t~~~~~~~~~~\n";
 
 static const char *gtf =
 	"chr1\t.\texon\t45\t65\t.\t+\t.\t"
@@ -322,6 +332,45 @@ START_TEST (test_abnormal_filter_unsorted)
 }
 END_TEST
 
+START_TEST (test_abnormal_filter_seq_qual)
+{
+	TestAbnormal a;
+	sqlite3_stmt *search_stmt = NULL;
+	const char *sams[] = {sam_sorted, sam_unsorted};
+	int i = 0;
+	int j = 0;
+
+	const char sql[] =
+		"SELECT seq, qual FROM alignment\n"
+		"WHERE qname = 'S4'\n"
+		"ORDER BY chr ASC, pos ASC";
+
+	// The sequence is at the forward strand as it is
+	// into the SAM - hard clipped bases are not present
+	const char *seqs[] = {"AAACCCGGGG", "GGGCCCCCCC", "CCCCC"};
+	const char *quals[] = {"~~~~~~~~~~", "~~~~~~~~~~", "~~~~~"};
+
+	for (i = 0; i < 2; i++)
+		{
+			test_abnormal_init (&a, sams[i]);
+			abnormal_filter (a.arg);
+
+			search_stmt = db_prepare (a.db, sql);
+
+			for (j = 0; db_step (search_stmt) == SQLITE_ROW; j++)
+				{
+					ck_assert_str_eq (db_column_text (search_stmt, 0), seqs[j]);
+					ck_assert_str_eq (db_column_text (search_stmt, 1), quals[j]);
+				}
+
+			ck_assert_int_eq (j, 3);
+
+			db_finalize (search_stmt);
+			test_abnormal_destroy (&a);
+		}
+}
+END_TEST
+
 Suite *
 make_abnormal_suite (void)
 {
@@ -335,6 +384,7 @@ make_abnormal_suite (void)
 
 	tcase_add_test (tc_core, test_abnormal_filter_sorted);
 	tcase_add_test (tc_core, test_abnormal_filter_unsorted);
+	tcase_add_test (tc_core, test_abnormal_filter_seq_qual);
 	suite_add_tcase (s, tc_core);
 
 	return s;

@@ -300,6 +300,8 @@ db_create_tables (sqlite3 *db)
 		"	pos_next INTEGER NOT NULL,\n"
 		"	type INT DEFAULT 0,\n"
 		"	source_id INTEGER NOT NULL,\n"
+		"	seq TEXT NOT NULL,\n"
+		"	qual TEXT NOT NULL,\n"
 		"	FOREIGN KEY (source_id) REFERENCES source(id));\n"
 		"\n"
 		"DROP TABLE IF EXISTS overlapping;\n"
@@ -639,8 +641,8 @@ db_prepare_alignment_stmt (sqlite3 *db)
 	assert (db != NULL);
 
 	const char sql[] =
-		"INSERT INTO alignment (id,qname,flag,chr,pos,mapq,cigar,qlen,rlen,chr_next,pos_next,type,source_id)\n"
-		"VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)";
+		"INSERT INTO alignment (id,qname,flag,chr,pos,mapq,cigar,qlen,rlen,chr_next,pos_next,type,source_id,seq,qual)\n"
+		"VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15)";
 
 	return db_prepare (db, sql);
 }
@@ -648,11 +650,13 @@ db_prepare_alignment_stmt (sqlite3 *db)
 void
 db_insert_alignment (sqlite3_stmt *stmt, int id, const char *qname, int flag,
 		const char *chr, long pos, int mapq, const char *cigar, int qlen, int rlen,
-		const char *chr_next, long pos_next, int type, int source_id)
+		const char *chr_next, long pos_next, int type, int source_id,
+		const char *seq, const char *qual)
 {
 	log_trace ("Inside %s", __func__);
 	assert (stmt != NULL && qname != NULL && chr != NULL
-			&& cigar != NULL && chr_next != NULL);
+			&& cigar != NULL && chr_next != NULL
+			&& seq != NULL && qual != NULL);
 
 	sqlite3_mutex_enter (sqlite3_db_mutex (sqlite3_db_handle (stmt)));
 
@@ -672,6 +676,8 @@ db_insert_alignment (sqlite3_stmt *stmt, int id, const char *qname, int flag,
 	db_bind_int64 (stmt, 11, pos_next);
 	db_bind_int (stmt, 12, type);
 	db_bind_int (stmt, 13, source_id);
+	db_bind_text (stmt, 14, seq);
+	db_bind_text (stmt, 15, qual);
 
 	db_step (stmt);
 
