@@ -1,3 +1,25 @@
+Version 1.3.0
+
+* Calculate two breakpoints for each retrocopy from
+  the clipped reads: The last base of the left flank
+  (LBKP) and the first base of the right flank (RBKP),
+  with the number of supporting reads (LSR, RSR).
+  Clipped primary alignments count as well, not only
+  the supplementary ones.
+
+* Annotate the target site duplication: Its length
+  (TSDLEN) and its sequence (TSD) from the reference
+  genome at 'make-vcf'.
+
+* Accept a breakpoint only if two clipped reads agree
+  or if a single one is a true split read, so random
+  clips never define a breakpoint and IMPRECISE keeps
+  its meaning.
+
+* Add a simulator of retrocopy insertions
+  (tests/sim/retrocopy_sim.py) for reproducible
+  testing of the whole pipeline.
+
 Version 1.2.0
 
 * Store the sequence and the quality of the abnormal
