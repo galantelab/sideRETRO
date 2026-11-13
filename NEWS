@@ -1,3 +1,13 @@
+Version 1.6.0
+
+* New option '--reference-file' at 'merge-call'. With
+  the reference genome, search the clipped sequences
+  at the junctions into the parental exons to find
+  the 5' and 3' ends of the retrocopy (PG5P, PG3P) -
+  the 5' truncation - and predict the inserted
+  sequence from the reference exons between them,
+  plus the poly-A (SVLEN).
+
 Version 1.5.0
 
 * Annotate the exon-exon junctions spanned by the
