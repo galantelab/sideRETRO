@@ -119,7 +119,7 @@ Annotation Options (GTF/GFF3):
   -N, --gff-gene-name     The attribute with the gene name. If missing,
                           'gene_id' is used [default:"gene_name"]
   -E, --gff-exon-id       The attribute with the exon id. If missing, the
-                          coordinates 'chr:start-end' are used
+                          coordinates 'chr:start_end' are used
                           [default:"exon_id"]
 
 SQLite3 Options:
@@ -231,7 +231,7 @@ be changed:
 * ``-N``: The attribute with the gene name. If it is missing at an exon,
   ``gene_id`` is used.
 * ``-E``: The attribute with the exon id. If it is missing, the exon is named
-  after its coordinates, ``chr:start-end``.
+  after its coordinates, ``chr:start_end``.
 
 For example, an `Ensembl <https://www.ensembl.org/>`_ GTF names the biotype
 ``transcript_biotype``::

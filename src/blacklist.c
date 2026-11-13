@@ -160,6 +160,7 @@ blacklist_index_dump_from_bed (Blacklist *blacklist, const char *bed_file)
 
 	const char *chr_std = NULL;
 	const char *name = NULL;
+	long start = 0;
 
 	while (bed_read (bed, entry))
 		{
@@ -169,8 +170,11 @@ blacklist_index_dump_from_bed (Blacklist *blacklist, const char *bed_file)
 
 			chr_std = chr_std_lookup (blacklist->cs, entry->chrom);
 
-			log_debug ("Index blacklist '%s' at %s:%zu-%zu", name,
-					chr_std, entry->chrom_start, entry->chrom_end);
+			// BED start is 0-based
+			start = entry->chrom_start + 1;
+
+			log_debug ("Index blacklist '%s' at %s:%li-%li", name,
+					chr_std, start, entry->chrom_end);
 
 			alloc_id = xcalloc (1, sizeof (long));
 			* (long *) alloc_id = ++table_id;
@@ -184,11 +188,11 @@ blacklist_index_dump_from_bed (Blacklist *blacklist, const char *bed_file)
 							xstrdup (chr_std), tree);
 				}
 
-			ibitree_insert (tree, entry->chrom_start,
+			ibitree_insert (tree, start,
 					entry->chrom_end, alloc_id);
 
 			db_insert_blacklist (blacklist->blacklist_stmt,
-					table_id, name, chr_std, entry->chrom_start,
+					table_id, name, chr_std, start,
 					entry->chrom_end);
 		}
 

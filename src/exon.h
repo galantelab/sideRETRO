@@ -27,7 +27,7 @@
 /*
  * Defaults for a GENCODE like annotation. A BED6 file
  * needs none of them: Each line is an exon, the 'name'
- * is the gene name and the exon id is 'chr:start-end'
+ * is the gene name and the exon id is 'chr:start_end'
  */
 #define EXON_DEFAULT_FEATURE    "exon"
 #define EXON_DEFAULT_ATTRIBUTE  "transcript_type=protein_coding"

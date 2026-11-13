@@ -170,6 +170,15 @@ START_TEST (test_blacklist_index_dump_from_bed)
 	tree = hash_lookup (t.blacklist->idx, "chr17");
 	ck_assert (tree != NULL);
 
+	// BED is 0-based: 'chr1 1 1000' is chr1:2-1000
+	sqlite3_stmt *stmt = db_prepare (t.db,
+			"SELECT start, end FROM blacklist WHERE chr = 'chr1'");
+
+	ck_assert_int_eq (db_step (stmt), SQLITE_ROW);
+	ck_assert_int_eq (db_column_int64 (stmt, 0), 2);
+	ck_assert_int_eq (db_column_int64 (stmt, 1), 1000);
+
+	db_finalize (stmt);
 	test_blacklist_destroy (&t);
 }
 END_TEST

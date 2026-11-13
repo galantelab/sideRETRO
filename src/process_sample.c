@@ -325,7 +325,7 @@ print_usage (FILE *fp)
 		"   -N, --gff-gene-name     The attribute with the gene name. If missing,\n"
 		"                           'gene_id' is used [default:\"%s\"]\n"
 		"   -E, --gff-exon-id       The attribute with the exon id. If missing, the\n"
-		"                           coordinates 'chr:start-end' are used\n"
+		"                           coordinates 'chr:start_end' are used\n"
 		"                           [default:\"%s\"]\n"
 		"\n"
 		"SQLite3 Options:\n"

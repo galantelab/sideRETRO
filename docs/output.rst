@@ -206,7 +206,8 @@ is a duplication.
 .. note::
    The exon ids at ``EEJLIST``, ``PG5P`` and ``PG3P`` come from the annotation.
    When the annotation has no exon ids - a BED6 file, for instance - they are the
-   exon coordinates, ``chr:start-end``, see :ref:`Annotation formats <annotation>`.
+   exon coordinates, ``chr:start_end`` - e.g.
+   ``EEJLIST=chr2:1001_1400-chr2:2001_2400`` - see :ref:`Annotation formats <annotation>`.
 
 **Retrocopy ends and length** (need ``merge-call -r``)
 

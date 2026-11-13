@@ -362,7 +362,7 @@ index_custom (const char *suffix, const char *body, const GffFilter *filter,
 
 START_TEST (test_exon_tree_index_dump_bed)
 {
-	// BED is 0-based: The exon id is 'chr:start-end' 1-based.
+	// BED is 0-based: The exon id is 'chr:start_end' 1-based.
 	// The duplicated exon is indexed once
 	const char *bed =
 		"chr1\t0\t100\tGENE1\t0\t+\n"
@@ -371,9 +371,9 @@ START_TEST (test_exon_tree_index_dump_bed)
 		"chr2\t999\t1100\tGENE2\t0\t-\n";
 
 	const char *expected[][4] = {
-		{"GENE1", "1-100",     "+", "chr1:1-100"},
-		{"GENE1", "200-300",   "+", "chr1:200-300"},
-		{"GENE2", "1000-1100", "-", "chr2:1000-1100"}
+		{"GENE1", "1-100",     "+", "chr1:1_100"},
+		{"GENE1", "200-300",   "+", "chr1:200_300"},
+		{"GENE2", "1000-1100", "-", "chr2:1000_1100"}
 	};
 
 	index_custom (".bed", bed, NULL, NULL, NULL, expected, 3);
@@ -398,7 +398,7 @@ START_TEST (test_exon_tree_index_dump_custom)
 	const char *expected[][4] = {
 		{"ponga", "1-100",   "+", "E1"},
 		{"G2",    "400-500", "-", "E3"},
-		{"pongo", "600-700", "-", "chr1:600-700"}
+		{"pongo", "600-700", "-", "chr1:600_700"}
 	};
 
 	GffFilter *filter = gff_filter_new ();

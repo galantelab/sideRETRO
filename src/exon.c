@@ -149,7 +149,7 @@ exon_tree_index_dump_from_gff (ExonTree *exon_tree, const char *gff_file,
 
 			if (exon_id == NULL)
 				{
-					xasprintf (&exon_id_alloc, "%s:%zu-%zu",
+					xasprintf (&exon_id_alloc, "%s:%zu_%zu",
 							entry->seqname, entry->start, entry->end);
 					exon_id = exon_id_alloc;
 				}
@@ -187,7 +187,7 @@ exon_tree_index_dump_from_bed (ExonTree *exon_tree, const char *bed_file)
 			// BED start is 0-based
 			start = entry->chrom_start + 1;
 
-			xasprintf (&exon_id, "%s:%li-%li", entry->chrom, start,
+			xasprintf (&exon_id, "%s:%li_%li", entry->chrom, start,
 					entry->chrom_end);
 
 			exon_tree_insert (exon_tree, &table_id, entry->chrom,
