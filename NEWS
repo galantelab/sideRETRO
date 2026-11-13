@@ -1,3 +1,14 @@
+Version 1.4.0
+
+* Annotate the poly-A tail from the reads crossing
+  its junction: Length (POLYA), if the length is just
+  a lower bound (POLYAMIN) and the number of reads
+  (POLYASR).
+
+* POLARITY now comes from the poly-A junction when it
+  is present - direct evidence - otherwise from the
+  orientation correlation (ORHO) as before.
+
 Version 1.3.0
 
 * Calculate two breakpoints for each retrocopy from
