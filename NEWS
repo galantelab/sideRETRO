@@ -1,3 +1,34 @@
+Version 1.8.0
+
+* 'process-sample' accepts other annotations than GENCODE:
+  The feature (--gff-feature), the attributes to filter in
+  (--gff-attribute), the gene name (--gff-gene-name) and the
+  exon id (--gff-exon-id) can be set. Without gene name, use
+  'gene_id'; without exon id, name the exon after its
+  coordinates ('chr:start_end'). Stop at once if no exon
+  passes the filter.
+
+* Accept a BED6 file of exons as annotation: The 'name' is
+  the gene name and the strand is required.
+
+* Replace --gff-hard-attribute (-H) and --gff-soft-attribute
+  (-S) by --gff-attribute (-A) at 'merge-call': Alternatives
+  separated by '|' must match any (OR) and repeated options
+  must match all (AND). Values match exactly instead of as
+  regex, testing every occurrence of a repeated key and each
+  part of a comma packed GFF3 value. Add --gff-gene-name to
+  name the blacklisted regions.
+
+* Fix the BED blacklisted regions, which were one base wider
+  at the left (0-based start).
+
+* Remove the option --crossing-reads from 'merge-call', which
+  has never worked.
+
+* Document the output (VCF fields, read names and predicted
+  insertions files) and the new methods: Breakpoints and TSD,
+  poly-A tail, exon-exon junctions and retrocopy ends.
+
 Version 1.7.0
 
 * Give each retrocopy an ID (RTC000001, ...) at the
