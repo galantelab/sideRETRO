@@ -23,6 +23,7 @@
 #include "gz.h"
 #include "str.h"
 #include "hash.h"
+#include "list.h"
 
 struct _FastaFile
 {
@@ -48,6 +49,23 @@ void         fasta_close            (FastaFile *fasta);
 FastaEntry * fasta_entry_new        (void);
 void         fasta_entry_free       (FastaEntry *entry);
 int          fasta_read             (FastaFile *fasta, FastaEntry *entry);
-Hash       * fasta_index            (const char *path);
+
+/*
+ * Region of the genome to be extracted: 1-based
+ * inclusive coordinates
+ */
+struct _FastaRegion
+{
+	char         *chr;
+	long          start;
+	long          end;
+};
+
+typedef struct _FastaRegion FastaRegion;
+
+FastaRegion * fasta_region_new      (const char *chr, long start, long end);
+void          fasta_region_free     (FastaRegion *region);
+char        * fasta_region_key      (const char *chr, long start, long end);
+Hash        * fasta_index_regions   (const char *path, const List *regions, Hash **contig_len);
 
 #endif /* fasta.h */

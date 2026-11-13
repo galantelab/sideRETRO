@@ -40,6 +40,12 @@
 // probably inconsistent
 #define VCF_MAX_TSD_LEN 100
 
+// Retrocopy ID at the VCF, rnames and FASTA files
+#define VCF_ID_FMT "RTC%06d"
+
+// FASTA line width
+#define VCF_FASTA_WIDTH 60
+
 struct _VCFHeader
 {
 	int         id;
@@ -96,8 +102,8 @@ struct _VCFBody
 	int         eej;
 	const char *eej_list;
 
-	// Retrocopy ends into the parental gene
-	// and predicted length
+	// Retrocopy ends into the parental gene,
+	// predicted sequence and observed junctions
 	long        five_prime_pos;
 	const char *five_prime_exon;
 	int         five_prime_sr;
@@ -105,6 +111,9 @@ struct _VCFBody
 	const char *three_prime_exon;
 	int         three_prime_sr;
 	int         ins_len;
+	const char *ins_seq;
+	const char *left_seq;
+	const char *right_seq;
 
 	// Host and Near genes
 	const char *exonic;
@@ -186,7 +195,7 @@ vcf_get_header_line (sqlite3 *db)
 }
 
 static void
-vcf_print_header (const List *hl, Hash *fidx,
+vcf_print_header (const List *hl, Hash *contig_len,
 		FILE *fp, VCFOption *opt)
 {
 	log_trace ("Inside %s", __func__);
@@ -196,7 +205,7 @@ vcf_print_header (const List *hl, Hash *fidx,
 
 	Array *contigs = NULL;
 	const char *contig = NULL;
-	const String *seq = NULL;
+	const long *len = NULL;
 	int i = 0;
 
 	char timestamp[32] = {};
@@ -215,25 +224,25 @@ vcf_print_header (const List *hl, Hash *fidx,
 		"##source=%sv%s\n",
 		VCF_VERSION, timestamp, PACKAGE_NAME, PACKAGE_VERSION);
 
-	if (fidx != NULL && opt->fasta_file != NULL)
+	if (contig_len != NULL && opt->fasta_file != NULL)
 		{
 			xfprintf (fp,
 				"##reference=file://%s\n",
 				opt->fasta_file);
 
-			contigs = hash_get_keys_as_array (fidx);
+			contigs = hash_get_keys_as_array (contig_len);
 			array_sort (contigs, cmpstringp);
 
 			for (i = 0; i < contigs->len; i++)
 				{
 					contig = array_get (contigs, i);
-					seq = hash_lookup (fidx, contig);
+					len = hash_lookup (contig_len, contig);
 
-					assert (seq != NULL);
+					assert (len != NULL);
 
 					xfprintf (fp,
-						"##contig=<ID=%s,length=%zu>\n",
-						contig, seq->len);
+						"##contig=<ID=%s,length=%li>\n",
+						contig, *len);
 				}
 		}
 
@@ -247,6 +256,8 @@ vcf_print_header (const List *hl, Hash *fidx,
 		"##INFO=<ID=EXONIC,Number=1,Type=String,Description=\"Exon IDs separated by '/' for intragenic retrocopy\">\n"
 		"##INFO=<ID=IMPRECISE,Number=0,Type=Flag,Description=\"Imprecise structural variation\">\n"
 		"##INFO=<ID=INTRONIC,Number=1,Type=String,Description=\"Intron IDs separated by '/' for intragenic retrocopy\">\n"
+		"##INFO=<ID=LEFT_SVINSSEQ,Number=1,Type=String,Description=\"Observed sequence of the insertion at the left junction:"
+		" Consensus of the reads clipped at LBKP\">\n"
 		"##INFO=<ID=LBKP,Number=1,Type=Integer,Description=\"Left breakpoint: Last reference base of the left flank, from split reads clipped at the right\">\n"
 		"##INFO=<ID=LSR,Number=1,Type=Integer,Description=\"Number of split reads supporting LBKP\">\n"
 		"##INFO=<ID=NEAR,Number=1,Type=String,Description=\"Near Gene IDs separated by '/' for intergenic retrocopy\">\n"
@@ -267,6 +278,8 @@ vcf_print_header (const List *hl, Hash *fidx,
 		"##INFO=<ID=POLYAMIN,Number=0,Type=Flag,Description=\"POLYA is a lower bound: The poly-A extends beyond the longest clipped read\">\n"
 		"##INFO=<ID=POLYASR,Number=1,Type=Integer,Description=\"Number of reads supporting POLYA\">\n"
 		"##INFO=<ID=RBKP,Number=1,Type=Integer,Description=\"Right breakpoint: First reference base of the right flank, from split reads clipped at the left\">\n"
+		"##INFO=<ID=RIGHT_SVINSSEQ,Number=1,Type=String,Description=\"Observed sequence of the insertion at the right junction:"
+		" Consensus of the reads clipped at RBKP\">\n"
 		"##INFO=<ID=RSR,Number=1,Type=Integer,Description=\"Number of split reads supporting RBKP\">\n"
 		"##INFO=<ID=SR,Number=1,Type=Integer,Description=\"Total number of SRs at the estimated breakpoints for this site\">\n"
 		"##INFO=<ID=SVLEN,Number=1,Type=Integer,Description=\"Predicted length of the inserted retrocopy: The reference exon bases"
@@ -431,7 +444,9 @@ prepare_retrocopy_query_stmt (sqlite3 *db, const long near_gene_dist)
 		"	COALESCE(ins.five_prime_pos, 0), COALESCE(e5.ense, '?'),\n"
 		"	COALESCE(ins.five_prime_sr, 0),\n"
 		"	COALESCE(ins.three_prime_pos, 0), COALESCE(e3.ense, '?'),\n"
-		"	COALESCE(ins.three_prime_sr, 0), COALESCE(ins.len, 0)\n"
+		"	COALESCE(ins.three_prime_sr, 0), COALESCE(ins.len, 0),\n"
+		"	COALESCE(ins.seq, '?'), COALESCE(ins.left_seq, '?'),\n"
+		"	COALESCE(ins.right_seq, '?')\n"
 		"FROM retrocopy AS r\n"
 		"LEFT JOIN pg_exons AS p\n"
 		"	ON r.id = p.rid\n"
@@ -571,6 +586,9 @@ vcf_get_body_line (sqlite3_stmt *stmt, VCFBody *b)
 	b->three_prime_exon     = db_column_text   (stmt, 31);
 	b->three_prime_sr       = db_column_int    (stmt, 32);
 	b->ins_len              = db_column_int    (stmt, 33);
+	b->ins_seq              = db_column_text   (stmt, 34);
+	b->left_seq             = db_column_text   (stmt, 35);
+	b->right_seq            = db_column_text   (stmt, 36);
 }
 
 static const char *
@@ -588,8 +606,155 @@ genotype_likelihood (const double ho_ref, const double he, const double ho_alt)
 				: "./.";
 }
 
+static Hash *
+vcf_index_regions (sqlite3 *db, const char *fasta_file, Hash **contig_len)
+{
+	log_trace ("Inside %s", __func__);
+
+	sqlite3_stmt *stmt = NULL;
+	List *regions = NULL;
+	Hash *fidx = NULL;
+
+	const char *chr = NULL;
+	long ip = 0;
+	long left = 0;
+	long right = 0;
+	long pos = 0;
+
+	// The only regions needed: The base before the
+	// insertion (REF) and the TSD
+	const char sql[] =
+		"SELECT chr, insertion_point,\n"
+		"	COALESCE(breakpoint_left, 0), breakpoint_left_sr,\n"
+		"	COALESCE(breakpoint_right, 0), breakpoint_right_sr\n"
+		"FROM retrocopy";
+
+	regions = list_new ((DestroyNotify) fasta_region_free);
+
+	log_debug ("Query schema:\n%s", sql);
+	stmt = db_prepare (db, sql);
+
+	while (db_step (stmt) == SQLITE_ROW)
+		{
+			chr   = db_column_text  (stmt, 0);
+			ip    = db_column_int64 (stmt, 1);
+			left  = db_column_int64 (stmt, 2);
+			right = db_column_int64 (stmt, 4);
+
+			pos = ip == 1 ? ip : ip - 1;
+			list_append (regions, fasta_region_new (chr, pos, pos));
+
+			if (db_column_int (stmt, 3) > 0 && db_column_int (stmt, 5) > 0
+					&& left >= right && (left - right + 1) <= VCF_MAX_TSD_LEN)
+				list_append (regions, fasta_region_new (chr, right, left));
+		}
+
+	log_info ("Extract %zu regions from '%s'", list_size (regions), fasta_file);
+	fidx = fasta_index_regions (fasta_file, regions, contig_len);
+
+	list_free (regions);
+	db_finalize (stmt);
+
+	return fidx;
+}
+
+static const char *
+vcf_region_lookup (Hash *fidx, const char *chr, long start, long end)
+{
+	const char *seq = NULL;
+	char *key = NULL;
+
+	if (fidx == NULL)
+		return NULL;
+
+	key = fasta_region_key (chr, start, end);
+	seq = hash_lookup (fidx, key);
+	xfree (key);
+
+	return seq;
+}
+
+static sqlite3_stmt *
+prepare_rnames_query_stmt (sqlite3 *db)
+{
+	log_trace ("Inside %s", __func__);
+
+	// Reads used to detect the retrocopy by source
+	const char sql[] =
+		"SELECT DISTINCT a.source_id, a.qname\n"
+		"FROM cluster_merging AS cm\n"
+		"INNER JOIN clustering AS c\n"
+		"	ON c.cluster_id = cm.cluster_id\n"
+		"		AND c.cluster_sid = cm.cluster_sid\n"
+		"INNER JOIN alignment AS a\n"
+		"	ON a.id = c.alignment_id\n"
+		"WHERE cm.retrocopy_id = ?1\n"
+		"ORDER BY a.source_id ASC, a.qname ASC";
+
+	log_debug ("Query schema:\n%s", sql);
+	return db_prepare (db, sql);
+}
+
 static void
-vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp, VCFOption *opt)
+vcf_print_rnames (sqlite3_stmt *stmt, const List *hl, FILE *fp,
+		const int retrocopy_id)
+{
+	const VCFHeader *h = NULL;
+	const ListElmt *cur = NULL;
+	int source_id = 0;
+	int source_id_prev = 0;
+
+	db_reset (stmt);
+	db_clear_bindings (stmt);
+	db_bind_int (stmt, 1, retrocopy_id);
+
+	xfprintf (fp, VCF_ID_FMT "\t", retrocopy_id);
+
+	while (db_step (stmt) == SQLITE_ROW)
+		{
+			source_id = db_column_int (stmt, 0);
+
+			// New source: 'sample:'
+			if (source_id != source_id_prev)
+				{
+					for (cur = list_head (hl); cur != NULL; cur = list_next (cur))
+						{
+							h = list_data (cur);
+							if (h->id == source_id)
+								break;
+						}
+
+					assert (cur != NULL);
+
+					xfprintf (fp, "%s%s:", source_id_prev ? ";" : "", h->name);
+					source_id_prev = source_id;
+				}
+			else
+				xfprintf (fp, ",");
+
+			xfprintf (fp, "%s", db_column_text (stmt, 1));
+		}
+
+	xfprintf (fp, "\n");
+}
+
+static void
+vcf_print_insertion (FILE *fp, const VCFBody *b, const long pos)
+{
+	const char *seq = b->ins_seq;
+	size_t len = strlen (seq);
+	size_t i = 0;
+
+	xfprintf (fp, ">" VCF_ID_FMT " %s:%li PG=%s SVLEN=%d predicted\n",
+			b->id, b->chr, pos, b->parental_gene_name, b->ins_len);
+
+	for (i = 0; i < len; i += VCF_FASTA_WIDTH)
+		xfprintf (fp, "%.*s\n", VCF_FASTA_WIDTH, seq + i);
+}
+
+static void
+vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
+		FILE *rnames_fp, FILE *ins_fp, VCFOption *opt)
 {
 	log_trace ("Inside %s", __func__);
 
@@ -603,13 +768,14 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp, VCFOption *op
 	VCFGenotype *g = NULL;
 	VCFBody b = {};
 
-	String *seq = NULL;
 	long pos = 0;
 	char base = 0;
 
 	long tsd_len = 0;
-	char tsd[VCF_MAX_TSD_LEN + 1] = {};
 	char polarity = 0;
+
+	sqlite3_stmt *rnames_stmt = NULL;
+	const char *ref = NULL;
 
 	// Prepare retrocopy query
 	retrocopy_stmt = prepare_retrocopy_query_stmt (db,
@@ -618,42 +784,35 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp, VCFOption *op
 	// Prepare genotype query
 	genotype_stmt = prepare_genotype_query_stmt (db);
 
+	// Prepare read names query
+	rnames_stmt = prepare_rnames_query_stmt (db);
+
 	while (db_step (retrocopy_stmt) == SQLITE_ROW)
 		{
 			vcf_get_body_line (retrocopy_stmt, &b);
 			gi = vcf_index_genotype (genotype_stmt, b.id);
-			seq = NULL;
 
 			// Pos is 1 position before the insertion
 			pos = b.insertion_point == 1
 				? b.insertion_point
 				: b.insertion_point - 1;
 
+			base = 'N';
+
 			if (fidx != NULL)
 				{
-					seq = hash_lookup (fidx, b.chr);
+					ref = vcf_region_lookup (fidx, b.chr, pos, pos);
 
-					if (seq == NULL)
-						{
-							log_warn ("Contig %s has no reference at '%s'",
-									b.chr, opt->fasta_file);
-							base = 'N';
-						}
-					else if (seq->len < pos)
-						{
-							log_warn ("Retrocopy at %s:%li is outside contig range %li",
-									b.chr, b.insertion_point, seq->len);
-							base = 'N';
-						}
+					if (ref == NULL)
+						log_warn ("Retrocopy at %s:%li has no reference at '%s'",
+								b.chr, b.insertion_point, opt->fasta_file);
 					else
-						base = seq->str[pos - 1];
+						base = ref[0];
 				}
-			else
-				base = 'N';
 
 			xfprintf (fp,
-				"%s\t%li\t.\t%c\t<INS:ME:RTC>\t.\tPASS\tSVTYPE=INS",
-				b.chr, pos, base >= 'a' && base <= 'z' ? base - 32 : base);
+				"%s\t%li\t" VCF_ID_FMT "\t%c\t<INS:ME:RTC>\t.\tPASS\tSVTYPE=INS",
+				b.chr, pos, b.id, base);
 
 			// Imprecise retrocopies
 			if (b.insertion_point_type == RETROCOPY_INSERTION_POINT_WINDOW_MEAN)
@@ -712,6 +871,13 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp, VCFOption *op
 			if (b.ins_len > 0)
 				xfprintf (fp, ";SVLEN=%d", b.ins_len);
 
+			// Observed sequences at the junctions
+			if (strcmp (b.left_seq, "?"))
+				xfprintf (fp, ";LEFT_SVINSSEQ=%s", b.left_seq);
+
+			if (strcmp (b.right_seq, "?"))
+				xfprintf (fp, ";RIGHT_SVINSSEQ=%s", b.right_seq);
+
 			// Print HOST and NEAR genes
 			if (strcmp (b.intragenic, "?"))
 				{
@@ -756,13 +922,13 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp, VCFOption *op
 					tsd_len = b.breakpoint_left - b.breakpoint_right + 1;
 					xfprintf (fp, ";TSDLEN=%li", tsd_len);
 
-					if (seq != NULL && tsd_len > 0 && tsd_len <= VCF_MAX_TSD_LEN
-							&& b.breakpoint_left <= (long) seq->len)
+					if (tsd_len > 0 && tsd_len <= VCF_MAX_TSD_LEN)
 						{
-							memcpy (tsd, seq->str + b.breakpoint_right - 1, tsd_len);
-							tsd[tsd_len] = '\0';
-							upper (tsd);
-							xfprintf (fp, ";TSD=%s", tsd);
+							ref = vcf_region_lookup (fidx, b.chr,
+									b.breakpoint_right, b.breakpoint_left);
+
+							if (ref != NULL)
+								xfprintf (fp, ";TSD=%s", ref);
 						}
 				}
 
@@ -802,12 +968,21 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp, VCFOption *op
 
 			xfprintf (fp, "\n");
 
+			// Reads used to detect this retrocopy
+			if (rnames_fp != NULL)
+				vcf_print_rnames (rnames_stmt, hl, rnames_fp, b.id);
+
+			// Predicted inserted sequence
+			if (ins_fp != NULL && strcmp (b.ins_seq, "?"))
+				vcf_print_insertion (ins_fp, &b, pos);
+
 			hash_free (gi);
 			gi = NULL;
 		}
 
 	db_finalize (retrocopy_stmt);
 	db_finalize (genotype_stmt);
+	db_finalize (rnames_stmt);
 }
 
 void
@@ -817,17 +992,29 @@ vcf (sqlite3 *db, const char *output_file, VCFOption *opt)
 	log_trace ("Inside %s", __func__);
 
 	FILE *fp = NULL;
+	FILE *rnames_fp = NULL;
+	FILE *ins_fp = NULL;
 	List *hl = NULL;
 	Hash *fidx = NULL;
+	Hash *contig_len = NULL;
 
 	log_info ("Create VCF file '%s'", output_file);
 	fp = xfopen (output_file, "w");
 
-	if (opt->fasta_file != NULL)
+	if (opt->rnames_file != NULL)
 		{
-			log_info ("Index genome '%s'", opt->fasta_file);
-			fidx = fasta_index (opt->fasta_file);
+			log_info ("Create read names file '%s'", opt->rnames_file);
+			rnames_fp = xfopen (opt->rnames_file, "w");
 		}
+
+	if (opt->insertion_file != NULL)
+		{
+			log_info ("Create predicted insertions file '%s'", opt->insertion_file);
+			ins_fp = xfopen (opt->insertion_file, "w");
+		}
+
+	if (opt->fasta_file != NULL)
+		fidx = vcf_index_regions (db, opt->fasta_file, &contig_len);
 	else
 		log_warn (
 			"With no reference genome, "
@@ -837,12 +1024,24 @@ vcf (sqlite3 *db, const char *output_file, VCFOption *opt)
 	hl = vcf_get_header_line (db);
 
 	log_info ("Write VCF header");
-	vcf_print_header (hl, fidx, fp, opt);
+	vcf_print_header (hl, contig_len, fp, opt);
 
 	log_info ("Write VCF body");
-	vcf_print_body (db, hl, fidx, fp, opt);
+	vcf_print_body (db, hl, fidx, fp, rnames_fp, ins_fp, opt);
 
 	xfclose (fp);
+
+	if (rnames_fp != NULL)
+		xfclose (rnames_fp);
+
+	if (ins_fp != NULL)
+		xfclose (ins_fp);
+
 	list_free (hl);
-	hash_free (fidx);
+
+	if (fidx != NULL)
+		hash_free (fidx);
+
+	if (contig_len != NULL)
+		hash_free (contig_len);
 }

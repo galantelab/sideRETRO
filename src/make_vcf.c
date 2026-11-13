@@ -67,9 +67,18 @@ run (MakeVcf *v)
 
 	sqlite3 *db = NULL;
 	char *vcf_file = NULL;
+	char *rnames_file = NULL;
+	char *insertion_file = NULL;
 
-	// Assemble VCF file
+	// Assemble VCF, read names and
+	// predicted insertions files
 	xasprintf_concat (&vcf_file, "%s/%s.vcf",
+			v->output_dir, v->prefix);
+
+	xasprintf_concat (&rnames_file, "%s/%s.rnames.tsv",
+			v->output_dir, v->prefix);
+
+	xasprintf_concat (&insertion_file, "%s/%s.insertions.fa",
 			v->output_dir, v->prefix);
 
 	log_info ("Create output dir '%s'", v->output_dir);
@@ -82,7 +91,9 @@ run (MakeVcf *v)
 	VCFOption opt = {
 		.near_gene_dist    = v->near_gene_dist,
 		.orientation_error = v->orientation_error,
-		.fasta_file        = v->fasta_file
+		.fasta_file        = v->fasta_file,
+		.rnames_file       = rnames_file,
+		.insertion_file    = insertion_file
 	};
 
 	log_info ("Generate VCF file %s", vcf_file);
@@ -90,6 +101,8 @@ run (MakeVcf *v)
 
 	log_info ("VCF file '%s' is ready!", vcf_file);
 	xfree (vcf_file);
+	xfree (rnames_file);
+	xfree (insertion_file);
 	db_close (db);
 }
 

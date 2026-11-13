@@ -147,8 +147,8 @@ populate_db (sqlite3 *db)
 		"INSERT INTO exon VALUES (1,'gene1','chr1',1,3000,'+','eg1','ee1');\n"
 		"INSERT INTO exon VALUES (13,'gene1','chr1',4000,5000,'+','eg1','ee13');\n"
 		"INSERT INTO junction VALUES (1,1,13,5);\n"
-		"INSERT INTO insertion VALUES (1,1050,1,7,3000,13,2,2000,'ACGT');\n"
-		"INSERT INTO insertion VALUES (8,NULL,NULL,0,150,1,3,NULL,NULL);\n"
+		"INSERT INTO insertion VALUES (1,1050,1,7,3000,13,2,2000,'ACGT','GGTTAACC','TTGGCC');\n"
+		"INSERT INTO insertion VALUES (8,NULL,NULL,0,150,1,3,NULL,NULL,NULL,NULL);\n"
 		"INSERT INTO exon VALUES (2,'gene2_1','chr2',1,3000,'-','eg2','ee2');\n"
 		"INSERT INTO exon VALUES (3,'gene2_2','chr2',2000,5000,'-','eg3','ee3');\n"
 		"INSERT INTO exon VALUES (4,'gene3_1','chr3',1000,3000,'+','eg4','ee4');\n"
@@ -232,17 +232,26 @@ START_TEST (test_vcf)
 	char db_file[] = "/tmp/ponga.db.XXXXXX";
 	char vcf_file[] = "/tmp/ponga.vcf.XXXXXX";
 	char fasta_file[] = "/tmp/ponga.fa.XXXXXX";
+	char rnames_file[] = "/tmp/ponga.rnames.XXXXXX";
+	char insertion_file[] = "/tmp/ponga.ins.XXXXXX";
 
 	sqlite3 *db = NULL;
 
 	db = create_db (db_file);
 	create_vcf (vcf_file);
+	create_vcf (rnames_file);
+	create_vcf (insertion_file);
 	create_fasta (fasta_file);
 
 	// Populate database
 	populate_db (db);
 
-	VCFOption opt = {.fasta_file = fasta_file};
+	VCFOption opt = {
+		.fasta_file = fasta_file,
+		.rnames_file = rnames_file,
+		.insertion_file = insertion_file
+	};
+
 	vcf (db, vcf_file, &opt);
 
 	/* TIME TO TEST */
@@ -255,7 +264,7 @@ START_TEST (test_vcf)
 	// in each retrocopy line, in VCF order
 	// (chr10, chr11, chr12, chr13, chr13, chr14, chr14, chrY)
 	const char *present[][2] = {
-		{";ORHO=-1.000000;POLARITY=+;PG=gene1;PGTYPE=1;PGEXONS=gene1:2;EEJ=5;EEJLIST=ee1-ee13;PG5P=ee1:1050:7;PG3P=ee13:3000:2;SVLEN=2000;", ";SR=2;LBKP=100;LSR=2;POLYA=25;POLYASR=6"},
+		{";ORHO=-1.000000;POLARITY=+;PG=gene1;PGTYPE=1;PGEXONS=gene1:2;EEJ=5;EEJLIST=ee1-ee13;PG5P=ee1:1050:7;PG3P=ee13:3000:2;SVLEN=2000;LEFT_SVINSSEQ=GGTTAACC;RIGHT_SVINSSEQ=TTGGCC;", ";SR=2;LBKP=100;LSR=2;POLYA=25;POLYASR=6"},
 		{";PGEXONS=gene2_1:1/gene2_2:1;",   ";DP="},
 		{";SR=7;LBKP=259;LSR=3;RBKP=250;RSR=4;TSDLEN=10;TSD=CCCCCCCCCC", NULL},
 		{";DP=",                            NULL},
@@ -287,14 +296,76 @@ START_TEST (test_vcf)
 		}
 
 	ck_assert_int_eq (i, 8);
+	xfclose (fp);
+
+	// The ID column, in VCF order
+	const char *ids[] = {
+		"\tRTC000001\t", "\tRTC000002\t", "\tRTC000003\t", "\tRTC000004\t",
+		"\tRTC000005\t", "\tRTC000006\t", "\tRTC000007\t", "\tRTC000008\t"
+	};
+
+	fp = xfopen (vcf_file, "r");
+
+	for (i = 0; getline (&line, &len, fp) != EOF;)
+		{
+			if (line[0] == '#')
+				continue;
+
+			ck_assert_msg (strstr (line, ids[i]) != NULL,
+					"'%s' not found at line %d: %s", ids[i], i, line);
+			i++;
+		}
+
+	xfclose (fp);
+
+	// Read names by retrocopy: 'sample:read,read'
+	const char *rnames[] = {
+		"RTC000001\tPONGA:q1\n",
+		"RTC000002\tPONGA:q4,q5\n",
+		"RTC000003\tPONGA:q2,q3\n",
+		"RTC000004\tPONGA:q6\n",
+		"RTC000005\tPONGA:q7\n",
+		"RTC000006\tPONGA:q8,q9\n",
+		"RTC000007\tPONGA:q10,q11\n",
+		"RTC000008\tPONGA:q1\n"
+	};
+
+	fp = xfopen (rnames_file, "r");
+
+	for (i = 0; getline (&line, &len, fp) != EOF; i++)
+		{
+			ck_assert_int_lt (i, 8);
+			ck_assert_str_eq (line, rnames[i]);
+		}
+
+	ck_assert_int_eq (i, 8);
+	xfclose (fp);
+
+	// Predicted insertions: Only RTC000001 has one
+	const char *fasta[] = {
+		">RTC000001 chr10:100 PG=gene1 SVLEN=2000 predicted\n",
+		"ACGT\n"
+	};
+
+	fp = xfopen (insertion_file, "r");
+
+	for (i = 0; getline (&line, &len, fp) != EOF; i++)
+		{
+			ck_assert_int_lt (i, 2);
+			ck_assert_str_eq (line, fasta[i]);
+		}
+
+	ck_assert_int_eq (i, 2);
+	xfclose (fp);
 
 	xfree (line);
-	xfclose (fp);
 
 	db_close (db);
 	xunlink (db_file);
 	xunlink (fasta_file);
 	xunlink (vcf_file);
+	xunlink (rnames_file);
+	xunlink (insertion_file);
 }
 END_TEST
 

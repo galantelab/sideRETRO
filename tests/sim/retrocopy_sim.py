@@ -311,12 +311,26 @@ class Sim:
         pg3p = ('ENSEP%d:%d:%d' % (len(self.exons) - 1, three_pos, len(three_reads))
                 if right and three_reads else 'NA')
 
-        if not left:
-            svlen = 'NA'
+        # The predicted sequence and its length. 'SKIP' means the
+        # value is not checked: Without the poly-A the 3' end is
+        # not well defined by this simulation
+        if not left or not polya:
+            svlen, insseq = ('NA', 'NA') if not left else ('SKIP', 'SKIP')
         elif right and three_reads:
-            svlen = len(self.ins) if polya else len(self.ins) - a.polya_len
+            insseq = self.ins
+            svlen = len(insseq)
         else:
-            svlen = len(self.ins) + exon_trailing if polya else len(self.spliced) - a.truncation
+            insseq = self.spliced[a.truncation:] + 'A' * run
+            svlen = len(insseq)
+
+        if not polya:
+            pg3p = 'SKIP'
+
+        # Observed sequences at the junctions: The consensus of
+        # the clips, which are prefixes (left) or suffixes (right)
+        # of the insertion
+        left_seq = self.ins[:READ_LEN - a.min_match] if left else 'NA'
+        right_seq = self.ins[-max(all_clips):] if right else 'NA'
 
         if right:
             pos = self.tsd_start - 1
@@ -327,6 +341,7 @@ class Sim:
 
         return [
             ('CHROM', 'chr1'),
+            ('ID', 'RTC000001'),
             ('POS', pos),
             ('IMPRECISE', 'NA' if left or right else ''),
             ('LBKP', self.tsd_end if left else 'NA'),
@@ -344,6 +359,10 @@ class Sim:
             ('PG5P', pg5p),
             ('PG3P', pg3p),
             ('SVLEN', svlen),
+            ('LEFT_SVINSSEQ', left_seq),
+            ('RIGHT_SVINSSEQ', right_seq),
+            ('INSSEQ', insseq),
+            ('RNAMES', ','.join(sorted(set(r.split('\t')[0] for r in self.recs)))),
             ('EEJ', a.n_junction_reads if a.n_junction_reads else 'NA'),
             ('EEJLIST', 'ENSEP0-ENSEP1' if a.n_junction_reads else 'NA'),
             ('INS', self.ins),
@@ -407,19 +426,52 @@ def check(vcf_file, truth_file):
             errors += 1
 
     expect('CHROM', fields[0], truth['CHROM'])
+    expect('ID', fields[2], truth['ID'])
 
     if truth['POS'] != 'NA':
         expect('POS', fields[1], truth['POS'])
 
     for key in ('IMPRECISE', 'LBKP', 'LSR', 'RBKP', 'RSR', 'TSDLEN', 'TSD',
                 'POLYA', 'POLYAMIN', 'POLYASR', 'POLARITY', 'PG',
-                'PGEXONS', 'EEJ', 'EEJLIST', 'PG5P', 'PG3P', 'SVLEN'):
+                'PGEXONS', 'EEJ', 'EEJLIST', 'PG5P', 'PG3P', 'SVLEN',
+                'LEFT_SVINSSEQ', 'RIGHT_SVINSSEQ'):
+        if truth[key] == 'SKIP':
+            continue
         if truth[key] == 'NA':
             if key in info:
                 print('FAIL: %s = %s, expected absent' % (key, info[key]))
                 errors += 1
         else:
             expect(key, info.get(key, '<missing>'), truth[key])
+
+    # Side files written by make-vcf next to the VCF
+    base = vcf_file[:-4] if vcf_file.endswith('.vcf') else vcf_file
+    rnames_file = base + '.rnames.tsv'
+    ins_file = base + '.insertions.fa'
+
+    if os.path.exists(rnames_file):
+        lines = open(rnames_file).read().splitlines()
+        if len(lines) != 1 or not lines[0].startswith(truth['ID'] + '\t'):
+            print('FAIL: rnames file must have one line for %s' % truth['ID'])
+            errors += 1
+        else:
+            sample, reads = lines[0].split('\t')[1].split(':', 1)
+            names = reads.split(',')
+            if sample != 'sim' or names != sorted(names):
+                print('FAIL: rnames sample or order: %s' % lines[0][:80])
+                errors += 1
+            missing = set(truth['RNAMES'].split(',')) - set(names)
+            if missing:
+                print('FAIL: rnames missing reads: %s' % ','.join(sorted(missing)))
+                errors += 1
+
+    if os.path.exists(ins_file) and truth['INSSEQ'] not in ('NA', 'SKIP'):
+        lines = open(ins_file).read().splitlines()
+        seq = ''.join(l for l in lines if not l.startswith('>'))
+        if not lines or not lines[0].startswith('>' + truth['ID'] + ' '):
+            print('FAIL: insertions file must start with >%s' % truth['ID'])
+            errors += 1
+        expect('INSSEQ', seq, truth['INSSEQ'])
 
     if not errors:
         print('OK: %s matches %s' % (vcf_file, truth_file))

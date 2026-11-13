@@ -421,6 +421,8 @@ db_create_tables (sqlite3 *db)
 		"	three_prime_sr INTEGER NOT NULL DEFAULT 0,\n"
 		"	len INTEGER,\n"
 		"	seq TEXT,\n"
+		"	left_seq TEXT,\n"
+		"	right_seq TEXT,\n"
 		"	FOREIGN KEY (retrocopy_id) REFERENCES retrocopy(id),\n"
 		"	FOREIGN KEY (five_prime_exon_id) REFERENCES exon(id),\n"
 		"	FOREIGN KEY (three_prime_exon_id) REFERENCES exon(id));\n"
@@ -1068,8 +1070,8 @@ db_prepare_insertion_stmt (sqlite3 *db)
 
 	const char sql[] =
 		"INSERT INTO insertion (retrocopy_id,five_prime_pos,five_prime_exon_id,five_prime_sr,\n"
-		"	three_prime_pos,three_prime_exon_id,three_prime_sr,len,seq)\n"
-		"VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)";
+		"	three_prime_pos,three_prime_exon_id,three_prime_sr,len,seq,left_seq,right_seq)\n"
+		"VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)";
 
 	return db_prepare (db, sql);
 }
@@ -1078,7 +1080,7 @@ void
 db_insert_insertion (sqlite3_stmt *stmt, int retrocopy_id,
 		long five_prime_pos, int five_prime_exon_id, int five_prime_sr,
 		long three_prime_pos, int three_prime_exon_id, int three_prime_sr,
-		int len, const char *seq)
+		int len, const char *seq, const char *left_seq, const char *right_seq)
 {
 	log_trace ("Inside %s", __func__);
 	assert (stmt != NULL);
@@ -1128,6 +1130,17 @@ db_insert_insertion (sqlite3_stmt *stmt, int retrocopy_id,
 			db_bind_null (stmt, 8);
 			db_bind_null (stmt, 9);
 		}
+
+	// Observed sequences at the junctions
+	if (left_seq != NULL)
+		db_bind_text (stmt, 10, left_seq);
+	else
+		db_bind_null (stmt, 10);
+
+	if (right_seq != NULL)
+		db_bind_text (stmt, 11, right_seq);
+	else
+		db_bind_null (stmt, 11);
 
 	db_step (stmt);
 

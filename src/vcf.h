@@ -26,6 +26,10 @@ struct _VCFOption
 	long        near_gene_dist;
 	float       orientation_error;
 	const char *fasta_file;
+
+	// Read names and predicted insertions files
+	const char *rnames_file;
+	const char *insertion_file;
 };
 
 typedef struct _VCFOption VCFOption;
