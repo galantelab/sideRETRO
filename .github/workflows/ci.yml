@@ -34,13 +34,14 @@ jobs:
 
       - name: Normal test
         id: normal_test
-        run: meson test -C builddir
+        run: meson test -C builddir --print-errorlogs
 
       - name: Valgring test
         id: valgring_test
         run: >
           meson test
           -C builddir
+          --suite unit
           --wrap='valgrind --leak-check=full --error-exitcode=1'
           -t 3
         env:

@@ -83,7 +83,7 @@ sider_lib = static_library(
 )
 
 # Our product!
-executable(
+sider_exec = executable(
   package,
   files('main.c'),
   include_directories : inc,

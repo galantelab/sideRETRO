@@ -18,3 +18,11 @@ OK: sim/merged.vcf matches sim/truth.tsv
 
 Run `retrocopy_sim.py --help` for the simulation parameters: TSD
 length, poly-A length, number of discordant and split reads, etc.
+
+`run_sim_test.py` runs a set of scenarios through the pipeline, with
+and without the reference genome at `merge-call`, and is registered
+at `meson test` as the `simulation` suite:
+
+```sh
+$ meson test -C builddir --suite simulation
+```

@@ -400,13 +400,23 @@ class Sim:
                 fp.write('%s\t%s\n' % (key, value))
 
 
-def check(vcf_file, truth_file):
-    """Compare the VCF body with truth.tsv. Return the number of errors."""
+def check(vcf_file, truth_file, no_ref=False):
+    """
+    Compare the VCF body with truth.tsv. Return the number of
+    errors. With no_ref, merge-call ran without the reference
+    genome, so the retrocopy ends and the predicted sequence
+    must be absent
+    """
     truth = {}
     with open(truth_file) as fp:
         for line in fp:
             key, value = line.rstrip('\n').split('\t')
             truth[key] = value
+
+    if no_ref:
+        for key in ('PG5P', 'PG3P', 'SVLEN'):
+            truth[key] = 'NA'
+        truth['INSSEQ'] = 'NA'
 
     lines = [l for l in open(vcf_file) if not l.startswith('#')]
     if len(lines) != 1:
@@ -465,13 +475,18 @@ def check(vcf_file, truth_file):
                 print('FAIL: rnames missing reads: %s' % ','.join(sorted(missing)))
                 errors += 1
 
-    if os.path.exists(ins_file) and truth['INSSEQ'] not in ('NA', 'SKIP'):
+    if os.path.exists(ins_file) and truth['INSSEQ'] != 'SKIP':
         lines = open(ins_file).read().splitlines()
         seq = ''.join(l for l in lines if not l.startswith('>'))
-        if not lines or not lines[0].startswith('>' + truth['ID'] + ' '):
-            print('FAIL: insertions file must start with >%s' % truth['ID'])
-            errors += 1
-        expect('INSSEQ', seq, truth['INSSEQ'])
+        if truth['INSSEQ'] == 'NA':
+            if lines:
+                print('FAIL: insertions file must be empty')
+                errors += 1
+        else:
+            if not lines or not lines[0].startswith('>' + truth['ID'] + ' '):
+                print('FAIL: insertions file must start with >%s' % truth['ID'])
+                errors += 1
+            expect('INSSEQ', seq, truth['INSSEQ'])
 
     if not errors:
         print('OK: %s matches %s' % (vcf_file, truth_file))
@@ -484,6 +499,8 @@ def main():
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument('--check', nargs=2, metavar=('VCF', 'TRUTH'),
                    help='compare a VCF with a truth.tsv instead of simulating')
+    p.add_argument('--no-ref', action='store_true',
+                   help='with --check: merge-call ran without --reference-file')
     p.add_argument('-o', '--output-dir', default='.')
     p.add_argument('-s', '--seed', type=int, default=11)
     p.add_argument('--chr1-len', type=int, default=20000)
@@ -507,7 +524,7 @@ def main():
     args = p.parse_args()
 
     if args.check:
-        return check(*args.check)
+        return check(*args.check, no_ref=args.no_ref)
 
     Sim(args).write()
     return 0

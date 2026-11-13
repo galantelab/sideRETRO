@@ -50,9 +50,30 @@ if check_dep.found()
   )
 
   # Enable testing
-  test('all', e)
+  test('all', e, suite : 'unit')
 else
   # Make users aware that without libcheck the test
   # does not run
   warning('Testing is disabled without \'libcheck\'')
+endif
+
+# Simulated retrocopies through the whole pipeline:
+# process-sample, merge-call and make-vcf
+python3 = find_program('python3', required : false)
+
+if python3.found()
+  test(
+    'simulation',
+    python3,
+       args : [
+         files('sim/run_sim_test.py'),
+         sider_exec.full_path(),
+         files('sim/retrocopy_sim.py')
+       ],
+    depends : sider_exec,
+      suite : 'simulation',
+    timeout : 600
+  )
+else
+  warning('Simulation test is disabled without \'python3\'')
 endif
