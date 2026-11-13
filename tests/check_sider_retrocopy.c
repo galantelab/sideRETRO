@@ -62,6 +62,8 @@ populate_db (sqlite3 *db)
 		"INSERT INTO exon VALUES (13,'gene7','chr9',1,3000,'+','eg13','ee13');\n"
 		"INSERT INTO exon VALUES (14,'gene8','chr20',1,3000,'+','eg14','ee14');\n"
 		"INSERT INTO exon VALUES (15,'gene9','chr21',1,3000,'+','eg15','ee15');\n"
+		"INSERT INTO exon VALUES (16,'gene10','chr22',1000,1200,'+','eg16','ee16');\n"
+		"INSERT INTO exon VALUES (17,'gene10','chr22',2000,2200,'+','eg16','ee17');\n"
 		"INSERT INTO alignment VALUES (1,'q1',0x800,'chr10',1,20,'100M10S',100,100,'chr10',1,1,1,'*','*');\n"
 		"INSERT INTO alignment VALUES (12,'q1',0x800,'chr10',1,20,'100M10S',100,100,'chr10',1,8,1,'*','*');\n"
 		"INSERT INTO alignment VALUES (2,'q4',97,'chr11',1,20,'110M',100,50,'chr11',1,8,1,'*','*');\n"
@@ -87,6 +89,11 @@ populate_db (sqlite3 *db)
 		"INSERT INTO alignment VALUES (23,'q22',0x800,'chr17',420,20,'70M30S',100,70,'chr20',1,6,1,'CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCGTACGTACGTGTACGTACGTGTACGTACGT','*');\n"
 		"INSERT INTO alignment VALUES (24,'q23',97,'chr18',600,20,'70M30S',100,70,'chr21',1,2,1,'GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGTTTTTTTTTTTTCAGCAGCAGCAGCAGCAG','*');\n"
 		"INSERT INTO alignment VALUES (25,'q24',97,'chr18',600,20,'70M30S',100,70,'chr21',1,2,1,'GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT','*');\n"
+		"INSERT INTO alignment VALUES (26,'q25',97,'chr22',1150,20,'50M50S',100,50,'chr19',100,14,1,'*','*');\n"
+		"INSERT INTO alignment VALUES (27,'q25',2145,'chr22',2000,20,'50H50M',50,50,'chr19',100,14,1,'*','*');\n"
+		"INSERT INTO alignment VALUES (28,'q25',145,'chr19',100,20,'100M',100,100,'chr22',1150,14,1,'*','*');\n"
+		"INSERT INTO overlapping VALUES (16,26,1150,50);\n"
+		"INSERT INTO overlapping VALUES (17,27,2000,50);\n"
 		"INSERT INTO clustering VALUES (1,2,1,3,100);\n"
 		"INSERT INTO clustering VALUES (2,2,2,3,100);\n"
 		"INSERT INTO clustering VALUES (3,2,3,3,100);\n"
@@ -111,6 +118,7 @@ populate_db (sqlite3 *db)
 		"INSERT INTO clustering VALUES (14,2,23,3,100);\n"
 		"INSERT INTO clustering VALUES (15,2,24,3,100);\n"
 		"INSERT INTO clustering VALUES (15,2,25,3,100);\n"
+		"INSERT INTO clustering VALUES (16,2,28,3,100);\n"
 		"INSERT INTO cluster VALUES (1,2,'chr10',1,300,'gene1',31);\n"
 		"INSERT INTO cluster VALUES (2,2,'chr11',1,300,'gene2_1',31);\n"
 		"INSERT INTO cluster VALUES (3,2,'chr11',200,500,'gene2_2',31);\n"
@@ -126,6 +134,7 @@ populate_db (sqlite3 *db)
 		"INSERT INTO cluster VALUES (13,2,'chr16',300,600,'gene7',31);\n"
 		"INSERT INTO cluster VALUES (14,2,'chr17',400,600,'gene8',31);\n"
 		"INSERT INTO cluster VALUES (15,2,'chr18',600,800,'gene9',31);\n"
+		"INSERT INTO cluster VALUES (16,2,'chr19',100,300,'gene10',31);\n"
 		"COMMIT;";
 
 	db_exec (db, schema);
@@ -139,16 +148,19 @@ START_TEST (test_retrocopy)
 	sqlite3 *db = NULL;
 	sqlite3_stmt *cluster_merging_stmt = NULL;
 	sqlite3_stmt *retrocopy_stmt = NULL;
+	sqlite3_stmt *junction_stmt = NULL;
 
 	db = create_db (db_file);
 	cluster_merging_stmt = db_prepare_cluster_merging_stmt (db);
 	retrocopy_stmt = db_prepare_retrocopy_stmt (db);
+	junction_stmt = db_prepare_junction_stmt (db);
 
 	// Populate database
 	populate_db (db);
 
 	retrocopy (retrocopy_stmt,
 			cluster_merging_stmt,
+			junction_stmt,
 			near_dist);
 
 	/* TIME TO TEST */
@@ -175,28 +187,30 @@ START_TEST (test_retrocopy)
 	// chr17: Poly-A at '+'. One read gives the exact length
 	// (25) and the other just a lower bound (30)
 	// chr18: Poly-A at '-' (run of T after the left flank)
+	// chr19: Fragment whose read spans the exon-exon junction
+	// of gene10 (exons 16 and 17)
 	const char *chrs[] = {
 		"chr10", "chr11", "chr12", "chr13", "chr13",
-		"chr14", "chr14", "chr15", "chr16", "chr17", "chr18"
+		"chr14", "chr14", "chr15", "chr16", "chr17", "chr18", "chr19"
 	};
 
-	long ips[]        = {101, 250, 250, 150, 350, 250, 550, 290, 380, 500, 670};
-	int  ip_types[]   = {2,   1,   2,   1,   1,   1,   1,   2,   2,   2,   2};
-	long lefts[]      = {100, 0,   249, 0,   0,   0,   0,   299, 379, 489, 669};
-	int  left_srs[]   = {1,   0,   1,   0,   0,   0,   0,   1,   2,   1,   2};
-	long rights[]     = {0,   0,   250, 0,   0,   0,   0,   290, 0,   500, 0};
-	int  right_srs[]  = {0,   0,   1,   0,   0,   0,   0,   2,   0,   2,   0};
+	long ips[]        = {101, 250, 250, 150, 350, 250, 550, 290, 380, 500, 670, 200};
+	int  ip_types[]   = {2,   1,   2,   1,   1,   1,   1,   2,   2,   2,   2,   1};
+	long lefts[]      = {100, 0,   249, 0,   0,   0,   0,   299, 379, 489, 669, 0};
+	int  left_srs[]   = {1,   0,   1,   0,   0,   0,   0,   1,   2,   1,   2,   0};
+	long rights[]     = {0,   0,   250, 0,   0,   0,   0,   290, 0,   500, 0,   0};
+	int  right_srs[]  = {0,   0,   1,   0,   0,   0,   0,   2,   0,   2,   0,   0};
 
-	int  polya_lens[]   = {0, 0, 0, 0, 0, 0, 0, 0, 0, 25,  12};
-	int  polya_bounds[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0,   0};
-	const char *polya_strands[] = {"?","?","?","?","?","?","?","?","?","+","-"};
-	int  polya_srs[]    = {0, 0, 0, 0, 0, 0, 0, 0, 0, 2,   2};
+	int  polya_lens[]   = {0, 0, 0, 0, 0, 0, 0, 0, 0, 25,  12, 0};
+	int  polya_bounds[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0,   0,  0};
+	const char *polya_strands[] = {"?","?","?","?","?","?","?","?","?","+","-","?"};
+	int  polya_srs[]    = {0, 0, 0, 0, 0, 0, 0, 0, 0, 2,   2,  0};
 
 	search_stmt = db_prepare (db, sql);
 
 	for (i = 0; db_step (search_stmt) == SQLITE_ROW; i++)
 		{
-			ck_assert_int_lt (i, 11);
+			ck_assert_int_lt (i, 12);
 			ck_assert_str_eq (db_column_text (search_stmt, 0), chrs[i]);
 			ck_assert_int_eq (db_column_int64 (search_stmt, 1), ips[i]);
 			ck_assert_int_eq (db_column_int (search_stmt, 2), ip_types[i]);
@@ -222,11 +236,27 @@ START_TEST (test_retrocopy)
 				ck_assert_int_eq (sqlite3_column_type (search_stmt, 7), SQLITE_NULL);
 		}
 
-	ck_assert_int_eq (i, 11);
+	ck_assert_int_eq (i, 12);
+	db_finalize (search_stmt);
+
+	// Only the chr19 retrocopy has an exon-exon junction
+	search_stmt = db_prepare (db,
+			"SELECT retrocopy_id, exon_id1, exon_id2, reads FROM junction");
+
+	for (i = 0; db_step (search_stmt) == SQLITE_ROW; i++)
+		{
+			ck_assert_int_eq (db_column_int (search_stmt, 0), 12);
+			ck_assert_int_eq (db_column_int (search_stmt, 1), 16);
+			ck_assert_int_eq (db_column_int (search_stmt, 2), 17);
+			ck_assert_int_eq (db_column_int (search_stmt, 3), 1);
+		}
+
+	ck_assert_int_eq (i, 1);
 	db_finalize (search_stmt);
 
 	db_finalize (cluster_merging_stmt);
 	db_finalize (retrocopy_stmt);
+	db_finalize (junction_stmt);
 	db_close (db);
 
 	xunlink (db_file);

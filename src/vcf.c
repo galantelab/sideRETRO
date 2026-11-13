@@ -90,6 +90,12 @@ struct _VCFBody
 	const char *polya_strand;
 	int         polya_sr;
 
+	// Exons of the parental genes and
+	// exon-exon junctions
+	const char *pg_exons;
+	int         eej;
+	const char *eej_list;
+
 	// Host and Near genes
 	const char *exonic;
 	const char *intragenic;
@@ -260,6 +266,9 @@ vcf_print_header (const List *hl, Hash *fidx,
 	xfprintf (fp,
 		"##INFO=<ID=CIPOS,Number=2,Type=Integer,Description=\"Confidence interval around POS for imprecise variants\">\n"
 		"##INFO=<ID=DP,Number=1,Type=Integer,Description=\"Read Depth of segment containing breakpoint\">\n"
+		"##INFO=<ID=EEJ,Number=1,Type=Integer,Description=\"Number of reads spanning exon-exon junctions of the parental gene:"
+		" Evidence of a processed transcript\">\n"
+		"##INFO=<ID=EEJLIST,Number=1,Type=String,Description=\"Exon-exon junctions spanned by reads as 'exon_id1-exon_id2' separated by '/'\">\n"
 		"##INFO=<ID=EXONIC,Number=1,Type=String,Description=\"Exon IDs separated by '/' for intragenic retrocopy\">\n"
 		"##INFO=<ID=IMPRECISE,Number=0,Type=Flag,Description=\"Imprecise structural variation\">\n"
 		"##INFO=<ID=INTRONIC,Number=1,Type=String,Description=\"Intron IDs separated by '/' for intragenic retrocopy\">\n"
@@ -268,6 +277,8 @@ vcf_print_header (const List *hl, Hash *fidx,
 		"##INFO=<ID=NEAR,Number=1,Type=String,Description=\"Near Gene IDs separated by '/' for intergenic retrocopy\">\n"
 		"##INFO=<ID=ORHO,Number=1,Type=Float,Description=\"Spearman's rho to detect the polarity\">\n"
 		"##INFO=<ID=PG,Number=1,Type=String,Description=\"Parental Gene IDs separated by '/'\">\n"
+		"##INFO=<ID=PGEXONS,Number=1,Type=String,Description=\"Number of exons of each parental gene as 'gene:n' separated by '/'."
+		" A single exon gene has no exon-exon junction\">\n"
 		"##INFO=<ID=PGTYPE,Number=1,Type=String,Description=\"Provides information about parental gene:"
 		" 1 = Single parental gene; 2 = Overlapped parental genes; 4 = Near parental genes;"
 		" 8 = Hotspot - Multiple parental genes with retrocopy at the same segment\">\n"
@@ -354,6 +365,37 @@ prepare_retrocopy_query_stmt (sqlite3 *db, const long near_gene_dist)
 		"		FROM near\n"
 		"		GROUP BY rid\n"
 		"	),\n"
+		"	gene_exons (gene_name, n) AS (\n"
+		"		SELECT gene_name, COUNT(*)\n"
+		"		FROM exon\n"
+		"		GROUP BY gene_name\n"
+		"	),\n"
+		"	pg_exons (rid, txt) AS (\n"
+		"		SELECT rid, GROUP_CONCAT(gene_name || ':' || n, '/')\n"
+		"		FROM (\n"
+		"			SELECT DISTINCT cm.retrocopy_id AS rid, cl.gene_name\n"
+		"			FROM cluster_merging AS cm\n"
+		"			INNER JOIN cluster AS cl\n"
+		"				ON cl.id = cm.cluster_id AND cl.sid = cm.cluster_sid\n"
+		"			ORDER BY cm.retrocopy_id, cl.gene_name\n"
+		"		)\n"
+		"		INNER JOIN gene_exons\n"
+		"			USING (gene_name)\n"
+		"		GROUP BY rid\n"
+		"	),\n"
+		"	junction_g (rid, eej, txt) AS (\n"
+		"		SELECT rid, SUM(reads), GROUP_CONCAT(ense1 || '-' || ense2, '/')\n"
+		"		FROM (\n"
+		"			SELECT j.retrocopy_id AS rid, j.reads, e1.ense AS ense1, e2.ense AS ense2\n"
+		"			FROM junction AS j\n"
+		"			INNER JOIN exon AS e1\n"
+		"				ON e1.id = j.exon_id1\n"
+		"			INNER JOIN exon AS e2\n"
+		"				ON e2.id = j.exon_id2\n"
+		"			ORDER BY j.retrocopy_id, e1.start, e2.start\n"
+		"		)\n"
+		"		GROUP BY rid\n"
+		"	),\n"
 		"	genotype (retrocopy_id, acm) AS (\n"
 		"		SELECT retrocopy_id, COUNT(*)\n"
 		"		FROM (\n"
@@ -403,8 +445,13 @@ prepare_retrocopy_query_stmt (sqlite3 *db, const long near_gene_dist)
 		"	COALESCE(breakpoint_left, 0), breakpoint_left_sr,\n"
 		"	COALESCE(breakpoint_right, 0), breakpoint_right_sr,\n"
 		"	COALESCE(polya_len, 0), polya_lower_bound,\n"
-		"	COALESCE(polya_strand, '?'), polya_sr\n"
+		"	COALESCE(polya_strand, '?'), polya_sr,\n"
+		"	COALESCE(p.txt, '?'), COALESCE(j.eej, 0), COALESCE(j.txt, '?')\n"
 		"FROM retrocopy AS r\n"
+		"LEFT JOIN pg_exons AS p\n"
+		"	ON r.id = p.rid\n"
+		"LEFT JOIN junction_g AS j\n"
+		"	ON r.id = j.rid\n"
 		"LEFT JOIN gene AS g\n"
 		"	ON r.parental_gene_name = g.gene_name\n"
 		"INNER JOIN genotype AS gn\n"
@@ -523,6 +570,9 @@ vcf_get_body_line (sqlite3_stmt *stmt, VCFBody *b)
 	b->polya_lower_bound    = db_column_int    (stmt, 21);
 	b->polya_strand         = db_column_text   (stmt, 22);
 	b->polya_sr             = db_column_int    (stmt, 23);
+	b->pg_exons             = db_column_text   (stmt, 24);
+	b->eej                  = db_column_int    (stmt, 25);
+	b->eej_list             = db_column_text   (stmt, 26);
 }
 
 static const char *
@@ -644,6 +694,13 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp, VCFOption *op
 			xfprintf (fp,
 				";PG=%s;PGTYPE=%d",
 				b.parental_gene_name, b.level);
+
+			if (strcmp (b.pg_exons, "?"))
+				xfprintf (fp, ";PGEXONS=%s", b.pg_exons);
+
+			// Exon-exon junctions
+			if (b.eej > 0)
+				xfprintf (fp, ";EEJ=%d;EEJLIST=%s", b.eej, b.eej_list);
 
 			// Print HOST and NEAR genes
 			if (strcmp (b.intragenic, "?"))

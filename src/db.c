@@ -399,6 +399,17 @@ db_create_tables (sqlite3 *db)
 		"	FOREIGN KEY (cluster_id, cluster_sid) REFERENCES cluster(id, sid),\n"
 		"	PRIMARY KEY (retrocopy_id, cluster_id, cluster_sid));\n"
 		"\n"
+		"DROP TABLE IF EXISTS junction;\n"
+		"CREATE TABLE junction (\n"
+		"	retrocopy_id INTEGER NOT NULL,\n"
+		"	exon_id1 INTEGER NOT NULL,\n"
+		"	exon_id2 INTEGER NOT NULL,\n"
+		"	reads INTEGER NOT NULL,\n"
+		"	FOREIGN KEY (retrocopy_id) REFERENCES retrocopy(id),\n"
+		"	FOREIGN KEY (exon_id1) REFERENCES exon(id),\n"
+		"	FOREIGN KEY (exon_id2) REFERENCES exon(id),\n"
+		"	PRIMARY KEY (retrocopy_id, exon_id1, exon_id2));\n"
+		"\n"
 		"DROP TABLE IF EXISTS genotype;\n"
 		"CREATE TABLE genotype (\n"
 		"	source_id INTEGER NOT NULL,\n"
@@ -993,6 +1004,41 @@ db_insert_retrocopy (sqlite3_stmt *stmt, int id, const char *chr, long window_st
 
 	db_bind_int (stmt, 16, polya_lower_bound);
 	db_bind_int (stmt, 18, polya_sr);
+
+	db_step (stmt);
+
+	sqlite3_mutex_leave (sqlite3_db_mutex (sqlite3_db_handle (stmt)));
+}
+
+sqlite3_stmt *
+db_prepare_junction_stmt (sqlite3 *db)
+{
+	log_trace ("Inside %s", __func__);
+	assert (db != NULL);
+
+	const char sql[] =
+		"INSERT INTO junction (retrocopy_id,exon_id1,exon_id2,reads)\n"
+		"VALUES (?1,?2,?3,?4)";
+
+	return db_prepare (db, sql);
+}
+
+void
+db_insert_junction (sqlite3_stmt *stmt, int retrocopy_id,
+		int exon_id1, int exon_id2, int reads)
+{
+	log_trace ("Inside %s", __func__);
+	assert (stmt != NULL);
+
+	sqlite3_mutex_enter (sqlite3_db_mutex (sqlite3_db_handle (stmt)));
+
+	db_reset (stmt);
+	db_clear_bindings (stmt);
+
+	db_bind_int (stmt, 1, retrocopy_id);
+	db_bind_int (stmt, 2, exon_id1);
+	db_bind_int (stmt, 3, exon_id2);
+	db_bind_int (stmt, 4, reads);
 
 	db_step (stmt);
 

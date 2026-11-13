@@ -121,6 +121,7 @@ clean_retrocopy_tables (sqlite3 *db)
 	// previous runs
 	const char sql[] =
 		"DELETE FROM cluster_merging;\n"
+		"DELETE FROM junction;\n"
 		"DELETE FROM retrocopy;";
 
 	log_debug ("Clean tables:\n%s", sql);
@@ -1099,6 +1100,100 @@ calculate_polya (sqlite3 *db, Hash *rtc_h)
 }
 
 static sqlite3_stmt *
+prepare_junction_query_stmt (sqlite3 *db)
+{
+	log_trace ("Inside %s", __func__);
+
+	sqlite3_stmt *stmt = NULL;
+
+	/*
+	* A read spanning an exon-exon junction of the retrocopy
+	* is aligned to the parental gene in two pieces: One
+	* alignment at each exon. So, search the fragments of
+	* each retrocopy for reads with two alignments overlapping
+	* two different exons - not overlapping each other - of
+	* the parental gene. The read is identified by its qname,
+	* source and the flag bits 0x40|0x80
+	*/
+	const char sql[] =
+		"WITH\n"
+		"	fragment (rid, gene_name, qname, source_id) AS (\n"
+		"		SELECT DISTINCT cm.retrocopy_id, cl.gene_name,\n"
+		"			a.qname, a.source_id\n"
+		"		FROM cluster_merging AS cm\n"
+		"		INNER JOIN cluster AS cl\n"
+		"			ON cl.id = cm.cluster_id AND cl.sid = cm.cluster_sid\n"
+		"		INNER JOIN clustering AS c\n"
+		"			ON c.cluster_id = cm.cluster_id\n"
+		"				AND c.cluster_sid = cm.cluster_sid\n"
+		"		INNER JOIN alignment AS a\n"
+		"			ON a.id = c.alignment_id\n"
+		"	),\n"
+		"	exonic (qname, source_id, read, aid, eid, gene_name, start, end) AS (\n"
+		"		SELECT a.qname, a.source_id, a.flag & 0xC0, a.id,\n"
+		"			e.id, e.gene_name, e.start, e.end\n"
+		"		FROM alignment AS a\n"
+		"		INNER JOIN overlapping AS o\n"
+		"			ON o.alignment_id = a.id\n"
+		"		INNER JOIN exon AS e\n"
+		"			ON e.id = o.exon_id\n"
+		"	)\n"
+		"SELECT f.rid, x1.eid, x2.eid,\n"
+		"	COUNT(DISTINCT x1.qname || '/' || x1.source_id || '/' || x1.read)\n"
+		"FROM fragment AS f\n"
+		"INNER JOIN exonic AS x1\n"
+		"	ON x1.qname = f.qname\n"
+		"		AND x1.source_id = f.source_id\n"
+		"		AND x1.gene_name = f.gene_name\n"
+		"INNER JOIN exonic AS x2\n"
+		"	ON x2.qname = x1.qname\n"
+		"		AND x2.source_id = x1.source_id\n"
+		"		AND x2.read = x1.read\n"
+		"		AND x2.gene_name = x1.gene_name\n"
+		"		AND x2.aid != x1.aid\n"
+		"WHERE x1.end < x2.start\n"
+		"GROUP BY f.rid, x1.eid, x2.eid\n"
+		"ORDER BY f.rid ASC, x1.start ASC, x2.start ASC";
+
+	log_debug ("Query schema:\n%s", sql);
+	stmt = db_prepare (db, sql);
+
+	return stmt;
+}
+
+static void
+calculate_junction (sqlite3_stmt *junction_stmt)
+{
+	log_trace ("Inside %s", __func__);
+
+	sqlite3_stmt *junction_query_stmt = NULL;
+
+	int rid = 0;
+	int exon_id1 = 0;
+	int exon_id2 = 0;
+	int reads = 0;
+
+	junction_query_stmt = prepare_junction_query_stmt (
+			sqlite3_db_handle (junction_stmt));
+
+	while (db_step (junction_query_stmt) == SQLITE_ROW)
+		{
+			rid      = db_column_int (junction_query_stmt, 0);
+			exon_id1 = db_column_int (junction_query_stmt, 1);
+			exon_id2 = db_column_int (junction_query_stmt, 2);
+			reads    = db_column_int (junction_query_stmt, 3);
+
+			log_debug ("Retrocopy %d exon-exon junction %d-%d (%d reads)",
+					rid, exon_id1, exon_id2, reads);
+
+			db_insert_junction (junction_stmt, rid,
+					exon_id1, exon_id2, reads);
+		}
+
+	db_finalize (junction_query_stmt);
+}
+
+static sqlite3_stmt *
 prepare_cluster_merging_query_stmt (sqlite3 *db)
 {
 	log_trace ("Inside %s", __func__);
@@ -1193,11 +1288,13 @@ annotate_retrocopy (sqlite3_stmt *retrocopy_stmt, Hash *rtc_h)
 void
 retrocopy (sqlite3_stmt *retrocopy_stmt,
 		sqlite3_stmt *cluster_merging_stmt,
+		sqlite3_stmt *junction_stmt,
 		int near_gene_dist)
 {
 	log_trace ("Inside %s", __func__);
 	assert (retrocopy_stmt != NULL
 			&& cluster_merging_stmt != NULL
+			&& junction_stmt != NULL
 			&& near_gene_dist > 0);
 
 	// Keep ID => level
@@ -1237,6 +1334,9 @@ retrocopy (sqlite3_stmt *retrocopy_stmt,
 
 	log_info ("Annotate retrocopies");
 	annotate_retrocopy (retrocopy_stmt, rtc_h);
+
+	log_info ("Search for exon-exon junctions");
+	calculate_junction (junction_stmt);
 
 	hash_free (rtc_h);
 }

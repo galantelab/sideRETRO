@@ -118,6 +118,7 @@ run (MergeCall *mc)
 	sqlite3_stmt *blacklist_stmt = NULL;
 	sqlite3_stmt *overlapping_blacklist_stmt = NULL;
 	sqlite3_stmt *retrocopy_stmt = NULL;
+	sqlite3_stmt *junction_stmt = NULL;
 	sqlite3_stmt *cluster_merging_stmt = NULL;
 	sqlite3_stmt *genotype_stmt = NULL;
 
@@ -170,6 +171,9 @@ run (MergeCall *mc)
 
 	// Create retrocopy statement
 	retrocopy_stmt = db_prepare_retrocopy_stmt (db);
+
+	log_debug ("Prepare junction statement");
+	junction_stmt = db_prepare_junction_stmt (db);
 
 	// Create cluster merging statement
 	cluster_merging_stmt =
@@ -245,7 +249,8 @@ run (MergeCall *mc)
 
 			// Filtering and Annotation
 			log_info ("Run retrocopy annotation step for '%s'", db_file);
-			retrocopy (retrocopy_stmt, cluster_merging_stmt, mc->near_gene_rank);
+			retrocopy (retrocopy_stmt, cluster_merging_stmt,
+					junction_stmt, mc->near_gene_rank);
 
 			// Commit
 			db_end_transaction (db);
@@ -272,6 +277,7 @@ run (MergeCall *mc)
 	db_finalize (blacklist_stmt);
 	db_finalize (overlapping_blacklist_stmt);
 	db_finalize (retrocopy_stmt);
+	db_finalize (junction_stmt);
 	db_finalize (cluster_merging_stmt);
 	db_finalize (genotype_stmt);
 	db_close (db);

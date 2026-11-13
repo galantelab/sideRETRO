@@ -145,6 +145,8 @@ populate_db (sqlite3 *db)
 		"BEGIN TRANSACTION;\n"
 		"INSERT INTO source VALUES (1,1,'PONGA');\n"
 		"INSERT INTO exon VALUES (1,'gene1','chr1',1,3000,'+','eg1','ee1');\n"
+		"INSERT INTO exon VALUES (13,'gene1','chr1',4000,5000,'+','eg1','ee13');\n"
+		"INSERT INTO junction VALUES (1,1,13,5);\n"
 		"INSERT INTO exon VALUES (2,'gene2_1','chr2',1,3000,'-','eg2','ee2');\n"
 		"INSERT INTO exon VALUES (3,'gene2_2','chr2',2000,5000,'-','eg3','ee3');\n"
 		"INSERT INTO exon VALUES (4,'gene3_1','chr3',1000,3000,'+','eg4','ee4');\n"
@@ -251,8 +253,8 @@ START_TEST (test_vcf)
 	// in each retrocopy line, in VCF order
 	// (chr10, chr11, chr12, chr13, chr13, chr14, chr14, chrY)
 	const char *present[][2] = {
-		{";ORHO=-1.000000;POLARITY=+;PG=gene1;", ";SR=2;LBKP=100;LSR=2;POLYA=25;POLYASR=6"},
-		{";DP=",                            NULL},
+		{";ORHO=-1.000000;POLARITY=+;PG=gene1;PGTYPE=1;PGEXONS=gene1:2;EEJ=5;EEJLIST=ee1-ee13;", ";SR=2;LBKP=100;LSR=2;POLYA=25;POLYASR=6"},
+		{";PGEXONS=gene2_1:1/gene2_2:1;",   ";DP="},
 		{";SR=7;LBKP=259;LSR=3;RBKP=250;RSR=4;TSDLEN=10;TSD=CCCCCCCCCC", NULL},
 		{";DP=",                            NULL},
 		{";DP=",                            NULL},
@@ -262,7 +264,7 @@ START_TEST (test_vcf)
 	};
 
 	const char *absent[] = {
-		";RBKP=", ";LBKP=", ";POLYA", ";TSD", ";TSD", ";TSD", ";TSD", ";TSD="
+		";RBKP=", ";EEJ", ";POLYA", ";TSD", ";TSD", ";TSD", ";TSD", ";TSD="
 	};
 
 	fp = xfopen (vcf_file, "r");

@@ -39,6 +39,11 @@ haplotype and written with the SAM fields an aligner would produce:
     'poly-A | TSD'. The primary alignment is clipped at the left
     ('<c>S<m>M') and there is no supplementary alignment, because
     the poly-A does not map anywhere.
+  - Exon-exon junction reads: discordant pairs whose chr2 mate
+    crosses the junction 'exon1 | exon2' of the retrocopy. It is
+    aligned in two pieces: The primary at the end of exon1,
+    clipped at the right, and the supplementary at the beginning
+    of exon2.
   - Noise clips (--n-noise-clips): discordant reads at the flanks
     soft clipped at random positions, as produced by adapters or
     quality trimming. They must not define a breakpoint.
@@ -156,6 +161,31 @@ class Sim:
                 self.rec(qname, 81, 'chr1', pos, '%dM' % READ_LEN, 'chr2', mpos,
                          seq)
                 self.rec(qname, 161, 'chr2', mpos, '%dM' % READ_LEN, 'chr1', pos, mseq)
+
+    def junction_reads(self):
+        a = self.args
+        exon1_len = self.exons[0][1] - self.exons[0][0] + 1
+
+        for i in range(a.n_junction_reads):
+            qname = 'junc%d' % i
+
+            # Matched bases at exon1 before the junction
+            m = 40 + i
+            c = READ_LEN - m
+
+            start = exon1_len - m
+            seq = self.ins[start:start + READ_LEN]
+
+            # Left flank read, forward. The mate spans the junction
+            pos = random.randint(self.tsd_start - a.fragment_len,
+                                 self.tsd_start - READ_LEN - 20)
+            fseq = self.chr1[pos - 1:pos - 1 + READ_LEN]
+            mpos = self.exons[0][1] - m + 1
+
+            self.rec(qname, 97, 'chr1', pos, '%dM' % READ_LEN, 'chr2', mpos, fseq)
+            self.rec(qname, 145, 'chr2', mpos, '%dM%dS' % (m, c), 'chr1', pos, seq)
+            self.rec(qname, 2193, 'chr2', self.exons[1][0], '%dH%dM' % (m, c),
+                     'chr1', pos, seq[m:])
 
     def noise_clips(self):
         a = self.args
@@ -279,6 +309,9 @@ class Sim:
             ('POLYASR', polya_sr),
             ('POLARITY', '+'),
             ('PG', 'PARENT'),
+            ('PGEXONS', 'PARENT:%d' % len(self.exons)),
+            ('EEJ', a.n_junction_reads if a.n_junction_reads else 'NA'),
+            ('EEJLIST', 'ENSEP0-ENSEP1' if a.n_junction_reads else 'NA'),
             ('INS', self.ins),
         ]
 
@@ -287,6 +320,7 @@ class Sim:
         os.makedirs(a.output_dir, exist_ok=True)
 
         self.discordant()
+        self.junction_reads()
         self.noise_clips()
         self.split_left()
         self.split_right()
@@ -344,7 +378,8 @@ def check(vcf_file, truth_file):
         expect('POS', fields[1], truth['POS'])
 
     for key in ('IMPRECISE', 'LBKP', 'LSR', 'RBKP', 'RSR', 'TSDLEN', 'TSD',
-                'POLYA', 'POLYAMIN', 'POLYASR', 'POLARITY', 'PG'):
+                'POLYA', 'POLYAMIN', 'POLYASR', 'POLARITY', 'PG',
+                'PGEXONS', 'EEJ', 'EEJLIST'):
         if truth[key] == 'NA':
             if key in info:
                 print('FAIL: %s = %s, expected absent' % (key, info[key]))
@@ -377,6 +412,8 @@ def main():
     p.add_argument('--n-discordant', type=int, default=20)
     p.add_argument('--n-split-left', type=int, default=8)
     p.add_argument('--n-split-right', type=int, default=8)
+    p.add_argument('--n-junction-reads', type=int, default=6,
+                   help='reads spanning the exon1-exon2 junction [6]')
     p.add_argument('--n-noise-clips', type=int, default=0,
                    help='discordant reads with random soft clips [0]')
     args = p.parse_args()

@@ -93,6 +93,7 @@ typedef enum _RetrocopyInsertionPoint RetrocopyInsertionPoint;
 
 void retrocopy (sqlite3_stmt *retrocopy_stmt,
 		sqlite3_stmt *cluster_merging_stmt,
+		sqlite3_stmt *junction_stmt,
 		int near_gene_dist);
 
 #endif /* retrocopy.h */
