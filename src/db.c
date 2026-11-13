@@ -410,6 +410,21 @@ db_create_tables (sqlite3 *db)
 		"	FOREIGN KEY (exon_id2) REFERENCES exon(id),\n"
 		"	PRIMARY KEY (retrocopy_id, exon_id1, exon_id2));\n"
 		"\n"
+		"DROP TABLE IF EXISTS insertion;\n"
+		"CREATE TABLE insertion (\n"
+		"	retrocopy_id INTEGER PRIMARY KEY,\n"
+		"	five_prime_pos INTEGER,\n"
+		"	five_prime_exon_id INTEGER,\n"
+		"	five_prime_sr INTEGER NOT NULL DEFAULT 0,\n"
+		"	three_prime_pos INTEGER,\n"
+		"	three_prime_exon_id INTEGER,\n"
+		"	three_prime_sr INTEGER NOT NULL DEFAULT 0,\n"
+		"	len INTEGER,\n"
+		"	seq TEXT,\n"
+		"	FOREIGN KEY (retrocopy_id) REFERENCES retrocopy(id),\n"
+		"	FOREIGN KEY (five_prime_exon_id) REFERENCES exon(id),\n"
+		"	FOREIGN KEY (three_prime_exon_id) REFERENCES exon(id));\n"
+		"\n"
 		"DROP TABLE IF EXISTS genotype;\n"
 		"CREATE TABLE genotype (\n"
 		"	source_id INTEGER NOT NULL,\n"
@@ -1039,6 +1054,80 @@ db_insert_junction (sqlite3_stmt *stmt, int retrocopy_id,
 	db_bind_int (stmt, 2, exon_id1);
 	db_bind_int (stmt, 3, exon_id2);
 	db_bind_int (stmt, 4, reads);
+
+	db_step (stmt);
+
+	sqlite3_mutex_leave (sqlite3_db_mutex (sqlite3_db_handle (stmt)));
+}
+
+sqlite3_stmt *
+db_prepare_insertion_stmt (sqlite3 *db)
+{
+	log_trace ("Inside %s", __func__);
+	assert (db != NULL);
+
+	const char sql[] =
+		"INSERT INTO insertion (retrocopy_id,five_prime_pos,five_prime_exon_id,five_prime_sr,\n"
+		"	three_prime_pos,three_prime_exon_id,three_prime_sr,len,seq)\n"
+		"VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)";
+
+	return db_prepare (db, sql);
+}
+
+void
+db_insert_insertion (sqlite3_stmt *stmt, int retrocopy_id,
+		long five_prime_pos, int five_prime_exon_id, int five_prime_sr,
+		long three_prime_pos, int three_prime_exon_id, int three_prime_sr,
+		int len, const char *seq)
+{
+	log_trace ("Inside %s", __func__);
+	assert (stmt != NULL);
+
+	sqlite3_mutex_enter (sqlite3_db_mutex (sqlite3_db_handle (stmt)));
+
+	db_reset (stmt);
+	db_clear_bindings (stmt);
+
+	db_bind_int (stmt, 1, retrocopy_id);
+
+	// The ends are unknown without reads matching the exons
+	if (five_prime_sr > 0)
+		{
+			db_bind_int64 (stmt, 2, five_prime_pos);
+			db_bind_int (stmt, 3, five_prime_exon_id);
+		}
+	else
+		{
+			db_bind_null (stmt, 2);
+			db_bind_null (stmt, 3);
+		}
+
+	db_bind_int (stmt, 4, five_prime_sr);
+
+	if (three_prime_sr > 0)
+		{
+			db_bind_int64 (stmt, 5, three_prime_pos);
+			db_bind_int (stmt, 6, three_prime_exon_id);
+		}
+	else
+		{
+			db_bind_null (stmt, 5);
+			db_bind_null (stmt, 6);
+		}
+
+	db_bind_int (stmt, 7, three_prime_sr);
+
+	// The predicted sequence needs the 5' end
+	if (seq != NULL)
+		{
+			db_bind_int (stmt, 8, len);
+			db_bind_text (stmt, 9, seq);
+		}
+	else
+		{
+			db_bind_null (stmt, 8);
+			db_bind_null (stmt, 9);
+		}
 
 	db_step (stmt);
 

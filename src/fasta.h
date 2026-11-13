@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include "gz.h"
 #include "str.h"
+#include "hash.h"
 
 struct _FastaFile
 {
@@ -47,5 +48,6 @@ void         fasta_close            (FastaFile *fasta);
 FastaEntry * fasta_entry_new        (void);
 void         fasta_entry_free       (FastaEntry *entry);
 int          fasta_read             (FastaFile *fasta, FastaEntry *entry);
+Hash       * fasta_index            (const char *path);
 
 #endif /* fasta.h */

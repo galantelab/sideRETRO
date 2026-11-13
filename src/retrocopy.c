@@ -31,6 +31,9 @@
 #include "cluster.h"
 #include "correlation.h"
 #include "cigar.h"
+#include "fasta.h"
+#include "str.h"
+#include "utils.h"
 #include "retrocopy.h"
 
 #define BLOCK_SIZE 64
@@ -122,6 +125,7 @@ clean_retrocopy_tables (sqlite3 *db)
 	const char sql[] =
 		"DELETE FROM cluster_merging;\n"
 		"DELETE FROM junction;\n"
+		"DELETE FROM insertion;\n"
 		"DELETE FROM retrocopy;";
 
 	log_debug ("Clean tables:\n%s", sql);
@@ -957,6 +961,48 @@ polya_set_entry (Hash *rtc_h, const int rid, const PolyA *plus,
 }
 
 static void
+locate_soft_clips (const uint32_t *cigar, const uint32_t n_cigar, const long pos,
+		CigarOp *left_op, int *has_left, CigarOp *right_op, int *has_right)
+{
+	CigarIter iter = {};
+	CigarOp op = {};
+	int seen_aligned = 0;
+
+	*has_left = 0;
+	*has_right = 0;
+
+	// The soft clip at the beginning comes before any
+	// aligned operation and the one at the end is followed
+	// only by hard clips
+	cigar_iter_init (&iter, cigar, n_cigar, pos);
+
+	while (cigar_iter_next (&iter, &op))
+		{
+			if (op.type == CIGAR_HARD_CLIP)
+				continue;
+
+			if (op.type == CIGAR_SOFT_CLIP)
+				{
+					if (!seen_aligned)
+						{
+							*left_op = op;
+							*has_left = 1;
+						}
+					else
+						{
+							*right_op = op;
+							*has_right = 1;
+						}
+				}
+			else
+				{
+					seen_aligned = 1;
+					*has_right = 0;
+				}
+		}
+}
+
+static void
 calculate_polya (sqlite3 *db, Hash *rtc_h)
 {
 	log_trace ("Inside %s", __func__);
@@ -966,13 +1012,10 @@ calculate_polya (sqlite3 *db, Hash *rtc_h)
 
 	uint32_t *cigar = NULL;
 	uint32_t n_cigar = 0;
-	CigarIter iter = {};
-	CigarOp op = {};
 	CigarOp left_op = {};
 	CigarOp right_op = {};
 	int has_left = 0;
 	int has_right = 0;
-	int seen_aligned = 0;
 	char *clip = NULL;
 
 	int rid = 0;
@@ -1029,36 +1072,8 @@ calculate_polya (sqlite3 *db, Hash *rtc_h)
 
 			// Locate the soft clips at the beginning and
 			// at the end of the read
-			has_left = 0;
-			has_right = 0;
-			seen_aligned = 0;
-
-			cigar_iter_init (&iter, cigar, n_cigar, pos);
-
-			while (cigar_iter_next (&iter, &op))
-				{
-					if (op.type == CIGAR_HARD_CLIP)
-						continue;
-
-					if (op.type == CIGAR_SOFT_CLIP)
-						{
-							if (!seen_aligned)
-								{
-									left_op = op;
-									has_left = 1;
-								}
-							else
-								{
-									right_op = op;
-									has_right = 1;
-								}
-						}
-					else
-						{
-							seen_aligned = 1;
-							has_right = 0;
-						}
-				}
+			locate_soft_clips (cigar, n_cigar, pos,
+					&left_op, &has_left, &right_op, &has_right);
 
 			xfree (cigar);
 
@@ -1193,6 +1208,753 @@ calculate_junction (sqlite3_stmt *junction_stmt)
 	db_finalize (junction_query_stmt);
 }
 
+/*
+ * Exon of the parental gene with its sequence
+ * (upper case) from the reference genome
+ */
+struct _ExonSeq
+{
+	int    id;
+	long   start;
+	long   end;
+	char  *seq;
+};
+
+typedef struct _ExonSeq ExonSeq;
+
+/*
+ * Position of a junction clip into the parental gene.
+ * 'sense' is set if the insertion is read 5' => 3'
+ * at the forward strand of the reference
+ */
+struct _Hit
+{
+	long pos;
+	int  exon_id;
+	int  sense;
+};
+
+typedef struct _Hit Hit;
+
+/*
+ * One end of the retrocopy into the parental gene
+ */
+struct _InsertionEnd
+{
+	long pos;
+	int  exon_id;
+	int  sr;
+};
+
+typedef struct _InsertionEnd InsertionEnd;
+
+static void
+revcomp (char *seq, const int len)
+{
+	char c = 0;
+	int i = 0;
+	int j = 0;
+
+	for (i = 0, j = len - 1; i <= j; i++, j--)
+		{
+			c = seq[i];
+			seq[i] = seq[j];
+			seq[j] = c;
+		}
+
+	for (i = 0; i < len; i++)
+		{
+			switch (seq[i])
+				{
+				case 'A': {seq[i] = 'T'; break;}
+				case 'C': {seq[i] = 'G'; break;}
+				case 'G': {seq[i] = 'C'; break;}
+				case 'T': {seq[i] = 'A'; break;}
+				}
+		}
+}
+
+static sqlite3_stmt *
+prepare_gene_query_stmt (sqlite3 *db)
+{
+	log_trace ("Inside %s", __func__);
+
+	sqlite3_stmt *stmt = NULL;
+
+	// Parental genes of each retrocopy
+	const char sql[] =
+		"SELECT DISTINCT cm.retrocopy_id, cl.gene_name\n"
+		"FROM cluster_merging AS cm\n"
+		"INNER JOIN cluster AS cl\n"
+		"	ON cl.id = cm.cluster_id AND cl.sid = cm.cluster_sid\n"
+		"ORDER BY cm.retrocopy_id ASC";
+
+	log_debug ("Query schema:\n%s", sql);
+	stmt = db_prepare (db, sql);
+
+	return stmt;
+}
+
+static Hash *
+index_parental_gene (sqlite3 *db)
+{
+	log_trace ("Inside %s", __func__);
+
+	sqlite3_stmt *gene_stmt = NULL;
+	Hash *gene_h = NULL;
+	char *gene = NULL;
+	int *rid_alloc = NULL;
+	int rid = 0;
+
+	gene_h = hash_new_full (int_hash, int_equal, xfree, xfree);
+	gene_stmt = prepare_gene_query_stmt (db);
+
+	while (db_step (gene_stmt) == SQLITE_ROW)
+		{
+			rid = db_column_int (gene_stmt, 0);
+			gene = hash_lookup (gene_h, &rid);
+
+			// A retrocopy with more than one parental
+			// gene is ambiguous: Keep an empty name
+			if (gene != NULL)
+				{
+					gene[0] = '\0';
+					continue;
+				}
+
+			rid_alloc = xcalloc (1, sizeof (int));
+			*rid_alloc = rid;
+
+			hash_insert (gene_h, rid_alloc,
+					xstrdup (db_column_text (gene_stmt, 1)));
+		}
+
+	db_finalize (gene_stmt);
+	return gene_h;
+}
+
+static sqlite3_stmt *
+prepare_exon_query_stmt (sqlite3 *db)
+{
+	log_trace ("Inside %s", __func__);
+
+	sqlite3_stmt *stmt = NULL;
+
+	const char sql[] =
+		"SELECT id, chr, start, end, strand\n"
+		"FROM exon\n"
+		"WHERE gene_name = ?1\n"
+		"ORDER BY start ASC";
+
+	log_debug ("Query schema:\n%s", sql);
+	stmt = db_prepare (db, sql);
+
+	return stmt;
+}
+
+static void
+exon_seq_free (ExonSeq *exons, const int n_exons)
+{
+	int i = 0;
+
+	if (exons == NULL)
+		return;
+
+	for (i = 0; i < n_exons; i++)
+		xfree (exons[i].seq);
+
+	xfree (exons);
+}
+
+static int
+exon_seq_load (sqlite3_stmt *exon_stmt, Hash *fidx, const char *gene_name,
+		ExonSeq **exons, char *strand, const String **contig)
+{
+	const String *seq = NULL;
+	const char *chr = NULL;
+	ExonSeq *e = NULL;
+	int n_exons = 0;
+	int alloc = 0;
+	long len = 0;
+
+	*exons = NULL;
+	*strand = '+';
+	*contig = NULL;
+
+	db_reset (exon_stmt);
+	db_clear_bindings (exon_stmt);
+	db_bind_text (exon_stmt, 1, gene_name);
+
+	while (db_step (exon_stmt) == SQLITE_ROW)
+		{
+			chr = db_column_text (exon_stmt, 1);
+
+			// All exons of a gene are at the same contig
+			if (seq == NULL)
+				{
+					seq = hash_lookup (fidx, chr);
+					*strand = db_column_text (exon_stmt, 4)[0];
+					*contig = seq;
+
+					if (seq == NULL)
+						{
+							log_warn ("Contig %s of gene '%s' has no reference",
+									chr, gene_name);
+							break;
+						}
+				}
+
+			if (n_exons >= alloc)
+				{
+					alloc += BLOCK_SIZE;
+					*exons = xrealloc (*exons, sizeof (ExonSeq) * alloc);
+				}
+
+			e = &(*exons)[n_exons];
+
+			e->id    = db_column_int   (exon_stmt, 0);
+			e->start = db_column_int64 (exon_stmt, 2);
+			e->end   = db_column_int64 (exon_stmt, 3);
+
+			if (e->end > (long) seq->len || e->start < 1)
+				{
+					log_warn ("Exon %d at %s:%li-%li is outside contig range %zu",
+							e->id, chr, e->start, e->end, seq->len);
+					continue;
+				}
+
+			len = e->end - e->start + 1;
+			e->seq = xcalloc (len + 1, sizeof (char));
+			memcpy (e->seq, seq->str + e->start - 1, len);
+			upper (e->seq);
+
+			n_exons++;
+		}
+
+	return n_exons;
+}
+
+/*
+ * Search the seed (and its reverse complement) into
+ * the exons. 'side' is 0 for a clip at the left
+ * junction, whose first base is the insertion boundary,
+ * and 1 for a clip at the right junction, whose last
+ * base is the boundary. Return the number of distinct
+ * positions found and the first one
+ */
+static int
+search_seed (const ExonSeq *exons, const int n_exons, const char *seed,
+		const int seed_len, const int side, const char strand, Hit *hit)
+{
+	char *fwd = NULL;
+	char *rev = NULL;
+	const char *found = NULL;
+	const char *haystack = NULL;
+	const ExonSeq *e = NULL;
+	long pos = 0;
+	int n_hits = 0;
+	int forward = 0;
+	int i = 0;
+	int k = 0;
+
+	fwd = xcalloc (seed_len + 1, sizeof (char));
+	memcpy (fwd, seed, seed_len);
+
+	rev = xcalloc (seed_len + 1, sizeof (char));
+	memcpy (rev, seed, seed_len);
+	revcomp (rev, seed_len);
+
+	for (i = 0; i < n_exons; i++)
+		{
+			e = &exons[i];
+
+			for (k = 0; k < 2; k++)
+				{
+					forward = (k == 0);
+					haystack = e->seq;
+
+					while ((found = strstr (haystack, forward ? fwd : rev)) != NULL)
+						{
+							/*
+							* The boundary base of the clip: For a forward
+							* match the first base of the seed is its first
+							* base at the reference, for a reverse complement
+							* match it is the last one
+							*/
+							if ((side == 0) == forward)
+								pos = e->start + (found - e->seq);
+							else
+								pos = e->start + (found - e->seq) + seed_len - 1;
+
+							// Overlapping exons may give the same position
+							if (n_hits == 0 || hit->pos != pos)
+								{
+									if (n_hits == 0)
+										{
+											hit->pos = pos;
+											hit->exon_id = e->id;
+											hit->sense = forward
+												? strand == '+'
+												: strand == '-';
+										}
+
+									n_hits++;
+								}
+
+							haystack = found + 1;
+						}
+				}
+		}
+
+	xfree (fwd);
+	xfree (rev);
+
+	return n_hits;
+}
+
+static int
+cmp_hit (const void *p1, const void *p2)
+{
+	const Hit *h1 = p1;
+	const Hit *h2 = p2;
+	return (h1->pos > h2->pos) - (h1->pos < h2->pos);
+}
+
+static inline void
+hit_push (Hit **a, size_t *size, size_t *alloc, const Hit *hit)
+{
+	if (*size >= *alloc)
+		{
+			*alloc += BLOCK_SIZE;
+			*a = xrealloc (*a, sizeof (Hit) * *alloc);
+		}
+
+	(*a)[*size] = *hit;
+	(*size)++;
+}
+
+static void
+hit_mode (Hit *a, const size_t size, InsertionEnd *end)
+{
+	long cur = 0;
+	int exon_id = 0;
+	int acm = 0;
+	size_t i = 0;
+
+	*end = (InsertionEnd) {};
+
+	if (size == 0)
+		return;
+
+	qsort (a, size, sizeof (Hit), cmp_hit);
+
+	cur = a[0].pos;
+	exon_id = a[0].exon_id;
+	acm = 1;
+
+	for (i = 1; i <= size; i++)
+		{
+			if (i < size && a[i].pos == cur)
+				{
+					acm++;
+					continue;
+				}
+
+			if (acm > end->sr)
+				{
+					end->sr = acm;
+					end->pos = cur;
+					end->exon_id = exon_id;
+				}
+
+			if (i < size)
+				{
+					cur = a[i].pos;
+					exon_id = a[i].exon_id;
+					acm = 1;
+				}
+		}
+}
+
+static char *
+predict_insertion (const ExonSeq *exons, const int n_exons, const char strand,
+		const String *contig, const long five_pos, const long three_pos,
+		const int polya_len, int *len)
+{
+	String *ins = NULL;
+	char *segment = NULL;
+	char *seq = NULL;
+	long start = 0;
+	long end = 0;
+	long a = 0;
+	long b = 0;
+	int i = 0;
+
+	ins = string_sized_new (BUFSIZ);
+
+	/*
+	* Concatenate the exon bases between the ends. Exons
+	* are sorted by start, so merge the overlapping ones
+	* (alternative exons) before. The sequence follows
+	* the mRNA: 5' => 3'
+	*/
+	for (i = 0; i < n_exons; i++)
+		{
+			if (i == 0)
+				{
+					start = exons[i].start;
+					end = exons[i].end;
+					continue;
+				}
+
+			if (exons[i].start <= end + 1)
+				{
+					if (exons[i].end > end)
+						end = exons[i].end;
+					continue;
+				}
+
+			// Flush the merged interval and start another
+			a = strand == '+' ? five_pos : three_pos;
+			b = strand == '+' ? three_pos : five_pos;
+
+			if (a < start)
+				a = start;
+
+			if (b > end)
+				b = end;
+
+			if (a <= b)
+				{
+					segment = xcalloc (b - a + 2, sizeof (char));
+					memcpy (segment, contig->str + a - 1, b - a + 1);
+					upper (segment);
+					string_concat (ins, segment);
+					xfree (segment);
+				}
+
+			start = exons[i].start;
+			end = exons[i].end;
+		}
+
+	// The last interval
+	a = strand == '+' ? five_pos : three_pos;
+	b = strand == '+' ? three_pos : five_pos;
+
+	if (a < start)
+		a = start;
+
+	if (b > end)
+		b = end;
+
+	if (a <= b)
+		{
+			segment = xcalloc (b - a + 2, sizeof (char));
+			memcpy (segment, contig->str + a - 1, b - a + 1);
+			upper (segment);
+			string_concat (ins, segment);
+			xfree (segment);
+		}
+
+	// Gene at the reverse strand: The mRNA is the
+	// reverse complement of the exons
+	if (strand == '-')
+		revcomp (ins->str, ins->len);
+
+	// Poly-A tail
+	for (i = 0; i < polya_len; i++)
+		string_concat (ins, "A");
+
+	*len = ins->len;
+	seq = string_free (ins, 0);
+
+	return seq;
+}
+
+static void
+insertion_set_entry (sqlite3_stmt *insertion_stmt, const int rid,
+		const RetrocopyEntry *e, const ExonSeq *exons, const int n_exons,
+		const char strand, const String *contig, Hit *left_a,
+		const size_t left_size, Hit *right_a, const size_t right_size)
+{
+	InsertionEnd left = {};
+	InsertionEnd right = {};
+	InsertionEnd *five = NULL;
+	InsertionEnd *three = NULL;
+	char *seq = NULL;
+	long three_pos = 0;
+	int sense_acm = 0;
+	int len = 0;
+	size_t i = 0;
+
+	if (left_size == 0 && right_size == 0)
+		return;
+
+	// Is the insertion read 5' => 3' at the forward
+	// strand of the reference? Majority of the hits
+	for (i = 0; i < left_size; i++)
+		sense_acm += left_a[i].sense;
+
+	for (i = 0; i < right_size; i++)
+		sense_acm += right_a[i].sense;
+
+	hit_mode (left_a, left_size, &left);
+	hit_mode (right_a, right_size, &right);
+
+	// If the insertion is at the sense, the left
+	// junction is the 5' end of the retrocopy
+	if (2 * sense_acm >= (int) (left_size + right_size))
+		{
+			five = &left;
+			three = &right;
+		}
+	else
+		{
+			five = &right;
+			three = &left;
+		}
+
+	// Predict the inserted sequence from the 5' end to
+	// the 3' end. If the 3' end was not observed, assume
+	// the end of the last exon
+	if (five->sr > 0)
+		{
+			if (three->sr > 0)
+				three_pos = three->pos;
+			else
+				three_pos = strand == '+'
+					? exons[n_exons - 1].end
+					: exons[0].start;
+
+			for (i = 0; i < (size_t) n_exons; i++)
+				{
+					if (strand == '+' && exons[i].end > three_pos)
+						three_pos = exons[i].end;
+					else if (strand == '-' && exons[i].start < three_pos)
+						three_pos = exons[i].start;
+				}
+
+			if (three->sr > 0)
+				three_pos = three->pos;
+
+			seq = predict_insertion (exons, n_exons, strand, contig,
+					five->pos, three_pos, e->polya_sr > 0 ? e->polya_len : 0,
+					&len);
+		}
+
+	log_debug ("Retrocopy %d 5' end %li at exon %d (%d reads), "
+			"3' end %li at exon %d (%d reads), predicted length %d",
+			rid, five->pos, five->exon_id, five->sr,
+			three->pos, three->exon_id, three->sr, len);
+
+	db_insert_insertion (insertion_stmt, rid,
+			five->pos, five->exon_id, five->sr,
+			three->pos, three->exon_id, three->sr,
+			len, seq);
+
+	xfree (seq);
+}
+
+static void
+calculate_insertion (sqlite3 *db, sqlite3_stmt *insertion_stmt,
+		const char *fasta_file, Hash *rtc_h)
+{
+	log_trace ("Inside %s", __func__);
+
+	sqlite3_stmt *clip_stmt = NULL;
+	sqlite3_stmt *exon_stmt = NULL;
+	RetrocopyEntry *e = NULL;
+
+	Hash *fidx = NULL;
+	Hash *gene_h = NULL;
+	const char *gene = NULL;
+
+	ExonSeq *exons = NULL;
+	int n_exons = 0;
+	char strand = '+';
+	const String *contig = NULL;
+
+	uint32_t *cigar = NULL;
+	uint32_t n_cigar = 0;
+	CigarOp left_op = {};
+	CigarOp right_op = {};
+	int has_left = 0;
+	int has_right = 0;
+	char *clip = NULL;
+	int run = 0;
+	int seed_len = 0;
+	int n_hits = 0;
+	Hit hit = {};
+
+	int rid = 0;
+	int aid = 0;
+	long pos = 0;
+	long rlen = 0;
+	const char *cigar_str = NULL;
+	const char *seq = NULL;
+
+	int rid_prev = 0;
+
+	// Hits for the left and right junctions
+	Hit *left_a = NULL;
+	size_t left_size = 0;
+	size_t left_alloc = 0;
+
+	Hit *right_a = NULL;
+	size_t right_size = 0;
+	size_t right_alloc = 0;
+
+	log_info ("Index genome '%s'", fasta_file);
+	fidx = fasta_index (fasta_file);
+
+	gene_h = index_parental_gene (db);
+	exon_stmt = prepare_exon_query_stmt (db);
+
+	// Same soft clipped alignments used for the poly-A
+	clip_stmt = prepare_polya_stmt (db);
+
+	while (db_step (clip_stmt) == SQLITE_ROW)
+		{
+			rid       = db_column_int   (clip_stmt, 0);
+			aid       = db_column_int   (clip_stmt, 1);
+			pos       = db_column_int64 (clip_stmt, 2);
+			rlen      = db_column_int64 (clip_stmt, 3);
+			cigar_str = db_column_text  (clip_stmt, 4);
+			seq       = db_column_text  (clip_stmt, 5);
+
+			// New retrocopy: Set the previous one and
+			// load the exons of the parental gene
+			if (rid_prev != rid)
+				{
+					if (rid_prev)
+						insertion_set_entry (insertion_stmt, rid_prev,
+								hash_lookup (rtc_h, &rid_prev), exons, n_exons,
+								strand, contig, left_a, left_size, right_a, right_size);
+
+					left_size = 0;
+					right_size = 0;
+					rid_prev = rid;
+
+					exon_seq_free (exons, n_exons);
+					exons = NULL;
+					n_exons = 0;
+
+					gene = hash_lookup (gene_h, &rid);
+
+					if (gene == NULL || gene[0] == '\0')
+						log_debug ("Retrocopy %d has no single parental gene", rid);
+					else
+						n_exons = exon_seq_load (exon_stmt, fidx, gene,
+								&exons, &strand, &contig);
+				}
+
+			e = hash_lookup (rtc_h, &rid);
+			assert (e != NULL);
+
+			// Without exons or breakpoints there is nothing to search
+			if (n_exons == 0
+					|| (e->breakpoint_left_sr == 0 && e->breakpoint_right_sr == 0))
+				continue;
+
+			cigar = cigar_yyparser (cigar_str, &n_cigar);
+			if (cigar == NULL)
+				{
+					log_warn ("Skip alignment %d with invalid cigar '%s'",
+							aid, cigar_str);
+					continue;
+				}
+
+			locate_soft_clips (cigar, n_cigar, pos,
+					&left_op, &has_left, &right_op, &has_right);
+
+			xfree (cigar);
+
+			/*
+			* Left junction: The clip begins with the insertion.
+			* Skip a poly-T (the reverse complemented poly-A)
+			* and search the seed from the beginning of the clip
+			*/
+			if (has_right && e->breakpoint_left_sr > 0
+					&& (pos + rlen - 1) == e->breakpoint_left)
+				{
+					clip = cigar_op_seq (&right_op, seq);
+					if (clip != NULL)
+						{
+							run = polya_run (clip, right_op.qlen, 'T', 0);
+							if (run < RETROCOPY_MIN_POLYA)
+								run = 0;
+
+							seed_len = right_op.qlen - run;
+							if (seed_len > RETROCOPY_SEED_LEN)
+								seed_len = RETROCOPY_SEED_LEN;
+
+							if (seed_len >= RETROCOPY_MIN_SEED)
+								{
+									n_hits = search_seed (exons, n_exons, clip + run,
+											seed_len, 0, strand, &hit);
+
+									if (n_hits == 1)
+										hit_push (&left_a, &left_size, &left_alloc, &hit);
+									else
+										log_debug ("Alignment %d left junction seed has %d hits",
+												aid, n_hits);
+								}
+						}
+					xfree (clip);
+				}
+
+			/*
+			* Right junction: The clip ends with the insertion.
+			* Skip the poly-A and search the seed from the end
+			* of the clip
+			*/
+			if (has_left && e->breakpoint_right_sr > 0
+					&& pos == e->breakpoint_right)
+				{
+					clip = cigar_op_seq (&left_op, seq);
+					if (clip != NULL)
+						{
+							run = polya_run (clip, left_op.qlen, 'A', 1);
+							if (run < RETROCOPY_MIN_POLYA)
+								run = 0;
+
+							seed_len = left_op.qlen - run;
+							if (seed_len > RETROCOPY_SEED_LEN)
+								seed_len = RETROCOPY_SEED_LEN;
+
+							if (seed_len >= RETROCOPY_MIN_SEED)
+								{
+									n_hits = search_seed (exons, n_exons,
+											clip + left_op.qlen - run - seed_len,
+											seed_len, 1, strand, &hit);
+
+									if (n_hits == 1)
+										hit_push (&right_a, &right_size, &right_alloc, &hit);
+									else
+										log_debug ("Alignment %d right junction seed has %d hits",
+												aid, n_hits);
+								}
+						}
+					xfree (clip);
+				}
+		}
+
+	// The last or the first retrocopy
+	if (rid_prev)
+		insertion_set_entry (insertion_stmt, rid_prev,
+				hash_lookup (rtc_h, &rid_prev), exons, n_exons,
+				strand, contig, left_a, left_size, right_a, right_size);
+
+	exon_seq_free (exons, n_exons);
+	xfree (left_a);
+	xfree (right_a);
+
+	db_finalize (exon_stmt);
+	db_finalize (clip_stmt);
+	hash_free (gene_h);
+	hash_free (fidx);
+}
+
 static sqlite3_stmt *
 prepare_cluster_merging_query_stmt (sqlite3 *db)
 {
@@ -1289,12 +2051,15 @@ void
 retrocopy (sqlite3_stmt *retrocopy_stmt,
 		sqlite3_stmt *cluster_merging_stmt,
 		sqlite3_stmt *junction_stmt,
+		sqlite3_stmt *insertion_stmt,
+		const char *fasta_file,
 		int near_gene_dist)
 {
 	log_trace ("Inside %s", __func__);
 	assert (retrocopy_stmt != NULL
 			&& cluster_merging_stmt != NULL
 			&& junction_stmt != NULL
+			&& insertion_stmt != NULL
 			&& near_gene_dist > 0);
 
 	// Keep ID => level
@@ -1337,6 +2102,16 @@ retrocopy (sqlite3_stmt *retrocopy_stmt,
 
 	log_info ("Search for exon-exon junctions");
 	calculate_junction (junction_stmt);
+
+	if (fasta_file != NULL)
+		{
+			log_info ("Search for the retrocopy ends into the parental genes");
+			calculate_insertion (
+					sqlite3_db_handle (retrocopy_stmt),
+					insertion_stmt, fasta_file, rtc_h);
+		}
+	else
+		log_info ("No reference genome: Skip the retrocopy ends search");
 
 	hash_free (rtc_h);
 }

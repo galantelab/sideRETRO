@@ -25,7 +25,7 @@
 
 /* Database schema version */
 #define DB_SCHEMA_MAJOR_VERSION 0
-#define DB_SCHEMA_MINOR_VERSION 16
+#define DB_SCHEMA_MINOR_VERSION 17
 
 #define DB_DEFAULT_CACHE_SIZE 2000
 
@@ -116,6 +116,12 @@ void db_insert_retrocopy (sqlite3_stmt *stmt, int id, const char *chr, long wind
 sqlite3_stmt * db_prepare_junction_stmt (sqlite3 *db);
 void db_insert_junction (sqlite3_stmt *stmt, int retrocopy_id,
 		int exon_id1, int exon_id2, int reads);
+
+sqlite3_stmt * db_prepare_insertion_stmt (sqlite3 *db);
+void db_insert_insertion (sqlite3_stmt *stmt, int retrocopy_id,
+		long five_prime_pos, int five_prime_exon_id, int five_prime_sr,
+		long three_prime_pos, int three_prime_exon_id, int three_prime_sr,
+		int len, const char *seq);
 
 sqlite3_stmt * db_prepare_genotype_stmt (sqlite3 *db);
 void db_insert_genotype (sqlite3_stmt *stmt, int source_id, int retrocopy_id, int reference_depth,

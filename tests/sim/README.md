@@ -10,7 +10,7 @@ resulting VCF with the truth.
 ```sh
 $ tests/sim/retrocopy_sim.py --seed 11 --output-dir sim
 $ sider process-sample -s -a sim/genes.gtf -o sim sim/sim.sam
-$ sider merge-call -o sim -p merged sim/out.db
+$ sider merge-call -r sim/ref.fa -o sim -p merged sim/out.db
 $ sider make-vcf -r sim/ref.fa -o sim -p merged sim/merged.db
 $ tests/sim/retrocopy_sim.py --check sim/merged.vcf sim/truth.tsv
 OK: sim/merged.vcf matches sim/truth.tsv

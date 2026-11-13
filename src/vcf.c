@@ -96,6 +96,16 @@ struct _VCFBody
 	int         eej;
 	const char *eej_list;
 
+	// Retrocopy ends into the parental gene
+	// and predicted length
+	long        five_prime_pos;
+	const char *five_prime_exon;
+	int         five_prime_sr;
+	long        three_prime_pos;
+	const char *three_prime_exon;
+	int         three_prime_sr;
+	int         ins_len;
+
 	// Host and Near genes
 	const char *exonic;
 	const char *intragenic;
@@ -135,41 +145,6 @@ vcf_header_free (VCFHeader *h)
 
 	xfree ((void *) h->name);
 	xfree (h);
-}
-
-static void
-fasta_string_free (String *s)
-{
-	string_free (s, 1);
-}
-
-static Hash *
-vcf_index_fasta (const char *fasta_file)
-{
-	log_trace ("Inside %s", __func__);
-
-	Hash *idx = NULL;
-	FastaFile *fasta = NULL;
-	FastaEntry *entry = NULL;
-
-	fasta = fasta_open_for_reading (fasta_file);
-	entry = fasta_entry_new ();
-
-	idx = hash_new_full (str_hash, str_equal, xfree,
-			(DestroyNotify) fasta_string_free);
-
-	while (fasta_read (fasta, entry))
-		hash_insert (idx, xstrdup (entry->contig->str),
-				string_new (entry->sequence->str));
-
-	if (!hash_size (idx))
-		log_fatal ("FASTA file '%s' has no entries",
-				fasta_file);
-
-	fasta_entry_free (entry);
-	fasta_close (fasta);
-
-	return idx;
 }
 
 static List *
@@ -279,6 +254,10 @@ vcf_print_header (const List *hl, Hash *fidx,
 		"##INFO=<ID=PG,Number=1,Type=String,Description=\"Parental Gene IDs separated by '/'\">\n"
 		"##INFO=<ID=PGEXONS,Number=1,Type=String,Description=\"Number of exons of each parental gene as 'gene:n' separated by '/'."
 		" A single exon gene has no exon-exon junction\">\n"
+		"##INFO=<ID=PG5P,Number=1,Type=String,Description=\"5' end of the retrocopy into the parental gene as 'exon_id:position:reads',"
+		" where position is at the reference genome\">\n"
+		"##INFO=<ID=PG3P,Number=1,Type=String,Description=\"3' end of the retrocopy into the parental gene, before the poly-A,"
+		" as 'exon_id:position:reads'\">\n"
 		"##INFO=<ID=PGTYPE,Number=1,Type=String,Description=\"Provides information about parental gene:"
 		" 1 = Single parental gene; 2 = Overlapped parental genes; 4 = Near parental genes;"
 		" 8 = Hotspot - Multiple parental genes with retrocopy at the same segment\">\n"
@@ -290,6 +269,8 @@ vcf_print_header (const List *hl, Hash *fidx,
 		"##INFO=<ID=RBKP,Number=1,Type=Integer,Description=\"Right breakpoint: First reference base of the right flank, from split reads clipped at the left\">\n"
 		"##INFO=<ID=RSR,Number=1,Type=Integer,Description=\"Number of split reads supporting RBKP\">\n"
 		"##INFO=<ID=SR,Number=1,Type=Integer,Description=\"Total number of SRs at the estimated breakpoints for this site\">\n"
+		"##INFO=<ID=SVLEN,Number=1,Type=Integer,Description=\"Predicted length of the inserted retrocopy: The reference exon bases"
+		" between its ends plus the poly-A. The 3' end is assumed at the end of the last exon when not observed\">\n"
 		"##INFO=<ID=SVTYPE,Number=1,Type=String,Description=\"Type of structural variant\">\n"
 		"##INFO=<ID=TSD,Number=1,Type=String,Description=\"Target site duplication sequence: Reference bases from RBKP to LBKP\">\n"
 		"##INFO=<ID=TSDLEN,Number=1,Type=Integer,Description=\"Target site duplication length (LBKP - RBKP + 1):"
@@ -413,8 +394,8 @@ prepare_retrocopy_query_stmt (sqlite3 *db, const long near_gene_dist)
 		"SELECT r.id, r.chr, window_start, window_end,\n"
 		"	parental_gene_name,\n"
 		"	CASE\n"
-		"		WHEN strand IS NOT NULL\n"
-		"			THEN strand\n"
+		"		WHEN g.strand IS NOT NULL\n"
+		"			THEN g.strand\n"
 		"		ELSE '?'\n"
 		"	END,\n"
 		"	level,\n"
@@ -446,12 +427,22 @@ prepare_retrocopy_query_stmt (sqlite3 *db, const long near_gene_dist)
 		"	COALESCE(breakpoint_right, 0), breakpoint_right_sr,\n"
 		"	COALESCE(polya_len, 0), polya_lower_bound,\n"
 		"	COALESCE(polya_strand, '?'), polya_sr,\n"
-		"	COALESCE(p.txt, '?'), COALESCE(j.eej, 0), COALESCE(j.txt, '?')\n"
+		"	COALESCE(p.txt, '?'), COALESCE(j.eej, 0), COALESCE(j.txt, '?'),\n"
+		"	COALESCE(ins.five_prime_pos, 0), COALESCE(e5.ense, '?'),\n"
+		"	COALESCE(ins.five_prime_sr, 0),\n"
+		"	COALESCE(ins.three_prime_pos, 0), COALESCE(e3.ense, '?'),\n"
+		"	COALESCE(ins.three_prime_sr, 0), COALESCE(ins.len, 0)\n"
 		"FROM retrocopy AS r\n"
 		"LEFT JOIN pg_exons AS p\n"
 		"	ON r.id = p.rid\n"
 		"LEFT JOIN junction_g AS j\n"
 		"	ON r.id = j.rid\n"
+		"LEFT JOIN insertion AS ins\n"
+		"	ON r.id = ins.retrocopy_id\n"
+		"LEFT JOIN exon AS e5\n"
+		"	ON e5.id = ins.five_prime_exon_id\n"
+		"LEFT JOIN exon AS e3\n"
+		"	ON e3.id = ins.three_prime_exon_id\n"
 		"LEFT JOIN gene AS g\n"
 		"	ON r.parental_gene_name = g.gene_name\n"
 		"INNER JOIN genotype AS gn\n"
@@ -573,6 +564,13 @@ vcf_get_body_line (sqlite3_stmt *stmt, VCFBody *b)
 	b->pg_exons             = db_column_text   (stmt, 24);
 	b->eej                  = db_column_int    (stmt, 25);
 	b->eej_list             = db_column_text   (stmt, 26);
+	b->five_prime_pos       = db_column_int64  (stmt, 27);
+	b->five_prime_exon      = db_column_text   (stmt, 28);
+	b->five_prime_sr        = db_column_int    (stmt, 29);
+	b->three_prime_pos      = db_column_int64  (stmt, 30);
+	b->three_prime_exon     = db_column_text   (stmt, 31);
+	b->three_prime_sr       = db_column_int    (stmt, 32);
+	b->ins_len              = db_column_int    (stmt, 33);
 }
 
 static const char *
@@ -702,6 +700,18 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp, VCFOption *op
 			if (b.eej > 0)
 				xfprintf (fp, ";EEJ=%d;EEJLIST=%s", b.eej, b.eej_list);
 
+			// Retrocopy ends into the parental gene
+			if (b.five_prime_sr > 0)
+				xfprintf (fp, ";PG5P=%s:%li:%d", b.five_prime_exon,
+						b.five_prime_pos, b.five_prime_sr);
+
+			if (b.three_prime_sr > 0)
+				xfprintf (fp, ";PG3P=%s:%li:%d", b.three_prime_exon,
+						b.three_prime_pos, b.three_prime_sr);
+
+			if (b.ins_len > 0)
+				xfprintf (fp, ";SVLEN=%d", b.ins_len);
+
 			// Print HOST and NEAR genes
 			if (strcmp (b.intragenic, "?"))
 				{
@@ -816,7 +826,7 @@ vcf (sqlite3 *db, const char *output_file, VCFOption *opt)
 	if (opt->fasta_file != NULL)
 		{
 			log_info ("Index genome '%s'", opt->fasta_file);
-			fidx = vcf_index_fasta (opt->fasta_file);
+			fidx = fasta_index (opt->fasta_file);
 		}
 	else
 		log_warn (

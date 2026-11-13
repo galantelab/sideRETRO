@@ -98,6 +98,7 @@ struct _MergeCall
 	int          parental_dist;
 	int          support;
 	int          near_gene_rank;
+	const char  *fasta_file;
 
 	// Genotyping
 	int          threads;
@@ -119,6 +120,7 @@ run (MergeCall *mc)
 	sqlite3_stmt *overlapping_blacklist_stmt = NULL;
 	sqlite3_stmt *retrocopy_stmt = NULL;
 	sqlite3_stmt *junction_stmt = NULL;
+	sqlite3_stmt *insertion_stmt = NULL;
 	sqlite3_stmt *cluster_merging_stmt = NULL;
 	sqlite3_stmt *genotype_stmt = NULL;
 
@@ -174,6 +176,9 @@ run (MergeCall *mc)
 
 	log_debug ("Prepare junction statement");
 	junction_stmt = db_prepare_junction_stmt (db);
+
+	log_debug ("Prepare insertion statement");
+	insertion_stmt = db_prepare_insertion_stmt (db);
 
 	// Create cluster merging statement
 	cluster_merging_stmt =
@@ -250,7 +255,8 @@ run (MergeCall *mc)
 			// Filtering and Annotation
 			log_info ("Run retrocopy annotation step for '%s'", db_file);
 			retrocopy (retrocopy_stmt, cluster_merging_stmt,
-					junction_stmt, mc->near_gene_rank);
+					junction_stmt, insertion_stmt, mc->fasta_file,
+					mc->near_gene_rank);
 
 			// Commit
 			db_end_transaction (db);
@@ -278,6 +284,7 @@ run (MergeCall *mc)
 	db_finalize (overlapping_blacklist_stmt);
 	db_finalize (retrocopy_stmt);
 	db_finalize (junction_stmt);
+	db_finalize (insertion_stmt);
 	db_finalize (cluster_merging_stmt);
 	db_finalize (genotype_stmt);
 	db_close (db);
@@ -296,7 +303,7 @@ print_usage (FILE *fp)
 		"       %*c            [-c INT] [-I] [-e INT] [-m INT] [-b STR]\n"
 		"       %*c            [-B FILE] [[-T STR] [[-H|S] KEY=VALUE]]\n"
 		"       %*c            [-P INT] [-x INT] [-g INT] [-n INT]\n"
-		"       %*c            [-t INT] [-Q INT] [-i FILE]\n"
+		"       %*c            [-r FILE] [-t INT] [-Q INT] [-i FILE]\n"
 		"       %*c            <FILE> ...\n"
 		"\n"
 		"Discover and annotate retrocopies\n"
@@ -372,6 +379,9 @@ print_usage (FILE *fp)
 		"                              (SAM/BAM/CRAM) within a cluster [default:\"%d\"]\n"
 		"   -n, --near-gene-rank       Minimum ranked distance between genes in order to\n"
 		"                              consider them close [default:\"%d\"]\n"
+		"   -r, --reference-file       FASTA file for the reference genome. If passed,\n"
+		"                              the retrocopy ends are searched into the parental\n"
+		"                              exons and its sequence is predicted\n"
 		"\n"
 		"Genotyping Options:\n"
 		"   -t, --threads              Number of threads [default:\"%d\"]\n"
@@ -420,6 +430,7 @@ merge_call_init (MergeCall *mc)
 		.parental_dist    = DEFAULT_PARENTAL_DISTANCE,
 		.support          = DEFAULT_SUPPORT,
 		.near_gene_rank   = DEFAULT_NEAR_GENE_RANK,
+		.fasta_file       = NULL,
 		.threads          = DEFAULT_THREADS,
 		.phred_quality    = DEFAULT_PHRED_QUALITY
 	};
@@ -518,6 +529,13 @@ merge_call_validate (MergeCall *mc)
 	if (mc->near_gene_rank < 1)
 		{
 			fprintf (stderr, "%s: --near-gene-rank must be greater or equal to 1\n", PACKAGE);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
+	if (mc->fasta_file != NULL && !exists (mc->fasta_file))
+		{
+			fprintf (stderr, "%s: --reference-file '%s': No such file\n", PACKAGE,
+					mc->fasta_file);
 			rc = EXIT_FAILURE; goto Exit;
 		}
 
@@ -685,6 +703,11 @@ merge_call_print (const MergeCall *mc)
 				}
 		}
 
+	if (mc->fasta_file != NULL)
+		string_concat_printf (msg,
+			"  --reference-file=%s \\\n",
+			mc->fasta_file);
+
 	string_concat_printf (msg,
 		"  --parental-distance=%d \\\n"
 		"  --genotype-support=%d \\\n"
@@ -734,6 +757,7 @@ parse_merge_call_command_opt (int argc, char **argv)
 		{"gff-hard-attribute", required_argument, 0, 'H'},
 		{"gff-soft-attribute", required_argument, 0, 'S'},
 		{"near-gene-distance", required_argument, 0, 'n'},
+		{"reference-file",     required_argument, 0, 'r'},
 		{"crossing-reads",     required_argument, 0, 'C'},
 		{"phred-quality",      required_argument, 0, 'Q'},
 		{"threads",            required_argument, 0, 't'},
@@ -748,7 +772,7 @@ parse_merge_call_command_opt (int argc, char **argv)
 	int option_index = 0;
 	int c, i;
 
-	while ((c = getopt_long (argc, argv, "hqdIl:o:p:c:e:m:b:B:P:T:H:S:x:g:n:Q:t:i:", opt, &option_index)) >= 0)
+	while ((c = getopt_long (argc, argv, "hqdIl:o:p:c:e:m:b:B:P:T:H:S:x:g:n:r:Q:t:i:", opt, &option_index)) >= 0)
 		{
 			switch (c)
 				{
@@ -822,6 +846,11 @@ parse_merge_call_command_opt (int argc, char **argv)
 				case 'n':
 					{
 						mc.near_gene_rank = atoi (optarg);
+						break;
+					}
+				case 'r':
+					{
+						mc.fasta_file = optarg;
 						break;
 					}
 				case 'Q':

@@ -21,8 +21,9 @@ Simulate the alignments of a retrocopy insertion for testing.
 
 The simulation builds a random reference with two contigs: 'chr1',
 where the retrocopy is inserted, and 'chr2', with the parental gene.
-The inserted sequence is the spliced parental exons followed by a
-poly-A tail, flanked by a target site duplication (TSD):
+The inserted sequence is the spliced parental exons - truncated at
+the 5' end by --truncation bases - followed by a poly-A tail,
+flanked by a target site duplication (TSD):
 
     chr1:  left flank | TSD |                            | TSD | right flank
     alt:   left flank | TSD | exon1 exon2 exon3 poly-A   | TSD | right flank
@@ -63,7 +64,7 @@ Example:
 
   $ tests/sim/retrocopy_sim.py --seed 11 --output-dir sim
   $ sider process-sample -s -a sim/genes.gtf -o sim sim/sim.sam
-  $ sider merge-call -o sim -p merged sim/out.db
+  $ sider merge-call -r sim/ref.fa -o sim -p merged sim/out.db
   $ sider make-vcf -r sim/ref.fa -o sim -p merged sim/merged.db
   $ tests/sim/retrocopy_sim.py --check sim/merged.vcf sim/truth.tsv
 """
@@ -76,10 +77,15 @@ import sys
 READ_LEN = 100
 QUAL = 'I'
 
-# Must mirror RETROCOPY_MIN_CLIP and RETROCOPY_MIN_POLYA
-# at src/retrocopy.h
+# Must mirror RETROCOPY_MIN_CLIP, RETROCOPY_MIN_POLYA and
+# RETROCOPY_MIN_SEED at src/retrocopy.h
 MIN_CLIP = 10
 MIN_POLYA = 6
+MIN_SEED = 12
+
+# Each right junction read has this many more exon
+# bases at its clip than the previous one
+RIGHT_CLIP_STEP = 3
 
 
 def random_seq(n):
@@ -103,9 +109,9 @@ class Sim:
         # Parental exons at chr2: 1-based inclusive, + strand
         self.exons = [(1001, 1400), (2001, 2400), (3001, 3400)]
 
-        # Inserted sequence: spliced exons + poly-A
-        self.ins = ''.join(self.chr2[s - 1:e] for s, e in self.exons)
-        self.ins += 'A' * args.polya_len
+        # Inserted sequence: spliced exons, 5' truncated, + poly-A
+        self.spliced = ''.join(self.chr2[s - 1:e] for s, e in self.exons)
+        self.ins = self.spliced[args.truncation:] + 'A' * args.polya_len
 
         # TSD at chr1: 1-based inclusive
         self.tsd_start = args.insertion_point
@@ -173,7 +179,7 @@ class Sim:
             m = 40 + i
             c = READ_LEN - m
 
-            start = exon1_len - m
+            start = exon1_len - a.truncation - m
             seq = self.ins[start:start + READ_LEN]
 
             # Left flank read, forward. The mate spans the junction
@@ -235,7 +241,7 @@ class Sim:
             qname = 'splitR%d' % i
 
             # Clipped bases: the poly-A and some exon bases
-            c = a.polya_len + i
+            c = a.polya_len + RIGHT_CLIP_STEP * i
             m = READ_LEN - c
 
             start = self.right_junction - c
@@ -260,8 +266,8 @@ class Sim:
 
         # Right junction reads clipped less than MIN_CLIP
         # bases are ignored
-        clips = [a.polya_len + i for i in range(a.n_split_right)
-                 if a.polya_len + i >= MIN_CLIP]
+        clips = [a.polya_len + RIGHT_CLIP_STEP * i for i in range(a.n_split_right)
+                 if a.polya_len + RIGHT_CLIP_STEP * i >= MIN_CLIP]
 
         left = a.n_split_left >= 1
         right = len(clips) >= 2
@@ -275,7 +281,7 @@ class Sim:
         # a run of at least MIN_POLYA supports the poly-A,
         # even those clipped less than MIN_CLIP
         run = len(self.ins) - len(self.ins.rstrip('A'))
-        all_clips = [a.polya_len + i for i in range(a.n_split_right)]
+        all_clips = [a.polya_len + RIGHT_CLIP_STEP * i for i in range(a.n_split_right)]
         polya_reads = [c for c in all_clips if min(c, run) >= MIN_POLYA]
         polya = right and len(polya_reads) > 0
         exact = any(c > run for c in polya_reads)
@@ -286,6 +292,31 @@ class Sim:
             polya_len, polya_min, polya_sr = run, 'NA', len(polya_reads)
         else:
             polya_len, polya_min, polya_sr = max(polya_reads), '', len(polya_reads)
+
+        # Retrocopy ends into the parental gene (needs -r at
+        # merge-call). The 5' end comes from the left junction
+        # clips, which begin with the insertion: exon1 start +
+        # truncation. The 3' end comes from the right junction
+        # clips with at least MIN_SEED exon bases before the
+        # poly-A run: the last exon end minus its trailing A.
+        # The predicted length is the insertion length, but the
+        # exon trailing A are counted twice when the 3' end is
+        # assumed at the exon end
+        exon_trailing = run - a.polya_len
+        five_pos = self.exons[0][0] + a.truncation
+        three_pos = self.exons[-1][1] - exon_trailing
+        three_reads = [c for c in all_clips if c - run >= MIN_SEED]
+
+        pg5p = 'ENSEP0:%d:%d' % (five_pos, a.n_split_left) if left else 'NA'
+        pg3p = ('ENSEP%d:%d:%d' % (len(self.exons) - 1, three_pos, len(three_reads))
+                if right and three_reads else 'NA')
+
+        if not left:
+            svlen = 'NA'
+        elif right and three_reads:
+            svlen = len(self.ins) if polya else len(self.ins) - a.polya_len
+        else:
+            svlen = len(self.ins) + exon_trailing if polya else len(self.spliced) - a.truncation
 
         if right:
             pos = self.tsd_start - 1
@@ -310,6 +341,9 @@ class Sim:
             ('POLARITY', '+'),
             ('PG', 'PARENT'),
             ('PGEXONS', 'PARENT:%d' % len(self.exons)),
+            ('PG5P', pg5p),
+            ('PG3P', pg3p),
+            ('SVLEN', svlen),
             ('EEJ', a.n_junction_reads if a.n_junction_reads else 'NA'),
             ('EEJLIST', 'ENSEP0-ENSEP1' if a.n_junction_reads else 'NA'),
             ('INS', self.ins),
@@ -379,7 +413,7 @@ def check(vcf_file, truth_file):
 
     for key in ('IMPRECISE', 'LBKP', 'LSR', 'RBKP', 'RSR', 'TSDLEN', 'TSD',
                 'POLYA', 'POLYAMIN', 'POLYASR', 'POLARITY', 'PG',
-                'PGEXONS', 'EEJ', 'EEJLIST'):
+                'PGEXONS', 'EEJ', 'EEJLIST', 'PG5P', 'PG3P', 'SVLEN'):
         if truth[key] == 'NA':
             if key in info:
                 print('FAIL: %s = %s, expected absent' % (key, info[key]))
@@ -406,6 +440,8 @@ def main():
                    help='first base of the TSD at chr1 [10000]')
     p.add_argument('--tsd-len', type=int, default=12)
     p.add_argument('--polya-len', type=int, default=25)
+    p.add_argument('--truncation', type=int, default=0,
+                   help="bases missing at the 5' end of the retrocopy [0]")
     p.add_argument('--fragment-len', type=int, default=700)
     p.add_argument('--min-match', type=int, default=60,
                    help='matched bases of the first left split read [60]')

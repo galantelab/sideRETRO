@@ -171,3 +171,39 @@ fasta_read (FastaFile *fasta, FastaEntry *entry)
 
 	return 1;
 }
+
+static void
+fasta_string_free (String *s)
+{
+	string_free (s, 1);
+}
+
+Hash *
+fasta_index (const char *path)
+{
+	log_trace ("inside '%s'", __func__);
+	assert (path != NULL);
+
+	Hash *idx = NULL;
+	FastaFile *fasta = NULL;
+	FastaEntry *entry = NULL;
+
+	fasta = fasta_open_for_reading (path);
+	entry = fasta_entry_new ();
+
+	// Index the whole genome: contig => sequence
+	idx = hash_new_full (str_hash, str_equal, xfree,
+			(DestroyNotify) fasta_string_free);
+
+	while (fasta_read (fasta, entry))
+		hash_insert (idx, xstrdup (entry->contig->str),
+				string_new (entry->sequence->str));
+
+	if (!hash_size (idx))
+		log_fatal ("FASTA file '%s' has no entries", path);
+
+	fasta_entry_free (entry);
+	fasta_close (fasta);
+
+	return idx;
+}
