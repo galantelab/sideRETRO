@@ -202,14 +202,14 @@ populate_db (sqlite3 *db)
 		"INSERT INTO cluster_merging VALUES(7,10,2);\n"
 		"INSERT INTO cluster_merging VALUES(7,11,2);\n"
 		"INSERT INTO cluster_merging VALUES(8,1,2);\n"
-		"INSERT INTO retrocopy VALUES(1,'chr10',1,300,'gene1',1,101,2,-1,0);\n"
-		"INSERT INTO retrocopy VALUES(2,'chr11',1,500,'gene2_1/gene2_2',2,350,1,0.0,0.0);\n"
-		"INSERT INTO retrocopy VALUES(3,'chr12',1,500,'gene3_1/gene3_2',4,250,2,0.0,0.0);\n"
-		"INSERT INTO retrocopy VALUES(4,'chr13',1,300,'gene4_1',8,150,1,0.0,0.0);\n"
-		"INSERT INTO retrocopy VALUES(5,'chr13',200,500,'gene4_2',8,350,1,0.0,0.0);\n"
-		"INSERT INTO retrocopy VALUES(6,'chr14',1,500,'gene5_1/gene5_2',10,350,1,0.0,0.0);\n"
-		"INSERT INTO retrocopy VALUES(7,'chr14',400,700,'gene5_3/gene5_4',12,600,1,0.0,0.0);\n"
-		"INSERT INTO retrocopy VALUES(8,'chrY',1,300,'gene1',1,101,2,1,0);\n"
+		"INSERT INTO retrocopy VALUES(1,'chr10',1,300,'gene1',1,101,2,-1,0,100,2,NULL,0);\n"
+		"INSERT INTO retrocopy VALUES(2,'chr11',1,500,'gene2_1/gene2_2',2,350,1,0.0,0.0,NULL,0,NULL,0);\n"
+		"INSERT INTO retrocopy VALUES(3,'chr12',1,500,'gene3_1/gene3_2',4,250,2,0.0,0.0,259,3,250,4);\n"
+		"INSERT INTO retrocopy VALUES(4,'chr13',1,300,'gene4_1',8,150,1,0.0,0.0,NULL,0,NULL,0);\n"
+		"INSERT INTO retrocopy VALUES(5,'chr13',200,500,'gene4_2',8,350,1,0.0,0.0,NULL,0,NULL,0);\n"
+		"INSERT INTO retrocopy VALUES(6,'chr14',1,500,'gene5_1/gene5_2',10,350,1,0.0,0.0,NULL,0,NULL,0);\n"
+		"INSERT INTO retrocopy VALUES(7,'chr14',400,700,'gene5_3/gene5_4',12,600,1,0.0,0.0,NULL,0,NULL,0);\n"
+		"INSERT INTO retrocopy VALUES(8,'chrY',1,300,'gene1',1,101,2,1,0,100,1,102,1);\n"
 		"INSERT INTO genotype VALUES(1,1,0,0,0.0,0.0,0.0);\n"
 		"INSERT INTO genotype VALUES(1,2,0,0,0.0,0.0,0.0);\n"
 		"INSERT INTO genotype VALUES(1,3,0,0,0.0,0.0,0.0);\n"
@@ -240,6 +240,50 @@ START_TEST (test_vcf)
 
 	VCFOption opt = {.fasta_file = fasta_file};
 	vcf (db, vcf_file, &opt);
+
+	/* TIME TO TEST */
+	FILE *fp = NULL;
+	char *line = NULL;
+	size_t len = 0;
+	int i = 0;
+
+	// INFO fields that must be present (or absent)
+	// in each retrocopy line, in VCF order
+	// (chr10, chr11, chr12, chr13, chr13, chr14, chr14, chrY)
+	const char *present[][2] = {
+		{";SR=2;LBKP=100;LSR=2",            NULL},
+		{";DP=",                            NULL},
+		{";SR=7;LBKP=259;LSR=3;RBKP=250;RSR=4;TSDLEN=10;TSD=CCCCCCCCCC", NULL},
+		{";DP=",                            NULL},
+		{";DP=",                            NULL},
+		{";DP=",                            NULL},
+		{";DP=",                            NULL},
+		{";LBKP=100;LSR=1;RBKP=102;RSR=1;TSDLEN=-1", NULL}
+	};
+
+	const char *absent[] = {
+		";RBKP=", ";LBKP=", ";IMPRECISE", ";TSD", ";TSD", ";TSD", ";TSD", ";TSD="
+	};
+
+	fp = xfopen (vcf_file, "r");
+
+	while (getline (&line, &len, fp) != EOF)
+		{
+			if (line[0] == '#')
+				continue;
+
+			ck_assert_int_lt (i, 8);
+			ck_assert_msg (strstr (line, present[i][0]) != NULL,
+					"'%s' not found at line %d: %s", present[i][0], i, line);
+			ck_assert_msg (strstr (line, absent[i]) == NULL,
+					"'%s' found at line %d: %s", absent[i], i, line);
+			i++;
+		}
+
+	ck_assert_int_eq (i, 8);
+
+	xfree (line);
+	xfclose (fp);
 
 	db_close (db);
 	xunlink (db_file);

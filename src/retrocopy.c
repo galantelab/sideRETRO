@@ -30,6 +30,7 @@
 #include "abnormal.h"
 #include "cluster.h"
 #include "correlation.h"
+#include "cigar.h"
 #include "retrocopy.h"
 
 #define BLOCK_SIZE 64
@@ -59,6 +60,13 @@ struct _RetrocopyEntry
 	RetrocopyLevel level;
 	double         orientation_rho;
 	double         orientation_p_value;
+
+	// Breakpoints and the number of
+	// split reads supporting them
+	long           breakpoint_left;
+	int            breakpoint_left_sr;
+	long           breakpoint_right;
+	int            breakpoint_right_sr;
 };
 
 typedef struct _RetrocopyEntry RetrocopyEntry;
@@ -577,83 +585,227 @@ calculate_orientation (sqlite3 *db, Hash *rtc_h)
 }
 
 static sqlite3_stmt *
+prepare_breakpoint_stmt (sqlite3 *db)
+{
+	log_trace ("Inside %s", __func__);
+
+	sqlite3_stmt *stmt = NULL;
+
+	/*
+	* Get all clipped alignments clustered into the
+	* retrocopies - primary or supplementary. The reads
+	* crossing the poly-A junction usually have no
+	* supplementary alignment, so do not require it
+	*/
+	const char sql[] =
+		"SELECT DISTINCT retrocopy_id, a.id, a.pos, a.rlen, a.cigar\n"
+		"FROM cluster_merging AS cm\n"
+		"INNER JOIN clustering AS c\n"
+		"	USING (cluster_id, cluster_sid)\n"
+		"INNER JOIN alignment AS a\n"
+		"	ON a.id = c.alignment_id\n"
+		"WHERE a.cigar LIKE '%S%' OR a.cigar LIKE '%H%'\n"
+		"ORDER BY retrocopy_id ASC";
+
+	log_debug ("Query schema:\n%s", sql);
+	stmt = db_prepare (db, sql);
+
+	return stmt;
+}
+
+static int
+cmp_long (const void *p1, const void *p2)
+{
+	const long l1 = * (const long *) p1;
+	const long l2 = * (const long *) p2;
+	return (l1 > l2) - (l1 < l2);
+}
+
+static inline void
+breakpoint_push (long **a, size_t *size, size_t *alloc,
+		const long pos)
+{
+	if (*size >= *alloc)
+		{
+			*alloc += BLOCK_SIZE;
+			*a = xrealloc (*a, sizeof (long) * *alloc);
+		}
+
+	(*a)[(*size)++] = pos;
+}
+
+static void
+breakpoint_mode (long *a, const size_t size, long *mode, int *support)
+{
+	long cur = 0;
+	int acm = 0;
+	size_t i = 0;
+
+	*mode = 0;
+	*support = 0;
+
+	if (size == 0)
+		return;
+
+	// Sort in order to count repeated positions
+	// and keep the first one in case of tie
+	qsort (a, size, sizeof (long), cmp_long);
+
+	cur = a[0];
+	acm = 1;
+
+	for (i = 1; i <= size; i++)
+		{
+			if (i < size && a[i] == cur)
+				{
+					acm++;
+					continue;
+				}
+
+			if (acm > *support)
+				{
+					*support = acm;
+					*mode = cur;
+				}
+
+			if (i < size)
+				{
+					cur = a[i];
+					acm = 1;
+				}
+		}
+}
+
+static inline void
+breakpoint_set_entry (Hash *rtc_h, const int rid, long *left_a,
+		const size_t left_size, long *right_a, const size_t right_size)
+{
+	RetrocopyEntry *e = NULL;
+
+	e = hash_lookup (rtc_h, &rid);
+	assert (e != NULL);
+
+	breakpoint_mode (left_a, left_size,
+			&e->breakpoint_left, &e->breakpoint_left_sr);
+
+	breakpoint_mode (right_a, right_size,
+			&e->breakpoint_right, &e->breakpoint_right_sr);
+
+	log_debug ("Retrocopy %d breakpoints: left %li (%d SR) right %li (%d SR)",
+			rid, e->breakpoint_left, e->breakpoint_left_sr,
+			e->breakpoint_right, e->breakpoint_right_sr);
+}
+
+static void
+calculate_breakpoint (sqlite3 *db, Hash *rtc_h)
+{
+	log_trace ("Inside %s", __func__);
+
+	sqlite3_stmt *breakpoint_stmt = NULL;
+
+	uint32_t *cigar = NULL;
+	uint32_t n_cigar = 0;
+	uint32_t clip_left = 0;
+	uint32_t clip_right = 0;
+
+	int rid = 0;
+	int aid = 0;
+	long pos = 0;
+	long rlen = 0;
+	const char *cigar_str = NULL;
+
+	int rid_prev = 0;
+
+	// Candidates for the left and right breakpoints
+	long *left_a = NULL;
+	size_t left_size = 0;
+	size_t left_alloc = 0;
+
+	long *right_a = NULL;
+	size_t right_size = 0;
+	size_t right_alloc = 0;
+
+	breakpoint_stmt = prepare_breakpoint_stmt (db);
+
+	while (db_step (breakpoint_stmt) == SQLITE_ROW)
+		{
+			rid       = db_column_int   (breakpoint_stmt, 0);
+			aid       = db_column_int   (breakpoint_stmt, 1);
+			pos       = db_column_int64 (breakpoint_stmt, 2);
+			rlen      = db_column_int64 (breakpoint_stmt, 3);
+			cigar_str = db_column_text  (breakpoint_stmt, 4);
+
+			// First loop
+			if (!rid_prev)
+				rid_prev = rid;
+
+			// Set breakpoints for the previous retrocopy
+			if (rid_prev != rid)
+				{
+					breakpoint_set_entry (rtc_h, rid_prev, left_a,
+							left_size, right_a, right_size);
+
+					left_size = 0;
+					right_size = 0;
+					rid_prev = rid;
+				}
+
+			cigar = cigar_yyparser (cigar_str, &n_cigar);
+			if (cigar == NULL)
+				{
+					log_warn ("Skip alignment %d with invalid cigar '%s'",
+							aid, cigar_str);
+					continue;
+				}
+
+			cigar_clip (cigar, n_cigar, &clip_left, &clip_right);
+			xfree (cigar);
+
+			/*
+			* A read clipped at its right side comes from
+			* the left flank: The breakpoint is the last
+			* aligned base. A read clipped at its left side
+			* comes from the right flank: The breakpoint is
+			* the first aligned base
+			*/
+			if (clip_right >= RETROCOPY_MIN_CLIP && rlen > 0)
+				breakpoint_push (&left_a, &left_size, &left_alloc,
+						pos + rlen - 1);
+
+			if (clip_left >= RETROCOPY_MIN_CLIP)
+				breakpoint_push (&right_a, &right_size, &right_alloc,
+						pos);
+		}
+
+	// The last or the first retrocopy
+	if (rid_prev)
+		breakpoint_set_entry (rtc_h, rid_prev, left_a,
+				left_size, right_a, right_size);
+
+	xfree (left_a);
+	xfree (right_a);
+
+	db_finalize (breakpoint_stmt);
+}
+
+static sqlite3_stmt *
 prepare_cluster_merging_query_stmt (sqlite3 *db)
 {
 	log_trace ("Inside %s", __func__);
 
 	sqlite3_stmt *stmt = NULL;
 
-	// Merge clusters and calculate the insetion point
-	// ALL IN ONE SHOT!
+	// Merge the clusters into the retrocopy window
 	const char sql[] =
-		"WITH\n"
-		"	cluster_mean_point (id, sid, mean) AS (\n"
-		"		SELECT id, sid, (start + end) / 2\n"
-		"		FROM cluster\n"
-		"	),\n"
-		"	cluster_cigar_mode (id, sid, pos) AS (\n"
-		"		SELECT cluster_id, cluster_sid,\n"
-		"			(SELECT CASE\n"
-		"				WHEN cigar LIKE '%M%S' OR cigar LIKE '%M%H' THEN\n"
-		"					pos + rlen\n"
-		"				WHEN cigar LIKE '%S%M' OR cigar LIKE '%H%M' THEN\n"
-		"					pos\n"
-		"				ELSE\n"
-		"					NULL\n"
-		"				END AS p\n"
-		"			FROM clustering AS c1\n"
-		"			INNER JOIN alignment AS a\n"
-		"				ON c1.alignment_id = a.id\n"
-		"			WHERE c1.cluster_id = c2.cluster_id\n"
-		"				AND c1.cluster_sid = c2.cluster_sid\n"
-		"				AND flag & 0x800\n"
-		"			GROUP BY p\n"
-		"			ORDER BY COUNT(*) DESC\n"
-		"			LIMIT 1)\n"
-		"		FROM (SELECT DISTINCT cluster_id, cluster_sid FROM clustering) AS c2\n"
-		"	),\n"
-		"	cluster_ip (id, sid, ip, ip_type) AS (\n"
-		"		SELECT a.id, a.sid,\n"
-		"			CASE\n"
-		"				WHEN pos IS NULL THEN\n"
-		"					mean\n"
-		"				ELSE\n"
-		"					pos\n"
-		"			END,\n"
-		"			CASE\n"
-		"				WHEN pos IS NULL THEN\n"
-		"					$WINDOW_MEAN\n"
-		"				ELSE\n"
-		"					$SUPPLEMENTARY_MODE\n"
-		"			END\n"
-		"		FROM cluster_mean_point AS a\n"
-		"		LEFT JOIN cluster_cigar_mode AS b\n"
-		"			USING (id, sid)\n"
-		"	),\n"
-		"	cluster_merge (rid, id, sid, chr, start, end, gene) AS (\n"
-		"		SELECT retrocopy_id, c.id, c.sid,\n"
-		"			chr, MIN(start), MAX(end),\n"
-		"			REPLACE(GROUP_CONCAT(DISTINCT gene_name),',','/')\n"
-		"		FROM cluster AS c\n"
-		"		INNER JOIN cluster_merging AS m\n"
-		"			ON c.id = m.cluster_id AND c.sid = m.cluster_sid\n"
-		"		GROUP BY retrocopy_id\n"
-		"	)\n"
-		"SELECT rid, chr, start, end, gene, ip, ip_type\n"
-		"FROM cluster_merge AS c\n"
-		"INNER JOIN cluster_ip AS i\n"
-		"	USING (id, sid)";
+		"SELECT retrocopy_id, chr, MIN(start), MAX(end),\n"
+		"	REPLACE(GROUP_CONCAT(DISTINCT gene_name),',','/')\n"
+		"FROM cluster AS c\n"
+		"INNER JOIN cluster_merging AS m\n"
+		"	ON c.id = m.cluster_id AND c.sid = m.cluster_sid\n"
+		"GROUP BY retrocopy_id";
 
 	log_debug ("Query schema:\n%s", sql);
 	stmt = db_prepare (db, sql);
-
-	db_bind_int (stmt,
-			sqlite3_bind_parameter_index (stmt, "$WINDOW_MEAN"),
-			RETROCOPY_INSERTION_POINT_WINDOW_MEAN);
-
-	db_bind_int (stmt,
-			sqlite3_bind_parameter_index (stmt, "$SUPPLEMENTARY_MODE"),
-			RETROCOPY_INSERTION_POINT_SUPPLEMENTARY_MODE);
 
 	return stmt;
 }
@@ -685,11 +837,31 @@ annotate_retrocopy (sqlite3_stmt *retrocopy_stmt, Hash *rtc_h)
 			start   = db_column_int64 (cluster_merging_query_stmt, 2);
 			end     = db_column_int64 (cluster_merging_query_stmt, 3);
 			gene    = db_column_text  (cluster_merging_query_stmt, 4);
-			ip      = db_column_int64 (cluster_merging_query_stmt, 5);
-			ip_type = db_column_int   (cluster_merging_query_stmt, 6);
 
 			e = hash_lookup (rtc_h, &rid);
 			assert (e != NULL);
+
+			/*
+			* The insertion point is the first reference base
+			* after the insertion. Prefer the right breakpoint,
+			* so the insertion (and its TSD) is left aligned.
+			* Without split reads, fall back to the window mean
+			*/
+			if (e->breakpoint_right_sr > 0)
+				{
+					ip = e->breakpoint_right;
+					ip_type = RETROCOPY_INSERTION_POINT_SUPPLEMENTARY_MODE;
+				}
+			else if (e->breakpoint_left_sr > 0)
+				{
+					ip = e->breakpoint_left + 1;
+					ip_type = RETROCOPY_INSERTION_POINT_SUPPLEMENTARY_MODE;
+				}
+			else
+				{
+					ip = (start + end) / 2;
+					ip_type = RETROCOPY_INSERTION_POINT_WINDOW_MEAN;
+				}
 
 			log_debug ("%d %s %li %li %s %d %li %d %.6f %.6f",
 					rid, chr, start, end, gene, e->level, ip, ip_type,
@@ -697,7 +869,9 @@ annotate_retrocopy (sqlite3_stmt *retrocopy_stmt, Hash *rtc_h)
 
 			db_insert_retrocopy (retrocopy_stmt, rid, chr, start, end,
 					gene, e->level, ip, ip_type, e->orientation_rho,
-					e->orientation_p_value);
+					e->orientation_p_value, e->breakpoint_left,
+					e->breakpoint_left_sr, e->breakpoint_right,
+					e->breakpoint_right_sr);
 		}
 
 	db_finalize (cluster_merging_query_stmt);
@@ -735,6 +909,11 @@ retrocopy (sqlite3_stmt *retrocopy_stmt,
 
 	log_info ("Calculate retrocopies orientation");
 	calculate_orientation (
+			sqlite3_db_handle (retrocopy_stmt),
+			rtc_h);
+
+	log_info ("Calculate retrocopies breakpoints");
+	calculate_breakpoint (
 			sqlite3_db_handle (retrocopy_stmt),
 			rtc_h);
 

@@ -25,7 +25,7 @@
 
 /* Database schema version */
 #define DB_SCHEMA_MAJOR_VERSION 0
-#define DB_SCHEMA_MINOR_VERSION 13
+#define DB_SCHEMA_MINOR_VERSION 14
 
 #define DB_DEFAULT_CACHE_SIZE 2000
 
@@ -47,6 +47,7 @@ void           db_bind_int (sqlite3_stmt *stmt, int i, int value);
 void           db_bind_int64 (sqlite3_stmt *stmt, int i, int64_t value);
 void           db_bind_double (sqlite3_stmt *stmt, int i, double value);
 void           db_bind_text (sqlite3_stmt *stmt, int i, const char *value);
+void           db_bind_null (sqlite3_stmt *stmt, int i);
 
 int            db_column_int (sqlite3_stmt *stmt, int i);
 int64_t        db_column_int64 (sqlite3_stmt *stmt, int i);
@@ -107,7 +108,9 @@ void db_insert_cluster_merging (sqlite3_stmt *stmt, int retrocopy_id,
 sqlite3_stmt * db_prepare_retrocopy_stmt (sqlite3 *db);
 void db_insert_retrocopy (sqlite3_stmt *stmt, int id, const char *chr, long window_start,
 		long window_end, const char *parental_gene_name, int level, long insertion_point,
-		int insertion_point_type, double orientation_rho, double orientation_p_value);
+		int insertion_point_type, double orientation_rho, double orientation_p_value,
+		long breakpoint_left, int breakpoint_left_sr, long breakpoint_right,
+		int breakpoint_right_sr);
 
 sqlite3_stmt * db_prepare_genotype_stmt (sqlite3 *db);
 void db_insert_genotype (sqlite3_stmt *stmt, int source_id, int retrocopy_id, int reference_depth,

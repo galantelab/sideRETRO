@@ -35,6 +35,11 @@
 
 #define VCF_VERSION "VCFv4.2"
 
+// Do not print the TSD sequence if its length is
+// greater than this value - the breakpoints are
+// probably inconsistent
+#define VCF_MAX_TSD_LEN 100
+
 struct _VCFHeader
 {
 	int         id;
@@ -72,6 +77,12 @@ struct _VCFBody
 	// Depth
 	int         acm;
 	int         sr_acm;
+
+	// Breakpoints
+	long        breakpoint_left;
+	int         breakpoint_left_sr;
+	long        breakpoint_right;
+	int         breakpoint_right_sr;
 
 	// Host and Near genes
 	const char *exonic;
@@ -246,6 +257,8 @@ vcf_print_header (const List *hl, Hash *fidx,
 		"##INFO=<ID=EXONIC,Number=1,Type=String,Description=\"Exon IDs separated by '/' for intragenic retrocopy\">\n"
 		"##INFO=<ID=IMPRECISE,Number=0,Type=Flag,Description=\"Imprecise structural variation\">\n"
 		"##INFO=<ID=INTRONIC,Number=1,Type=String,Description=\"Intron IDs separated by '/' for intragenic retrocopy\">\n"
+		"##INFO=<ID=LBKP,Number=1,Type=Integer,Description=\"Left breakpoint: Last reference base of the left flank, from split reads clipped at the right\">\n"
+		"##INFO=<ID=LSR,Number=1,Type=Integer,Description=\"Number of split reads supporting LBKP\">\n"
 		"##INFO=<ID=NEAR,Number=1,Type=String,Description=\"Near Gene IDs separated by '/' for intergenic retrocopy\">\n"
 		"##INFO=<ID=ORHO,Number=1,Type=Float,Description=\"Spearman's rho to detect the polarity\">\n"
 		"##INFO=<ID=PG,Number=1,Type=String,Description=\"Parental Gene IDs separated by '/'\">\n"
@@ -253,8 +266,13 @@ vcf_print_header (const List *hl, Hash *fidx,
 		" 1 = Single parental gene; 2 = Overlapped parental genes; 4 = Near parental genes;"
 		" 8 = Hotspot - Multiple parental genes with retrocopy at the same segment\">\n"
 		"##INFO=<ID=POLARITY,Number=1,Type=Character,Description=\"Mobile element polarity (+/-)\">\n"
-		"##INFO=<ID=SR,Number=1,Type=Integer,Description=\"Total number of SRs at the estimated breakpoint for this site\">\n"
+		"##INFO=<ID=RBKP,Number=1,Type=Integer,Description=\"Right breakpoint: First reference base of the right flank, from split reads clipped at the left\">\n"
+		"##INFO=<ID=RSR,Number=1,Type=Integer,Description=\"Number of split reads supporting RBKP\">\n"
+		"##INFO=<ID=SR,Number=1,Type=Integer,Description=\"Total number of SRs at the estimated breakpoints for this site\">\n"
 		"##INFO=<ID=SVTYPE,Number=1,Type=String,Description=\"Type of structural variant\">\n"
+		"##INFO=<ID=TSD,Number=1,Type=String,Description=\"Target site duplication sequence: Reference bases from RBKP to LBKP\">\n"
+		"##INFO=<ID=TSDLEN,Number=1,Type=Integer,Description=\"Target site duplication length (LBKP - RBKP + 1):"
+		" Positive for duplication, zero for a clean insertion and negative for target site deletion\">\n"
 		"##ALT=<ID=INS:ME:RTC,Description=\"Insertion of a Retrocopy\">\n"
 		"##FORMAT=<ID=DP2,Number=2,Type=Integer,Description=\"Read depth at this position for this sample separated by comma:"
 		" The former is reference depth and the last is alternate depth\">\n"
@@ -339,27 +357,6 @@ prepare_retrocopy_query_stmt (sqlite3 *db, const long near_gene_dist)
 		"				ON a.id = c.alignment_id\n"
 		"		)\n"
 		"		GROUP BY retrocopy_id\n"
-		"	),\n"
-		"	genotype_sr (retrocopy_id, sr_acm) AS (\n"
-		"		SELECT retrocopy_id, COUNT(*)\n"
-		"		FROM (\n"
-		"			SELECT DISTINCT retrocopy_id, source_id, alignment_id\n"
-		"			FROM retrocopy AS r\n"
-		"			INNER JOIN cluster_merging AS cm\n"
-		"				ON r.id = cm.retrocopy_id\n"
-		"			INNER JOIN clustering AS c\n"
-		"				USING (cluster_id, cluster_sid)\n"
-		"			INNER JOIN alignment AS a\n"
-		"				ON a.id = c.alignment_id\n"
-		"			WHERE a.flag & 0x800\n"
-		"				AND (\n"
-		"					((cigar LIKE '%M%S' OR cigar LIKE '%M%H')\n"
-		"							AND (a.pos + a.rlen) = insertion_point)\n"
-		"						OR ((cigar LIKE '%S%M' OR cigar LIKE '%H%M')\n"
-		"							AND a.pos = insertion_point)\n"
-		"				)\n"
-		"		)\n"
-		"		GROUP BY retrocopy_id\n"
 		"	)\n"
 		"SELECT r.id, r.chr, window_start, window_end,\n"
 		"	parental_gene_name,\n"
@@ -377,11 +374,7 @@ prepare_retrocopy_query_stmt (sqlite3 *db, const long near_gene_dist)
 		"	END,\n"
 		"	orientation_p_value,\n"
 		"	acm,\n"
-		"	CASE\n"
-		"		WHEN sr_acm IS NOT NULL\n"
-		"			THEN sr_acm\n"
-		"		ELSE 0\n"
-		"	END,\n"
+		"	breakpoint_left_sr + breakpoint_right_sr,\n"
 		"	CASE\n"
 		"		WHEN e.host IS NOT NULL\n"
 		"			THEN e.host\n"
@@ -396,14 +389,14 @@ prepare_retrocopy_query_stmt (sqlite3 *db, const long near_gene_dist)
 		"		WHEN n.gene IS NOT NULL\n"
 		"			THEN n.gene\n"
 		"		ELSE '?'\n"
-		"	END\n"
+		"	END,\n"
+		"	COALESCE(breakpoint_left, 0), breakpoint_left_sr,\n"
+		"	COALESCE(breakpoint_right, 0), breakpoint_right_sr\n"
 		"FROM retrocopy AS r\n"
 		"LEFT JOIN gene AS g\n"
 		"	ON r.parental_gene_name = g.gene_name\n"
 		"INNER JOIN genotype AS gn\n"
 		"	ON r.id = gn.retrocopy_id\n"
-		"LEFT JOIN genotype_sr AS gn_sr\n"
-		"	ON r.id = gn_sr.retrocopy_id\n"
 		"LEFT JOIN near_g AS n\n"
 		"	ON r.id = n.rid\n"
 		"LEFT JOIN intragenic_g AS i\n"
@@ -510,6 +503,10 @@ vcf_get_body_line (sqlite3_stmt *stmt, VCFBody *b)
 	b->exonic               = db_column_text   (stmt, 13);
 	b->intragenic           = db_column_text   (stmt, 14);
 	b->near                 = db_column_text   (stmt, 15);
+	b->breakpoint_left      = db_column_int64  (stmt, 16);
+	b->breakpoint_left_sr   = db_column_int    (stmt, 17);
+	b->breakpoint_right     = db_column_int64  (stmt, 18);
+	b->breakpoint_right_sr  = db_column_int    (stmt, 19);
 }
 
 static const char *
@@ -546,6 +543,9 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp, VCFOption *op
 	long pos = 0;
 	char base = 0;
 
+	long tsd_len = 0;
+	char tsd[VCF_MAX_TSD_LEN + 1] = {};
+
 	// Prepare retrocopy query
 	retrocopy_stmt = prepare_retrocopy_query_stmt (db,
 			opt->near_gene_dist);
@@ -557,6 +557,7 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp, VCFOption *op
 		{
 			vcf_get_body_line (retrocopy_stmt, &b);
 			gi = vcf_index_genotype (genotype_stmt, b.id);
+			seq = NULL;
 
 			// Pos is 1 position before the insertion
 			pos = b.insertion_point == 1
@@ -645,6 +646,32 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp, VCFOption *op
 					== RETROCOPY_INSERTION_POINT_SUPPLEMENTARY_MODE)
 				{
 					xfprintf (fp, ";SR=%d", b.sr_acm);
+				}
+
+			// Breakpoints
+			if (b.breakpoint_left_sr > 0)
+				xfprintf (fp, ";LBKP=%li;LSR=%d",
+						b.breakpoint_left, b.breakpoint_left_sr);
+
+			if (b.breakpoint_right_sr > 0)
+				xfprintf (fp, ";RBKP=%li;RSR=%d",
+						b.breakpoint_right, b.breakpoint_right_sr);
+
+			// Target site duplication: The reference
+			// bases between the two breakpoints
+			if (b.breakpoint_left_sr > 0 && b.breakpoint_right_sr > 0)
+				{
+					tsd_len = b.breakpoint_left - b.breakpoint_right + 1;
+					xfprintf (fp, ";TSDLEN=%li", tsd_len);
+
+					if (seq != NULL && tsd_len > 0 && tsd_len <= VCF_MAX_TSD_LEN
+							&& b.breakpoint_left <= (long) seq->len)
+						{
+							memcpy (tsd, seq->str + b.breakpoint_right - 1, tsd_len);
+							tsd[tsd_len] = '\0';
+							upper (tsd);
+							xfprintf (fp, ";TSD=%s", tsd);
+						}
 				}
 
 			// FORMAT

@@ -295,6 +295,48 @@ cigar_op_seq (const CigarOp *op, const char *seq)
 	return slice;
 }
 
+static void
+__cigar_clip (const uint32_t *cigar, uint32_t n_cigar,
+		int hard, uint32_t *left, uint32_t *right)
+{
+	int op = 0;
+	int i = 0;
+	int j = 0;
+
+	*left = 0;
+	*right = 0;
+
+	// Clip at the beginning. Skip hard clip
+	// if only soft clip is required
+	for (i = 0; i < (int) n_cigar; i++)
+		{
+			op = cigar_op (cigar[i]);
+
+			if (op == CIGAR_HARD_CLIP && !hard)
+				continue;
+
+			if (op != CIGAR_SOFT_CLIP && op != CIGAR_HARD_CLIP)
+				break;
+
+			*left += cigar_oplen (cigar[i]);
+		}
+
+	// Clip at the end - do not cross
+	// the beginning operations
+	for (j = (int) n_cigar - 1; j > i; j--)
+		{
+			op = cigar_op (cigar[j]);
+
+			if (op == CIGAR_HARD_CLIP && !hard)
+				continue;
+
+			if (op != CIGAR_SOFT_CLIP && op != CIGAR_HARD_CLIP)
+				break;
+
+			*right += cigar_oplen (cigar[j]);
+		}
+}
+
 void
 cigar_soft_clip (const uint32_t *cigar, uint32_t n_cigar,
 		uint32_t *left, uint32_t *right)
@@ -303,39 +345,16 @@ cigar_soft_clip (const uint32_t *cigar, uint32_t n_cigar,
 	assert (left != NULL);
 	assert (right != NULL);
 
-	int op = 0;
-	int i = 0;
-	int j = 0;
+	__cigar_clip (cigar, n_cigar, 0, left, right);
+}
 
-	*left = 0;
-	*right = 0;
+void
+cigar_clip (const uint32_t *cigar, uint32_t n_cigar,
+		uint32_t *left, uint32_t *right)
+{
+	assert (cigar != NULL || n_cigar == 0);
+	assert (left != NULL);
+	assert (right != NULL);
 
-	// Soft clip at the beginning - skip hard clip
-	for (i = 0; i < (int) n_cigar; i++)
-		{
-			op = cigar_op (cigar[i]);
-
-			if (op == CIGAR_HARD_CLIP)
-				continue;
-
-			if (op != CIGAR_SOFT_CLIP)
-				break;
-
-			*left += cigar_oplen (cigar[i]);
-		}
-
-	// Soft clip at the end - do not cross
-	// the beginning operations
-	for (j = (int) n_cigar - 1; j > i; j--)
-		{
-			op = cigar_op (cigar[j]);
-
-			if (op == CIGAR_HARD_CLIP)
-				continue;
-
-			if (op != CIGAR_SOFT_CLIP)
-				break;
-
-			*right += cigar_oplen (cigar[j]);
-		}
+	__cigar_clip (cigar, n_cigar, 1, left, right);
 }

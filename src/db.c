@@ -204,6 +204,20 @@ db_bind_text (sqlite3_stmt *stmt,
 				i, value, sqlite3_errmsg (sqlite3_db_handle (stmt)));
 }
 
+void
+db_bind_null (sqlite3_stmt *stmt, int i)
+{
+	assert (stmt != NULL);
+
+	int rc = 0;
+
+	rc = sqlite3_bind_null (stmt, i);
+
+	if (rc != SQLITE_OK)
+		log_fatal ("Failed sqlite3_bind_null at '[%d]': %s",
+				i, sqlite3_errmsg (sqlite3_db_handle (stmt)));
+}
+
 int
 db_column_int (sqlite3_stmt *stmt, int i)
 {
@@ -366,7 +380,11 @@ db_create_tables (sqlite3 *db)
 		"	insertion_point INTEGER,\n"
 		"	insertion_point_type INTEGER,\n"
 		"	orientation_rho REAL,\n"
-		"	orientation_p_value REAL);\n"
+		"	orientation_p_value REAL,\n"
+		"	breakpoint_left INTEGER,\n"
+		"	breakpoint_left_sr INTEGER NOT NULL DEFAULT 0,\n"
+		"	breakpoint_right INTEGER,\n"
+		"	breakpoint_right_sr INTEGER NOT NULL DEFAULT 0);\n"
 		"\n"
 		"DROP TABLE IF EXISTS cluster_merging;\n"
 		"CREATE TABLE cluster_merging (\n"
@@ -907,8 +925,9 @@ db_prepare_retrocopy_stmt (sqlite3 *db)
 
 	const char sql[] =
 		"INSERT INTO retrocopy (id,chr,window_start,window_end,parental_gene_name,level,\n"
-		"	insertion_point,insertion_point_type,orientation_rho,orientation_p_value)\n"
-		"VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)";
+		"	insertion_point,insertion_point_type,orientation_rho,orientation_p_value,\n"
+		"	breakpoint_left,breakpoint_left_sr,breakpoint_right,breakpoint_right_sr)\n"
+		"VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14)";
 
 	return db_prepare (db, sql);
 }
@@ -916,7 +935,9 @@ db_prepare_retrocopy_stmt (sqlite3 *db)
 void
 db_insert_retrocopy (sqlite3_stmt *stmt, int id, const char *chr, long window_start,
 		long window_end, const char *parental_gene_name, int level, long insertion_point,
-		int insertion_point_type, double orientation_rho, double orientation_p_value)
+		int insertion_point_type, double orientation_rho, double orientation_p_value,
+		long breakpoint_left, int breakpoint_left_sr, long breakpoint_right,
+		int breakpoint_right_sr)
 {
 	log_trace ("Inside %s", __func__);
 	assert (stmt != NULL);
@@ -936,6 +957,21 @@ db_insert_retrocopy (sqlite3_stmt *stmt, int id, const char *chr, long window_st
 	db_bind_int    (stmt, 8, insertion_point_type);
 	db_bind_double (stmt, 9, orientation_rho);
 	db_bind_double (stmt, 10, orientation_p_value);
+
+	// Breakpoints are unknown without split reads
+	if (breakpoint_left_sr > 0)
+		db_bind_int64 (stmt, 11, breakpoint_left);
+	else
+		db_bind_null (stmt, 11);
+
+	db_bind_int (stmt, 12, breakpoint_left_sr);
+
+	if (breakpoint_right_sr > 0)
+		db_bind_int64 (stmt, 13, breakpoint_right);
+	else
+		db_bind_null (stmt, 13);
+
+	db_bind_int (stmt, 14, breakpoint_right_sr);
 
 	db_step (stmt);
 

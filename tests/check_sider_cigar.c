@@ -306,6 +306,40 @@ START_TEST (test_cigar_soft_clip)
 }
 END_TEST
 
+START_TEST (test_cigar_clip)
+{
+	uint32_t *cigar = NULL;
+	uint32_t n_cigar = 0;
+	uint32_t left = 0;
+	uint32_t right = 0;
+	int i = 0;
+
+	const char *cigar_strs[] = {
+		"100M",
+		"20S80M",
+		"80M20H",
+		"10H20S60M10S5H",
+		"15H"
+	};
+
+	uint32_t lefts[]  = {0, 20,  0, 30, 15};
+	uint32_t rights[] = {0,  0, 20, 15,  0};
+
+	for (i = 0; i < sizeof (cigar_strs) / sizeof (char *); i++)
+		{
+			cigar = cigar_yyparser (cigar_strs[i], &n_cigar);
+			ck_assert_ptr_ne (cigar, NULL);
+
+			cigar_clip (cigar, n_cigar, &left, &right);
+
+			ck_assert_uint_eq (left, lefts[i]);
+			ck_assert_uint_eq (right, rights[i]);
+
+			xfree (cigar);
+		}
+}
+END_TEST
+
 Suite *
 make_cigar_suite (void)
 {
@@ -324,6 +358,7 @@ make_cigar_suite (void)
 	tcase_add_test (tc_core, test_cigar_iter);
 	tcase_add_test (tc_core, test_cigar_op_seq);
 	tcase_add_test (tc_core, test_cigar_soft_clip);
+	tcase_add_test (tc_core, test_cigar_clip);
 
 	suite_add_tcase (s, tc_core);
 

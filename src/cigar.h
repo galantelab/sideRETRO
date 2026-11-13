@@ -117,5 +117,6 @@ int        cigar_iter_next  (CigarIter *iter, CigarOp *op);
 char     * cigar_op_seq     (const CigarOp *op, const char *seq);
 
 void       cigar_soft_clip  (const uint32_t *cigar, uint32_t n_cigar, uint32_t *left, uint32_t *right);
+void       cigar_clip       (const uint32_t *cigar, uint32_t n_cigar, uint32_t *left, uint32_t *right);
 
 #endif /* cigar.h */

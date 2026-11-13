@@ -77,6 +77,13 @@ enum _RetrocopyInsertionPoint
 
 typedef enum _RetrocopyInsertionPoint RetrocopyInsertionPoint;
 
+/*
+ * Minimum clipped length of an alignment to be
+ * used as a breakpoint candidate. Avoid noise
+ * from the ends of the reads
+ */
+#define RETROCOPY_MIN_CLIP 10
+
 void retrocopy (sqlite3_stmt *retrocopy_stmt,
 		sqlite3_stmt *cluster_merging_stmt,
 		int near_gene_dist);
