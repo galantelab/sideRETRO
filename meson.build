@@ -120,3 +120,20 @@ subdir('tests')
 
 # Documentation
 subdir('docs')
+
+# The ChangeLog is generated from the git history
+# at 'meson dist' and with 'ninja changelog'
+git = find_program('git', required : false)
+gen_changelog = files('scripts/gen-changelog.sh')
+
+if git.found()
+  meson.add_dist_script(gen_changelog)
+
+  run_target('changelog',
+    command : [
+      gen_changelog,
+      meson.project_source_root(),
+      join_paths(meson.project_build_root(), 'ChangeLog')
+    ]
+  )
+endif
