@@ -31,6 +31,7 @@
 #include "../src/ibitree.h"
 #include "../src/utils.h"
 #include "../src/db.h"
+#include "../src/gff.h"
 #include "../src/exon.h"
 
 #define TEST_EXON_BUFSIZ 64
@@ -181,7 +182,7 @@ START_TEST (test_exon_tree_index_dump)
 	int i = 0;
 
 	/* RUN FOOLS */
-	exon_tree_index_dump (t.exon_tree, t.gtf_path);
+	exon_tree_index_dump (t.exon_tree, t.gtf_path, NULL, NULL, NULL);
 
 	ck_assert_int_eq (hash_size (t.exon_tree->idx), 1);
 	ck_assert_int_eq (hash_size (t.exon_tree->cache), gtf_size);
@@ -271,7 +272,7 @@ START_TEST (test_exon_tree_lookup_dump)
 	};
 
 	/* RUN FOOLS */
-	exon_tree_index_dump (t.exon_tree, t.gtf_path);
+	exon_tree_index_dump (t.exon_tree, t.gtf_path, NULL, NULL, NULL);
 
 	/* ADD IDS: 1, 2, 4, 4 */
 	for (i = 0; i < alignment_size; i++)
@@ -303,6 +304,113 @@ START_TEST (test_exon_tree_lookup_dump)
 }
 END_TEST
 
+static void
+index_custom (const char *suffix, const char *body, const GffFilter *filter,
+		const char *gene_name_key, const char *exon_id_key,
+		const char *expected[][4], int expected_size)
+{
+	char db_path[] = "/tmp/ponga.db.XXXXXX";
+	char path[TEST_EXON_BUFSIZ] = {};
+	sqlite3 *db = NULL;
+	sqlite3_stmt *exon_stmt = NULL;
+	sqlite3_stmt *overlapping_stmt = NULL;
+	sqlite3_stmt *search_stmt = NULL;
+	ChrStd *cs = NULL;
+	ExonTree *exon_tree = NULL;
+	FILE *fp = NULL;
+	int fd = 0;
+	int i = 0;
+
+	snprintf (path, TEST_EXON_BUFSIZ, "/tmp/ponga.XXXXXX%s", suffix);
+	fd = mkstemps (path, strlen (suffix));
+	ck_assert_int_ge (fd, 0);
+	fp = xfdopen (fd, "w");
+	xfprintf (fp, "%s", body);
+	xfclose (fp);
+
+	db = create_db (db_path);
+	exon_stmt = db_prepare_exon_stmt (db);
+	overlapping_stmt = db_prepare_overlapping_stmt (db);
+	cs = chr_std_new ();
+	exon_tree = exon_tree_new (exon_stmt, overlapping_stmt, cs);
+
+	exon_tree_index_dump (exon_tree, path, filter, gene_name_key, exon_id_key);
+
+	search_stmt = db_prepare (db,
+			"SELECT gene_name, start || '-' || end, strand, ense FROM exon ORDER BY id ASC");
+
+	for (i = 0; db_step (search_stmt) == SQLITE_ROW; i++)
+		{
+			ck_assert_int_lt (i, expected_size);
+			ck_assert_str_eq (db_column_text (search_stmt, 0), expected[i][0]);
+			ck_assert_str_eq (db_column_text (search_stmt, 1), expected[i][1]);
+			ck_assert_str_eq (db_column_text (search_stmt, 2), expected[i][2]);
+			ck_assert_str_eq (db_column_text (search_stmt, 3), expected[i][3]);
+		}
+
+	ck_assert_int_eq (i, expected_size);
+
+	db_finalize (search_stmt);
+	db_finalize (exon_stmt);
+	db_finalize (overlapping_stmt);
+	db_close (db);
+	chr_std_free (cs);
+	exon_tree_free (exon_tree);
+	xunlink (db_path);
+	xunlink (path);
+}
+
+START_TEST (test_exon_tree_index_dump_bed)
+{
+	// BED is 0-based: The exon id is 'chr:start-end' 1-based.
+	// The duplicated exon is indexed once
+	const char *bed =
+		"chr1\t0\t100\tGENE1\t0\t+\n"
+		"chr1\t199\t300\tGENE1\t0\t+\n"
+		"chr1\t199\t300\tGENE1\t0\t+\n"
+		"chr2\t999\t1100\tGENE2\t0\t-\n";
+
+	const char *expected[][4] = {
+		{"GENE1", "1-100",     "+", "chr1:1-100"},
+		{"GENE1", "200-300",   "+", "chr1:200-300"},
+		{"GENE2", "1000-1100", "-", "chr2:1000-1100"}
+	};
+
+	index_custom (".bed", bed, NULL, NULL, NULL, expected, 3);
+}
+END_TEST
+
+START_TEST (test_exon_tree_index_dump_custom)
+{
+	// Ensembl like: 'transcript_biotype', no 'gene_name' at the
+	// second gene (falls back to 'gene_id') and no exon id at
+	// the third exon (falls back to the coordinates)
+	const char *gtf_ensembl =
+		"chr1\t.\texon\t1\t100\t.\t+\t.\t"
+		"gene_id \"G1\"; gene_symbol \"ponga\"; transcript_biotype \"protein_coding\"; ex \"E1\";\n"
+		"chr1\t.\texon\t200\t300\t.\t+\t.\t"
+		"gene_id \"G1\"; gene_symbol \"ponga\"; transcript_biotype \"lncRNA\"; ex \"E2\";\n"
+		"chr1\t.\texon\t400\t500\t.\t-\t.\t"
+		"gene_id \"G2\"; transcript_biotype \"protein_coding\"; ex \"E3\";\n"
+		"chr1\t.\texon\t600\t700\t.\t-\t.\t"
+		"gene_id \"G2\"; gene_symbol \"pongo\"; transcript_biotype \"protein_coding\";\n";
+
+	const char *expected[][4] = {
+		{"ponga", "1-100",   "+", "E1"},
+		{"G2",    "400-500", "-", "E3"},
+		{"pongo", "600-700", "-", "chr1:600-700"}
+	};
+
+	GffFilter *filter = gff_filter_new ();
+	gff_filter_insert_feature (filter, "exon");
+	gff_filter_insert_attribute (filter, "transcript_biotype=protein_coding");
+
+	index_custom (".gtf", gtf_ensembl, filter, "gene_symbol", "ex", expected, 3);
+
+	gff_filter_free (filter);
+}
+END_TEST
+
 Suite *
 make_exon_suite (void)
 {
@@ -316,6 +424,8 @@ make_exon_suite (void)
 
 	tcase_add_test (tc_core, test_exon_tree_index_dump);
 	tcase_add_test (tc_core, test_exon_tree_lookup_dump);
+	tcase_add_test (tc_core, test_exon_tree_index_dump_bed);
+	tcase_add_test (tc_core, test_exon_tree_index_dump_custom);
 	suite_add_tcase (s, tc_core);
 
 	return s;

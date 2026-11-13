@@ -81,11 +81,12 @@ Arguments:
    One or more alignment file in SAM/BAM format
 
 Mandatory Options:
-  -a, --annotation-file   Gene annotation on the reference genome
-                          in GTF/GFF3 format. sider will look for 'exon'
-                          with the attribute 'transcript_type=protein_coding'.
-                          The attributes 'gene_name', 'gene_id' and 'exon_id'
-                          are also required
+  -a, --annotation-file   Exon annotation on the reference genome in
+                          GTF/GFF3 or BED6 format. For GTF/GFF3, see the
+                          'Annotation Options' below. For BED6 (file ending
+                          in '.bed' or '.bed.gz'), each line is an exon, the
+                          'name' (4th column) is the gene name and the strand
+                          (6th column) is required
   -i, --input-file        File containing a newline separated list of
                           alignment files in SAM/BAM/CRAM format.
                           This option is not mandatory if one or more
@@ -105,6 +106,21 @@ Input/Output Options:
   -o, --output-dir        Output directory. Create the directory if it does
                           not exist [default:"."]
   -p, --prefix            Prefix output files [default:"out"]
+
+Annotation Options (GTF/GFF3):
+  -T, --gff-feature       The value of 'feature' (third column)
+                          [default:"exon"]
+  -A, --gff-attribute     The 'attribute' (ninth column) in the format
+                          key=value. Alternatives are separated by '|'
+                          and any of them must match (OR): 'k=v1|v2' or
+                          'k1=v1|k2=v2'. When passed multiple times, all
+                          of them must match (AND). Values match exactly
+                          [default:"transcript_type=protein_coding"]
+  -N, --gff-gene-name     The attribute with the gene name. If missing,
+                          'gene_id' is used [default:"gene_name"]
+  -E, --gff-exon-id       The attribute with the exon id. If missing, the
+                          coordinates 'chr:start-end' are used
+                          [default:"exon_id"]
 
 SQLite3 Options:
   -c, --cache-size        Set SQLite3 cache size in KiB [default:"200000"]
@@ -193,6 +209,63 @@ option), a minimum overlap ratio of 0.9 for read alignments over exonic regions
 To see another example of the ``process-sample`` command chained in a real
 workflow, please refer to the :ref:`A Practical Workflow <pract_wf>` section.
 
+.. _annotation:
+
+Annotation formats
+------------------
+
+**sideRETRO** needs to know the **exons** of the protein coding genes: Their
+coordinates, their **strand** and the **gene** they belong to. The exon ids are
+optional, they only name the exons at the VCF (``EEJLIST``, ``PG5P``, ``PG3P``).
+By default, it expects a `GENCODE <https://www.gencodegenes.org/>`_ annotation:
+Lines with the feature ``exon``, the attribute ``transcript_type=protein_coding``,
+the gene name at ``gene_name`` and the exon id at ``exon_id``. Each of them can
+be changed:
+
+* ``-T``: The feature (third column).
+* ``-A``: The attributes to filter in. Alternatives inside one option are
+  separated by ``|`` and **any** of them must match; when the option is passed
+  more than once, **all** of them must match. Values match **exactly** - and,
+  in GFF3, a value packed with commas (``tag=basic,CCDS``) matches each one of
+  its parts.
+* ``-N``: The attribute with the gene name. If it is missing at an exon,
+  ``gene_id`` is used.
+* ``-E``: The attribute with the exon id. If it is missing, the exon is named
+  after its coordinates, ``chr:start-end``.
+
+For example, an `Ensembl <https://www.ensembl.org/>`_ GTF names the biotype
+``transcript_biotype``::
+
+  $ sider ps -a Homo_sapiens.GRCh38.gtf.gz \
+      -A transcript_biotype=protein_coding \
+      -i my_files_list.txt
+
+while protein coding *and* lncRNA transcripts tagged as ``basic`` would be::
+
+  $ sider ps -a gencode.gtf \
+      -A 'transcript_type=protein_coding|lncRNA' \
+      -A tag=basic \
+      -i my_files_list.txt
+
+Any other annotation can be given as a **BED6** file of exons, with the gene name
+at the 4th column and the strand at the 6th one - the file name must end in
+``.bed`` or ``.bed.gz``. The exons are named after their coordinates::
+
+  $ head -2 exons.bed
+  chr1	65418	65433	OR4F5	0	+
+  chr1	65519	65573	OR4F5	0	+
+
+  $ sider ps -a exons.bed -i my_files_list.txt
+
+If no exon passes the filter, ``process-sample`` stops at once and says so.
+
+.. note::
+   GTF/GFF3 is read as a flat file: Each exon line must carry its own gene
+   name. Annotations that link the exons to their genes only through the
+   ``Parent`` attribute (as Ensembl GFF3) must be flattened before - for
+   example, converted to GTF with `gffread
+   <https://github.com/gpertea/gffread>`_ - or given as BED6.
+
 Command ``merge-call``
 ======================
 
@@ -254,16 +327,14 @@ Filter & Annotation Options:
                               by N bases [default:"0"]
    -T, --gff-feature          The value of 'feature' (third column) for GTF/GFF3
                               file [default:"gene"]
-   -H, --gff-hard-attribute   The 'attribute' (ninth column) for GTF/GFF3
-                              file. It may be passed in the format key=value
-                              (e.g. gene_type=pseudogene). Each value will match
-                              as regex, so 'pseudogene' can capture IG_C_pseudogene,
-                              IG_V_pseudogene etc. This option can be passed multiple
-                              times and must be true in all of them
-   -S, --gff-soft-attribute   Works as 'gff-hard-attribute'. The difference is
-                              if this option is passed multiple times, it needs
-                              to be true only once
-                              [default:"gene_type=processed_pseudogene tag=retrogene"]
+   -A, --gff-attribute        The 'attribute' (ninth column) for GTF/GFF3 file
+                              in the format key=value. Alternatives are separated
+                              by '|' and any of them must match (OR): 'k=v1|v2'
+                              or 'k1=v1|k2=v2'. When passed multiple times, all
+                              of them must match (AND). Values match exactly
+                              [default:"gene_type=processed_pseudogene|tag=retrogene"]
+   -N, --gff-gene-name        The attribute with the gene name for GTF/GFF3
+                              file [default:"gene_name"]
    -x, --parental-distance    Minimum distance allowed between a cluster and
                               its putative parental gene [default:"1000000"]
    -g, --genotype-support     Minimum number of reads coming from a given source

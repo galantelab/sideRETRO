@@ -137,10 +137,9 @@ START_TEST (test_blacklist_index_dump_from_gff)
 
 	GffFilter *filter = gff_filter_new ();
 	gff_filter_insert_feature (filter, "gene");
-	gff_filter_insert_soft_attribute (filter, "gene_type", "processed_pseudogene");
-	gff_filter_insert_soft_attribute (filter, "tag", "retrogene");
+	gff_filter_insert_attribute (filter, "gene_type=processed_pseudogene|tag=retrogene");
 
-	blacklist_index_dump_from_gff (t.blacklist, t.file_path, filter);
+	blacklist_index_dump_from_gff (t.blacklist, t.file_path, filter, NULL);
 	ck_assert_int_eq (hash_size (t.blacklist->idx), 2);
 
 	// Test if idx hash contains chromosome 2

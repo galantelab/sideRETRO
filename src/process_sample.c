@@ -33,6 +33,9 @@
 #include "str.h"
 #include "thpool.h"
 #include "exon.h"
+#include "list.h"
+#include "bed.h"
+#include "gff.h"
 #include "abnormal.h"
 #include "dedup.h"
 #include "process_sample.h"
@@ -58,6 +61,12 @@ struct _ProcessSample
 	// Mandatory
 	Array       *sam_files;
 	const char  *gff_file;
+
+	// Annotation
+	GffFilter   *filter;
+	List        *attributes;
+	const char  *gene_name_key;
+	const char  *exon_id_key;
 
 	// I/O
 	const char  *input_file;
@@ -161,7 +170,8 @@ run (ProcessSample *ps)
 	// chromosome
 	log_info ("Index annotation file '%s'", ps->gff_file);
 	exon_tree = exon_tree_new (exon_stmt, overlapping_stmt, cs);
-	exon_tree_index_dump (exon_tree, ps->gff_file);
+	exon_tree_index_dump (exon_tree, ps->gff_file, ps->filter,
+			ps->gene_name_key, ps->exon_id_key);
 
 	// Each file is processed by one thread. If there are
 	// more threads than files, distribute the spare ones
@@ -260,6 +270,7 @@ print_usage (FILE *fp)
 		"       %*c                [-p STR] [-t INT] [-c INT] [-Q INT]\n"
 		"       %*c                [-m INT] [-f FLOAT] [-F FLOAT | -r]\n"
 		"       %*c                [-D] [-M FLOAT] [-e] [-i FILE]\n"
+		"       %*c                [-T STR] [-A KEY=VALUE] [-N STR] [-E STR]\n"
 		"       %*c                -a FILE <FILE> ...\n"
 		"\n"
 		"Extract alignments related to event of retrocopy\n"
@@ -276,11 +287,12 @@ print_usage (FILE *fp)
 		"   One or more alignment file in SAM/BAM/CRAM format\n"
 		"\n"
 		"Mandatory Options:\n"
-		"   -a, --annotation-file   Gene annotation on the reference genome\n"
-		"                           in GTF/GFF3 format. %s will look for 'exon'\n"
-		"                           with the attribute 'transcript_type=protein_coding'.\n"
-		"                           The attributes 'gene_name', 'gene_id' and 'exon_id'\n"
-		"                           are also required\n"
+		"   -a, --annotation-file   Exon annotation on the reference genome in\n"
+		"                           GTF/GFF3 or BED6 format. For GTF/GFF3, see the\n"
+		"                           'Annotation Options' below. For BED6 (file ending\n"
+		"                           in '.bed' or '.bed.gz'), each line is an exon, the\n"
+		"                           'name' (4th column) is the gene name and the strand\n"
+		"                           (6th column) is required\n"
 		"   -i, --input-file        File containing a newline separated list of\n"
 		"                           alignment files in SAM/BAM/CRAM format.\n"
 		"                           This option is not mandatory if one or more\n"
@@ -300,6 +312,21 @@ print_usage (FILE *fp)
 		"   -o, --output-dir        Output directory. Create the directory if it does\n"
 		"                           not exist [default:\"%s\"]\n"
 		"   -p, --prefix            Prefix output files [default:\"%s\"]\n"
+		"\n"
+		"Annotation Options (GTF/GFF3):\n"
+		"   -T, --gff-feature       The value of 'feature' (third column)\n"
+		"                           [default:\"%s\"]\n"
+		"   -A, --gff-attribute     The 'attribute' (ninth column) in the format\n"
+		"                           key=value. Alternatives are separated by '|'\n"
+		"                           and any of them must match (OR): 'k=v1|v2' or\n"
+		"                           'k1=v1|k2=v2'. When passed multiple times, all\n"
+		"                           of them must match (AND). Values match exactly\n"
+		"                           [default:\"%s\"]\n"
+		"   -N, --gff-gene-name     The attribute with the gene name. If missing,\n"
+		"                           'gene_id' is used [default:\"%s\"]\n"
+		"   -E, --gff-exon-id       The attribute with the exon id. If missing, the\n"
+		"                           coordinates 'chr:start-end' are used\n"
+		"                           [default:\"%s\"]\n"
 		"\n"
 		"SQLite3 Options:\n"
 		"   -c, --cache-size        Set SQLite3 cache size in KiB [default:\"%d\"]\n"
@@ -330,8 +357,9 @@ print_usage (FILE *fp)
 		"                           alignment. If '-f' is 0.5, then '-F' will be set to\n"
 		"                           0.5 as well\n"
 		"\n",
-		PACKAGE_STRING, PACKAGE, pkg_len, ' ', pkg_len, ' ', pkg_len, ' ', pkg_len, ' ',
-		PACKAGE, DEFAULT_OUTPUT_DIR, DEFAULT_PREFIX, DEFAULT_CACHE_SIZE, DEFAULT_PHRED_QUALITY,
+		PACKAGE_STRING, PACKAGE, pkg_len, ' ', pkg_len, ' ', pkg_len, ' ', pkg_len, ' ', pkg_len, ' ',
+		DEFAULT_OUTPUT_DIR, DEFAULT_PREFIX, EXON_DEFAULT_FEATURE, EXON_DEFAULT_ATTRIBUTE,
+		EXON_DEFAULT_GENE_NAME, EXON_DEFAULT_EXON_ID, DEFAULT_CACHE_SIZE, DEFAULT_PHRED_QUALITY,
 		DEFAULT_MAX_BASE_FREQ, DEFAULT_THREADS, DEFAULT_MAX_DISTANCE,
 		DEFAULT_EXON_FRAC, DEFAULT_ALIGNMENT_FRAC);
 }
@@ -349,6 +377,10 @@ process_sample_init (ProcessSample *ps)
 	*ps = (ProcessSample) {
 		.sam_files          = array_new (xfree),
 		.gff_file           = NULL,
+		.filter             = gff_filter_new (),
+		.attributes         = list_new (xfree),
+		.gene_name_key      = EXON_DEFAULT_GENE_NAME,
+		.exon_id_key        = EXON_DEFAULT_EXON_ID,
 		.input_file         = NULL,
 		.output_dir         = DEFAULT_OUTPUT_DIR,
 		.prefix             = DEFAULT_PREFIX,
@@ -378,6 +410,8 @@ process_sample_destroy (ProcessSample *ps)
 		return;
 
 	array_free (ps->sam_files, 1);
+	gff_filter_free (ps->filter);
+	list_free (ps->attributes);
 	logger_free (ps->logger);
 
 	memset (ps, 0, sizeof (ProcessSample));
@@ -425,6 +459,16 @@ process_sample_validate (ProcessSample *ps)
 		{
 			fprintf (stderr, "%s: annotation file '%s': No such file\n", PACKAGE, ps->gff_file);
 			rc = EXIT_FAILURE; goto Exit;
+		}
+
+	// GENCODE defaults for the annotation filter
+	if (ps->filter->feature == NULL)
+		gff_filter_insert_feature (ps->filter, EXON_DEFAULT_FEATURE);
+
+	if (gff_filter_attribute_size (ps->filter) == 0)
+		{
+			list_append (ps->attributes, xstrdup (EXON_DEFAULT_ATTRIBUTE));
+			gff_filter_insert_attribute (ps->filter, EXON_DEFAULT_ATTRIBUTE);
 		}
 
 	/*
@@ -547,6 +591,23 @@ process_sample_print (const ProcessSample *ps)
 		"  --prefix='%s' \\\n",
 		PACKAGE, PACKAGE, ps->gff_file, ps->output_dir, ps->prefix);
 
+	if (!bed_looks_like_bed_file (ps->gff_file))
+		{
+			ListElmt *cur = NULL;
+
+			string_concat_printf (msg, "  --gff-feature='%s' \\\n",
+					ps->filter->feature);
+
+			for (cur = list_head (ps->attributes); cur != NULL; cur = list_next (cur))
+				string_concat_printf (msg, "  --gff-attribute='%s' \\\n",
+						(char *) list_data (cur));
+
+			string_concat_printf (msg,
+					"  --gff-gene-name='%s' \\\n"
+					"  --gff-exon-id='%s' \\\n",
+					ps->gene_name_key, ps->exon_id_key);
+		}
+
 	if (ps->log_file != NULL)
 		string_concat_printf (msg, "  --log-file='%s' \\\n", ps->log_file);
 
@@ -623,6 +684,10 @@ parse_process_sample_command_opt (int argc, char **argv)
 		{"either",          no_argument,       0, 'e'},
 		{"reciprocal",      no_argument,       0, 'r'},
 		{"input-file",      required_argument, 0, 'i'},
+		{"gff-feature",     required_argument, 0, 'T'},
+		{"gff-attribute",   required_argument, 0, 'A'},
+		{"gff-gene-name",   required_argument, 0, 'N'},
+		{"gff-exon-id",     required_argument, 0, 'E'},
 		{0,                 0,                 0,  0 }
 	};
 
@@ -634,7 +699,7 @@ parse_process_sample_command_opt (int argc, char **argv)
 	int option_index = 0;
 	int c, i;
 
-	while ((c = getopt_long (argc, argv, "hqdsDl:a:o:p:t:m:M:c:Q:f:F:eri:", opt, &option_index)) >= 0)
+	while ((c = getopt_long (argc, argv, "hqdsDl:a:o:p:t:m:M:c:Q:f:F:eri:T:A:N:E:", opt, &option_index)) >= 0)
 		{
 			switch (c)
 				{
@@ -728,6 +793,35 @@ parse_process_sample_command_opt (int argc, char **argv)
 				case 'r':
 					{
 						ps.reciprocal = 1;
+						break;
+					}
+				case 'T':
+					{
+						gff_filter_insert_feature (ps.filter, optarg);
+						break;
+					}
+				case 'A':
+					{
+						if (!gff_filter_insert_attribute (ps.filter, optarg))
+							{
+								fprintf (stderr,
+										"%s: --gff-attribute '%s': Expected "
+										"KEY=VALUE[|VALUE|KEY=VALUE...]\n", PACKAGE, optarg);
+								print_try_help (stderr);
+								rc = EXIT_FAILURE; goto Exit;
+							}
+
+						list_append (ps.attributes, xstrdup (optarg));
+						break;
+					}
+				case 'N':
+					{
+						ps.gene_name_key = optarg;
+						break;
+					}
+				case 'E':
+					{
+						ps.exon_id_key = optarg;
 						break;
 					}
 				case 'i':

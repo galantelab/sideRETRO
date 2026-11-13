@@ -21,7 +21,18 @@
 
 #include "hash.h"
 #include "chr.h"
+#include "gff.h"
 #include "db.h"
+
+/*
+ * Defaults for a GENCODE like annotation. A BED6 file
+ * needs none of them: Each line is an exon, the 'name'
+ * is the gene name and the exon id is 'chr:start-end'
+ */
+#define EXON_DEFAULT_FEATURE    "exon"
+#define EXON_DEFAULT_ATTRIBUTE  "transcript_type=protein_coding"
+#define EXON_DEFAULT_GENE_NAME  "gene_name"
+#define EXON_DEFAULT_EXON_ID    "exon_id"
 
 struct _ExonTree
 {
@@ -39,7 +50,8 @@ ExonTree * exon_tree_new (sqlite3_stmt *exon_stmt,
 
 void exon_tree_free (ExonTree *exon_tree);
 
-void exon_tree_index_dump (ExonTree *exon_tree, const char *gff_file);
+void exon_tree_index_dump (ExonTree *exon_tree, const char *annotation_file,
+		const GffFilter *filter, const char *gene_name_key, const char *exon_id_key);
 
 int exon_tree_lookup_dump (ExonTree *exon_tree, const char *chr,
 		long low, long high, float exon_overlap_frac,

@@ -21,6 +21,7 @@
 
 #include <stdlib.h>
 #include "hash.h"
+#include "list.h"
 #include "gz.h"
 
 struct _GffFile
@@ -65,12 +66,17 @@ struct _GffEntry
 
 typedef struct _GffEntry GffEntry;
 
+/*
+ * Each attribute group comes from one 'key=value' option and
+ * holds alternative key/value pairs: 'k1=v1|v2|k2=v3' means
+ * k1=v1 OR k1=v2 OR k2=v3. An entry passes the filter if it
+ * matches the feature (if any) and at least one pair of EACH
+ * group. Values match exactly
+ */
 struct _GffFilter
 {
 	const char *feature;
-	Hash       *hard_attributes;
-	Hash       *soft_attributes;
-	Hash       *values_regex;
+	List       *attributes;
 };
 
 typedef struct _GffFilter GffFilter;
@@ -87,12 +93,11 @@ const char * gff_attribute_find                 (const GffEntry *entry, const ch
 GffFilter  * gff_filter_new                     (void);
 void         gff_filter_insert_feature          (GffFilter *filter, const char *feature);
 void         gff_filter_free                    (GffFilter *filter);
-void         gff_filter_insert_hard_attribute   (GffFilter *filter, const char *key, const char *value);
-void         gff_filter_insert_soft_attribute   (GffFilter *filter, const char *key, const char *value);
+int          gff_filter_insert_attribute        (GffFilter *filter, const char *key_values);
+int          gff_filter_match                   (const GffFilter *filter, const GffEntry *entry);
 int          gff_read_filtered                  (GffFile *gff, GffEntry *entry, const GffFilter *filter);
 
 #define gff_attribute_get(entry,i) (&(entry)->attributes[(i)])
-#define gff_filter_hard_attribute_size(filter) (hash_size ((filter)->hard_attributes))
-#define gff_filter_soft_attribute_size(filter) (hash_size ((filter)->soft_attributes))
+#define gff_filter_attribute_size(filter) (list_size ((filter)->attributes))
 
 #endif /* gff.h */

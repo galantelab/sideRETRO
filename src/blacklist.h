@@ -41,7 +41,7 @@ Blacklist * blacklist_new (sqlite3_stmt *blacklist_stmt,
 void blacklist_free (Blacklist *blacklist);
 
 void blacklist_index_dump_from_gff (Blacklist *blacklist,
-		const char *gff_file, const GffFilter *filter);
+		const char *gff_file, const GffFilter *filter, const char *name_key);
 
 void blacklist_index_dump_from_bed (Blacklist *blacklist,
 		const char *bed_file);

@@ -56,6 +56,7 @@ struct _BedEntry
 
 typedef struct _BedEntry BedEntry;
 
+int        bed_looks_like_bed_file (const char *filename);
 BedFile *  bed_open_for_reading (const char *path);
 void       bed_close            (BedFile *bed);
 

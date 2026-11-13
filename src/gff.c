@@ -25,7 +25,6 @@
 #include "wrapper.h"
 #include "log.h"
 #include "utils.h"
-#include "set.h"
 #include "gff.h"
 
 #define GFF_ATTRSIZ 8
@@ -326,14 +325,29 @@ gff_read (GffFile *gff, GffEntry *entry)
 	return 1;
 }
 
-static void
-regex_free (regex_t *reg)
+struct _GffPair
 {
-	if (reg == NULL)
+	char *key;
+	char *value;
+};
+
+typedef struct _GffPair GffPair;
+
+static void
+gff_pair_free (GffPair *pair)
+{
+	if (pair == NULL)
 		return;
 
-	regfree (reg);
-	xfree (reg);
+	xfree (pair->key);
+	xfree (pair->value);
+	xfree (pair);
+}
+
+static void
+gff_group_free (List *group)
+{
+	list_free (group);
 }
 
 GffFilter *
@@ -341,12 +355,7 @@ gff_filter_new (void)
 {
 	GffFilter *filter = xcalloc (1, sizeof (GffFilter));
 
-	filter->hard_attributes = hash_new (xfree,
-			(DestroyNotify) set_free);
-	filter->soft_attributes = hash_new (xfree,
-			(DestroyNotify) set_free);
-	filter->values_regex = hash_new (NULL,
-			(DestroyNotify) regex_free);
+	filter->attributes = list_new ((DestroyNotify) gff_group_free);
 
 	return filter;
 }
@@ -358,9 +367,7 @@ gff_filter_free (GffFilter *filter)
 		return;
 
 	xfree ((void *) filter->feature);
-	hash_free (filter->hard_attributes);
-	hash_free (filter->soft_attributes);
-	hash_free (filter->values_regex);
+	list_free (filter->attributes);
 
 	xfree (filter);
 }
@@ -374,140 +381,137 @@ gff_filter_insert_feature (GffFilter *filter, const char *feature)
 		: NULL;
 }
 
-static inline void
-gff_filter_insert_value_regex (GffFilter *filter,
-		const char *value)
+int
+gff_filter_insert_attribute (GffFilter *filter, const char *key_values)
 {
-	regex_t *reg = xcalloc (1, sizeof (regex_t));
+	assert (filter != NULL && key_values != NULL);
 
-	if (regcomp (reg, value, REG_EXTENDED|REG_NOSUB) != 0)
-		log_fatal ("Error regcomp for '%s'", value);
-
-	hash_insert (filter->values_regex, value, reg);
-}
-
-static inline int
-gff_filter_match_value_regex (const GffFilter *filter,
-		const char *value_key, const char *value)
-{
-	regex_t *reg = hash_lookup (filter->values_regex, value_key);
-	return reg != NULL
-		&& regexec (reg, value, 0, (regmatch_t *) NULL, 0) == 0;
-}
-
-void
-gff_filter_insert_hard_attribute (GffFilter *filter,
-		const char *key, const char *value)
-{
-	assert (filter != NULL && key != NULL && value != NULL);
-
-	Set *values = hash_lookup (filter->hard_attributes, key);
-
-	if (values == NULL)
-		{
-			values = set_new_full (str_hash, str_equal, xfree);
-			hash_insert (filter->hard_attributes, xstrdup (key), values);
-		}
-
-	if (set_insert (values, xstrdup (value)))
-		gff_filter_insert_value_regex (filter, value);
-}
-
-void
-gff_filter_insert_soft_attribute (GffFilter *filter,
-		const char *key, const char *value)
-{
-	assert (filter != NULL && key != NULL && value != NULL);
-
-	Set *values = hash_lookup (filter->soft_attributes, key);
-
-	if (values == NULL)
-		{
-			values = set_new_full (str_hash, str_equal, xfree);
-			hash_insert (filter->soft_attributes, xstrdup (key), values);
-		}
-
-	if (set_insert (values, xstrdup (value)))
-		gff_filter_insert_value_regex (filter, value);
-}
-
-static inline int
-gff_filter_lookup_hard_attributes (const GffFilter *filter, const GffEntry *entry)
-{
-	HashIter iter;
-	ListElmt *cur = NULL;
-
-	const Set *values = NULL;
+	List *group = NULL;
+	GffPair *pair = NULL;
+	char *copy = NULL;
+	char *scratch = NULL;
+	char *token = NULL;
+	char *eq = NULL;
 	const char *key = NULL;
-	const char *value = NULL;
+	int rc = 1;
 
-	hash_iter_init (&iter, filter->hard_attributes);
-	while (hash_iter_next (&iter, (void **) &key, (void **) &values))
+	/*
+	* Parse 'k1=v1|v2|k2=v3': A token with '=' sets the key,
+	* a token without it is another value for the last key
+	*/
+	group = list_new ((DestroyNotify) gff_pair_free);
+	copy = xstrdup (key_values);
+
+	for (token = strtok_r (copy, "|", &scratch); token != NULL;
+			token = strtok_r (NULL, "|", &scratch))
 		{
-			value = gff_attribute_find (entry, key);
-			if (value == NULL)
-				return 0;
+			eq = strchr (token, '=');
 
-			cur = list_head (set_list (values));
-			for (; cur != NULL; cur = list_next (cur))
-				if (!gff_filter_match_value_regex (filter, list_data (cur), value))
-					return 0;
+			if (eq != NULL)
+				{
+					*eq = '\0';
+					key = token;
+					token = eq + 1;
+				}
+
+			if (key == NULL || *key == '\0' || *token == '\0')
+				{
+					rc = 0;
+					break;
+				}
+
+			pair = xcalloc (1, sizeof (GffPair));
+			pair->key = xstrdup (key);
+			pair->value = xstrdup (token);
+
+			list_append (group, pair);
 		}
 
-	return 1;
+	if (rc && list_size (group) > 0)
+		list_append (filter->attributes, group);
+	else
+		{
+			rc = 0;
+			list_free (group);
+		}
+
+	xfree (copy);
+	return rc;
 }
 
 static inline int
-gff_filter_lookup_soft_attributes (const GffFilter *filter, const GffEntry *entry)
+gff_value_match (const char *value, const char *expected)
 {
-	HashIter iter;
-	ListElmt *cur = NULL;
+	size_t len = strlen (expected);
+	const char *cur = value;
+	const char *next = NULL;
 
-	const Set *values = NULL;
-	const char *key = NULL;
-	const char *value = NULL;
-
-	hash_iter_init (&iter, filter->soft_attributes);
-	while (hash_iter_next (&iter, (void **) &key, (void **) &values))
+	/*
+	* Exact match. GFF3 may pack multiple values separated
+	* by comma (e.g. 'tag=basic,CCDS'), so test each one
+	*/
+	while (cur != NULL)
 		{
-			value = gff_attribute_find (entry, key);
-			if (value == NULL)
-				continue;
+			next = strchr (cur, ',');
 
-			cur = list_head (set_list (values));
-			for (; cur != NULL; cur = list_next (cur))
-				if (gff_filter_match_value_regex (filter, list_data (cur), value))
-					return 1;
+			if ((next == NULL && !strcmp (cur, expected))
+					|| (next != NULL && (size_t) (next - cur) == len
+						&& !strncmp (cur, expected, len)))
+				return 1;
+
+			cur = next != NULL ? next + 1 : NULL;
 		}
 
 	return 0;
 }
 
 static inline int
-gff_filter_lookup (const GffFilter *filter, const GffEntry *entry)
+gff_group_match (const List *group, const GffEntry *entry)
 {
+	const ListElmt *cur = NULL;
+	const GffPair *pair = NULL;
+	const GffAttribute *attr = NULL;
+	size_t i = 0;
+
+	// Any pair of the group. A key may appear more than
+	// once into the attributes (e.g. 'tag' in GTF)
+	for (cur = list_head (group); cur != NULL; cur = list_next (cur))
+		{
+			pair = list_data (cur);
+
+			for (i = 0; i < entry->num_attributes; i++)
+				{
+					attr = gff_attribute_get (entry, i);
+
+					if (!strcmp (attr->key, pair->key)
+							&& gff_value_match (attr->value, pair->value))
+						return 1;
+				}
+		}
+
+	return 0;
+}
+
+int
+gff_filter_match (const GffFilter *filter, const GffEntry *entry)
+{
+	assert (filter != NULL && entry != NULL);
+
+	const ListElmt *cur = NULL;
+
 	// Return 0 if there is a feature to be filtered
 	// and it does not match
 	if (filter->feature != NULL
 			&& strcmp (filter->feature, entry->feature))
 		return 0;
 
-	// Filter hard attributes returns 1 if all tests succeed
-	// or if there is no hard attributes
-	if (!gff_filter_lookup_hard_attributes (filter, entry))
-		return 0;
+	// All groups must match. Without groups, any entry
+	// passes and it works as a regular 'gff_read'
+	for (cur = list_head (filter->attributes); cur != NULL; cur = list_next (cur))
+		if (!gff_group_match (list_data (cur), entry))
+			return 0;
 
-	// Soft filtering returns 1 if at least one test succeed
-	// and returns 0 if there is no soft attributes. So, test
-	// now for soft_attributes values and return 1 if none
-	// was passed. It also returns 1 if no filter was set, and
-	// this way, works as a regular 'gff_read'
-	if (hash_size (filter->soft_attributes) == 0)
-		return 1;
-
-	// Finally, return the soft attributes filtering if all
-	// above succeed or was not set at all
-	return gff_filter_lookup_soft_attributes (filter, entry);
+	return 1;
 }
 
 int
@@ -516,7 +520,7 @@ gff_read_filtered (GffFile *gff, GffEntry *entry, const GffFilter *filter)
 	assert (filter != NULL);
 
 	while (gff_read (gff, entry))
-		if (gff_filter_lookup (filter, entry))
+		if (gff_filter_match (filter, entry))
 			return 1;
 
 	return 0;

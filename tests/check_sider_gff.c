@@ -353,58 +353,100 @@ START_TEST (test_key_value_fatal)
 }
 END_TEST
 
+static int
+count_filtered (const char *path, const GffFilter *filter)
+{
+	GffFile *gff = gff_open_for_reading (path);
+	GffEntry *entry = gff_entry_new ();
+	int i = 0;
+
+	while (gff_read_filtered (gff, entry, filter))
+		i++;
+
+	gff_entry_free (entry);
+	gff_close (gff);
+
+	return i;
+}
+
 START_TEST (test_gff_filter)
 {
-	GffFile *gff = NULL;
-	GffEntry *entry = NULL;
 	GffFilter *filter = NULL;
-
 	int i = 0;
 
 	char gff_path[] = "/tmp/ponga.gff3.XXXXXX";
 	create_gff (gff_body, gff_path);
 
-	gff = gff_open_for_reading (gff_path);
-	entry = gff_entry_new ();
-
-	// Only hard attributes
+	// No filter at all: All 7 entries
 	filter = gff_filter_new ();
 	gff_filter_insert_feature (filter, NULL);
+	ck_assert_int_eq (count_filtered (gff_path, filter), 7);
+
+	// Feature only: 4 genes
 	gff_filter_insert_feature (filter, "ponga");
 	gff_filter_insert_feature (filter, "gene");
-	gff_filter_insert_hard_attribute (filter, "transcript_type", "protein_coding");
-	gff_filter_insert_hard_attribute (filter, "gene_id", "ENS");
+	ck_assert_int_eq (count_filtered (gff_path, filter), 4);
 
-	while (gff_read_filtered (gff, entry, filter))
-		;
+	// AND: transcript_type=protein_coding and gene_id=ENSG1.
+	// Exact match: 'ENS' does not match 'ENSG1' anymore
+	gff_filter_insert_attribute (filter, "transcript_type=protein_coding");
+	ck_assert_int_eq (count_filtered (gff_path, filter), 3);
 
-	// Rewind
+	gff_filter_insert_attribute (filter, "gene_id=ENS");
+	ck_assert_int_eq (count_filtered (gff_path, filter), 0);
+
 	gff_filter_free (filter);
+
+	// OR within a group with the same key: 'k=v1|v2'
 	filter = gff_filter_new ();
-	gff_close (gff);
-	gff = gff_open_for_reading (gff_path);
-
-	// Hard and soft attributes
 	gff_filter_insert_feature (filter, "gene");
-	gff_filter_insert_hard_attribute (filter, "transcript_type", "protein_coding");
-	gff_filter_insert_hard_attribute (filter, "gene_id", "ENS");
-	gff_filter_insert_soft_attribute (filter, "non_exist", "ponga");
-	gff_filter_insert_soft_attribute (filter, "gene_type", "protein_coding");
-	gff_filter_insert_soft_attribute (filter, "gene_type", "lincRNA");
+	ck_assert_int_eq (gff_filter_insert_attribute (filter,
+				"gene_type=protein_coding|lincRNA"), 1);
+	ck_assert_int_eq (count_filtered (gff_path, filter), 3);
 
-	while (gff_read_filtered (gff, entry, filter))
-		i++;
+	// AND with another group
+	gff_filter_insert_attribute (filter, "transcript_type=protein_coding");
+	ck_assert_int_eq (count_filtered (gff_path, filter), 2);
+	gff_filter_free (filter);
 
-	ck_assert_int_eq (i, 2);
+	// OR across keys: 'k1=v1|k2=v2'
+	filter = gff_filter_new ();
+	gff_filter_insert_feature (filter, "gene");
+	gff_filter_insert_attribute (filter, "non_exist=ponga|ponga=must_fail");
+	ck_assert_int_eq (count_filtered (gff_path, filter), 1);
+	ck_assert_int_eq (gff_filter_attribute_size (filter), 1);
+	gff_filter_free (filter);
 
-	gff_close (gff);
-	gff_entry_free (entry);
+	// Malformed: missing key, missing value
+	filter = gff_filter_new ();
+	ck_assert_int_eq (gff_filter_insert_attribute (filter, "ponga"), 0);
+	ck_assert_int_eq (gff_filter_insert_attribute (filter, "=ponga"), 0);
+	ck_assert_int_eq (gff_filter_insert_attribute (filter, "ponga="), 0);
+	ck_assert_int_eq (gff_filter_insert_attribute (filter, ""), 0);
+	ck_assert_int_eq (gff_filter_attribute_size (filter), 0);
 	gff_filter_free (filter);
 
 	// Coverage
 	gff_filter_free (NULL);
-
 	xunlink (gff_path);
+
+	// Repeated keys (GTF 'tag') and packed values (GFF3 'tag=a,b')
+	char tag_path[] = "/tmp/ponga.gtf.XXXXXX";
+	create_gff (
+		"chr1\t.\tgene\t1\t100\t.\t+\t.\tgene_name \"a\"; tag \"basic\"; tag \"retrogene\";\n"
+		"chr1\t.\tgene\t1\t100\t.\t+\t.\tgene_name=b;tag=basic,retrogene;\n"
+		"chr1\t.\tgene\t1\t100\t.\t+\t.\tgene_name=c;tag=retrogene_like;\n"
+		"chr1\t.\tgene\t1\t100\t.\t+\t.\tgene_name=d;tag=basic;\n",
+		tag_path);
+
+	filter = gff_filter_new ();
+	gff_filter_insert_attribute (filter, "tag=retrogene");
+
+	for (i = 0; i < 1; i++)
+		ck_assert_int_eq (count_filtered (tag_path, filter), 2);
+
+	gff_filter_free (filter);
+	xunlink (tag_path);
 }
 END_TEST
 

@@ -54,10 +54,8 @@
 #define DEFAULT_SUPPORT               1
 #define DEFAULT_BLACKLIST_PADDING     0
 #define DEFAULT_GFF_FEATURE           "gene"
-#define DEFAULT_GFF_ATTRIBUTE1        "gene_type"
-#define DEFAULT_GFF_ATTRIBUTE_VALUE1  "processed_pseudogene"
-#define DEFAULT_GFF_ATTRIBUTE2        "tag"
-#define DEFAULT_GFF_ATTRIBUTE_VALUE2  "retrogene"
+#define DEFAULT_GFF_ATTRIBUTE         "gene_type=processed_pseudogene|tag=retrogene"
+#define DEFAULT_GFF_GENE_NAME         "gene_name"
 #define DEFAULT_NEAR_GENE_RANK        3
 #define DEFAULT_THREADS               1
 #define DEFAULT_PHRED_QUALITY         8
@@ -91,8 +89,8 @@ struct _MergeCall
 	const char  *blacklist_region;
 	Set         *blacklist_chr;
 	GffFilter   *filter;
-	List        *hard_attributes;
-	List        *soft_attributes;
+	List        *attributes;
+	const char  *gene_name_key;
 	ChrStd      *cs;
 	int          padding;
 	int          parental_dist;
@@ -202,7 +200,7 @@ run (MergeCall *mc)
 					log_info ("Index blacklist entries from GTF/GFF3 file '%s'",
 							mc->blacklist_region);
 					blacklist_index_dump_from_gff (blacklist,
-							mc->blacklist_region, mc->filter);
+							mc->blacklist_region, mc->filter, mc->gene_name_key);
 				}
 			else
 				{
@@ -301,7 +299,7 @@ print_usage (FILE *fp)
 		"\n"
 		"Usage: %s merge-call [-h] [-q] [-d] [-l FILE] [-o DIR] [-p STR]\n"
 		"       %*c            [-c INT] [-I] [-e INT] [-m INT] [-b STR]\n"
-		"       %*c            [-B FILE] [[-T STR] [[-H|S] KEY=VALUE]]\n"
+		"       %*c            [-B FILE] [-T STR] [-A KEY=VALUE] [-N STR]\n"
 		"       %*c            [-P INT] [-x INT] [-g INT] [-n INT]\n"
 		"       %*c            [-r FILE] [-t INT] [-Q INT] [-i FILE]\n"
 		"       %*c            <FILE> ...\n"
@@ -363,16 +361,14 @@ print_usage (FILE *fp)
 		"                              by N bases [default:\"%d\"]\n"
 		"   -T, --gff-feature          The value of 'feature' (third column) for GTF/GFF3\n"
 		"                              file [default:\"%s\"]\n"
-		"   -H, --gff-hard-attribute   The 'attribute' (ninth column) for GTF/GFF3\n"
-		"                              file. It may be passed in the format key=value\n"
-		"                              (e.g. gene_type=pseudogene). Each value will match\n"
-		"                              as regex, so 'pseudogene' can capture IG_C_pseudogene,\n"
-		"                              IG_V_pseudogene etc. This option can be passed multiple\n"
-		"                              times and must be true in all of them\n"
-		"   -S, --gff-soft-attribute   Works as 'gff-hard-attribute'. The difference is\n"
-		"                              if this option is passed multiple times, it needs\n"
-		"                              to be true only once\n"
-		"                              [default:\"%s=%s %s=%s\"]\n"
+		"   -A, --gff-attribute        The 'attribute' (ninth column) for GTF/GFF3 file\n"
+		"                              in the format key=value. Alternatives are separated\n"
+		"                              by '|' and any of them must match (OR): 'k=v1|v2'\n"
+		"                              or 'k1=v1|k2=v2'. When passed multiple times, all\n"
+		"                              of them must match (AND). Values match exactly\n"
+		"                              [default:\"%s\"]\n"
+		"   -N, --gff-gene-name        The attribute with the gene name for GTF/GFF3\n"
+		"                              file [default:\"%s\"]\n"
 		"   -x, --parental-distance    Minimum distance allowed between a cluster and\n"
 		"                              its putative parental gene [default:\"%d\"]\n"
 		"   -g, --genotype-support     Minimum number of reads coming from a given source\n"
@@ -390,8 +386,8 @@ print_usage (FILE *fp)
 		"\n",
 		PACKAGE_STRING, PACKAGE, pkg_len, ' ', pkg_len, ' ', pkg_len, ' ', pkg_len, ' ', pkg_len, ' ',
 		DEFAULT_OUTPUT_DIR, DEFAULT_PREFIX, DEFAULT_CACHE_SIZE, DEFAULT_EPS, DEFAULT_MIN_PTS,
-		DEFAULT_BLACKLIST_CHR, DEFAULT_BLACKLIST_PADDING, DEFAULT_GFF_FEATURE, DEFAULT_GFF_ATTRIBUTE1,
-		DEFAULT_GFF_ATTRIBUTE_VALUE1, DEFAULT_GFF_ATTRIBUTE2, DEFAULT_GFF_ATTRIBUTE_VALUE2,
+		DEFAULT_BLACKLIST_CHR, DEFAULT_BLACKLIST_PADDING, DEFAULT_GFF_FEATURE, DEFAULT_GFF_ATTRIBUTE,
+		DEFAULT_GFF_GENE_NAME,
 		DEFAULT_PARENTAL_DISTANCE, DEFAULT_SUPPORT, DEFAULT_NEAR_GENE_RANK,
 		DEFAULT_THREADS, DEFAULT_PHRED_QUALITY);
 }
@@ -423,8 +419,8 @@ merge_call_init (MergeCall *mc)
 		.blacklist_region = NULL,
 		.blacklist_chr    = set_new_full (str_hash, str_equal, NULL),
 		.filter           = gff_filter_new (),
-		.hard_attributes  = list_new (xfree),
-		.soft_attributes  = list_new (xfree),
+		.attributes       = list_new (xfree),
+		.gene_name_key    = DEFAULT_GFF_GENE_NAME,
 		.cs               = chr_std_new (),
 		.padding          = DEFAULT_BLACKLIST_PADDING,
 		.parental_dist    = DEFAULT_PARENTAL_DISTANCE,
@@ -445,8 +441,7 @@ merge_call_destroy (MergeCall *mc)
 	array_free (mc->db_files, 1);
 	set_free (mc->blacklist_chr);
 	gff_filter_free (mc->filter);
-	list_free (mc->hard_attributes);
-	list_free (mc->soft_attributes);
+	list_free (mc->attributes);
 	chr_std_free (mc->cs);
 	logger_free (mc->logger);
 	xfree ((void *) mc->output_file);
@@ -563,24 +558,11 @@ merge_call_validate (MergeCall *mc)
 	if (mc->filter->feature == NULL)
 		gff_filter_insert_feature (mc->filter, DEFAULT_GFF_FEATURE);
 
-	// If gff_attribute_values was not set
-	if (gff_filter_hard_attribute_size (mc->filter) == 0
-			&& gff_filter_soft_attribute_size (mc->filter) == 0)
+	// If gff_attribute was not set
+	if (gff_filter_attribute_size (mc->filter) == 0)
 		{
-			char *key_value = NULL;
-
-			xasprintf (&key_value, "%s=%s", DEFAULT_GFF_ATTRIBUTE1,
-					DEFAULT_GFF_ATTRIBUTE_VALUE1);
-			list_append (mc->soft_attributes, key_value);
-
-			xasprintf (&key_value, "%s=%s", DEFAULT_GFF_ATTRIBUTE2,
-					DEFAULT_GFF_ATTRIBUTE_VALUE2);
-			list_append (mc->soft_attributes, key_value);
-
-			gff_filter_insert_soft_attribute (mc->filter, DEFAULT_GFF_ATTRIBUTE1,
-					DEFAULT_GFF_ATTRIBUTE_VALUE1);
-			gff_filter_insert_soft_attribute (mc->filter, DEFAULT_GFF_ATTRIBUTE2,
-					DEFAULT_GFF_ATTRIBUTE_VALUE2);
+			list_append (mc->attributes, xstrdup (DEFAULT_GFF_ATTRIBUTE));
+			gff_filter_insert_attribute (mc->filter, DEFAULT_GFF_ATTRIBUTE);
 		}
 
 	// Copy the name of possible output file, if the
@@ -691,15 +673,13 @@ merge_call_print (const MergeCall *mc)
 					string_concat_printf (msg, "  --gff-feature='%s' \\\n",
 							mc->filter->feature);
 
-					cur = list_head (mc->hard_attributes);
+					cur = list_head (mc->attributes);
 					for (; cur != NULL; cur = list_next (cur))
-						string_concat_printf (msg, "  --gff-hard-attribute='%s' \\\n",
+						string_concat_printf (msg, "  --gff-attribute='%s' \\\n",
 								(char *) list_data (cur));
 
-					cur = list_head (mc->soft_attributes);
-					for (; cur != NULL; cur = list_next (cur))
-						string_concat_printf (msg, "  --gff-soft-attribute='%s' \\\n",
-								(char *) list_data (cur));
+					string_concat_printf (msg, "  --gff-gene-name='%s' \\\n",
+							mc->gene_name_key);
 				}
 		}
 
@@ -754,8 +734,8 @@ parse_merge_call_command_opt (int argc, char **argv)
 		{"blacklist-region",   required_argument, 0, 'B'},
 		{"blacklist-padding",  required_argument, 0, 'P'},
 		{"gff-feature",        required_argument, 0, 'T'},
-		{"gff-hard-attribute", required_argument, 0, 'H'},
-		{"gff-soft-attribute", required_argument, 0, 'S'},
+		{"gff-attribute",      required_argument, 0, 'A'},
+		{"gff-gene-name",      required_argument, 0, 'N'},
 		{"near-gene-distance", required_argument, 0, 'n'},
 		{"reference-file",     required_argument, 0, 'r'},
 		{"phred-quality",      required_argument, 0, 'Q'},
@@ -771,7 +751,7 @@ parse_merge_call_command_opt (int argc, char **argv)
 	int option_index = 0;
 	int c, i;
 
-	while ((c = getopt_long (argc, argv, "hqdIl:o:p:c:e:m:b:B:P:T:H:S:x:g:n:r:Q:t:i:", opt, &option_index)) >= 0)
+	while ((c = getopt_long (argc, argv, "hqdIl:o:p:c:e:m:b:B:P:T:A:N:x:g:n:r:Q:t:i:", opt, &option_index)) >= 0)
 		{
 			switch (c)
 				{
@@ -877,57 +857,23 @@ parse_merge_call_command_opt (int argc, char **argv)
 						gff_filter_insert_feature (mc.filter, optarg);
 						break;
 					}
-				case 'H':
+				case 'A':
 					{
-						char *scratch = NULL;
-
-						const char *key = strtok_r (optarg,
-								"=", &scratch);
-						const char *value = strtok_r (NULL,
-								"=", &scratch);
-
-						if (key == NULL || value == NULL)
+						if (!gff_filter_insert_attribute (mc.filter, optarg))
 							{
 								fprintf (stderr,
-										"%s: --gff-hard-attribute KEY=VALUE: "
-										"Missing complete pair\n", PACKAGE);
+										"%s: --gff-attribute '%s': Expected "
+										"KEY=VALUE[|VALUE|KEY=VALUE...]\n", PACKAGE, optarg);
 								print_try_help (stderr);
 								rc = EXIT_FAILURE; goto Exit;
 							}
 
-						char *key_value = NULL;
-						xasprintf (&key_value, "%s=%s", key, value);
-
-						list_append (mc.hard_attributes, key_value);
-						gff_filter_insert_hard_attribute (mc.filter,
-								key, value);
-
+						list_append (mc.attributes, xstrdup (optarg));
 						break;
 					}
-				case 'S':
+				case 'N':
 					{
-						char *scratch = NULL;
-
-						const char *key = strtok_r (optarg,
-								"=", &scratch);
-						const char *value = strtok_r (NULL,
-								"=", &scratch);
-
-						if (key == NULL || value == NULL)
-							{
-								fprintf (stderr,
-										"%s: --gff-soft-attribute KEY=VALUE: "
-										"Missing complete pair\n", PACKAGE);
-								print_try_help (stderr);
-								rc = EXIT_FAILURE; goto Exit;
-							}
-
-						char *key_value = NULL;
-						xasprintf (&key_value, "%s=%s", key, value);
-
-						list_append (mc.soft_attributes, key_value);
-						gff_filter_insert_soft_attribute (mc.filter,
-								key, value);
+						mc.gene_name_key = optarg;
 						break;
 					}
 				case 'i':

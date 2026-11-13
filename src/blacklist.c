@@ -84,7 +84,8 @@ clean_blacklist_tables (sqlite3 *db)
 }
 
 void
-blacklist_index_dump_from_gff (Blacklist *blacklist, const char *gff_file, const GffFilter *filter)
+blacklist_index_dump_from_gff (Blacklist *blacklist, const char *gff_file, const GffFilter *filter,
+		const char *name_key)
 {
 	assert (blacklist != NULL && gff_file != NULL && filter != NULL);
 
@@ -105,7 +106,8 @@ blacklist_index_dump_from_gff (Blacklist *blacklist, const char *gff_file, const
 
 	while (gff_read_filtered (gff, entry, filter))
 		{
-			gene_name = gff_attribute_find (entry, "gene_name");
+			gene_name = gff_attribute_find (entry,
+					name_key != NULL ? name_key : "gene_name");
 
 			if (gene_name == NULL)
 				gene_name = "blacklist";

@@ -263,6 +263,18 @@ EOE:
 	return 1;
 }
 
+int
+bed_looks_like_bed_file (const char *filename)
+{
+	assert (filename != NULL);
+
+	size_t len = strlen (filename);
+
+	// '.bed' or '.bed.gz'
+	return (len >= 4 && !strcmp (filename + len - 4, ".bed"))
+		|| (len >= 7 && !strcmp (filename + len - 7, ".bed.gz"));
+}
+
 BedFile *
 bed_open_for_reading (const char *path)
 {

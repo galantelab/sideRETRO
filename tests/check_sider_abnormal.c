@@ -155,7 +155,7 @@ test_abnormal_init (TestAbnormal *a, const char *sam)
 	a->exon_tree = exon_tree_new (a->exon_stmt,
 			a->overlapping_stmt, a->cs);
 
-	exon_tree_index_dump (a->exon_tree, a->gtf_path);
+	exon_tree_index_dump (a->exon_tree, a->gtf_path, NULL, NULL, NULL);
 
 	a->arg = xcalloc (1, sizeof (AbnormalArg));
 
