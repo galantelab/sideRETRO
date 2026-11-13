@@ -598,7 +598,8 @@ prepare_breakpoint_stmt (sqlite3 *db)
 	* supplementary alignment, so do not require it
 	*/
 	const char sql[] =
-		"SELECT DISTINCT retrocopy_id, a.id, a.pos, a.rlen, a.cigar\n"
+		"SELECT DISTINCT retrocopy_id, a.id, a.pos, a.rlen, a.cigar,\n"
+		"	(a.flag & 0x800 OR a.type & $SUPPLEMENTARY)\n"
 		"FROM cluster_merging AS cm\n"
 		"INNER JOIN clustering AS c\n"
 		"	USING (cluster_id, cluster_sid)\n"
@@ -610,35 +611,56 @@ prepare_breakpoint_stmt (sqlite3 *db)
 	log_debug ("Query schema:\n%s", sql);
 	stmt = db_prepare (db, sql);
 
+	db_bind_int (stmt,
+			sqlite3_bind_parameter_index (stmt, "$SUPPLEMENTARY"),
+			ABNORMAL_SUPPLEMENTARY);
+
 	return stmt;
 }
 
-static int
-cmp_long (const void *p1, const void *p2)
+/*
+ * Breakpoint candidate. A candidate is strong if it
+ * comes from a true split read - a fragment with a
+ * supplementary alignment - and not just from a
+ * clipped read, which may be noise as adapters or
+ * quality trimming
+ */
+struct _Breakpoint
 {
-	const long l1 = * (const long *) p1;
-	const long l2 = * (const long *) p2;
-	return (l1 > l2) - (l1 < l2);
+	long pos;
+	int  strong;
+};
+
+typedef struct _Breakpoint Breakpoint;
+
+static int
+cmp_breakpoint (const void *p1, const void *p2)
+{
+	const Breakpoint *b1 = p1;
+	const Breakpoint *b2 = p2;
+	return (b1->pos > b2->pos) - (b1->pos < b2->pos);
 }
 
 static inline void
-breakpoint_push (long **a, size_t *size, size_t *alloc,
-		const long pos)
+breakpoint_push (Breakpoint **a, size_t *size, size_t *alloc,
+		const long pos, const int strong)
 {
 	if (*size >= *alloc)
 		{
 			*alloc += BLOCK_SIZE;
-			*a = xrealloc (*a, sizeof (long) * *alloc);
+			*a = xrealloc (*a, sizeof (Breakpoint) * *alloc);
 		}
 
-	(*a)[(*size)++] = pos;
+	(*a)[*size] = (Breakpoint) {.pos = pos, .strong = strong};
+	(*size)++;
 }
 
 static void
-breakpoint_mode (long *a, const size_t size, long *mode, int *support)
+breakpoint_mode (Breakpoint *a, const size_t size, long *mode, int *support)
 {
 	long cur = 0;
 	int acm = 0;
+	int strong = 0;
 	size_t i = 0;
 
 	*mode = 0;
@@ -649,20 +671,28 @@ breakpoint_mode (long *a, const size_t size, long *mode, int *support)
 
 	// Sort in order to count repeated positions
 	// and keep the first one in case of tie
-	qsort (a, size, sizeof (long), cmp_long);
+	qsort (a, size, sizeof (Breakpoint), cmp_breakpoint);
 
-	cur = a[0];
+	cur = a[0].pos;
 	acm = 1;
+	strong = a[0].strong;
 
 	for (i = 1; i <= size; i++)
 		{
-			if (i < size && a[i] == cur)
+			if (i < size && a[i].pos == cur)
 				{
 					acm++;
+					strong |= a[i].strong;
 					continue;
 				}
 
-			if (acm > *support)
+			/*
+			* Accept a position if at least two clipped reads
+			* agree on it, or if a single one is a true split
+			* read. Random clips can never make a breakpoint
+			* by themselves
+			*/
+			if (acm > *support && (acm > 1 || strong))
 				{
 					*support = acm;
 					*mode = cur;
@@ -670,15 +700,16 @@ breakpoint_mode (long *a, const size_t size, long *mode, int *support)
 
 			if (i < size)
 				{
-					cur = a[i];
+					cur = a[i].pos;
 					acm = 1;
+					strong = a[i].strong;
 				}
 		}
 }
 
 static inline void
-breakpoint_set_entry (Hash *rtc_h, const int rid, long *left_a,
-		const size_t left_size, long *right_a, const size_t right_size)
+breakpoint_set_entry (Hash *rtc_h, const int rid, Breakpoint *left_a,
+		const size_t left_size, Breakpoint *right_a, const size_t right_size)
 {
 	RetrocopyEntry *e = NULL;
 
@@ -713,15 +744,16 @@ calculate_breakpoint (sqlite3 *db, Hash *rtc_h)
 	long pos = 0;
 	long rlen = 0;
 	const char *cigar_str = NULL;
+	int strong = 0;
 
 	int rid_prev = 0;
 
 	// Candidates for the left and right breakpoints
-	long *left_a = NULL;
+	Breakpoint *left_a = NULL;
 	size_t left_size = 0;
 	size_t left_alloc = 0;
 
-	long *right_a = NULL;
+	Breakpoint *right_a = NULL;
 	size_t right_size = 0;
 	size_t right_alloc = 0;
 
@@ -734,6 +766,7 @@ calculate_breakpoint (sqlite3 *db, Hash *rtc_h)
 			pos       = db_column_int64 (breakpoint_stmt, 2);
 			rlen      = db_column_int64 (breakpoint_stmt, 3);
 			cigar_str = db_column_text  (breakpoint_stmt, 4);
+			strong    = db_column_int   (breakpoint_stmt, 5);
 
 			// First loop
 			if (!rid_prev)
@@ -770,11 +803,11 @@ calculate_breakpoint (sqlite3 *db, Hash *rtc_h)
 			*/
 			if (clip_right >= RETROCOPY_MIN_CLIP && rlen > 0)
 				breakpoint_push (&left_a, &left_size, &left_alloc,
-						pos + rlen - 1);
+						pos + rlen - 1, strong);
 
 			if (clip_left >= RETROCOPY_MIN_CLIP)
 				breakpoint_push (&right_a, &right_size, &right_alloc,
-						pos);
+						pos, strong);
 		}
 
 	// The last or the first retrocopy

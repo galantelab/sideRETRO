@@ -39,6 +39,9 @@ haplotype and written with the SAM fields an aligner would produce:
     'poly-A | TSD'. The primary alignment is clipped at the left
     ('<c>S<m>M') and there is no supplementary alignment, because
     the poly-A does not map anywhere.
+  - Noise clips (--n-noise-clips): discordant reads at the flanks
+    soft clipped at random positions, as produced by adapters or
+    quality trimming. They must not define a breakpoint.
 
 All reads are on the forward strand of the reference, as in the
 SAM format. The output is deterministic for a given seed.
@@ -153,6 +156,25 @@ class Sim:
                          reverse_complement(seq))
                 self.rec(qname, 161, 'chr2', mpos, '%dM' % READ_LEN, 'chr1', pos, mseq)
 
+    def noise_clips(self):
+        a = self.args
+
+        for i in range(a.n_noise_clips):
+            qname = 'noise%d' % i
+
+            # Left flank, forward read, clipped at the right
+            # as if the end of the read was trimmed
+            pos = random.randint(self.tsd_start - a.fragment_len,
+                                 self.tsd_start - READ_LEN - 20)
+            c = random.randint(10, 30)
+            m = READ_LEN - c
+            seq = self.chr1[pos - 1:pos - 1 + READ_LEN]
+            mpos, mseq = self.exon_read(0)
+
+            self.rec(qname, 97, 'chr1', pos, '%dM%dS' % (m, c), 'chr2', mpos, seq)
+            self.rec(qname, 145, 'chr2', mpos, '%dM' % READ_LEN, 'chr1', pos,
+                     reverse_complement(mseq))
+
     def split_left(self):
         a = self.args
 
@@ -195,16 +217,37 @@ class Sim:
             self.rec(qname, 161, 'chr2', mpos, '%dM' % READ_LEN, 'chr1', self.tsd_start, mseq)
 
     def truth(self):
+        """
+        Expected VCF values. 'NA' means the INFO field must be
+        absent. The left breakpoint needs one true split read,
+        with a supplementary alignment. The right breakpoint
+        reads have no supplementary alignment, so at least two
+        of them must agree. Without breakpoints the retrocopy
+        is IMPRECISE and POS is the window mean (not checked).
+        """
+        a = self.args
+        left = a.n_split_left >= 1
+        right = a.n_split_right >= 2
+        both = left and right
+
+        if right:
+            pos = self.tsd_start - 1
+        elif left:
+            pos = self.tsd_end
+        else:
+            pos = 'NA'
+
         return [
             ('CHROM', 'chr1'),
-            ('POS', self.tsd_start - 1),
-            ('LBKP', self.tsd_end),
-            ('LSR', self.args.n_split_left),
-            ('RBKP', self.tsd_start),
-            ('RSR', self.args.n_split_right),
-            ('TSDLEN', self.args.tsd_len),
-            ('TSD', self.tsd),
-            ('POLYA', self.args.polya_len),
+            ('POS', pos),
+            ('IMPRECISE', 'NA' if left or right else ''),
+            ('LBKP', self.tsd_end if left else 'NA'),
+            ('LSR', a.n_split_left if left else 'NA'),
+            ('RBKP', self.tsd_start if right else 'NA'),
+            ('RSR', a.n_split_right if right else 'NA'),
+            ('TSDLEN', a.tsd_len if both else 'NA'),
+            ('TSD', self.tsd if both else 'NA'),
+            ('POLYA', a.polya_len),
             ('POLARITY', '+'),
             ('PG', 'PARENT'),
             ('INS', self.ins),
@@ -215,6 +258,7 @@ class Sim:
         os.makedirs(a.output_dir, exist_ok=True)
 
         self.discordant()
+        self.noise_clips()
         self.split_left()
         self.split_right()
 
@@ -266,10 +310,18 @@ def check(vcf_file, truth_file):
             errors += 1
 
     expect('CHROM', fields[0], truth['CHROM'])
-    expect('POS', fields[1], truth['POS'])
 
-    for key in ('LBKP', 'LSR', 'RBKP', 'RSR', 'TSDLEN', 'TSD', 'POLARITY', 'PG'):
-        expect(key, info.get(key, '<missing>'), truth[key])
+    if truth['POS'] != 'NA':
+        expect('POS', fields[1], truth['POS'])
+
+    for key in ('IMPRECISE', 'LBKP', 'LSR', 'RBKP', 'RSR',
+                'TSDLEN', 'TSD', 'POLARITY', 'PG'):
+        if truth[key] == 'NA':
+            if key in info:
+                print('FAIL: %s = %s, expected absent' % (key, info[key]))
+                errors += 1
+        else:
+            expect(key, info.get(key, '<missing>'), truth[key])
 
     if not errors:
         print('OK: %s matches %s' % (vcf_file, truth_file))
@@ -296,6 +348,8 @@ def main():
     p.add_argument('--n-discordant', type=int, default=20)
     p.add_argument('--n-split-left', type=int, default=8)
     p.add_argument('--n-split-right', type=int, default=8)
+    p.add_argument('--n-noise-clips', type=int, default=0,
+                   help='discordant reads with random soft clips [0]')
     args = p.parse_args()
 
     if args.check:

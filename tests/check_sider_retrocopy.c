@@ -59,6 +59,7 @@ populate_db (sqlite3 *db)
 		"INSERT INTO exon VALUES (10,'gene5_3','chr7',10000,13000,'+','eg10','ee10');\n"
 		"INSERT INTO exon VALUES (11,'gene5_4','chr7',15000,18000,'+','eg11','ee11');\n"
 		"INSERT INTO exon VALUES (12,'gene6','chr8',1,3000,'+','eg12','ee12');\n"
+		"INSERT INTO exon VALUES (13,'gene7','chr9',1,3000,'+','eg13','ee13');\n"
 		"INSERT INTO alignment VALUES (1,'q1',0x800,'chr10',1,20,'100M10S',100,100,'chr10',1,1,1,'*','*');\n"
 		"INSERT INTO alignment VALUES (12,'q1',0x800,'chr10',1,20,'100M10S',100,100,'chr10',1,8,1,'*','*');\n"
 		"INSERT INTO alignment VALUES (2,'q4',97,'chr11',1,20,'110M',100,50,'chr11',1,8,1,'*','*');\n"
@@ -75,6 +76,10 @@ populate_db (sqlite3 *db)
 		"INSERT INTO alignment VALUES (14,'q13',0x800,'chr15',290,20,'10H100M',100,100,'chr8',1,5,1,'*','*');\n"
 		"INSERT INTO alignment VALUES (15,'q14',0x800,'chr15',290,20,'10H100M',100,100,'chr8',1,5,1,'*','*');\n"
 		"INSERT INTO alignment VALUES (16,'q15',0x800,'chr15',210,20,'98M2S',100,98,'chr8',1,5,1,'*','*');\n"
+		"INSERT INTO alignment VALUES (17,'q16',97,'chr16',300,20,'80M20S',100,80,'chr9',1,2,1,'*','*');\n"
+		"INSERT INTO alignment VALUES (18,'q17',97,'chr16',300,20,'80M20S',100,80,'chr9',1,2,1,'*','*');\n"
+		"INSERT INTO alignment VALUES (19,'q18',97,'chr16',350,20,'85M15S',100,85,'chr9',1,2,1,'*','*');\n"
+		"INSERT INTO alignment VALUES (20,'q19',81,'chr16',420,20,'12S88M',100,88,'chr9',1,2,1,'*','*');\n"
 		"INSERT INTO clustering VALUES (1,2,1,3,100);\n"
 		"INSERT INTO clustering VALUES (2,2,2,3,100);\n"
 		"INSERT INTO clustering VALUES (3,2,3,3,100);\n"
@@ -90,6 +95,10 @@ populate_db (sqlite3 *db)
 		"INSERT INTO clustering VALUES (12,2,14,3,100);\n"
 		"INSERT INTO clustering VALUES (12,2,15,3,100);\n"
 		"INSERT INTO clustering VALUES (12,2,16,3,100);\n"
+		"INSERT INTO clustering VALUES (13,2,17,3,100);\n"
+		"INSERT INTO clustering VALUES (13,2,18,3,100);\n"
+		"INSERT INTO clustering VALUES (13,2,19,3,100);\n"
+		"INSERT INTO clustering VALUES (13,2,20,3,100);\n"
 		"INSERT INTO cluster VALUES (1,2,'chr10',1,300,'gene1',31);\n"
 		"INSERT INTO cluster VALUES (2,2,'chr11',1,300,'gene2_1',31);\n"
 		"INSERT INTO cluster VALUES (3,2,'chr11',200,500,'gene2_2',31);\n"
@@ -102,6 +111,7 @@ populate_db (sqlite3 *db)
 		"INSERT INTO cluster VALUES (10,2,'chr14',400,600,'gene5_3',31);\n"
 		"INSERT INTO cluster VALUES (11,2,'chr14',500,700,'gene5_4',31);\n"
 		"INSERT INTO cluster VALUES (12,2,'chr15',200,400,'gene6',31);\n"
+		"INSERT INTO cluster VALUES (13,2,'chr16',300,600,'gene7',31);\n"
 		"COMMIT;";
 
 	db_exec (db, schema);
@@ -141,26 +151,28 @@ START_TEST (test_retrocopy)
 	// chr10: One clustered split read clipped at the right
 	// chr11: No split read - window mean
 	// chr12: One split read at each side - clean insertion
-	// chr13/chr14: Primary clipped reads without supplementary
-	// count as well. Ties keep the first position
+	// chr13/chr14: Lone clipped reads without supplementary
+	// are noise - window mean
 	// chr15: TSD of 10 bases. The 2S clip is ignored
+	// chr16: Two clipped reads without supplementary agree
+	// at the left. The lone ones at 434 and 420 are ignored
 	const char *chrs[] = {
 		"chr10", "chr11", "chr12", "chr13", "chr13",
-		"chr14", "chr14", "chr15"
+		"chr14", "chr14", "chr15", "chr16"
 	};
 
-	long ips[]        = {101, 250, 250, 51,  250, 51,  450, 290};
-	int  ip_types[]   = {2,   1,   2,   2,   2,   2,   2,   2};
-	long lefts[]      = {100, 0,   249, 50,  249, 50,  449, 299};
-	int  left_srs[]   = {1,   0,   1,   1,   1,   1,   1,   1};
-	long rights[]     = {0,   0,   250, 0,   0,   0,   0,   290};
-	int  right_srs[]  = {0,   0,   1,   0,   0,   0,   0,   2};
+	long ips[]        = {101, 250, 250, 150, 350, 250, 550, 290, 380};
+	int  ip_types[]   = {2,   1,   2,   1,   1,   1,   1,   2,   2};
+	long lefts[]      = {100, 0,   249, 0,   0,   0,   0,   299, 379};
+	int  left_srs[]   = {1,   0,   1,   0,   0,   0,   0,   1,   2};
+	long rights[]     = {0,   0,   250, 0,   0,   0,   0,   290, 0};
+	int  right_srs[]  = {0,   0,   1,   0,   0,   0,   0,   2,   0};
 
 	search_stmt = db_prepare (db, sql);
 
 	for (i = 0; db_step (search_stmt) == SQLITE_ROW; i++)
 		{
-			ck_assert_int_lt (i, 8);
+			ck_assert_int_lt (i, 9);
 			ck_assert_str_eq (db_column_text (search_stmt, 0), chrs[i]);
 			ck_assert_int_eq (db_column_int64 (search_stmt, 1), ips[i]);
 			ck_assert_int_eq (db_column_int (search_stmt, 2), ip_types[i]);
@@ -178,7 +190,7 @@ START_TEST (test_retrocopy)
 				ck_assert_int_eq (sqlite3_column_type (search_stmt, 5), SQLITE_NULL);
 		}
 
-	ck_assert_int_eq (i, 8);
+	ck_assert_int_eq (i, 9);
 	db_finalize (search_stmt);
 
 	db_finalize (cluster_merging_stmt);
