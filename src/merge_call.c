@@ -758,7 +758,6 @@ parse_merge_call_command_opt (int argc, char **argv)
 		{"gff-soft-attribute", required_argument, 0, 'S'},
 		{"near-gene-distance", required_argument, 0, 'n'},
 		{"reference-file",     required_argument, 0, 'r'},
-		{"crossing-reads",     required_argument, 0, 'C'},
 		{"phred-quality",      required_argument, 0, 'Q'},
 		{"threads",            required_argument, 0, 't'},
 		{0,                    0,                 0,  0 }
