@@ -1,3 +1,24 @@
+Version 1.7.0
+
+* Give each retrocopy an ID (RTC000001, ...) at the
+  VCF ID column.
+
+* 'make-vcf' writes two more files: '<prefix>.rnames.tsv'
+  with the reads used to detect each retrocopy by
+  sample, and '<prefix>.insertions.fa' with the
+  predicted inserted sequences.
+
+* Annotate the observed sequences at the junctions
+  (LEFT_SVINSSEQ, RIGHT_SVINSSEQ): Consensus of the
+  clipped reads.
+
+* Read only the needed regions of the reference
+  genome instead of the whole genome.
+
+* Run the simulated retrocopies through the whole
+  pipeline at 'meson test' (suite 'simulation') and
+  at the CI.
+
 Version 1.6.0
 
 * New option '--reference-file' at 'merge-call'. With
