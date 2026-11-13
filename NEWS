@@ -1,3 +1,13 @@
+Version 1.5.0
+
+* Annotate the exon-exon junctions spanned by the
+  reads (EEJ, EEJLIST): Evidence of a processed
+  transcript. No reference genome is needed.
+
+* Annotate the number of exons of each parental gene
+  (PGEXONS), so a single exon parental gene is
+  distinguished from a missing junction.
+
 Version 1.4.0
 
 * Annotate the poly-A tail from the reads crossing
