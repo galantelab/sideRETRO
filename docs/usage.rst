@@ -44,7 +44,7 @@ Another classical example is to print **sideRETRO**'s installed version using
 the ``-v`` option::
 
   $ sider --version
-  sideRETRO 1.0.0
+  sideRETRO 1.7.0
 
 And, if the user need further help, he can find it both at the **sideRETRO**'s
 `readthedocs page <https://sideretro.readthedocs.io>`_ or in the already
@@ -155,9 +155,17 @@ call a list of input files (e.g. *my_files_list.txt*) instead of them directly::
 Both commands above will produce only one output database file *out.db*
 containing all relevant reads for non-fixed retrocopies search, whose prefix
 *out* can be easily changed with the ``-p`` option. The abnormal reads from
-all input files will be merged in just one table. To produce one database for
-each input file separately, user must run one distinct instance of
+all input files will be merged in just one table, **with their sequences**,
+which are needed to annotate the junctions later. To produce one database
+for each input file separately, user must run one distinct instance of
 **sideRETRO** per file.
+
+.. note::
+   The alignment files do not need to be sorted. When they are **not**
+   grouped by read name (``SO:queryname``), each file is read **twice**
+   in order to catch all the alignments of each abnormal fragment. If
+   there are more threads (``-t``) than files, the spare ones are used to
+   decompress the BAM/CRAM.
 
 Some options' values can affect drastically the output. Let's play a little bit
 with some of them while using the short version of the command ``ps``::
@@ -259,9 +267,12 @@ Filter & Annotation Options:
    -x, --parental-distance    Minimum distance allowed between a cluster and
                               its putative parental gene [default:"1000000"]
    -g, --genotype-support     Minimum number of reads coming from a given source
-                              (SAM/BAM/CRAM) within a cluster [default:"3"]
+                              (SAM/BAM/CRAM) within a cluster [default:"1"]
    -n, --near-gene-rank       Minimum ranked distance between genes in order to
                               consider them close [default:"3"]
+   -r, --reference-file       FASTA file for the reference genome. If passed,
+                              the retrocopy ends are searched into the parental
+                              exons and its sequence is predicted
 
 Genotyping Options:
    -t, --threads              Number of threads [default:"1"]
@@ -298,22 +309,30 @@ In a more sophisticated example, we will use the short version of the command
       -x 1000000 \
       -g 5 \
       -Q 20 \
-      -C 15 \
+      -r my_reference_genome.fa \
       -t 3
 
 Here, options ``-i``, ``-o``, ``-p``, ``-l``, ``-I``, ``-c``, ``-Q`` and ``-t``
-keeps the same meaning as they have in the ``process-sample`` command.
+keep the same meaning as they have in the ``process-sample`` command.
 The others need some explanation. All we've done here was to ask for a minimum
 number of 5 reads of contribution from each input SAM/BAM file to consider a
 clustering region as a retrocopy candidate (with ``-g`` option); a minimum
 distance of 1000000 bp from the parental gene to resolve some doubtful overlaps
-(``-x`` option), a minimum number of 15 crossing reads over the putative
-insertion point to consider heterozygosis evidence (``-C``) and, importantly,
-a BED file with a list of regions to be ignored at the clustering process called
-*my_black_list.txt* (``-B`` option). This last option's file can describe
-entire chromosomes (like chrM) and many chromosomal regions with poor insertion
-evidences taken literature, like centromers. All specified regions won't be
-targets for clustering.
+(``-x`` option) and, importantly, a BED file with a list of regions to be
+ignored at the clustering process called *my_black_list.bed* (``-B`` option).
+This last option's file can describe entire chromosomes (like chrM) and many
+chromosomal regions with poor insertion evidences taken from literature, like
+centromeres. All specified regions won't be targets for clustering.
+
+The option ``-r`` deserves a special note. ``merge-call`` finds the
+**breakpoints**, the **TSD** length, the **poly-A** tail and the **exon-exon
+junctions** from the reads alone. With the reference genome, it goes one step
+further: It searches the clipped sequences at the junctions into the exons of
+the parental gene, in order to find **where** the retrocopy begins and ends
+(the 5' truncation) and to **predict** its sequence. See the
+:ref:`methodology <chap_methodology>` for the details. The option is not
+mandatory, but we recommend it: Only the exons of the parental genes are
+read from the FASTA, so it costs little.
 
 To see another example of the ``merge-call`` command chained in a real workflow,
 please refer to the :ref:`A Practical Workflow <pract_wf>` section.
@@ -324,8 +343,9 @@ Command ``make-vcf``
 The third and last step to the **sideRETRO**'s *"crusade to retrocopies"* is the
 ``make-vcf`` command or ``vcf`` for short. This command takes the already
 clustered tables in the database files populated at the ``merge-call`` step and
-creates one VCF file with all statistically significant retrocopy insertions
-annotated in a convenient format.
+writes the results: A **VCF** file with all retrocopy insertions annotated, a
+**TSV** file with the reads supporting each one, and a **FASTA** file with the
+predicted sequences. All of them are described at :ref:`Output <chap_output>`.
 
 This command has no mandatory options, but it is worth try to discover the
 others::
@@ -355,12 +375,13 @@ Filter & Annotation Options:
                               [default:"0.05"]
    -r, --reference-file       FASTA file for the reference genome
 
-So, in order to produce a VCF file from a database input file like
+So, in order to produce the results from a database input file like
 *my_database.db*, just type::
 
   $ sider make-vcf my_database.db
 
-This will produce a *out.vcf* output file.
+This will produce the *out.vcf*, *out.rnames.tsv* and *out.insertions.fa*
+files.
 
 Let's add more options to customize it to our needs (with the short version of
 the command only for symmetry)::
@@ -372,11 +393,36 @@ the command only for symmetry)::
       -r my_reference_genome.fa \
       -n 50000
 
-Command ``make-vcf`` is very simple and don't allow the user to use threads.
+Command ``make-vcf`` is very simple and doesn't allow the user to use threads.
 The only new options are ``-r``, which must specify the reference genome in
 FASTA format (like **gencode**'s *Hg38.fa*) and ``-n``, where user can establish
 a distance threshold for genes surrounding insertion points for additional
-information in the output VCF file.
+information in the output VCF file. Without ``-r``, the VCF ``REF`` column is
+``N`` and the TSD sequence is not reported. Only the bases at the insertion
+sites are read from the FASTA, not the whole genome.
+
+.. _sim_test:
+
+A quick test with simulated data
+================================
+
+**sideRETRO** ships a **simulator** of retrocopy insertions, which is used by
+its own test suite. It builds a small random genome, inserts a retrocopy of a
+three exon gene - with a TSD, a poly-A tail and, if you like, a 5' truncation -
+and writes the alignments an aligner would produce, with no aligner needed. So
+the whole pipeline can be exercised in seconds::
+
+  $ tests/sim/retrocopy_sim.py --seed 11 --output-dir sim
+  $ sider process-sample -s -a sim/genes.gtf -o sim sim/sim.sam
+  $ sider merge-call -r sim/ref.fa -o sim -p merged sim/out.db
+  $ sider make-vcf -r sim/ref.fa -o sim -p merged sim/merged.db
+  $ tests/sim/retrocopy_sim.py --check sim/merged.vcf sim/truth.tsv
+  OK: sim/merged.vcf matches sim/truth.tsv
+
+The file *sim/truth.tsv* has the expected values and ``--check`` compares the
+VCF with them. Run ``tests/sim/retrocopy_sim.py --help`` for the simulation
+parameters: TSD length, poly-A length, number of discordant and split reads
+etc. The resulting VCF line is dissected at :ref:`Output <chap_output>`.
 
 .. _cram:
 
@@ -397,7 +443,7 @@ index the reference genome:
 
 .. code-block:: sh
 
-   # Inde for BWA: .fa.amb, .fa.ann, .fa.bwt, .fa.pac, .fa.sa files
+   # Index for BWA: .fa.amb, .fa.ann, .fa.bwt, .fa.pac, .fa.sa files
    bwa index hg38.fa
 
    # Index reference genome for CRAM: .fa.fai file
@@ -429,7 +475,7 @@ the index from the `CRAM Reference Registry <http://www.ebi.ac.uk/ena/cram>`_.
 
 However, in order to :file:`htslib` be able to accomplish this task, we need
 to compile the library with the required flags and also we need to have the
-reqeuired dependencies (as `libcurl <https://curl.haxx.se/libcurl/>`_).
+required dependencies (as `libcurl <https://curl.haxx.se/libcurl/>`_).
 Therefore to be able to read these files, without depending on these details,
 we need to generate a new local index and set the environment variables -
 :file:`REF_PATH` and :file:`REF_CACHE` - to the correct path:
@@ -454,7 +500,7 @@ The script :file:`seq_cache_populate.pl` can be found in the :file:`samtools`,
 or at `seq_cache_populate.pl
 <https://github.com/deweylab/RSEM/blob/master/samtools-1.3/misc/seq_cache_populate.pl>`_.
 
-For more information, see `Samtools Worflow <https://www.htslib.org/workflow/>`_.
+For more information, see `Samtools Workflow <https://www.htslib.org/workflow/>`_.
 
 .. _pract_wf:
 
@@ -464,7 +510,7 @@ A Practical Workflow
 Now, let's do an interesting exercise, with real experimental data from the
 `1000 Genomes Project <https://www.internationalgenome.org/>`_. (Warning: This example requires 16GB of RAM)
 
-In order to run **siderRETRO** searching for retrocopies, we will download 2
+In order to run **sideRETRO** searching for retrocopies, we will download 2
 whole-genome sequenced CRAM files, both aligned on the **gencode**'s
 `hg38 <ftp://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_32/GRCh38.primary_assembly.genome.fa.gz>`_
 genome:
@@ -558,12 +604,14 @@ Tip 2: If you are running line by line in your terminal don't paste the "$" char
       -c 2000000 \
       -x 1000000 \
       -g 5 \
+      -r GRCh38_full_analysis_set_plus_decoy_hla.fa \
       -I \
       -t 2
 
-  # Second sideRETRO step: merge-call
+  # Third sideRETRO step: make-vcf
   # Input file: 1000_genomes.db
-  # Output file: 1000_genomes.vcf
+  # Output files: 1000_genomes.vcf, 1000_genomes.rnames.tsv
+  #               and 1000_genomes.insertions.fa
   # Average time: 62m34.541
   $ sider make-vcf 1000_genomes.db \
       -p 1000_genomes \

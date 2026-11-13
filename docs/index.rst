@@ -13,6 +13,7 @@ Welcome to sideRETRO's documentation!
    intro.rst
    install.rst
    usage.rst
+   output.rst
    retrocopy.rst
    method.rst
    result.rst

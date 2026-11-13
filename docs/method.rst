@@ -102,21 +102,25 @@ region**.
    :scale: 25%
    :align: center
 
-Splitted reads
---------------
+Split reads
+-----------
 
 The most **important** kind of alignment when detecting structural variations.
-The splitted read may occur when **part** of the **same** read come from a near
+A split read occurs when **part** of the **same** read comes from a near
 intergenic region and part from the somatic retrocopy. When the aligner
-**try** to map the read, it will need to **create** another one to represent
-the splitted part, which is called **supplementary**.
+**tries** to map the read, it aligns one part and **clips** the other. If the
+clipped part is long enough to be mapped elsewhere, the aligner **creates**
+another alignment to represent it, which is called **supplementary**.
 
 .. image:: images/abnormal_alignment_sr.png
    :scale: 25%
    :align: center
 
 This alignment is useful to detect the **insertion point** with a
-**good precision**.
+**good precision**. Note that a clipped read is useful even **without** a
+supplementary alignment: The reads crossing the poly-A junction, for
+instance, have a clip made of A which maps nowhere, see
+:ref:`Breakpoints <method_breakpoints>`.
 
 Taking all together
 -------------------
@@ -134,7 +138,7 @@ point:
 +--------------------------+------------+-----------------+
 | At distant regions       |     YES    |      NO         |
 +--------------------------+------------+-----------------+
-| Splitted read            |     YES    |      YES        |
+| Split read               |     YES    |      YES        |
 +--------------------------+------------+-----------------+
 
 sideRETRO uses **only** the abnormal alignments **capable** to
@@ -177,6 +181,8 @@ start and end.
 
 The denser (covered) the region the greater the chance of a
 retrotransposition event there.
+
+.. _method_genotype:
 
 Genotype
 ========
@@ -257,12 +263,16 @@ calculate the **genotype likelihoods**.
    :scale: 25%
    :align: center
 
+.. _method_orientation:
+
 Orientation
 ===========
 
 Other important information that can be obtained from the data is the
-retrocopy **orientation** in relation to its parental gene. The abnormal
-alignment *reads* give us the clue to solve this issue. We catch *reads*
+retrocopy **orientation** in relation to its parental gene. When the
+poly-A tail is observed in the reads, its side gives the orientation
+**directly** - see :ref:`Poly-A tail and polarity <method_polya>`. Otherwise,
+the abnormal alignment *reads* give us the clue to solve this issue. We catch *reads*
 when one pair aligns against an exon and its mate aligns to some genomic
 region, so we can **sort** the *reads* from the exonic site and analyze
 if their mates will be sorted in **ascending** or **descending** order as
@@ -310,6 +320,151 @@ So we come to the following proposition:
 +----------------------+---------+---------+
 |         \-           |   \-    |   \+    |
 +----------------------+---------+---------+
+
+.. _method_breakpoints:
+
+Breakpoints and target site duplication
+=======================================
+
+The clustering gives the **region** of the insertion. To find the
+**exact** point, we turn to the reads crossing the junctions between the
+genome and the retrocopy. Such a read is **clipped** by the aligner: One
+part aligns to the flank and the other part - the clip - belongs to the
+insertion. There are two junctions and, therefore, two **breakpoints**:
+
+.. image:: images/breakpoints.svg
+   :width: 100%
+   :align: center
+
+Left breakpoint (LBKP)
+  The **last** reference base of the left flank. It comes from the reads
+  clipped at their **right** side: The breakpoint is the last aligned
+  base of the read.
+
+Right breakpoint (RBKP)
+  The **first** reference base of the right flank. It comes from the reads
+  clipped at their **left** side: The breakpoint is the first aligned
+  base of the read.
+
+Each breakpoint is the **mode** of the positions given by its reads,
+and the number of reads at the mode is its support (``LSR``, ``RSR``).
+Clips shorter than 10 bases are ignored. Both **primary** and
+**supplementary** clipped alignments count, with one safeguard: A
+position is accepted if **at least two** clipped reads agree on it or if
+a **single** read is a true split read - a fragment with a supplementary
+alignment. Random clips, as adapters or quality trimming, land at random
+positions and so can never define a breakpoint by themselves. Without an
+accepted breakpoint, the insertion point is the **mean** of the cluster
+window and the retrocopy is flagged ``IMPRECISE``.
+
+Retrocopies are inserted by the **LINE-1** machinery (see
+:ref:`Retrocopy in a nutshell <chap_retrocopy>`), which **duplicates** a
+few bases of the target site at both sides of the insertion: The
+**target site duplication** (TSD). As the figure shows, the reads from
+the left flank cross the junction **after** the TSD, while the reads from
+the right flank cross it **before** the TSD. So, at the reference, the
+TSD is the segment from ``RBKP`` to ``LBKP`` and its length is
+``LBKP - RBKP + 1``: Positive for a duplication, zero for a clean
+insertion and negative when some bases were **deleted** at the target
+site. The insertion point reported at the VCF is the right breakpoint
+when it is known, so the insertion is **left aligned**, with the TSD
+belonging to the inserted allele.
+
+The clipped sequences themselves are kept as the **observed** ends of the
+insertion (``LEFT_SVINSSEQ``, ``RIGHT_SVINSSEQ``): A base by base
+consensus of the clips, anchored at the junction.
+
+.. _method_polya:
+
+Poly-A tail and polarity
+========================
+
+A mature mRNA ends with a **poly-A tail**, and so does its retrocopy.
+The tail sits at the **3' end** of the retrocopy, hence its side tells
+the **strand** of the insertion:
+
+.. image:: images/polya_polarity.svg
+   :width: 100%
+   :align: center
+
+* Retrocopy at the **+** strand: The tail comes right before the right
+  flank. The clips at ``RBKP`` **end** with a run of A.
+* Retrocopy at the **-** strand: The retrocopy is reverse complemented, so
+  the tail comes right after the left flank as a run of **T**. The clips
+  at ``LBKP`` **begin** with it.
+
+A run of at least 6 bases is called as the tail. A read with other
+bases **before** the run gives its **exact** length, while a clip made
+only of A (or T) gives just a **lower bound** - the tail extends beyond the
+read (``POLYAMIN``). Exact lengths win over lower bounds, and the strand
+with more reads wins. Genomic A bases adjacent to the tail - at the end
+of the last exon - cannot be told apart from it, so the length is
+reported as observed.
+
+When the tail is found, the ``POLARITY`` comes from it: It is **direct**
+evidence. Otherwise, the polarity comes from the
+:ref:`orientation <method_orientation>` correlation.
+
+Exon-exon junctions
+===================
+
+The strongest evidence that an insertion is a **processed** transcript -
+and not, say, a segmental duplication - is a read spanning an
+**exon-exon junction**: A sequence that exists in the mRNA, but not in
+the genome. When such a read is aligned to the reference, the aligner
+**splits** it into two pieces, one at each exon, and both pieces are
+kept with the abnormal fragment.
+
+So, for each retrocopy, we search its fragments for reads with **two
+alignments** overlapping **two different exons** of the parental gene.
+The reads are counted at ``EEJ`` and the junctions listed at ``EEJLIST``,
+which also tells **which isoform** was retrocopied when the gene has
+alternative exons. No reference genome is needed.
+
+Beware of the parental genes with a **single exon**: They have no
+exon-exon junction at all, so a missing ``EEJ`` is expected for them.
+The number of exons of each parental gene is reported at ``PGEXONS`` for
+this reason.
+
+Retrocopy ends and predicted sequence
+=====================================
+
+With the reference genome at hand (``merge-call -r``), the clipped
+sequences at the junctions can tell **where** the retrocopy begins and
+ends into its parental gene:
+
+.. image:: images/retrocopy_ends.svg
+   :width: 100%
+   :align: center
+
+A **seed** of up to 20 bases is taken from each clip - from the
+beginning of the clips at ``LBKP``, and from the end of the clips at
+``RBKP``, before the poly-A - and searched, in both orientations, into
+the exon sequences of the parental gene. Seeds matching more than one
+place are discarded as ambiguous. Each match gives a **position** into
+the gene and whether the insertion follows the **mRNA sense** at the
+reference: A forward match in a + gene, or a reverse complement match
+in a - gene. If so, the left junction is the **5' end** of the
+retrocopy and the right junction is the **3' end**; otherwise they are
+swapped. Again, the ends are the modes over the reads (``PG5P``,
+``PG3P``). A 5' end inside the transcript means a **5' truncated**
+retrocopy, which is common: The reverse transcription often stops
+before reaching the 5' end of the mRNA.
+
+From the 5' end, the inserted sequence is **predicted**: The reference
+bases of the exons between the ends - with alternative exons merged -
+in the mRNA sense, plus the poly-A with its observed length. When the
+3' end was not observed, it is assumed at the end of the last exon.
+Its length is reported as ``SVLEN`` and the sequence is written to
+the :ref:`insertions file <insertions_file>`.
+
+.. warning::
+   The junctions and the poly-A are **observed**; the body of the
+   insertion is **predicted** from the reference. The prediction is
+   right when the retrocopy copied the annotated exons faithfully, and
+   knows nothing about variants of the parental allele, mutations
+   acquired after the insertion or unannotated isoforms. This is also
+   why the VCF keeps a **symbolic** ALT allele.
 
 References and Further Reading
 ==============================

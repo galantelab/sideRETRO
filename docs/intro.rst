@@ -41,10 +41,33 @@ Genomic position
   **integration** (chromosome:start-end). It includes the
   **insertion point**.
 
+Breakpoints and target site duplication
+  The **exact** junctions between the genome and the retrocopy,
+  from the clipped reads, and the **TSD** - the few bases
+  duplicated at both sides of the insertion - with its sequence.
+
+Poly-A tail
+  The **length** of the poly-A tail observed in the reads, which
+  also tells the strand of the insertion.
+
 Strandness
   Detects the orientation of the insertion (+/-). It takes into
   account the orientation of insertion, whether in the
   **leading** (+) or **lagging** (-) DNA strand.
+
+Exon-exon junctions
+  The reads spanning the **junctions** between the exons of the
+  parental gene: Direct evidence of a processed transcript, and
+  of which **isoform** was retrocopied.
+
+Retrocopy extent and sequence
+  Where the retrocopy **begins and ends** into its parental gene
+  (the 5' truncation) and its **predicted sequence**, from the
+  reference exons between the ends plus the poly-A.
+
+Supporting reads
+  The **names** of the reads used to detect each event, by sample,
+  so the evidence can be checked back at the alignment files.
 
 Genomic context
   The retrocopy integration site context: If the retrotransposition
@@ -73,9 +96,10 @@ subcommand reads a list of SAM/BAM/CRAM files, and captures
 **abnormal reads** that must be related to an event of retrocopy.
 All those data is saved to a **SQLite3 database** and then we come
 to the second step :code:`merge-call`, which **processes** the database
-and **annotate** all the retrocopies found. Finally we can run the
+and **annotates** all the retrocopies found. Finally we can run the
 subcommand :code:`make-vcf` and generate an annotated retrocopy
-`VCF <https://samtools.github.io/hts-specs/VCFv4.2.pdf>`_.
+`VCF <https://samtools.github.io/hts-specs/VCFv4.2.pdf>`_, alongside
+the list of supporting reads and the predicted sequences.
 
 .. code-block:: sh
 
@@ -98,15 +122,23 @@ subcommand :code:`make-vcf` and generate an annotated retrocopy
    out.db
 
    # Run merge-call step
-   $ sider merge-call --in-place out.db
+   $ sider merge-call --in-place \
+     --reference-file='my-genome.fa' out.db
 
    # Run make-vcf step
    $ sider make-vcf \
      --reference-file='my-genome.fa' out.db
 
+   $ ls -1 out.*
+   out.db
+   out.insertions.fa
+   out.rnames.tsv
+   out.vcf
+
 Take a look at the manual page for :ref:`installation <chap_installation>`
-and :ref:`usage <chap_usage>` information. Also for more details about
-the algorithm, see our :ref:`methodology <chap_methodology>`.
+and :ref:`usage <chap_usage>` information. The results are described at
+:ref:`output <chap_output>` and, for more details about the algorithm, see
+our :ref:`methodology <chap_methodology>`.
 
 Obtaining sideRETRO
 ===================

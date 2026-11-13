@@ -5,6 +5,7 @@ doc_sources = files(
   'install.rst',
   'intro.rst',
   'method.rst',
+  'output.rst',
   'result.rst',
   'retrocopy.rst',
   'usage.rst'
@@ -21,6 +22,9 @@ doc_images = files(
   'images/alignment_of_CACNA1B.png',
   'images/abyzov_table2.png',
   'images/barbara.jpg',
+  'images/breakpoints.svg',
+  'images/polya_polarity.svg',
+  'images/retrocopy_ends.svg',
   'images/genotype.png',
   'images/indistinguishable_alignment.png',
   'images/logo_sideRETRO.png',

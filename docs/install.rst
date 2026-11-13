@@ -26,15 +26,17 @@ from source. For example, using `Ubuntu <https://ubuntu.com/>`_ distribution::
 Installing Meson
 ================
 
-The recommended way to install the most up-to-date version of
-**Meson** is through :code:`pip3`::
+**Meson** can be installed from the distribution packages::
 
   $ sudo apt install meson
-  
-Or "$ pip3 install --user meson" But in this case, remember to set the environment variables. 
 
-For more information about using and installing Meson, see:
-https://mesonbuild.com/Quick-guide.html
+or, for the most up-to-date version, through :code:`pip3`::
+
+  $ pip3 install --user meson
+
+In the latter case, remember to add :file:`~/.local/bin` to your
+:code:`PATH`. For more information about using and installing Meson,
+see: https://mesonbuild.com/Quick-guide.html
 
 Project requirements
 ======================
@@ -74,3 +76,21 @@ The configure script can **customize** the prefix directory. Run::
   $ meson build configure
 
 for instructions and other installation options.
+
+Testing
+=======
+
+The test suite has two parts: The **unit** tests, which need
+`libcheck <https://libcheck.github.io/check/>`_, and the **simulation**
+tests, which run simulated retrocopies through the whole pipeline and
+need only **Python 3**. Run them with::
+
+  $ meson test -C build
+
+or one suite at a time::
+
+  $ meson test -C build --suite unit
+  $ meson test -C build --suite simulation
+
+See :ref:`A quick test with simulated data <sim_test>` for running the
+simulator by hand.
