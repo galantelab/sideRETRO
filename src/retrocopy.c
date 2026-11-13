@@ -67,6 +67,14 @@ struct _RetrocopyEntry
 	int            breakpoint_left_sr;
 	long           breakpoint_right;
 	int            breakpoint_right_sr;
+
+	// Poly-A tail: Its length, if the length is just
+	// a lower bound, the strand of the retrocopy it
+	// implies and the number of reads supporting it
+	int            polya_len;
+	int            polya_lower_bound;
+	char           polya_strand;
+	int            polya_sr;
 };
 
 typedef struct _RetrocopyEntry RetrocopyEntry;
@@ -822,6 +830,275 @@ calculate_breakpoint (sqlite3 *db, Hash *rtc_h)
 }
 
 static sqlite3_stmt *
+prepare_polya_stmt (sqlite3 *db)
+{
+	log_trace ("Inside %s", __func__);
+
+	sqlite3_stmt *stmt = NULL;
+
+	// Get all soft clipped alignments with sequence
+	// clustered into the retrocopies. Hard clipped
+	// bases are not present at the sequence
+	const char sql[] =
+		"SELECT DISTINCT retrocopy_id, a.id, a.pos, a.rlen, a.cigar, a.seq\n"
+		"FROM cluster_merging AS cm\n"
+		"INNER JOIN clustering AS c\n"
+		"	USING (cluster_id, cluster_sid)\n"
+		"INNER JOIN alignment AS a\n"
+		"	ON a.id = c.alignment_id\n"
+		"WHERE a.cigar LIKE '%S%'\n"
+		"	AND a.seq != '*'\n"
+		"ORDER BY retrocopy_id ASC";
+
+	log_debug ("Query schema:\n%s", sql);
+	stmt = db_prepare (db, sql);
+
+	return stmt;
+}
+
+/*
+ * Poly-A evidence accumulated for one strand
+ */
+struct _PolyA
+{
+	int exact;
+	int lower_bound;
+	int sr;
+};
+
+typedef struct _PolyA PolyA;
+
+static inline int
+polya_run (const char *seq, const int len, const char base, const int reverse)
+{
+	int run = 0;
+	int i = 0;
+
+	// Count the run of 'base' from the end
+	// (reverse) or from the beginning of seq
+	for (i = 0; i < len; i++)
+		{
+			char c = reverse ? seq[len - 1 - i] : seq[i];
+
+			if (c != base && c != (base + 32))
+				break;
+
+			run++;
+		}
+
+	return run;
+}
+
+static inline void
+polya_add (PolyA *p, const int run, const int clip_len)
+{
+	if (run < RETROCOPY_MIN_POLYA)
+		return;
+
+	p->sr++;
+
+	// If the whole clip is poly-A, the tail
+	// extends beyond the read: Lower bound
+	if (run == clip_len)
+		{
+			if (run > p->lower_bound)
+				p->lower_bound = run;
+		}
+	else if (run > p->exact)
+		p->exact = run;
+}
+
+static inline void
+polya_set_entry (Hash *rtc_h, const int rid, const PolyA *plus,
+		const PolyA *minus)
+{
+	RetrocopyEntry *e = NULL;
+	const PolyA *p = NULL;
+
+	e = hash_lookup (rtc_h, &rid);
+	assert (e != NULL);
+
+	if (plus->sr == 0 && minus->sr == 0)
+		return;
+
+	// Keep the strand with more reads. Prefer
+	// '+' in case of tie
+	if (plus->sr >= minus->sr)
+		{
+			p = plus;
+			e->polya_strand = '+';
+		}
+	else
+		{
+			p = minus;
+			e->polya_strand = '-';
+		}
+
+	e->polya_sr = p->sr;
+
+	// A read with non poly-A bases before the tail
+	// gives its exact length. Otherwise all we know
+	// is the longest run
+	if (p->exact > 0)
+		{
+			e->polya_len = p->exact;
+			e->polya_lower_bound = 0;
+		}
+	else
+		{
+			e->polya_len = p->lower_bound;
+			e->polya_lower_bound = 1;
+		}
+
+	log_debug ("Retrocopy %d poly-A: %d bases%s at strand '%c' (%d reads)",
+			rid, e->polya_len, e->polya_lower_bound ? " (lower bound)" : "",
+			e->polya_strand, e->polya_sr);
+}
+
+static void
+calculate_polya (sqlite3 *db, Hash *rtc_h)
+{
+	log_trace ("Inside %s", __func__);
+
+	sqlite3_stmt *polya_stmt = NULL;
+	RetrocopyEntry *e = NULL;
+
+	uint32_t *cigar = NULL;
+	uint32_t n_cigar = 0;
+	CigarIter iter = {};
+	CigarOp op = {};
+	CigarOp left_op = {};
+	CigarOp right_op = {};
+	int has_left = 0;
+	int has_right = 0;
+	int seen_aligned = 0;
+	char *clip = NULL;
+
+	int rid = 0;
+	int aid = 0;
+	long pos = 0;
+	long rlen = 0;
+	const char *cigar_str = NULL;
+	const char *seq = NULL;
+
+	int rid_prev = 0;
+
+	PolyA plus = {};
+	PolyA minus = {};
+
+	polya_stmt = prepare_polya_stmt (db);
+
+	while (db_step (polya_stmt) == SQLITE_ROW)
+		{
+			rid       = db_column_int   (polya_stmt, 0);
+			aid       = db_column_int   (polya_stmt, 1);
+			pos       = db_column_int64 (polya_stmt, 2);
+			rlen      = db_column_int64 (polya_stmt, 3);
+			cigar_str = db_column_text  (polya_stmt, 4);
+			seq       = db_column_text  (polya_stmt, 5);
+
+			// First loop
+			if (!rid_prev)
+				rid_prev = rid;
+
+			// Set poly-A for the previous retrocopy
+			if (rid_prev != rid)
+				{
+					polya_set_entry (rtc_h, rid_prev, &plus, &minus);
+
+					plus = (PolyA) {};
+					minus = (PolyA) {};
+					rid_prev = rid;
+				}
+
+			e = hash_lookup (rtc_h, &rid);
+			assert (e != NULL);
+
+			// Without breakpoints there is no junction
+			if (e->breakpoint_left_sr == 0 && e->breakpoint_right_sr == 0)
+				continue;
+
+			cigar = cigar_yyparser (cigar_str, &n_cigar);
+			if (cigar == NULL)
+				{
+					log_warn ("Skip alignment %d with invalid cigar '%s'",
+							aid, cigar_str);
+					continue;
+				}
+
+			// Locate the soft clips at the beginning and
+			// at the end of the read
+			has_left = 0;
+			has_right = 0;
+			seen_aligned = 0;
+
+			cigar_iter_init (&iter, cigar, n_cigar, pos);
+
+			while (cigar_iter_next (&iter, &op))
+				{
+					if (op.type == CIGAR_HARD_CLIP)
+						continue;
+
+					if (op.type == CIGAR_SOFT_CLIP)
+						{
+							if (!seen_aligned)
+								{
+									left_op = op;
+									has_left = 1;
+								}
+							else
+								{
+									right_op = op;
+									has_right = 1;
+								}
+						}
+					else
+						{
+							seen_aligned = 1;
+							has_right = 0;
+						}
+				}
+
+			xfree (cigar);
+
+			/*
+			* Retrocopy at '+': The poly-A comes right before the
+			* right flank. The reads clipped at the left at the right
+			* breakpoint end their clips with a run of A.
+			* Retrocopy at '-': The poly-A is reverse complemented
+			* right after the left flank. The reads clipped at the
+			* right at the left breakpoint begin their clips with
+			* a run of T
+			*/
+			if (has_left && e->breakpoint_right_sr > 0
+					&& pos == e->breakpoint_right)
+				{
+					clip = cigar_op_seq (&left_op, seq);
+					if (clip != NULL)
+						polya_add (&plus, polya_run (clip, left_op.qlen, 'A', 1),
+								left_op.qlen);
+					xfree (clip);
+				}
+
+			if (has_right && e->breakpoint_left_sr > 0
+					&& (pos + rlen - 1) == e->breakpoint_left)
+				{
+					clip = cigar_op_seq (&right_op, seq);
+					if (clip != NULL)
+						polya_add (&minus, polya_run (clip, right_op.qlen, 'T', 0),
+								right_op.qlen);
+					xfree (clip);
+				}
+		}
+
+	// The last or the first retrocopy
+	if (rid_prev)
+		polya_set_entry (rtc_h, rid_prev, &plus, &minus);
+
+	db_finalize (polya_stmt);
+}
+
+static sqlite3_stmt *
 prepare_cluster_merging_query_stmt (sqlite3 *db)
 {
 	log_trace ("Inside %s", __func__);
@@ -904,7 +1181,10 @@ annotate_retrocopy (sqlite3_stmt *retrocopy_stmt, Hash *rtc_h)
 					gene, e->level, ip, ip_type, e->orientation_rho,
 					e->orientation_p_value, e->breakpoint_left,
 					e->breakpoint_left_sr, e->breakpoint_right,
-					e->breakpoint_right_sr);
+					e->breakpoint_right_sr, e->polya_len,
+					e->polya_lower_bound,
+					e->polya_strand == '-' ? "-" : "+",
+					e->polya_sr);
 		}
 
 	db_finalize (cluster_merging_query_stmt);
@@ -947,6 +1227,11 @@ retrocopy (sqlite3_stmt *retrocopy_stmt,
 
 	log_info ("Calculate retrocopies breakpoints");
 	calculate_breakpoint (
+			sqlite3_db_handle (retrocopy_stmt),
+			rtc_h);
+
+	log_info ("Calculate retrocopies poly-A");
+	calculate_polya (
 			sqlite3_db_handle (retrocopy_stmt),
 			rtc_h);
 

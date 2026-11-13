@@ -384,7 +384,11 @@ db_create_tables (sqlite3 *db)
 		"	breakpoint_left INTEGER,\n"
 		"	breakpoint_left_sr INTEGER NOT NULL DEFAULT 0,\n"
 		"	breakpoint_right INTEGER,\n"
-		"	breakpoint_right_sr INTEGER NOT NULL DEFAULT 0);\n"
+		"	breakpoint_right_sr INTEGER NOT NULL DEFAULT 0,\n"
+		"	polya_len INTEGER,\n"
+		"	polya_lower_bound INTEGER NOT NULL DEFAULT 0,\n"
+		"	polya_strand TEXT,\n"
+		"	polya_sr INTEGER NOT NULL DEFAULT 0);\n"
 		"\n"
 		"DROP TABLE IF EXISTS cluster_merging;\n"
 		"CREATE TABLE cluster_merging (\n"
@@ -926,8 +930,9 @@ db_prepare_retrocopy_stmt (sqlite3 *db)
 	const char sql[] =
 		"INSERT INTO retrocopy (id,chr,window_start,window_end,parental_gene_name,level,\n"
 		"	insertion_point,insertion_point_type,orientation_rho,orientation_p_value,\n"
-		"	breakpoint_left,breakpoint_left_sr,breakpoint_right,breakpoint_right_sr)\n"
-		"VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14)";
+		"	breakpoint_left,breakpoint_left_sr,breakpoint_right,breakpoint_right_sr,\n"
+		"	polya_len,polya_lower_bound,polya_strand,polya_sr)\n"
+		"VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18)";
 
 	return db_prepare (db, sql);
 }
@@ -937,7 +942,8 @@ db_insert_retrocopy (sqlite3_stmt *stmt, int id, const char *chr, long window_st
 		long window_end, const char *parental_gene_name, int level, long insertion_point,
 		int insertion_point_type, double orientation_rho, double orientation_p_value,
 		long breakpoint_left, int breakpoint_left_sr, long breakpoint_right,
-		int breakpoint_right_sr)
+		int breakpoint_right_sr, int polya_len, int polya_lower_bound,
+		const char *polya_strand, int polya_sr)
 {
 	log_trace ("Inside %s", __func__);
 	assert (stmt != NULL);
@@ -972,6 +978,21 @@ db_insert_retrocopy (sqlite3_stmt *stmt, int id, const char *chr, long window_st
 		db_bind_null (stmt, 13);
 
 	db_bind_int (stmt, 14, breakpoint_right_sr);
+
+	// Poly-A is unknown without reads crossing its junction
+	if (polya_sr > 0)
+		{
+			db_bind_int (stmt, 15, polya_len);
+			db_bind_text (stmt, 17, polya_strand);
+		}
+	else
+		{
+			db_bind_null (stmt, 15);
+			db_bind_null (stmt, 17);
+		}
+
+	db_bind_int (stmt, 16, polya_lower_bound);
+	db_bind_int (stmt, 18, polya_sr);
 
 	db_step (stmt);
 

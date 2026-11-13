@@ -134,10 +134,10 @@ populate_db (sqlite3 *db, const char *bam1, const char *bam2)
 		"INSERT INTO cluster_merging VALUES (2,2,2);\n"
 		"INSERT INTO cluster_merging VALUES (3,3,2);\n"
 		"INSERT INTO cluster_merging VALUES (4,4,2);\n"
-		"INSERT INTO retrocopy VALUES (1,'chr1',1,200,'PONGA1',1,100,2,1,0.0,NULL,0,NULL,0);\n"
-		"INSERT INTO retrocopy VALUES (2,'chr2',1,200,'PONGA2',1,100,2,1,0.0,NULL,0,NULL,0);\n"
-		"INSERT INTO retrocopy VALUES (3,'chr3',1,200,'PONGA1',1,100,2,1,0.0,NULL,0,NULL,0);\n"
-		"INSERT INTO retrocopy VALUES (4,'chr4',1,200,'PONGA2',1,100,2,1,0.0,NULL,0,NULL,0);\n"
+		"INSERT INTO retrocopy VALUES (1,'chr1',1,200,'PONGA1',1,100,2,1,0.0,NULL,0,NULL,0,NULL,0,NULL,0);\n"
+		"INSERT INTO retrocopy VALUES (2,'chr2',1,200,'PONGA2',1,100,2,1,0.0,NULL,0,NULL,0,NULL,0,NULL,0);\n"
+		"INSERT INTO retrocopy VALUES (3,'chr3',1,200,'PONGA1',1,100,2,1,0.0,NULL,0,NULL,0,NULL,0,NULL,0);\n"
+		"INSERT INTO retrocopy VALUES (4,'chr4',1,200,'PONGA2',1,100,2,1,0.0,NULL,0,NULL,0,NULL,0,NULL,0);\n"
 		"COMMIT;", bam1, bam2);
 
 	db_exec (db, sql);

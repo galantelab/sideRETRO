@@ -43,8 +43,9 @@ haplotype and written with the SAM fields an aligner would produce:
     soft clipped at random positions, as produced by adapters or
     quality trimming. They must not define a breakpoint.
 
-All reads are on the forward strand of the reference, as in the
-SAM format. The output is deterministic for a given seed.
+The sequences are written at the forward strand of the reference,
+as in the SAM format, whatever the strand of the read (flag 0x10).
+The output is deterministic for a given seed.
 
 Output files (into --output-dir):
 
@@ -69,15 +70,15 @@ import sys
 
 READ_LEN = 100
 QUAL = 'I'
-COMPLEMENT = str.maketrans('ACGT', 'TGCA')
+
+# Must mirror RETROCOPY_MIN_CLIP and RETROCOPY_MIN_POLYA
+# at src/retrocopy.h
+MIN_CLIP = 10
+MIN_POLYA = 6
 
 
 def random_seq(n):
     return ''.join(random.choice('ACGT') for _ in range(n))
-
-
-def reverse_complement(seq):
-    return seq[::-1].translate(COMPLEMENT)
 
 
 def fasta_wrap(seq, width=60):
@@ -144,7 +145,7 @@ class Sim:
 
                 self.rec(qname, 97, 'chr1', pos, '%dM' % READ_LEN, 'chr2', mpos, seq)
                 self.rec(qname, 145, 'chr2', mpos, '%dM' % READ_LEN, 'chr1', pos,
-                         reverse_complement(mseq))
+                         mseq)
             else:
                 # Right flank, reverse read. Mate at the last exon
                 pos = random.randint(self.tsd_end + 20,
@@ -153,7 +154,7 @@ class Sim:
                 mpos, mseq = self.exon_read(len(self.exons) - 1)
 
                 self.rec(qname, 81, 'chr1', pos, '%dM' % READ_LEN, 'chr2', mpos,
-                         reverse_complement(seq))
+                         seq)
                 self.rec(qname, 161, 'chr2', mpos, '%dM' % READ_LEN, 'chr1', pos, mseq)
 
     def noise_clips(self):
@@ -173,7 +174,7 @@ class Sim:
 
             self.rec(qname, 97, 'chr1', pos, '%dM%dS' % (m, c), 'chr2', mpos, seq)
             self.rec(qname, 145, 'chr2', mpos, '%dM' % READ_LEN, 'chr1', pos,
-                     reverse_complement(mseq))
+                     mseq)
 
     def split_left(self):
         a = self.args
@@ -195,7 +196,7 @@ class Sim:
             self.rec(qname, 2145, 'chr2', self.exons[0][0], '%dH%dM' % (m, c),
                      'chr2', mpos, seq[m:])
             self.rec(qname, 145, 'chr2', mpos, '%dM' % READ_LEN, 'chr1', start + 1,
-                     reverse_complement(mseq))
+                     mseq)
 
     def split_right(self):
         a = self.args
@@ -213,7 +214,7 @@ class Sim:
 
             # Primary clipped at the left. No supplementary
             self.rec(qname, 81, 'chr1', self.tsd_start, '%dS%dM' % (c, m), 'chr2', mpos,
-                     reverse_complement(seq))
+                     seq)
             self.rec(qname, 161, 'chr2', mpos, '%dM' % READ_LEN, 'chr1', self.tsd_start, mseq)
 
     def truth(self):
@@ -226,9 +227,35 @@ class Sim:
         is IMPRECISE and POS is the window mean (not checked).
         """
         a = self.args
+
+        # Right junction reads clipped less than MIN_CLIP
+        # bases are ignored
+        clips = [a.polya_len + i for i in range(a.n_split_right)
+                 if a.polya_len + i >= MIN_CLIP]
+
         left = a.n_split_left >= 1
-        right = a.n_split_right >= 2
+        right = len(clips) >= 2
         both = left and right
+
+        # The poly-A run observed in the reads includes the
+        # A bases at the end of the last exon. A read gives
+        # the exact length only if its clip is longer than
+        # the run, otherwise just a lower bound. Once the
+        # breakpoint is known, every read clipped there with
+        # a run of at least MIN_POLYA supports the poly-A,
+        # even those clipped less than MIN_CLIP
+        run = len(self.ins) - len(self.ins.rstrip('A'))
+        all_clips = [a.polya_len + i for i in range(a.n_split_right)]
+        polya_reads = [c for c in all_clips if min(c, run) >= MIN_POLYA]
+        polya = right and len(polya_reads) > 0
+        exact = any(c > run for c in polya_reads)
+
+        if not polya:
+            polya_len, polya_min, polya_sr = 'NA', 'NA', 'NA'
+        elif exact:
+            polya_len, polya_min, polya_sr = run, 'NA', len(polya_reads)
+        else:
+            polya_len, polya_min, polya_sr = max(polya_reads), '', len(polya_reads)
 
         if right:
             pos = self.tsd_start - 1
@@ -244,10 +271,12 @@ class Sim:
             ('LBKP', self.tsd_end if left else 'NA'),
             ('LSR', a.n_split_left if left else 'NA'),
             ('RBKP', self.tsd_start if right else 'NA'),
-            ('RSR', a.n_split_right if right else 'NA'),
+            ('RSR', len(clips) if right else 'NA'),
             ('TSDLEN', a.tsd_len if both else 'NA'),
             ('TSD', self.tsd if both else 'NA'),
-            ('POLYA', a.polya_len),
+            ('POLYA', polya_len),
+            ('POLYAMIN', polya_min),
+            ('POLYASR', polya_sr),
             ('POLARITY', '+'),
             ('PG', 'PARENT'),
             ('INS', self.ins),
@@ -314,8 +343,8 @@ def check(vcf_file, truth_file):
     if truth['POS'] != 'NA':
         expect('POS', fields[1], truth['POS'])
 
-    for key in ('IMPRECISE', 'LBKP', 'LSR', 'RBKP', 'RSR',
-                'TSDLEN', 'TSD', 'POLARITY', 'PG'):
+    for key in ('IMPRECISE', 'LBKP', 'LSR', 'RBKP', 'RSR', 'TSDLEN', 'TSD',
+                'POLYA', 'POLYAMIN', 'POLYASR', 'POLARITY', 'PG'):
         if truth[key] == 'NA':
             if key in info:
                 print('FAIL: %s = %s, expected absent' % (key, info[key]))

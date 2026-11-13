@@ -84,6 +84,13 @@ typedef enum _RetrocopyInsertionPoint RetrocopyInsertionPoint;
  */
 #define RETROCOPY_MIN_CLIP 10
 
+/*
+ * Minimum run of A (or T) at the clipped sequence
+ * of a read crossing the breakpoint to be called
+ * as the poly-A tail
+ */
+#define RETROCOPY_MIN_POLYA 6
+
 void retrocopy (sqlite3_stmt *retrocopy_stmt,
 		sqlite3_stmt *cluster_merging_stmt,
 		int near_gene_dist);

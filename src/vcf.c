@@ -84,6 +84,12 @@ struct _VCFBody
 	long        breakpoint_right;
 	int         breakpoint_right_sr;
 
+	// Poly-A
+	int         polya_len;
+	int         polya_lower_bound;
+	const char *polya_strand;
+	int         polya_sr;
+
 	// Host and Near genes
 	const char *exonic;
 	const char *intragenic;
@@ -265,7 +271,11 @@ vcf_print_header (const List *hl, Hash *fidx,
 		"##INFO=<ID=PGTYPE,Number=1,Type=String,Description=\"Provides information about parental gene:"
 		" 1 = Single parental gene; 2 = Overlapped parental genes; 4 = Near parental genes;"
 		" 8 = Hotspot - Multiple parental genes with retrocopy at the same segment\">\n"
-		"##INFO=<ID=POLARITY,Number=1,Type=Character,Description=\"Mobile element polarity (+/-)\">\n"
+		"##INFO=<ID=POLARITY,Number=1,Type=Character,Description=\"Mobile element polarity (+/-):"
+		" From the poly-A junction when POLYA is present, otherwise from ORHO\">\n"
+		"##INFO=<ID=POLYA,Number=1,Type=Integer,Description=\"Poly-A tail length observed in the reads crossing its junction\">\n"
+		"##INFO=<ID=POLYAMIN,Number=0,Type=Flag,Description=\"POLYA is a lower bound: The poly-A extends beyond the longest clipped read\">\n"
+		"##INFO=<ID=POLYASR,Number=1,Type=Integer,Description=\"Number of reads supporting POLYA\">\n"
 		"##INFO=<ID=RBKP,Number=1,Type=Integer,Description=\"Right breakpoint: First reference base of the right flank, from split reads clipped at the left\">\n"
 		"##INFO=<ID=RSR,Number=1,Type=Integer,Description=\"Number of split reads supporting RBKP\">\n"
 		"##INFO=<ID=SR,Number=1,Type=Integer,Description=\"Total number of SRs at the estimated breakpoints for this site\">\n"
@@ -391,7 +401,9 @@ prepare_retrocopy_query_stmt (sqlite3 *db, const long near_gene_dist)
 		"		ELSE '?'\n"
 		"	END,\n"
 		"	COALESCE(breakpoint_left, 0), breakpoint_left_sr,\n"
-		"	COALESCE(breakpoint_right, 0), breakpoint_right_sr\n"
+		"	COALESCE(breakpoint_right, 0), breakpoint_right_sr,\n"
+		"	COALESCE(polya_len, 0), polya_lower_bound,\n"
+		"	COALESCE(polya_strand, '?'), polya_sr\n"
 		"FROM retrocopy AS r\n"
 		"LEFT JOIN gene AS g\n"
 		"	ON r.parental_gene_name = g.gene_name\n"
@@ -507,6 +519,10 @@ vcf_get_body_line (sqlite3_stmt *stmt, VCFBody *b)
 	b->breakpoint_left_sr   = db_column_int    (stmt, 17);
 	b->breakpoint_right     = db_column_int64  (stmt, 18);
 	b->breakpoint_right_sr  = db_column_int    (stmt, 19);
+	b->polya_len            = db_column_int    (stmt, 20);
+	b->polya_lower_bound    = db_column_int    (stmt, 21);
+	b->polya_strand         = db_column_text   (stmt, 22);
+	b->polya_sr             = db_column_int    (stmt, 23);
 }
 
 static const char *
@@ -545,6 +561,7 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp, VCFOption *op
 
 	long tsd_len = 0;
 	char tsd[VCF_MAX_TSD_LEN + 1] = {};
+	char polarity = 0;
 
 	// Prepare retrocopy query
 	retrocopy_stmt = prepare_retrocopy_query_stmt (db,
@@ -599,21 +616,29 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp, VCFOption *op
 						b.window_end - b.insertion_point);
 				}
 
-			// Polarity
+			// Polarity: The poly-A junction is direct evidence.
+			// Otherwise use the orientation correlation
+			polarity = '?';
+
 			if (b.level == RETROCOPY_PASS
 					&& b.orientation_p_value <= opt->orientation_error)
 				{
-					xfprintf (fp,
-						";ORHO=%f;POLARITY=%c",
-						b.orientation_rho,
-						b.orientation_rho >= 0.0
-							? !strcmp (b.parental_strand, "+")
-								? '+'
-								: '-'
-							: !strcmp (b.parental_strand, "+")
-								? '-'
-								: '+');
+					xfprintf (fp, ";ORHO=%f", b.orientation_rho);
+
+					polarity = b.orientation_rho >= 0.0
+						? !strcmp (b.parental_strand, "+")
+							? '+'
+							: '-'
+						: !strcmp (b.parental_strand, "+")
+							? '-'
+							: '+';
 				}
+
+			if (b.polya_sr > 0)
+				polarity = b.polya_strand[0];
+
+			if (polarity != '?')
+				xfprintf (fp, ";POLARITY=%c", polarity);
 
 			// Parental gene
 			xfprintf (fp,
@@ -672,6 +697,17 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp, VCFOption *op
 							upper (tsd);
 							xfprintf (fp, ";TSD=%s", tsd);
 						}
+				}
+
+			// Poly-A
+			if (b.polya_sr > 0)
+				{
+					xfprintf (fp, ";POLYA=%d", b.polya_len);
+
+					if (b.polya_lower_bound)
+						xfprintf (fp, ";POLYAMIN");
+
+					xfprintf (fp, ";POLYASR=%d", b.polya_sr);
 				}
 
 			// FORMAT
