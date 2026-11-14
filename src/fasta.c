@@ -103,7 +103,7 @@ fasta_get_contig (FastaFile *fasta, FastaEntry *entry)
 	token = strtok_r (fasta->buf, " |", &saveptr);
 
 	if (token == NULL || fasta->buf[0] != '>')
-		log_fatal ("missing 'contig' at line %zu",
+		log_fatal ("Missing 'contig' at line %zu",
 				entry->num_line);
 
 	string_set (entry->contig, token + 1);
@@ -137,7 +137,7 @@ fasta_get_seq (FastaFile *fasta, FastaEntry *entry)
 			if (fasta->buf[0] == '>')
 				{
 					if ((num_line_old + 1) == gz_get_num_line (fasta->gz))
-						log_fatal ("missing sequence for contig %s at line %zu",
+						log_fatal ("Missing sequence for contig %s at line %zu",
 								entry->contig->str, num_line_old + 1);
 					break;
 				}
@@ -148,7 +148,7 @@ fasta_get_seq (FastaFile *fasta, FastaEntry *entry)
 	entry->num_line = gz_get_num_line (fasta->gz);
 
 	if (num_line_old == entry->num_line)
-		log_fatal ("missing sequence for contig %s at line %zu",
+		log_fatal ("Missing sequence for contig %s at line %zu",
 				entry->contig->str, entry->num_line);
 
 	return fasta->buf[0] == '>' ? 1 : 0;

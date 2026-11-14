@@ -52,14 +52,16 @@ print_usage (FILE *fp)
 		"   -c, --cite            Show citation in BibTeX\n"
 		"\n"
 		"Commands:\n"
-		"   ps,  process-sample   Extract alignments related\n"
-		"                         an event of retrocopy\n"
-		"   mc,  merge-call       Discover and annotate\n"
-		"                         retrocopies\n"
-		"   vcf, make-vcf         Generate VCF file with all\n"
-		"                         annotate retrocopies\n"
+		"   ps,  process-sample   Extract the abnormal alignments\n"
+		"                         from SAM/BAM/CRAM files\n"
+		"   mc,  merge-call       Discover and annotate the\n"
+		"                         retrocopy insertions\n"
+		"   vcf, make-vcf         Write the retrocopies to a VCF\n"
+		"                         and to their companion files\n"
+		"\n"
+		"Run '%s <command> --help' for the command options\n"
 		"\n",
-		PACKAGE_STRING, PACKAGE, PACKAGE);
+		PACKAGE_STRING, PACKAGE, PACKAGE, PACKAGE);
 }
 
 static void
@@ -84,7 +86,7 @@ print_citation (FILE *fp)
 static void
 print_try_help (FILE *fp)
 {
-	fprintf (fp, "Try '%s  --help' for more information\n",
+	fprintf (fp, "Try '%s --help' for more information\n",
 			PACKAGE);
 }
 

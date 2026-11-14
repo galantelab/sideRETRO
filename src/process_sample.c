@@ -33,6 +33,7 @@
 #include "str.h"
 #include "thpool.h"
 #include "exon.h"
+#include "summary.h"
 #include "list.h"
 #include "bed.h"
 #include "gff.h"
@@ -100,6 +101,79 @@ struct _ProcessSample
 
 typedef struct _ProcessSample ProcessSample;
 
+static long
+count_alignments (sqlite3 *db)
+{
+	sqlite3_stmt *stmt = NULL;
+	long n = 0;
+
+	stmt = db_prepare (db, "SELECT COUNT(*) FROM alignment");
+
+	if (db_step (stmt) == SQLITE_ROW)
+		n = db_column_int64 (stmt, 0);
+
+	db_finalize (stmt);
+	return n;
+}
+
+static void
+print_summary (const ProcessSample *ps, const char *db_file, size_t num_exons,
+		const AbnormalStat *stats, int num_files, long num_alignments,
+		long num_abnormal, long num_exonic, long num_dedup, time_t start)
+{
+	Summary *s = NULL;
+	char *name = NULL;
+	char b1[SUMMARY_NUM_LEN] = {};
+	char b2[SUMMARY_NUM_LEN] = {};
+	char b3[SUMMARY_NUM_LEN] = {};
+	char b4[SUMMARY_NUM_LEN] = {};
+	int i = 0;
+
+	s = summary_new ("process-sample summary", start);
+
+	summary_section (s, "Annotation");
+	summary_line (s, "File", "%s", ps->gff_file);
+	summary_line (s, "Exons indexed", "%s", summary_count (num_exons, b1));
+
+	summary_section (s, "Alignment files");
+	summary_text (s, "%-24s %15s %13s %13s", "", "Alignments", "Abnormal", "Exonic");
+
+	for (i = 0; i < num_files; i++)
+		{
+			name = path_file (array_get (ps->sam_files, i), 0);
+
+			summary_text (s, "%-24.24s %15s %13s %13s (%s)", name,
+					summary_count (stats[i].alignments, b1),
+					summary_count (stats[i].abnormal, b2),
+					summary_count (stats[i].exonic, b3),
+					summary_percent (stats[i].exonic, stats[i].abnormal, b4));
+
+			xfree (name);
+		}
+
+	if (num_files > 1)
+		summary_text (s, "%-24s %15s %13s %13s (%s)", "Total",
+				summary_count (num_alignments, b1),
+				summary_count (num_abnormal, b2),
+				summary_count (num_exonic, b3),
+				summary_percent (num_exonic, num_abnormal, b4));
+
+	if (num_dedup >= 0)
+		summary_line (s, "After deduplication", "%s abnormal alignments (%s removed)",
+				summary_count (num_dedup, b1),
+				summary_count (num_abnormal - num_dedup, b2));
+
+	summary_section (s, "Output");
+	summary_line (s, "Database", "%s", db_file);
+	summary_line (s, "Next step", "%s merge-call %s", PACKAGE, db_file);
+
+	summary_log (s);
+	summary_free (s);
+
+	if (num_abnormal == 0)
+		log_warn ("No abnormal alignment was found: No retrocopy can be called");
+}
+
 static void
 run (ProcessSample *ps)
 {
@@ -129,15 +203,22 @@ run (ProcessSample *ps)
 	char *db_file = NULL;
 	int i = 0;
 
+	time_t start = time (NULL);
+	AbnormalStat *stats = NULL;
+	long num_alignments = 0;
+	long num_abnormal = 0;
+	long num_exonic = 0;
+	long num_dedup = -1;
+
 	// Assemble database output filename
 	xasprintf_concat (&db_file, "%s/%s.db",
 			ps->output_dir, ps->prefix);
 
-	log_info ("Create output dir '%s'", ps->output_dir);
+	log_debug ("Create output dir '%s'", ps->output_dir);
 	mkdir_p (ps->output_dir);
 
 	// Create and connect to database
-	log_info ("Create and connect to database '%s'", db_file);
+	log_info ("Create the database '%s'", db_file);
 	db = db_create (db_file);
 	batch_stmt = db_prepare_batch_stmt (db);
 	source_stmt = db_prepare_source_stmt (db);
@@ -168,7 +249,7 @@ run (ProcessSample *ps)
 	// Index protein coding genes into the database
 	// and its exons into an intervalar tree by
 	// chromosome
-	log_info ("Index annotation file '%s'", ps->gff_file);
+	log_info ("Index the exons of the annotation '%s'", ps->gff_file);
 	exon_tree = exon_tree_new (exon_stmt, overlapping_stmt, cs);
 	exon_tree_index_dump (exon_tree, ps->gff_file, ps->filter,
 			ps->gene_name_key, ps->exon_id_key);
@@ -179,13 +260,14 @@ run (ProcessSample *ps)
 	pool_threads = ps->threads < num_files ? ps->threads : num_files;
 	hts_threads = (ps->threads - pool_threads) / num_files;
 
-	log_info ("Create thread pool with %d threads", pool_threads);
+	log_debug ("Create thread pool with %d threads", pool_threads);
 	thpool = thpool_init (pool_threads);
 
 	if (hts_threads > 0)
-		log_info ("Use %d extra threads per file for decompression",
+		log_info ("Use %d extra threads per file to decompress BAM/CRAM",
 				hts_threads);
 
+	stats = xcalloc (num_files, sizeof (AbnormalStat));
 	AbnormalArg *ab_args = xcalloc (num_files, sizeof (AbnormalArg));
 
 	for (i = 0; i < num_files; i++)
@@ -208,13 +290,14 @@ run (ProcessSample *ps)
 				.max_distance     = ps->max_distance,
 				.phred_quality    = ps->phred_quality,
 				.max_base_freq    = ps->max_base_freq,
-				.hts_threads      = hts_threads
+				.hts_threads      = hts_threads,
+				.stat             = &stats[i]
 			};
 
 			log_debug ("Dump source entry '%s'", sam_file);
 			db_insert_source (source_stmt, i + 1, batch_id, sam_file);
 
-			log_info ("Run abnormal filter for '%s'", sam_file);
+			log_debug ("Queue '%s' to the abnormal filter", sam_file);
 			thpool_add_work (thpool, (void *) abnormal_filter,
 					(void *) &ab_args[i]);
 		}
@@ -231,16 +314,25 @@ run (ProcessSample *ps)
 			db_begin_transaction (db);
 
 			// Run deduplication step
-			log_info ("Run deduplication step for '%s'", db_file);
+			log_info ("Remove duplicated reads from '%s'", db_file);
 			dedup (db);
 
 			// Commit database
 			db_end_transaction (db);
+
+			num_dedup = count_alignments (db);
 		}
 
-	log_info ("Process Sample at '%s' is finished. "
-		"Run merge-call command to discover somatic retrocopies",
-		db_file);
+	for (i = 0; i < num_files; i++)
+		{
+			num_alignments += stats[i].alignments;
+			num_abnormal += stats[i].abnormal;
+			num_exonic += stats[i].exonic;
+		}
+
+	print_summary (ps, db_file, hash_size (exon_tree->cache), stats,
+			num_files, num_alignments, num_abnormal, num_exonic,
+			num_dedup, start);
 
 	// Time to clean
 	db_finalize (exon_stmt);
@@ -252,6 +344,7 @@ run (ProcessSample *ps)
 
 	xfree (db_file);
 	xfree (ab_args);
+	xfree (stats);
 
 	chr_std_free (cs);
 	exon_tree_free (exon_tree);
@@ -266,98 +359,95 @@ print_usage (FILE *fp)
 	fprintf (fp,
 		"%s\n"
 		"\n"
-		"Usage: %s process-sample [-h] [-q] [-d] [-s] [-l FILE] [-o DIR]\n"
-		"       %*c                [-p STR] [-t INT] [-c INT] [-Q INT]\n"
-		"       %*c                [-m INT] [-f FLOAT] [-F FLOAT | -r]\n"
-		"       %*c                [-D] [-M FLOAT] [-e] [-i FILE]\n"
+		"Usage: %s process-sample [-h] [-q] [-d] [-l FILE] [-o DIR] [-p STR]\n"
 		"       %*c                [-T STR] [-A KEY=VALUE] [-N STR] [-E STR]\n"
-		"       %*c                -a FILE <FILE> ...\n"
+		"       %*c                [-c INT] [-Q INT] [-M FLOAT] [-D] [-s]\n"
+		"       %*c                [-t INT] [-m INT] [-f FLOAT] [-F FLOAT | -r]\n"
+		"       %*c                [-e] [-i FILE] -a FILE <FILE> ...\n"
 		"\n"
-		"Extract alignments related to event of retrocopy\n"
+		"Extract the abnormal alignments that may come from retrocopy insertions\n"
 		"\n"
 		"Examples:\n"
 		"   $ sider ps -l ps.log -a gencode.gff3.gz -o result in.bam\n"
-		"   $ sider ps -t 3 -a gencode.gtf in1.bam in2.sam in3.bam\n"
-		"   $ sider ps -t 5 -m 15000 -Q 20 -F 0.9 -a exon.gtf -i list.txt\n"
+		"   $ sider ps -t 3 -a gencode.gtf in1.bam in2.sam in3.cram\n"
+		"   $ sider ps -a ensembl.gtf -A transcript_biotype=protein_coding in.bam\n"
+		"   $ sider ps -t 5 -m 15000 -Q 20 -F 0.9 -a exons.bed -i list.txt\n"
 		"\n"
 		"Output:\n"
-		"   A SQLite3 database that can be processed at 'merge-call' step\n"
+		"   A SQLite3 database to be processed by 'merge-call'\n"
 		"\n"
 		"Arguments:\n"
-		"   One or more alignment file in SAM/BAM/CRAM format\n"
+		"   One or more alignment files in SAM/BAM/CRAM format\n"
 		"\n"
 		"Mandatory Options:\n"
-		"   -a, --annotation-file   Exon annotation on the reference genome in\n"
-		"                           GTF/GFF3 or BED6 format. For GTF/GFF3, see the\n"
-		"                           'Annotation Options' below. For BED6 (file ending\n"
-		"                           in '.bed' or '.bed.gz'), each line is an exon, the\n"
-		"                           'name' (4th column) is the gene name and the strand\n"
-		"                           (6th column) is required\n"
-		"   -i, --input-file        File containing a newline separated list of\n"
-		"                           alignment files in SAM/BAM/CRAM format.\n"
-		"                           This option is not mandatory if one or more\n"
-		"                           SAM/BAM/CRAM files are passed as argument.\n"
-		"                           If 'input-file' and arguments are set\n"
-		"                           concomitantly, then the union of all alignment\n"
-		"                           files is used\n"
+		"   -a, --annotation-file   Exons of the protein coding genes, in GTF/GFF3\n"
+		"                           or BED6 format. See 'Annotation Options'\n"
+		"   -i, --input-file        File with a newline separated list of alignment\n"
+		"                           files in SAM/BAM/CRAM format. Not mandatory if\n"
+		"                           the files are passed as arguments. If both are\n"
+		"                           given, their union is used\n"
 		"\n"
 		"Input/Output Options:\n"
 		"   -h, --help              Show help options\n"
-		"   -q, --quiet             Decrease verbosity to error messages only\n"
-		"                           or suppress terminal outputs at all if\n"
+		"   -q, --quiet             Decrease verbosity to error messages only,\n"
+		"                           or suppress terminal output at all if\n"
 		"                           'log-file' is passed\n"
 		"       --silent            Same as '--quiet'\n"
 		"   -d, --debug             Increase verbosity to debug level\n"
 		"   -l, --log-file          Print log messages to a file\n"
-		"   -o, --output-dir        Output directory. Create the directory if it does\n"
-		"                           not exist [default:\"%s\"]\n"
-		"   -p, --prefix            Prefix output files [default:\"%s\"]\n"
+		"   -o, --output-dir        Output directory. It is created if it does not\n"
+		"                           exist [default:\"%s\"]\n"
+		"   -p, --prefix            Prefix of the output files [default:\"%s\"]\n"
 		"\n"
-		"Annotation Options (GTF/GFF3):\n"
-		"   -T, --gff-feature       The value of 'feature' (third column)\n"
+		"Annotation Options:\n"
+		"   A BED6 file (name ending in '.bed' or '.bed.gz') has one exon per\n"
+		"   line, the gene name at the 4th column and the strand at the 6th one.\n"
+		"   A GTF/GFF3 file is filtered by the options below\n"
+		"   -T, --gff-feature       The 'feature' (3rd column) of the exons\n"
 		"                           [default:\"%s\"]\n"
-		"   -A, --gff-attribute     The 'attribute' (ninth column) in the format\n"
-		"                           key=value. Alternatives are separated by '|'\n"
-		"                           and any of them must match (OR): 'k=v1|v2' or\n"
-		"                           'k1=v1|k2=v2'. When passed multiple times, all\n"
-		"                           of them must match (AND). Values match exactly\n"
+		"   -A, --gff-attribute     An 'attribute' (9th column) to filter in, as\n"
+		"                           key=value. Alternatives separated by '|' must\n"
+		"                           match any (OR): 'k=v1|v2' or 'k1=v1|k2=v2'. If\n"
+		"                           passed multiple times, all of them must match\n"
+		"                           (AND). Values match exactly\n"
 		"                           [default:\"%s\"]\n"
 		"   -N, --gff-gene-name     The attribute with the gene name. If missing,\n"
 		"                           'gene_id' is used [default:\"%s\"]\n"
 		"   -E, --gff-exon-id       The attribute with the exon id. If missing, the\n"
-		"                           coordinates 'chr:start_end' are used\n"
-		"                           [default:\"%s\"]\n"
+		"                           exon is named 'chr:start_end' [default:\"%s\"]\n"
 		"\n"
 		"SQLite3 Options:\n"
-		"   -c, --cache-size        Set SQLite3 cache size in KiB [default:\"%d\"]\n"
+		"   -c, --cache-size        SQLite3 cache size in KiB [default:\"%d\"]\n"
 		"\n"
 		"Read Quality Options:\n"
-		"   -Q, --phred-quality     Minimum mapping quality of the reads required\n"
+		"   -Q, --phred-quality     Minimum mapping quality (MAPQ) of the reads\n"
 		"                           [default:\"%d\"]\n"
-		"   -M, --max-base-freq     Maximum base frequency fraction allowed\n"
-		"                           [default:\"%.2f\"]\n"
-		"   -D, --deduplicate       Remove duplicated reads. Reads are considered\n"
-		"                           duplicates when they share the 5 prime positions\n"
-		"                           of both reads and read-pairs\n"
+		"   -M, --max-base-freq     Maximum frequency of a single base in a read.\n"
+		"                           Reads above it are discarded as low complexity\n"
+		"                           sequences, such as poly-A [default:\"%.2f\"]\n"
+		"   -D, --deduplicate       Remove duplicated reads: Fragments whose reads\n"
+		"                           and mates share the same 5' positions\n"
 		"\n"
 		"Processing Options:\n"
-		"   -s, --sorted            Assume all reads are grouped by queryname, even if\n"
-		"                           there is no SAM/BAM/CRAM header tag 'SO:queryname'\n"
-		"   -t, --threads           Number of threads [default:\"%d\"]\n"
-		"   -m, --max-distance      Maximum distance allowed between paired-end reads\n"
-		"                           [default:\"%d\"]\n"
-		"   -f, --exon-frac         Minimum overlap required as a fraction of exon\n"
-		"                           [default:\"%.0e\"; 1 base]\n"
-		"   -F, --alignment-frac    Minimum overlap required as a fraction of\n"
-		"                           alignment [default:\"%.0e\"; 1 base]\n"
-		"   -e, --either            The minimum fraction must be satisfied for at least\n"
-		"                           exon OR alignment. Without '-e', both fractions would\n"
-		"                           have to be satisfied\n"
-		"   -r, --reciprocal        The fraction overlap must be reciprocal for exon and\n"
-		"                           alignment. If '-f' is 0.5, then '-F' will be set to\n"
-		"                           0.5 as well\n"
+		"   -s, --sorted            Assume the reads are grouped by read name, even\n"
+		"                           without the header tag 'SO:queryname'. Grouped\n"
+		"                           files are read once, the others twice\n"
+		"   -t, --threads           Number of threads. Each file uses one thread and\n"
+		"                           the spare ones decompress BAM/CRAM [default:\"%d\"]\n"
+		"   -m, --max-distance      Maximum distance between the reads of a pair.\n"
+		"                           Farther pairs are abnormal [default:\"%d\"]\n"
+		"   -f, --exon-frac         Minimum overlap between an alignment and an\n"
+		"                           exon, as a fraction of the exon\n"
+		"                           [default:\"%g\"; 1 base]\n"
+		"   -F, --alignment-frac    Minimum overlap between an alignment and an\n"
+		"                           exon, as a fraction of the alignment\n"
+		"                           [default:\"%g\"; 1 base]\n"
+		"   -e, --either            Either '-f' OR '-F' must be satisfied. Without\n"
+		"                           '-e', both must be\n"
+		"   -r, --reciprocal        The overlap must be reciprocal: '-F' is set to\n"
+		"                           the value of '-f'\n"
 		"\n",
-		PACKAGE_STRING, PACKAGE, pkg_len, ' ', pkg_len, ' ', pkg_len, ' ', pkg_len, ' ', pkg_len, ' ',
+		PACKAGE_STRING, PACKAGE, pkg_len, ' ', pkg_len, ' ', pkg_len, ' ', pkg_len, ' ',
 		DEFAULT_OUTPUT_DIR, DEFAULT_PREFIX, EXON_DEFAULT_FEATURE, EXON_DEFAULT_ATTRIBUTE,
 		EXON_DEFAULT_GENE_NAME, EXON_DEFAULT_EXON_ID, DEFAULT_CACHE_SIZE, DEFAULT_PHRED_QUALITY,
 		DEFAULT_MAX_BASE_FREQ, DEFAULT_THREADS, DEFAULT_MAX_DISTANCE,

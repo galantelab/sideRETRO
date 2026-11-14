@@ -34,6 +34,19 @@ enum _AbnormalType
 
 typedef enum _AbnormalType AbnormalType;
 
+/*
+ * Counts returned by 'abnormal_filter' for each file
+ */
+struct _AbnormalStat
+{
+	long           alignments;
+	long           abnormal;
+	long           exonic;
+	int            sorted;
+};
+
+typedef struct _AbnormalStat AbnormalStat;
+
 struct _AbnormalArg
 {
 	int            tid;
@@ -50,6 +63,7 @@ struct _AbnormalArg
 	float          exon_frac;
 	float          alignment_frac;
 	int            hts_threads;
+	AbnormalStat  *stat;
 };
 
 typedef struct _AbnormalArg AbnormalArg;

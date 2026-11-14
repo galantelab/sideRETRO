@@ -222,40 +222,40 @@ gff_read (GffFile *gff, GffEntry *entry)
 
 	token = strtok_r (gff->buf, "\t", &saveptr1);
 	if (token == NULL)
-		log_fatal ("missing 'seqname' (field 1) at line %zu", entry->num_line);
+		log_fatal ("Missing 'seqname' (field 1) at line %zu", entry->num_line);
 
 	entry->seqname_size = entry_set (&entry->seqname,
 			entry->seqname_size, token);
 
 	token = strtok_r (NULL, "\t", &saveptr1);
 	if (token == NULL)
-		log_fatal ("missing 'source' (field 2) at line %zu", entry->num_line);
+		log_fatal ("Missing 'source' (field 2) at line %zu", entry->num_line);
 
 	entry->source_size = entry_set (&entry->source,
 			entry->source_size, token);
 
 	token = strtok_r (NULL, "\t", &saveptr1);
 	if (token == NULL)
-		log_fatal ("missing 'feature' (field 3) at line %zu", entry->num_line);
+		log_fatal ("Missing 'feature' (field 3) at line %zu", entry->num_line);
 
 	entry->feature_size = entry_set (&entry->feature,
 			entry->feature_size, token);
 
 	token = strtok_r (NULL, "\t", &saveptr1);
 	if (token == NULL)
-		log_fatal ("missing 'start' (field 4) at line %zu", entry->num_line);
+		log_fatal ("Missing 'start' (field 4) at line %zu", entry->num_line);
 
 	entry->start = atol (token);
 
 	token = strtok_r (NULL, "\t", &saveptr1);
 	if (token == NULL)
-		log_fatal ("missing 'end' (field 5) at line %zu", entry->num_line);
+		log_fatal ("Missing 'end' (field 5) at line %zu", entry->num_line);
 
 	entry->end = atol (token);
 
 	token = strtok_r (NULL, "\t", &saveptr1);
 	if (token == NULL)
-		log_fatal ("missing 'score' (field 6) at line %zu", entry->num_line);
+		log_fatal ("Missing 'score' (field 6) at line %zu", entry->num_line);
 
 	entry->score = strcmp (token, ".")
 		? atof (token)
@@ -263,13 +263,13 @@ gff_read (GffFile *gff, GffEntry *entry)
 
 	token = strtok_r (NULL, "\t", &saveptr1);
 	if (token == NULL)
-		log_fatal ("missing 'strand' (field 7) at line %zu", entry->num_line);
+		log_fatal ("Missing 'strand' (field 7) at line %zu", entry->num_line);
 
 	entry->strand = *token;
 
 	token = strtok_r (NULL, "\t", &saveptr1);
 	if (token == NULL)
-		log_fatal ("missing 'frame' (field 8) at line %zu", entry->num_line);
+		log_fatal ("Missing 'frame' (field 8) at line %zu", entry->num_line);
 
 	entry->frame = strcmp (token, ".")
 		? atoi (token)
@@ -287,7 +287,7 @@ gff_read (GffFile *gff, GffEntry *entry)
 					attr_value = strtok_r (NULL, "", &saveptr3);
 
 					if (attr_value == NULL)
-						log_fatal ("missing value for attribute %d (%s) at line %zu",
+						log_fatal ("Missing value for attribute %d (%s) at line %zu",
 								i, attr_key, entry->num_line);
 
 					if ((i + 1) > entry->attributes_size)

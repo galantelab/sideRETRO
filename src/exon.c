@@ -136,7 +136,7 @@ exon_tree_index_dump_from_gff (ExonTree *exon_tree, const char *gff_file,
 
 			if (gene_name == NULL)
 				{
-					log_warn ("Missing '%s' and 'gene_id' at line %zu",
+					log_warn ("Missing '%s' and 'gene_id' at line %zu: Skip the exon",
 							gene_name_key, entry->num_line);
 					continue;
 				}

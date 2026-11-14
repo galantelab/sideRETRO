@@ -12,6 +12,8 @@ sider_sources = files(
   'chr.c',
   'chr.h',
   'cigar.c',
+  'summary.c',
+  'summary.h',
   'cigar.h',
   'cluster.c',
   'cluster.h',

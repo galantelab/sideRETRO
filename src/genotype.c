@@ -487,7 +487,7 @@ index_region (const List *genotype, Hash *chr_tid)
 			tid = hash_lookup (chr_tid, r->chr);
 			if (tid == NULL)
 				{
-					log_warn ("No %s contig from retrocopy [%d] found in SAM header",
+					log_warn ("Contig '%s' of retrocopy %d not found at the alignment header: Skip it",
 							r->chr, g->retrocopy_id);
 					continue;
 				}
@@ -621,7 +621,7 @@ zygosity_indexed_search (samFile *fp, bam_hdr_t *hdr, bam1_t *align,
 					r->window_start - 1, r->window_end);
 
 			if (itr == NULL)
-				log_fatal ("Failed to look for '%s:%li-%li' at %s\n",
+				log_fatal ("Failed to look for '%s:%li-%li' at '%s'",
 						r->chr, r->window_start, r->window_end, zd->path);
 
 			while ((rc = sam_itr_next (fp, itr, align)) >= 0)
@@ -679,12 +679,12 @@ zygosity (ZygosityData *zd)
 
 	if (idx == NULL)
 		{
-			log_warn ("Failed to open BAM/CRAM INDEX for '%s'. Make a linear search", zd->path);
+			log_warn ("No index found for '%s': Read the whole file (slower)", zd->path);
 			zygosity_linear_search (fp, hdr, align, zd, chr_tid);
 		}
 	else
 		{
-			log_info ("Open BAM/CRAM INDEX for '%s'. Make an indexed search", zd->path);
+			log_debug ("Use the index of '%s'", zd->path);
 			zygosity_indexed_search (fp, hdr, align, idx, zd, chr_tid);
 		}
 
@@ -728,12 +728,12 @@ genotype (sqlite3_stmt *genotype_stmt, int threads, int phred_quality)
 	log_debug ("Clean genotype table");
 	clean_genotype_table (db);
 
-	log_info ("Index all retrocopies");
+	log_info ("Genotype the retrocopies in each sample");
 
 	// RETROCOPY_ID => REGION
 	retrocopy_h = genotype_index_retrocopy (db);
 
-	log_info ("Index all SAM/BAM/CRAM path => retrocopy relationship");
+	log_debug ("Index the retrocopies by alignment file");
 
 	// PATH => @ZYGOSITYDATA
 	zygosity_h = genotype_index_zygosity_data (db, retrocopy_h);

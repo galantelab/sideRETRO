@@ -30,6 +30,11 @@ struct _VCFOption
 	// Read names and predicted insertions files
 	const char *rnames_file;
 	const char *insertion_file;
+
+	// Output: Number of retrocopies written to
+	// the VCF and to the insertions file
+	int         num_records;
+	int         num_insertions;
 };
 
 typedef struct _VCFOption VCFOption;

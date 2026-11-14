@@ -304,10 +304,10 @@ dedup (sqlite3 *db)
 	create_temp_dup_table (db);
 
 	// Insert duplicated reads to 'dup' table
-	log_info ("Mark duplicated reads");
+	log_debug ("Mark duplicated reads");
 	mark_dup (db);
 
 	// Delete duplicated reads from alignment
-	log_info ("Remove duplicated reads");
+	log_debug ("Remove duplicated reads");
 	set_dup (db);
 }

@@ -18,6 +18,8 @@
 
 #include "config.h"
 
+#include <time.h>
+
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
@@ -39,6 +41,7 @@
 #include "db_merge.h"
 #include "retrocopy.h"
 #include "genotype.h"
+#include "summary.h"
 #include "merge_call.h"
 
 #define DEFAULT_CACHE_SIZE            200000 /* 200MiB */
@@ -105,6 +108,114 @@ struct _MergeCall
 
 typedef struct _MergeCall MergeCall;
 
+static long
+query_count (sqlite3 *db, const char *sql)
+{
+	sqlite3_stmt *stmt = NULL;
+	long n = 0;
+
+	stmt = db_prepare (db, sql);
+
+	if (db_step (stmt) == SQLITE_ROW)
+		n = db_column_int64 (stmt, 0);
+
+	db_finalize (stmt);
+	return n;
+}
+
+static void
+print_summary (const MergeCall *mc, sqlite3 *db, const char *db_file,
+		int num_clusters, time_t start)
+{
+	Summary *s = NULL;
+	sqlite3_stmt *stmt = NULL;
+	char *name = NULL;
+	char b1[SUMMARY_NUM_LEN] = {};
+	char b2[SUMMARY_NUM_LEN] = {};
+	long n = 0;
+	long total = 0;
+
+	s = summary_new ("merge-call summary", start);
+
+	summary_section (s, "Input");
+	summary_line (s, "Databases", "%zu", array_len (mc->db_files));
+	summary_line (s, "Samples", "%s",
+			summary_count (query_count (db, "SELECT COUNT(*) FROM source"), b1));
+	summary_line (s, "Abnormal alignments", "%s",
+			summary_count (query_count (db, "SELECT COUNT(*) FROM alignment"), b1));
+	summary_line (s, "Clusters", "%s (after all filters)",
+			summary_count (num_clusters, b1));
+
+	total = query_count (db, "SELECT COUNT(*) FROM retrocopy");
+
+	summary_section (s, "Retrocopies");
+	summary_line (s, "Total", "%s", summary_count (total, b1));
+
+#define SUMMARY_RTC(key, sql) \
+	do { \
+		n = query_count (db, sql); \
+		summary_line (s, key, "%s (%s)", summary_count (n, b1), \
+				summary_percent (n, total, b2)); \
+	} while (0)
+
+	SUMMARY_RTC ("Single parental gene",
+			"SELECT COUNT(*) FROM retrocopy WHERE level = 1");
+	SUMMARY_RTC ("Precise",
+			"SELECT COUNT(*) FROM retrocopy WHERE insertion_point_type = 2");
+	SUMMARY_RTC ("Both breakpoints",
+			"SELECT COUNT(*) FROM retrocopy\n"
+			"WHERE breakpoint_left_sr > 0 AND breakpoint_right_sr > 0");
+	SUMMARY_RTC ("Target site duplication",
+			"SELECT COUNT(*) FROM retrocopy\n"
+			"WHERE breakpoint_left_sr > 0 AND breakpoint_right_sr > 0\n"
+			"	AND breakpoint_left >= breakpoint_right");
+	SUMMARY_RTC ("Poly-A tail",
+			"SELECT COUNT(*) FROM retrocopy WHERE polya_sr > 0");
+	SUMMARY_RTC ("Exon-exon junctions",
+			"SELECT COUNT(DISTINCT retrocopy_id) FROM junction");
+
+	if (mc->fasta_file != NULL)
+		{
+			SUMMARY_RTC ("Predicted sequence",
+					"SELECT COUNT(*) FROM insertion WHERE seq IS NOT NULL");
+		}
+	else
+		summary_line (s, "Predicted sequence", "- (pass --reference-file)");
+
+#undef SUMMARY_RTC
+
+	// Retrocopies with reads supporting the insertion by sample
+	summary_section (s, "Retrocopies by sample (with alternate reads)");
+
+	stmt = db_prepare (db,
+			"SELECT s.path, COUNT(g.retrocopy_id)\n"
+			"FROM source AS s\n"
+			"LEFT JOIN genotype AS g\n"
+			"	ON g.source_id = s.id AND g.alternate_depth > 0\n"
+			"GROUP BY s.id\n"
+			"ORDER BY s.id ASC");
+
+	while (db_step (stmt) == SQLITE_ROW)
+		{
+			name = path_file (db_column_text (stmt, 0), 1);
+			summary_line (s, name, "%s",
+					summary_count (db_column_int64 (stmt, 1), b1));
+			xfree (name);
+		}
+
+	db_finalize (stmt);
+
+	summary_section (s, "Output");
+	summary_line (s, "Database", "%s", db_file);
+	summary_line (s, "Next step", "%s make-vcf%s%s %s", PACKAGE,
+			mc->fasta_file != NULL ? " -r " : "",
+			mc->fasta_file != NULL ? mc->fasta_file : "",
+			db_file);
+
+	summary_log (s);
+	summary_free (s);
+}
+
 static void
 run (MergeCall *mc)
 {
@@ -126,6 +237,7 @@ run (MergeCall *mc)
 
 	int num_clusters = 0;
 	char *db_file = NULL;
+	time_t start = time (NULL);
 
 	// Merge all databases
 	if (mc->output_file != NULL)
@@ -133,7 +245,7 @@ run (MergeCall *mc)
 			// Use first database
 			db_file = xstrdup (mc->output_file);
 
-			log_info ("Connect to database '%s'", db_file);
+			log_info ("Open the database '%s'", db_file);
 
 			// Connect to database
 			db = db_connect (db_file);
@@ -144,10 +256,10 @@ run (MergeCall *mc)
 			xasprintf_concat (&db_file, "%s/%s.db",
 					mc->output_dir, mc->prefix);
 
-			log_info ("Create output dir '%s'", mc->output_dir);
+			log_debug ("Create output dir '%s'", mc->output_dir);
 			mkdir_p (mc->output_dir);
 
-			log_info ("Create and connect to database '%s'", db_file);
+			log_info ("Create the database '%s'", db_file);
 
 			// Create a new database
 			db = db_create (db_file);
@@ -197,14 +309,14 @@ run (MergeCall *mc)
 
 			if (gff_looks_like_gff_file (mc->blacklist_region))
 				{
-					log_info ("Index blacklist entries from GTF/GFF3 file '%s'",
+					log_info ("Index the blacklisted regions of '%s'",
 							mc->blacklist_region);
 					blacklist_index_dump_from_gff (blacklist,
 							mc->blacklist_region, mc->filter, mc->gene_name_key);
 				}
 			else
 				{
-					log_info ("Index blacklist entries from BED file '%s'",
+					log_info ("Index the blacklisted regions of '%s'",
 							mc->blacklist_region);
 					blacklist_index_dump_from_bed (blacklist,
 							mc->blacklist_region);
@@ -221,7 +333,7 @@ run (MergeCall *mc)
 			db_begin_transaction (db);
 
 			// Time to merge them all!
-			log_info ("Merge all files with '%s'", db_file);
+			log_info ("Merge the databases into '%s'", db_file);
 			db_merge (db, array_len (mc->db_files),
 					(char **) array_data (mc->db_files));
 
@@ -233,7 +345,7 @@ run (MergeCall *mc)
 	db_begin_transaction (db);
 
 	// Clustering
-	log_info ("Run clustering step for '%s'", db_file);
+	log_info ("Run the clustering step");
 	num_clusters = cluster (cluster_stmt, clustering_stmt,
 			mc->epsilon, mc->min_pts, mc->parental_dist, mc->support,
 			mc->blacklist_chr, blacklist, mc->padding);
@@ -243,7 +355,7 @@ run (MergeCall *mc)
 
 	if (!num_clusters)
 		{
-			log_warn ("No cluster has been found!");
+			log_warn ("No cluster found: There is no retrocopy to annotate");
 		}
 	else
 		{
@@ -251,7 +363,7 @@ run (MergeCall *mc)
 			db_begin_transaction (db);
 
 			// Filtering and Annotation
-			log_info ("Run retrocopy annotation step for '%s'", db_file);
+			log_info ("Run the annotation step");
 			retrocopy (retrocopy_stmt, cluster_merging_stmt,
 					junction_stmt, insertion_stmt, mc->fasta_file,
 					mc->near_gene_rank);
@@ -263,15 +375,13 @@ run (MergeCall *mc)
 			db_begin_transaction (db);
 
 			// Genotyping
-			log_info ("Run genotype annotation step for '%s'", db_file);
+			log_info ("Run the genotyping step");
 			genotype (genotype_stmt, mc->threads, mc->phred_quality);
 
 			// Commit
 			db_end_transaction (db);
 
-			log_info ("Merge Call at '%s' is finished. "
-				"Run make-vcf command to generate an annotated retrocopy VCF",
-				db_file);
+			print_summary (mc, db, db_file, num_clusters, start);
 		}
 
 	// Cleanup
@@ -297,98 +407,97 @@ print_usage (FILE *fp)
 	fprintf (fp,
 		"%s\n"
 		"\n"
-		"Usage: %s merge-call [-h] [-q] [-d] [-l FILE] [-o DIR] [-p STR]\n"
-		"       %*c            [-c INT] [-I] [-e INT] [-m INT] [-b STR]\n"
-		"       %*c            [-B FILE] [-T STR] [-A KEY=VALUE] [-N STR]\n"
-		"       %*c            [-P INT] [-x INT] [-g INT] [-n INT]\n"
-		"       %*c            [-r FILE] [-t INT] [-Q INT] [-i FILE]\n"
-		"       %*c            <FILE> ...\n"
+		"Usage: %s merge-call [-h] [-q] [-d] [-l FILE] [-o DIR] [-p STR] [-I]\n"
+		"       %*c            [-c INT] [-e INT] [-m INT] [-b STR] [-B FILE]\n"
+		"       %*c            [-P INT] [-T STR] [-A KEY=VALUE] [-N STR]\n"
+		"       %*c            [-x INT] [-g INT] [-n INT] [-r FILE]\n"
+		"       %*c            [-t INT] [-Q INT] [-i FILE] <FILE> ...\n"
 		"\n"
-		"Discover and annotate retrocopies\n"
+		"Discover and annotate retrocopy insertions\n"
 		"\n"
 		"Examples:\n"
-		"   $ sider mc -l mc.log -I in.db\n"
+		"   $ sider mc -l mc.log -I -r hg38.fa in.db\n"
 		"   $ sider mc -e 500 -m 20 -p in1_plus_in2 in1.db in2.db\n"
 		"   $ sider mc -b chrY -B gencode.gff3 -t 10 -Q 20 -i list.txt\n"
 		"\n"
 		"Output:\n"
-		"   Annotate all retrocopies at the first input SQLite3 database\n"
-		"   or generate a new one with all results. Next run 'make-vcf'\n"
+		"   The annotated retrocopies, at the first input database (with '-I')\n"
+		"   or at a new one with all the inputs merged. Next, run 'make-vcf'\n"
 		"\n"
 		"Arguments:\n"
-		"   One or more SQLite3 databases generated in the 'process-sample' step\n"
+		"   One or more SQLite3 databases generated by 'process-sample'\n"
 		"\n"
 		"Mandatory Options:\n"
-		"   -i, --input-file           File containing a newline separated list of\n"
-		"                              SQLite3 databases to be processed. This\n"
-		"                              option is not mandatory if one or more\n"
-		"                              SQLite3 databases are passed as argument.\n"
-		"                              If 'input-file' and arguments are set\n"
-		"                              concomitantly, then the union of all files\n"
-		"                              is used\n"
+		"   -i, --input-file           File with a newline separated list of SQLite3\n"
+		"                              databases. Not mandatory if the databases are\n"
+		"                              passed as arguments. If both are given, their\n"
+		"                              union is used\n"
 		"\n"
 		"Input/Output Options:\n"
 		"   -h, --help                 Show help options\n"
-		"   -q, --quiet                Decrease verbosity to error messages only\n"
-		"                              or suppress terminal outputs at all if\n"
+		"   -q, --quiet                Decrease verbosity to error messages only,\n"
+		"                              or suppress terminal output at all if\n"
 		"                              'log-file' is passed\n"
 		"       --silent               Same as '--quiet'\n"
 		"   -d, --debug                Increase verbosity to debug level\n"
 		"   -l, --log-file             Print log messages to a file\n"
-		"   -o, --output-dir           Output directory. Create the directory if it does\n"
-		"                              not exist [default:\"%s\"]\n"
-		"   -p, --prefix               Prefix output files [default:\"%s\"]\n"
-		"   -I, --in-place             Merge all databases with the first one of the list,\n"
-		"                              instead of creating a new file\n"
+		"   -o, --output-dir           Output directory. It is created if it does not\n"
+		"                              exist [default:\"%s\"]\n"
+		"   -p, --prefix               Prefix of the output files [default:\"%s\"]\n"
+		"   -I, --in-place             Merge all databases into the first one, instead\n"
+		"                              of creating a new database\n"
 		"\n"
 		"SQLite3 Options:\n"
-		"   -c, --cache-size           Set SQLite3 cache size in KiB [default:\"%d\"]\n"
+		"   -c, --cache-size           SQLite3 cache size in KiB [default:\"%d\"]\n"
 		"\n"
 		"Clustering Options:\n"
 		"   -e, --epsilon              DBSCAN: Maximum distance between two alignments\n"
 		"                              inside a cluster [default:\"%d\"]\n"
-		"   -m, --min-pts              DBSCAN: Minimum number of points required to form a\n"
-		"                              dense region [default:\"%d\"]\n"
+		"   -m, --min-pts              DBSCAN: Minimum number of alignments required to\n"
+		"                              form a dense region [default:\"%d\"]\n"
 		"\n"
-		"Filter & Annotation Options:\n"
-		"   -b, --blacklist-chr        Avoid clustering from and to this chromosome. This\n"
-		"                              option can be passed multiple times [default:\"%s\"]\n"
-		"   -B, --blacklist-region     GTF/GFF3/BED blacklisted regions. If the file is in\n"
-		"                              GTF/GFF3 format, the user may indicate the 'feature'\n"
-		"                              (third column), the 'attribute' (ninth column) and\n"
-		"                              its values\n"
-		"   -P, --blacklist-padding    Increase the blacklisted regions ranges (left and right)\n"
-		"                              by N bases [default:\"%d\"]\n"
-		"   -T, --gff-feature          The value of 'feature' (third column) for GTF/GFF3\n"
-		"                              file [default:\"%s\"]\n"
-		"   -A, --gff-attribute        The 'attribute' (ninth column) for GTF/GFF3 file\n"
-		"                              in the format key=value. Alternatives are separated\n"
-		"                              by '|' and any of them must match (OR): 'k=v1|v2'\n"
-		"                              or 'k1=v1|k2=v2'. When passed multiple times, all\n"
-		"                              of them must match (AND). Values match exactly\n"
+		"Blacklist Options:\n"
+		"   -b, --blacklist-chr        Do not cluster from or to this chromosome. It may\n"
+		"                              be passed multiple times [default:\"%s\"]\n"
+		"   -B, --blacklist-region     Regions where clusters are discarded, in GTF/GFF3\n"
+		"                              or BED format. A GTF/GFF3 file is filtered by\n"
+		"                              '-T' and '-A'\n"
+		"   -P, --blacklist-padding    Extend the blacklisted regions by N bases at both\n"
+		"                              sides [default:\"%d\"]\n"
+		"   -T, --gff-feature          The 'feature' (3rd column) of the blacklisted\n"
+		"                              regions [default:\"%s\"]\n"
+		"   -A, --gff-attribute        An 'attribute' (9th column) to filter in, as\n"
+		"                              key=value. Alternatives separated by '|' must\n"
+		"                              match any (OR): 'k=v1|v2' or 'k1=v1|k2=v2'. If\n"
+		"                              passed multiple times, all of them must match\n"
+		"                              (AND). Values match exactly\n"
 		"                              [default:\"%s\"]\n"
-		"   -N, --gff-gene-name        The attribute with the gene name for GTF/GFF3\n"
-		"                              file [default:\"%s\"]\n"
-		"   -x, --parental-distance    Minimum distance allowed between a cluster and\n"
-		"                              its putative parental gene [default:\"%d\"]\n"
-		"   -g, --genotype-support     Minimum number of reads coming from a given source\n"
-		"                              (SAM/BAM/CRAM) within a cluster [default:\"%d\"]\n"
-		"   -n, --near-gene-rank       Minimum ranked distance between genes in order to\n"
-		"                              consider them close [default:\"%d\"]\n"
-		"   -r, --reference-file       FASTA file for the reference genome. If passed,\n"
-		"                              the retrocopy ends are searched into the parental\n"
+		"   -N, --gff-gene-name        The attribute naming the blacklisted regions\n"
+		"                              [default:\"%s\"]\n"
+		"\n"
+		"Annotation Options:\n"
+		"   -x, --parental-distance    Minimum distance between a cluster and its\n"
+		"                              parental gene. Closer clusters are discarded\n"
+		"                              [default:\"%d\"]\n"
+		"   -g, --genotype-support     Minimum number of reads from a single sample\n"
+		"                              (SAM/BAM/CRAM) to keep a cluster [default:\"%d\"]\n"
+		"   -n, --near-gene-rank       Maximum distance, in number of genes, between\n"
+		"                              the parental genes of overlapping clusters to\n"
+		"                              merge them as near parental genes\n"
+		"                              [default:\"%d\"]\n"
+		"   -r, --reference-file       FASTA file of the reference genome. With it,\n"
+		"                              the retrocopy ends are searched in the parental\n"
 		"                              exons and its sequence is predicted\n"
 		"\n"
 		"Genotyping Options:\n"
 		"   -t, --threads              Number of threads [default:\"%d\"]\n"
-		"   -Q, --phred-quality        Minimum mapping quality used to define reference\n"
-		"                              allele reads [default:\"%d\"]\n"
+		"   -Q, --phred-quality        Minimum mapping quality (MAPQ) of the reads\n"
+		"                              supporting the reference allele [default:\"%d\"]\n"
 		"\n",
-		PACKAGE_STRING, PACKAGE, pkg_len, ' ', pkg_len, ' ', pkg_len, ' ', pkg_len, ' ', pkg_len, ' ',
+		PACKAGE_STRING, PACKAGE, pkg_len, ' ', pkg_len, ' ', pkg_len, ' ', pkg_len, ' ',
 		DEFAULT_OUTPUT_DIR, DEFAULT_PREFIX, DEFAULT_CACHE_SIZE, DEFAULT_EPS, DEFAULT_MIN_PTS,
 		DEFAULT_BLACKLIST_CHR, DEFAULT_BLACKLIST_PADDING, DEFAULT_GFF_FEATURE, DEFAULT_GFF_ATTRIBUTE,
-		DEFAULT_GFF_GENE_NAME,
-		DEFAULT_PARENTAL_DISTANCE, DEFAULT_SUPPORT, DEFAULT_NEAR_GENE_RANK,
+		DEFAULT_GFF_GENE_NAME, DEFAULT_PARENTAL_DISTANCE, DEFAULT_SUPPORT, DEFAULT_NEAR_GENE_RANK,
 		DEFAULT_THREADS, DEFAULT_PHRED_QUALITY);
 }
 

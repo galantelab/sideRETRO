@@ -1390,7 +1390,7 @@ index_exon_regions (sqlite3 *db, const char *fasta_file)
 					db_column_int64 (region_stmt, 1),
 					db_column_int64 (region_stmt, 2)));
 
-	log_info ("Extract %zu exons from '%s'", list_size (regions), fasta_file);
+	log_info ("Extract %zu parental exons from '%s'", list_size (regions), fasta_file);
 	fidx = fasta_index_regions (fasta_file, regions, NULL);
 
 	list_free (regions);
@@ -1439,7 +1439,7 @@ exon_seq_load (sqlite3_stmt *exon_stmt, Hash *fidx, const char *gene_name,
 
 			if (seq == NULL)
 				{
-					log_warn ("Exon %d at %s:%li-%li has no reference",
+					log_warn ("Exon %d at %s:%li-%li not found at the reference genome",
 							e->id, chr, e->start, e->end);
 					continue;
 				}
@@ -2195,34 +2195,34 @@ retrocopy (sqlite3_stmt *retrocopy_stmt,
 	clean_retrocopy_tables (
 			sqlite3_db_handle (retrocopy_stmt));
 
-	log_info ("Analise and merge clusters into retrocopies");
+	log_info ("Merge the clusters into retrocopies");
 	merge_cluster (cluster_merging_stmt, filter, near_gene_dist, rtc_h);
 
-	log_info ("Calculate retrocopies orientation");
+	log_info ("Calculate the orientation of the retrocopies");
 	calculate_orientation (
 			sqlite3_db_handle (retrocopy_stmt),
 			rtc_h);
 
-	log_info ("Calculate retrocopies breakpoints");
+	log_info ("Find the breakpoints and target site duplications");
 	calculate_breakpoint (
 			sqlite3_db_handle (retrocopy_stmt),
 			rtc_h);
 
-	log_info ("Calculate retrocopies poly-A");
+	log_info ("Find the poly-A tails");
 	calculate_polya (
 			sqlite3_db_handle (retrocopy_stmt),
 			rtc_h);
 
-	log_info ("Annotate retrocopies");
+	log_info ("Annotate the insertion points");
 	annotate_retrocopy (retrocopy_stmt, rtc_h);
 
-	log_info ("Search for exon-exon junctions");
+	log_info ("Search for reads spanning exon-exon junctions");
 	calculate_junction (junction_stmt);
 
 	if (fasta_file != NULL)
-		log_info ("Search for the retrocopy ends into the parental genes");
+		log_info ("Search for the retrocopy ends in the parental genes");
 	else
-		log_info ("No reference genome: Keep only the observed junction sequences");
+		log_info ("No reference genome (--reference-file): Skip the retrocopy ends and predicted sequences");
 
 	calculate_insertion (
 			sqlite3_db_handle (retrocopy_stmt),

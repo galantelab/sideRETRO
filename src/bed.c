@@ -96,7 +96,7 @@ bed_read (BedFile *bed, BedEntry *entry)
 
 	token = strtok_r (bed->buf, "\t ", &saveptr1);
 	if (token == NULL)
-		log_fatal ("missing 'chrom' (field 1) at line %zu", entry->num_line);
+		log_fatal ("Missing 'chrom' (field 1) at line %zu", entry->num_line);
 
 	entry->chrom_size = entry_set (&entry->chrom,
 			entry->chrom_size, token);
@@ -105,7 +105,7 @@ bed_read (BedFile *bed, BedEntry *entry)
 
 	token = strtok_r (NULL, "\t ", &saveptr1);
 	if (token == NULL)
-		log_fatal ("missing 'chromStart' (field 2) at line %zu", entry->num_line);
+		log_fatal ("Missing 'chromStart' (field 2) at line %zu", entry->num_line);
 
 	entry->chrom_start = atol (token);
 
@@ -113,7 +113,7 @@ bed_read (BedFile *bed, BedEntry *entry)
 
 	token = strtok_r (NULL, "\t ", &saveptr1);
 	if (token == NULL)
-		log_fatal ("missing 'chromEnd' (field 3) at line %zu", entry->num_line);
+		log_fatal ("Missing 'chromEnd' (field 3) at line %zu", entry->num_line);
 
 	entry->chrom_end = atol (token);
 
@@ -134,7 +134,7 @@ bed_read (BedFile *bed, BedEntry *entry)
 
 	entry->score = atoi (token);
 	if (entry->score < 0 || entry->score > 1000)
-		log_warn ("field 5 'score' out of bound at line %zu", entry->num_line);
+		log_warn ("Field 5 'score' out of bounds at line %zu", entry->num_line);
 
 	num_field++;
 
@@ -173,7 +173,7 @@ bed_read (BedFile *bed, BedEntry *entry)
 				{
 					entry->rgb[i] = atoi (subtoken);
 					if (entry->rgb[i] < 0 || entry->rgb[i] > 255)
-						log_warn ("field 9 'rgb' [%d] out of bound at line %zu",
+						log_warn ("Field 9 'rgb' [%d] out of bounds at line %zu",
 								i, entry->num_line);
 				}
 
@@ -181,7 +181,7 @@ bed_read (BedFile *bed, BedEntry *entry)
 		}
 
 	if (i > 3)
-		log_warn ("field 9 'rgb' has more than 3 values");
+		log_warn ("Field 9 'rgb' has more than 3 values at line %zu", entry->num_line);
 
 	num_field++;
 
@@ -220,7 +220,7 @@ bed_read (BedFile *bed, BedEntry *entry)
 		}
 
 	if (i > entry->block_count)
-		log_warn ("field 11 'blockSizes' has more values than 'blockCount' at line %zu",
+		log_warn ("Field 11 'blockSizes' has more values than 'blockCount' at line %zu",
 				entry->num_line);
 
 	num_field++;
@@ -239,7 +239,7 @@ bed_read (BedFile *bed, BedEntry *entry)
 		}
 
 	if (i > entry->block_count)
-		log_warn ("field 12 'blockStarts' has more values than 'blockCount' at line %zu",
+		log_warn ("Field 12 'blockStarts' has more values than 'blockCount' at line %zu",
 				entry->num_line);
 
 	num_field++;

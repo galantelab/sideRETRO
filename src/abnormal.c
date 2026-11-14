@@ -48,6 +48,7 @@ struct _AbnormalFilter
 	float          exon_frac;
 	float          alignment_frac;
 	int            hts_threads;
+	AbnormalStat  *stat;
 	samFile       *in;
 	bam_hdr_t     *hdr;
 	bam1_t        *align;
@@ -677,32 +678,38 @@ abnormal_filter (AbnormalArg *arg)
 	// Allocate resources
 	abnormal_filter_init (&argf);
 
-	log_info ("Searching for abnormal alignments into '%s'",
-			argf.sam_file);
-
 	// Let's make this work!
 	if (argf.queryname_sorted)
 		{
-			log_info ("Parsing 'sorted file' mode");
+			log_info ("Search for abnormal alignments in '%s' "
+					"(grouped by read name: one reading)", argf.sam_file);
 			parse_sorted_sam (&argf);
 		}
 	else
 		{
-			log_info ("Parsing 'unsorted file' mode");
+			log_info ("Search for abnormal alignments in '%s' "
+					"(not grouped by read name: two readings)", argf.sam_file);
 			parse_unsorted_sam (&argf);
 		}
 
-	log_info ("Processed %li alignments for '%s'",
-			argf.alignment_acm, argf.sam_file);
-
 	// Just print the amount of abnormal alignments
 	if (argf.abnormal_acm > 0)
-		log_info ("Found %li abnormal alignments for '%s': "
-			"%li abnormal alignments fall inside some exonic region (%.2f%%)",
-			argf.abnormal_acm, argf.sam_file, argf.exonic_acm,
+		log_info ("Found %li abnormal alignments out of %li in '%s': "
+			"%li (%.2f%%) overlap exons",
+			argf.abnormal_acm, argf.alignment_acm, argf.sam_file, argf.exonic_acm,
 			(float) (argf.exonic_acm * 100) / argf.abnormal_acm);
 	else
-		log_info ("File '%s' has no abnormal alignments", argf.sam_file);
+		log_warn ("No abnormal alignment found out of %li in '%s'",
+				argf.alignment_acm, argf.sam_file);
+
+	// Counts for the final summary
+	if (argf.stat != NULL)
+		*argf.stat = (AbnormalStat) {
+			.alignments = argf.alignment_acm,
+			.abnormal   = argf.abnormal_acm,
+			.exonic     = argf.exonic_acm,
+			.sorted     = argf.queryname_sorted
+		};
 
 	// Cleanup
 	abnormal_filter_destroy (&argf);

@@ -18,6 +18,8 @@
 
 #include "config.h"
 
+#include <time.h>
+
 #include <stdio.h>
 #include <getopt.h>
 #include <assert.h>
@@ -28,6 +30,7 @@
 #include "log.h"
 #include "logger.h"
 #include "vcf.h"
+#include "summary.h"
 #include "make_vcf.h"
 
 #define DEFAULT_PREFIX                "out"
@@ -70,6 +73,10 @@ run (MakeVcf *v)
 	char *rnames_file = NULL;
 	char *insertion_file = NULL;
 
+	time_t start = time (NULL);
+	Summary *s = NULL;
+	char b1[SUMMARY_NUM_LEN] = {};
+
 	// Assemble VCF, read names and
 	// predicted insertions files
 	xasprintf_concat (&vcf_file, "%s/%s.vcf",
@@ -81,10 +88,10 @@ run (MakeVcf *v)
 	xasprintf_concat (&insertion_file, "%s/%s.insertions.fa",
 			v->output_dir, v->prefix);
 
-	log_info ("Create output dir '%s'", v->output_dir);
+	log_debug ("Create output dir '%s'", v->output_dir);
 	mkdir_p (v->output_dir);
 
-	log_info ("Connect to database %s", v->db_file);
+	log_info ("Open the database '%s'", v->db_file);
 	db = db_connect (v->db_file);
 
 	// Fill options
@@ -96,10 +103,28 @@ run (MakeVcf *v)
 		.insertion_file    = insertion_file
 	};
 
-	log_info ("Generate VCF file %s", vcf_file);
 	vcf (db, vcf_file, &opt);
 
-	log_info ("VCF file '%s' is ready!", vcf_file);
+	s = summary_new ("make-vcf summary", start);
+
+	summary_section (s, "Retrocopies");
+	summary_line (s, "VCF records", "%s", summary_count (opt.num_records, b1));
+	summary_line (s, "Predicted sequences", "%s%s",
+			summary_count (opt.num_insertions, b1),
+			opt.num_insertions == 0 && opt.num_records > 0
+				? " (run merge-call with --reference-file)"
+				: "");
+
+	summary_section (s, "Output");
+	summary_line (s, "VCF", "%s", vcf_file);
+	summary_line (s, "Read names", "%s", rnames_file);
+	summary_line (s, "Predicted insertions", "%s", insertion_file);
+
+	if (v->fasta_file == NULL)
+		summary_text (s, "Without --reference-file, REF is 'N' and TSD is not reported");
+
+	summary_log (s);
+	summary_free (s);
 	xfree (vcf_file);
 	xfree (rnames_file);
 	xfree (insertion_file);
@@ -113,43 +138,45 @@ print_usage (FILE *fp)
 	fprintf (fp,
 		"%s\n"
 		"\n"
-		"Usage: %s make-vcf [-h] [-q] [-d] [-s] [-l FILE] [-o DIR]\n"
-		"       %*c          [-p STR] [-n INT] [-e FLOAT]\n"
-		"       %*c          [-r FILE] <FILE>\n"
+		"Usage: %s make-vcf [-h] [-q] [-d] [-l FILE] [-o DIR] [-p STR]\n"
+		"       %*c          [-n INT] [-e FLOAT] [-r FILE] <FILE>\n"
 		"\n"
-		"Generate VCF file with all annotated retrocopies\n"
+		"Write the annotated retrocopies to a VCF and to their companion files\n"
 		"\n"
 		"Examples:\n"
 		"   $ sider vcf in.db\n"
 		"   $ sider vcf -r hg38.fa -o result in.db\n"
 		"\n"
 		"Output:\n"
-		"   A VCF file\n"
+		"   <prefix>.vcf             The retrocopy insertions and their genotypes\n"
+		"   <prefix>.rnames.tsv      The reads supporting each retrocopy, by sample\n"
+		"   <prefix>.insertions.fa   The predicted retrocopy sequences\n"
 		"\n"
 		"Arguments:\n"
-		"   SQLite3 database generated at 'process-sample'\n"
-		"   and 'merge-call' steps\n"
+		"   SQLite3 database processed by 'merge-call'\n"
 		"\n"
 		"Input/Output Options:\n"
 		"   -h, --help                 Show help options\n"
-		"   -q, --quiet                Decrease verbosity to error messages only\n"
-		"                              or suppress terminal outputs at all if\n"
+		"   -q, --quiet                Decrease verbosity to error messages only,\n"
+		"                              or suppress terminal output at all if\n"
 		"                              'log-file' is passed\n"
 		"       --silent               Same as '--quiet'\n"
 		"   -d, --debug                Increase verbosity to debug level\n"
 		"   -l, --log-file             Print log messages to a file\n"
-		"   -o, --output-dir           Output directory. Create the directory if it does\n"
-		"                              not exist [default:\"%s\"]\n"
-		"   -p, --prefix               Prefix output files [default:\"%s\"]\n"
+		"   -o, --output-dir           Output directory. It is created if it does not\n"
+		"                              exist [default:\"%s\"]\n"
+		"   -p, --prefix               Prefix of the output files [default:\"%s\"]\n"
 		"\n"
-		"Filter & Annotation Options:\n"
-		"   -n, --near-gene-dist       Minimum distance between genes in order to\n"
-		"                              consider them close [default:\"%d\"]\n"
-		"   -e, --orientation-error    Maximum error allowed for orientation rho\n"
-		"                              [default:\"%.2f\"]\n"
-		"   -r, --reference-file       FASTA file for the reference genome\n"
+		"Annotation Options:\n"
+		"   -n, --near-gene-dist       Maximum distance between an intergenic insertion\n"
+		"                              and a gene to report it as near (NEAR)\n"
+		"                              [default:\"%d\"]\n"
+		"   -e, --orientation-error    Maximum p-value of the Spearman's rho to report\n"
+		"                              the orientation (ORHO) [default:\"%.2f\"]\n"
+		"   -r, --reference-file       FASTA file of the reference genome, for the REF\n"
+		"                              column, the contigs and the TSD sequence\n"
 		"\n",
-		PACKAGE_STRING, PACKAGE, pkg_len, ' ', pkg_len, ' ',
+		PACKAGE_STRING, PACKAGE, pkg_len, ' ',
 		DEFAULT_OUTPUT_DIR, DEFAULT_PREFIX, DEFAULT_NEAR_GENE_DIST,
 		DEFAULT_ORIENTATION_ERROR);
 }

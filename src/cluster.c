@@ -660,16 +660,16 @@ cluster (sqlite3_stmt *cluster_stmt, sqlite3_stmt *clustering_stmt,
 	clean_clustering_tables (
 			sqlite3_db_handle (cluster_stmt));
 
-	log_info ("Index abnormal alignment qnames");
+	log_debug ("Index the read names of the abnormal alignments");
 	index_alignment_qname (
 			sqlite3_db_handle (cluster_stmt));
 
-	log_info ("Index overlapping alignment ids");
+	log_debug ("Index the alignments overlapping exons");
 	index_overlapping_alignment (
 			sqlite3_db_handle (cluster_stmt));
 
 	// First clustering step
-	log_info ("Clustering abnormal alignments");
+	log_info ("Cluster the abnormal alignments");
 	num_clusters = clustering (clustering_stmt,
 			eps, min_pts, cluster_h);
 
@@ -681,12 +681,12 @@ cluster (sqlite3_stmt *cluster_stmt, sqlite3_stmt *clustering_stmt,
 	// Next clustering
 	if (support > 1)
 		{
-			log_info ("Filter clusters according to genotype support and recluster them");
+			log_info ("Filter the clusters by genotype support and cluster them again");
 			num_clusters = reclustering (clustering_stmt, support,
 					eps, min_pts, cluster_h);
 
 			if (num_clusters)
-				log_info ("%d clusters left after genotype filtering and reclustering",
+				log_info ("%d clusters left after the genotype support filter",
 						num_clusters);
 			else
 				goto RET;
@@ -694,15 +694,15 @@ cluster (sqlite3_stmt *cluster_stmt, sqlite3_stmt *clustering_stmt,
 
 	// Finally dump all clusters
 	log_info (
-			"Build clusters from clustering and filter them "
-			"by blacklisted regions, and chromosome, and parental distance");
+			"Filter the clusters by blacklisted chromosomes and regions, "
+			"and by distance to the parental gene");
 
 	num_clusters = dump_and_filter_clusters (cluster_stmt,
 			distance, support, blacklist_chr,
 			blacklist, padding, cluster_h);
 
 	if (num_clusters)
-		log_info ("%d clusters have been passed all controlling filters",
+		log_info ("%d clusters passed all filters",
 				num_clusters);
 	else
 		goto RET;

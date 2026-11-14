@@ -804,7 +804,7 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 					ref = vcf_region_lookup (fidx, b.chr, pos, pos);
 
 					if (ref == NULL)
-						log_warn ("Retrocopy at %s:%li has no reference at '%s'",
+						log_warn ("Retrocopy at %s:%li not found at the reference '%s': REF is 'N'",
 								b.chr, b.insertion_point, opt->fasta_file);
 					else
 						base = ref[0];
@@ -974,7 +974,12 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 
 			// Predicted inserted sequence
 			if (ins_fp != NULL && strcmp (b.ins_seq, "?"))
-				vcf_print_insertion (ins_fp, &b, pos);
+				{
+					vcf_print_insertion (ins_fp, &b, pos);
+					opt->num_insertions++;
+				}
+
+			opt->num_records++;
 
 			hash_free (gi);
 			gi = NULL;
@@ -998,35 +1003,33 @@ vcf (sqlite3 *db, const char *output_file, VCFOption *opt)
 	Hash *fidx = NULL;
 	Hash *contig_len = NULL;
 
-	log_info ("Create VCF file '%s'", output_file);
+	log_info ("Write the VCF '%s'", output_file);
 	fp = xfopen (output_file, "w");
 
 	if (opt->rnames_file != NULL)
 		{
-			log_info ("Create read names file '%s'", opt->rnames_file);
+			log_debug ("Create the read names file '%s'", opt->rnames_file);
 			rnames_fp = xfopen (opt->rnames_file, "w");
 		}
 
 	if (opt->insertion_file != NULL)
 		{
-			log_info ("Create predicted insertions file '%s'", opt->insertion_file);
+			log_debug ("Create the predicted insertions file '%s'", opt->insertion_file);
 			ins_fp = xfopen (opt->insertion_file, "w");
 		}
 
 	if (opt->fasta_file != NULL)
 		fidx = vcf_index_regions (db, opt->fasta_file, &contig_len);
 	else
-		log_warn (
-			"With no reference genome, "
-			"it is not possible to determine the VCF's REF field");
+		log_warn ("No reference genome (--reference-file): REF is 'N' and TSD is not reported");
 
-	log_info ("Get VCF header line");
+	log_debug ("Get the VCF header line");
 	hl = vcf_get_header_line (db);
 
-	log_info ("Write VCF header");
+	log_debug ("Write the VCF header");
 	vcf_print_header (hl, contig_len, fp, opt);
 
-	log_info ("Write VCF body");
+	log_debug ("Write the VCF body");
 	vcf_print_body (db, hl, fidx, fp, rnames_fp, ins_fp, opt);
 
 	xfclose (fp);

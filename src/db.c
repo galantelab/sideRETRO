@@ -493,7 +493,7 @@ db_cache_size (sqlite3 *db, size_t size)
 	char sql[64] = {};
 
 	if (size < DB_DEFAULT_CACHE_SIZE)
-		log_warn ("cache size of %zuKiB is lesser than the default value of %uKiB",
+		log_warn ("Cache size of %zuKiB is smaller than the default of %uKiB",
 				size, DB_DEFAULT_CACHE_SIZE);
 
 	xsnprintf (sql, 63, "PRAGMA cache_size = -%zu", size);
@@ -545,7 +545,7 @@ db_check_schema_version (sqlite3 *db)
 			|| (major_version == DB_SCHEMA_MAJOR_VERSION
 				&& minor_version > DB_SCHEMA_MINOR_VERSION))
 		{
-			log_fatal ("Schema version 'v%d.%d' at database '%s' is ahead the current version 'v%d.%d' of '%s'",
+			log_fatal ("Schema version 'v%d.%d' of database '%s' is newer than the version 'v%d.%d' of '%s': Use a newer sideRETRO",
 				major_version, minor_version, sqlite3_db_filename (db, "main"),
 				DB_SCHEMA_MAJOR_VERSION, DB_SCHEMA_MINOR_VERSION, PACKAGE_STRING);
 		}
@@ -553,7 +553,7 @@ db_check_schema_version (sqlite3 *db)
 			|| (major_version == DB_SCHEMA_MAJOR_VERSION
 				&& minor_version < DB_SCHEMA_MINOR_VERSION))
 		{
-			log_fatal ("Schema version 'v%d.%d' at database '%s' is behind the current version 'v%d.%d' of '%s'",
+			log_fatal ("Schema version 'v%d.%d' of database '%s' is older than the version 'v%d.%d' of '%s': Generate it again with 'process-sample'",
 				major_version, minor_version, sqlite3_db_filename (db, "main"),
 				DB_SCHEMA_MAJOR_VERSION, DB_SCHEMA_MINOR_VERSION, PACKAGE_STRING);
 		}

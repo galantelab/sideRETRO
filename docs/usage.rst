@@ -77,79 +77,77 @@ this command::
 
   $ sider process-sample
 
-Arguments:
-   One or more alignment file in SAM/BAM format
+  Arguments:
+     One or more alignment files in SAM/BAM/CRAM format
 
-Mandatory Options:
-  -a, --annotation-file   Exon annotation on the reference genome in
-                          GTF/GFF3 or BED6 format. For GTF/GFF3, see the
-                          'Annotation Options' below. For BED6 (file ending
-                          in '.bed' or '.bed.gz'), each line is an exon, the
-                          'name' (4th column) is the gene name and the strand
-                          (6th column) is required
-  -i, --input-file        File containing a newline separated list of
-                          alignment files in SAM/BAM/CRAM format.
-                          This option is not mandatory if one or more
-                          SAM/BAM/CRAM files are passed as argument.
-                          If 'input-file' and arguments are set
-                          concomitantly, then the union of all alignment
-                          files is used
+  Mandatory Options:
+     -a, --annotation-file   Exons of the protein coding genes, in GTF/GFF3
+                             or BED6 format. See 'Annotation Options'
+     -i, --input-file        File with a newline separated list of alignment
+                             files in SAM/BAM/CRAM format. Not mandatory if
+                             the files are passed as arguments. If both are
+                             given, their union is used
 
-Input/Output Options:
-  -h, --help              Show help options
-  -q, --quiet             Decrease verbosity to error messages only
-                          or suppress terminal outputs at all if
-                          'log-file' is passed
-  --silent                Same as '--quiet'
-  -d, --debug             Increase verbosity to debug level
-  -l, --log-file          Print log messages to a file
-  -o, --output-dir        Output directory. Create the directory if it does
-                          not exist [default:"."]
-  -p, --prefix            Prefix output files [default:"out"]
+  Input/Output Options:
+     -h, --help              Show help options
+     -q, --quiet             Decrease verbosity to error messages only,
+                             or suppress terminal output at all if
+                             'log-file' is passed
+         --silent            Same as '--quiet'
+     -d, --debug             Increase verbosity to debug level
+     -l, --log-file          Print log messages to a file
+     -o, --output-dir        Output directory. It is created if it does not
+                             exist [default:"."]
+     -p, --prefix            Prefix of the output files [default:"out"]
 
-Annotation Options (GTF/GFF3):
-  -T, --gff-feature       The value of 'feature' (third column)
-                          [default:"exon"]
-  -A, --gff-attribute     The 'attribute' (ninth column) in the format
-                          key=value. Alternatives are separated by '|'
-                          and any of them must match (OR): 'k=v1|v2' or
-                          'k1=v1|k2=v2'. When passed multiple times, all
-                          of them must match (AND). Values match exactly
-                          [default:"transcript_type=protein_coding"]
-  -N, --gff-gene-name     The attribute with the gene name. If missing,
-                          'gene_id' is used [default:"gene_name"]
-  -E, --gff-exon-id       The attribute with the exon id. If missing, the
-                          coordinates 'chr:start_end' are used
-                          [default:"exon_id"]
+  Annotation Options:
+     A BED6 file (name ending in '.bed' or '.bed.gz') has one exon per
+     line, the gene name at the 4th column and the strand at the 6th one.
+     A GTF/GFF3 file is filtered by the options below
+     -T, --gff-feature       The 'feature' (3rd column) of the exons
+                             [default:"exon"]
+     -A, --gff-attribute     An 'attribute' (9th column) to filter in, as
+                             key=value. Alternatives separated by '|' must
+                             match any (OR): 'k=v1|v2' or 'k1=v1|k2=v2'. If
+                             passed multiple times, all of them must match
+                             (AND). Values match exactly
+                             [default:"transcript_type=protein_coding"]
+     -N, --gff-gene-name     The attribute with the gene name. If missing,
+                             'gene_id' is used [default:"gene_name"]
+     -E, --gff-exon-id       The attribute with the exon id. If missing, the
+                             exon is named 'chr:start_end' [default:"exon_id"]
 
-SQLite3 Options:
-  -c, --cache-size        Set SQLite3 cache size in KiB [default:"200000"]
+  SQLite3 Options:
+     -c, --cache-size        SQLite3 cache size in KiB [default:"200000"]
 
-Read Quality Options:
-  -Q, --phred-quality     Minimum mapping quality of the reads required
-                          [default:"8"]
-  -M, --max-base-freq     Maximum base frequency fraction allowed
-                          [default:"0.75"]
-  -D, --deduplicate       Remove duplicated reads. Reads are considered
-                          duplicates when they share the 5 prime positions
-                          of both reads and read-pairs
+  Read Quality Options:
+     -Q, --phred-quality     Minimum mapping quality (MAPQ) of the reads
+                             [default:"8"]
+     -M, --max-base-freq     Maximum frequency of a single base in a read.
+                             Reads above it are discarded as low complexity
+                             sequences, such as poly-A [default:"0.75"]
+     -D, --deduplicate       Remove duplicated reads: Fragments whose reads
+                             and mates share the same 5' positions
 
-Processing Options:
-  -s, --sorted            Assume all reads are grouped by queryname, even if
-                          there is no SAM/BAM/CRAM header tag 'SO:queryname'
-  -t, --threads           Number of threads [default:"1"]
-  -m, --max-distance      Maximum distance allowed between paired-end reads
-                          [default:"10000"]
-  -f, --exon-frac         Minimum overlap required as a fraction of exon
-                          [default:"1e-09"; 1 base]
-  -F, --alignment-frac    Minimum overlap required as a fraction of
-                          alignment [default:"1e-09"; 1 base]
-  -e, --either            The minimum fraction must be satisfied for at least
-                          exon OR alignment. Without '-e', both fractions would
-                          have to be satisfied
-  -r, --reciprocal        The fraction overlap must be reciprocal for exon and
-                          alignment. If '-f' is 0.5, then '-F' will be set to
-                          0.5 as well
+  Processing Options:
+     -s, --sorted            Assume the reads are grouped by read name, even
+                             without the header tag 'SO:queryname'. Grouped
+                             files are read once, the others twice
+     -t, --threads           Number of threads. Each file uses one thread and
+                             the spare ones decompress BAM/CRAM [default:"1"]
+     -m, --max-distance      Maximum distance between the reads of a pair.
+                             Farther pairs are abnormal [default:"10000"]
+     -f, --exon-frac         Minimum overlap between an alignment and an
+                             exon, as a fraction of the exon
+                             [default:"1e-09"; 1 base]
+     -F, --alignment-frac    Minimum overlap between an alignment and an
+                             exon, as a fraction of the alignment
+                             [default:"1e-09"; 1 base]
+     -e, --either            Either '-f' OR '-F' must be satisfied. Without
+                             '-e', both must be
+     -r, --reciprocal        The overlap must be reciprocal: '-F' is set to
+                             the value of '-f'
+
 
 So, supposing that the user has three files: *f1.bam*, *f2.bam*, *f3.sam*, he
 can type::
@@ -280,75 +278,75 @@ known by calling it without any argument::
 
   $ sider merge-call
 
-Arguments:
-   One or more SQLite3 databases generated in the `process-sample
-   <#command-process-sample>`_ step
+  Arguments:
+     One or more SQLite3 databases generated by 'process-sample'
 
-Mandatory Options:
-   -i, --input-file           File containing a newline separated list of
-                              SQLite3 databases to be processed. This
-                              option is not mandatory if one or more
-                              SQLite3 databases are passed as argument.
-                              If 'input-file' and arguments are set
-                              concomitantly, then the union of all files
-                              is used
+  Mandatory Options:
+     -i, --input-file           File with a newline separated list of SQLite3
+                                databases. Not mandatory if the databases are
+                                passed as arguments. If both are given, their
+                                union is used
 
-Input/Output Options:
-   -h, --help                 Show help options
-   -q, --quiet                Decrease verbosity to error messages only
-                              or suppress terminal outputs at all if
-                              'log-file' is passed
-   --silent                   Same as '--quiet'
-   -d, --debug                Increase verbosity to debug level
-   -l, --log-file             Print log messages to a file
-   -o, --output-dir           Output directory. Create the directory if it does
-                              not exist [default:"."]
-   -p, --prefix               Prefix output files [default:"out"]
-   -I, --in-place             Merge all databases with the first one of the list,
-                              instead of creating a new file
+  Input/Output Options:
+     -h, --help                 Show help options
+     -q, --quiet                Decrease verbosity to error messages only,
+                                or suppress terminal output at all if
+                                'log-file' is passed
+         --silent               Same as '--quiet'
+     -d, --debug                Increase verbosity to debug level
+     -l, --log-file             Print log messages to a file
+     -o, --output-dir           Output directory. It is created if it does not
+                                exist [default:"."]
+     -p, --prefix               Prefix of the output files [default:"out"]
+     -I, --in-place             Merge all databases into the first one, instead
+                                of creating a new database
 
-SQLite3 Options:
-   -c, --cache-size           Set SQLite3 cache size in KiB [default:"200000"]
+  SQLite3 Options:
+     -c, --cache-size           SQLite3 cache size in KiB [default:"200000"]
 
-Clustering Options:
-   -e, --epsilon              DBSCAN: Maximum distance between two alignments
-                              inside a cluster [default:"300"]
-   -m, --min-pts              DBSCAN: Minimum number of points required to form a
-                              dense region [default:"10"]
+  Clustering Options:
+     -e, --epsilon              DBSCAN: Maximum distance between two alignments
+                                inside a cluster [default:"300"]
+     -m, --min-pts              DBSCAN: Minimum number of alignments required to
+                                form a dense region [default:"10"]
 
-Filter & Annotation Options:
-   -b, --blacklist-chr        Avoid clustering from and to this chromosome. This
-                              option can be passed multiple times [default:"chrM"]
-   -B, --blacklist-region     GTF/GFF3/BED blacklisted regions. If the file is in
-                              GTF/GFF3 format, the user may indicate the 'feature'
-                              (third column), the 'attribute' (ninth column) and
-                              its values
-   -P, --blacklist-padding    Increase the blacklisted regions ranges (left and right)
-                              by N bases [default:"0"]
-   -T, --gff-feature          The value of 'feature' (third column) for GTF/GFF3
-                              file [default:"gene"]
-   -A, --gff-attribute        The 'attribute' (ninth column) for GTF/GFF3 file
-                              in the format key=value. Alternatives are separated
-                              by '|' and any of them must match (OR): 'k=v1|v2'
-                              or 'k1=v1|k2=v2'. When passed multiple times, all
-                              of them must match (AND). Values match exactly
-                              [default:"gene_type=processed_pseudogene|tag=retrogene"]
-   -N, --gff-gene-name        The attribute with the gene name for GTF/GFF3
-                              file [default:"gene_name"]
-   -x, --parental-distance    Minimum distance allowed between a cluster and
-                              its putative parental gene [default:"1000000"]
-   -g, --genotype-support     Minimum number of reads coming from a given source
-                              (SAM/BAM/CRAM) within a cluster [default:"1"]
-   -n, --near-gene-rank       Minimum ranked distance between genes in order to
-                              consider them close [default:"3"]
-   -r, --reference-file       FASTA file for the reference genome. If passed,
-                              the retrocopy ends are searched into the parental
-                              exons and its sequence is predicted
+  Blacklist Options:
+     -b, --blacklist-chr        Do not cluster from or to this chromosome. It may
+                                be passed multiple times [default:"chrM"]
+     -B, --blacklist-region     Regions where clusters are discarded, in GTF/GFF3
+                                or BED format. A GTF/GFF3 file is filtered by
+                                '-T' and '-A'
+     -P, --blacklist-padding    Extend the blacklisted regions by N bases at both
+                                sides [default:"0"]
+     -T, --gff-feature          The 'feature' (3rd column) of the blacklisted
+                                regions [default:"gene"]
+     -A, --gff-attribute        An 'attribute' (9th column) to filter in, as
+                                key=value. Alternatives separated by '|' must
+                                match any (OR): 'k=v1|v2' or 'k1=v1|k2=v2'. If
+                                passed multiple times, all of them must match
+                                (AND). Values match exactly
+                                [default:"gene_type=processed_pseudogene|tag=retrogene"]
+     -N, --gff-gene-name        The attribute naming the blacklisted regions
+                                [default:"gene_name"]
 
-Genotyping Options:
-   -t, --threads              Number of threads [default:"1"]
-   -Q, --phred-quality        Minimum mapping quality used to define reference
-                              allele reads [default:"8"]
+  Annotation Options:
+     -x, --parental-distance    Minimum distance between a cluster and its
+                                parental gene. Closer clusters are discarded
+                                [default:"1000000"]
+     -g, --genotype-support     Minimum number of reads from a single sample
+                                (SAM/BAM/CRAM) to keep a cluster [default:"1"]
+     -n, --near-gene-rank       Maximum distance, in number of genes, between
+                                the parental genes of overlapping clusters to
+                                merge them as near parental genes
+                                [default:"3"]
+     -r, --reference-file       FASTA file of the reference genome. With it,
+                                the retrocopy ends are searched in the parental
+                                exons and its sequence is predicted
+
+  Genotyping Options:
+     -t, --threads              Number of threads [default:"1"]
+     -Q, --phred-quality        Minimum mapping quality (MAPQ) of the reads
+                                supporting the reference allele [default:"8"]
 
 
 And likewise, user can call a set of database files directly, or using a list of
@@ -423,28 +421,30 @@ others::
 
   $ sider make-vcf
 
-Arguments:
-   SQLite3 database generated at `process-sample <#command-process-sample>`_
-   and `merge-call <#command-merge-call>`_ steps
+  Arguments:
+     SQLite3 database processed by 'merge-call'
 
-Input/Output Options:
-   -h, --help                 Show help options
-   -q, --quiet                Decrease verbosity to error messages only
-                              or suppress terminal outputs at all if
-                              'log-file' is passed
-   --silent                   Same as '--quiet'
-   -d, --debug                Increase verbosity to debug level
-   -l, --log-file             Print log messages to a file
-   -o, --output-dir           Output directory. Create the directory if it does
-                              not exist [default:"."]
-   -p, --prefix               Prefix output files [default:"out"]
+  Input/Output Options:
+     -h, --help                 Show help options
+     -q, --quiet                Decrease verbosity to error messages only,
+                                or suppress terminal output at all if
+                                'log-file' is passed
+         --silent               Same as '--quiet'
+     -d, --debug                Increase verbosity to debug level
+     -l, --log-file             Print log messages to a file
+     -o, --output-dir           Output directory. It is created if it does not
+                                exist [default:"."]
+     -p, --prefix               Prefix of the output files [default:"out"]
 
-Filter & Annotation Options:
-   -n, --near-gene-dist       Minimum distance between genes in order to
-                              consider them close [default:"10000"]
-   -e, --orientation-error    Maximum error allowed for orientation rho
-                              [default:"0.05"]
-   -r, --reference-file       FASTA file for the reference genome
+  Annotation Options:
+     -n, --near-gene-dist       Maximum distance between an intergenic insertion
+                                and a gene to report it as near (NEAR)
+                                [default:"10000"]
+     -e, --orientation-error    Maximum p-value of the Spearman's rho to report
+                                the orientation (ORHO) [default:"0.05"]
+     -r, --reference-file       FASTA file of the reference genome, for the REF
+                                column, the contigs and the TSD sequence
+
 
 So, in order to produce the results from a database input file like
 *my_database.db*, just type::
