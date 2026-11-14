@@ -27,7 +27,6 @@ doc_images = files(
   'images/retrocopy_ends.svg',
   'images/genotype.png',
   'images/indistinguishable_alignment.png',
-  'images/logo_sideRETRO.png',
   'images/orientation_opposite_strand.png',
   'images/orientation_same_strand.png',
   'images/result_confusion.png',
