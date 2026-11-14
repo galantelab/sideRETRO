@@ -73,8 +73,9 @@ if check_dep.found()
                 install : false
   )
 
-  # Enable testing
-  test('all', e, suite : 'unit')
+  # Enable testing. The default timeout (30s) is too
+  # short under valgrind (meson test --wrap=valgrind)
+  test('all', e, suite : 'unit', timeout : 300)
 else
   # Make users aware that without libcheck the test
   # does not run

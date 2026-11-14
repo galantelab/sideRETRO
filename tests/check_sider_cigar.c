@@ -285,11 +285,16 @@ START_TEST (test_cigar_soft_clip)
 		"20S80M",
 		"80M20S",
 		"10H20S60M10S5H",
-		"15S"
+		"15S",
+		"5S40M5I40M10S",
+		"40M2D40M",
+		"10S80M5H"
 	};
 
-	uint32_t lefts[]  = {0, 20,  0, 20, 15};
-	uint32_t rights[] = {0,  0, 20, 10,  0};
+	// The clip at the end stops at the first operation
+	// that is not a clip (I, D, M)
+	uint32_t lefts[]  = {0, 20,  0, 20, 15, 5, 0, 10};
+	uint32_t rights[] = {0,  0, 20, 10,  0, 10, 0,  0};
 
 	for (i = 0; i < sizeof (cigar_strs) / sizeof (char *); i++)
 		{
@@ -319,11 +324,16 @@ START_TEST (test_cigar_clip)
 		"20S80M",
 		"80M20H",
 		"10H20S60M10S5H",
-		"15H"
+		"15H",
+		"5S40M5I40M10S",
+		"40M2D40M",
+		"10S80M5H"
 	};
 
-	uint32_t lefts[]  = {0, 20,  0, 30, 15};
-	uint32_t rights[] = {0,  0, 20, 15,  0};
+	// The clip at the end stops at the first operation
+	// that is not a clip (I, D, M)
+	uint32_t lefts[]  = {0, 20,  0, 30, 15, 5, 0, 10};
+	uint32_t rights[] = {0,  0, 20, 15,  0, 10, 0,  5};
 
 	for (i = 0; i < sizeof (cigar_strs) / sizeof (char *); i++)
 		{
