@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 #
 # sideRETRO - A pipeline for detecting Somatic Insertion of DE novo RETROcopies
-# Copyright (C) 2019-2026 Thiago L. A. Miller <tmiller@mochsl.org.br
+# Copyright (C) 2019-2026 Thiago L. A. Miller <tmiller@mochsl.org.br>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
