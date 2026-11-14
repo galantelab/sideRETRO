@@ -21,6 +21,6 @@
 
 #include "db.h"
 
-void db_merge (sqlite3 *db, int argc, char **argv);
+int db_merge (sqlite3 *db, int argc, char **argv);
 
 #endif /* db_merge.h */

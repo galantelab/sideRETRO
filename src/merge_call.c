@@ -74,6 +74,7 @@ struct _MergeCall
 	const char  *output_file;
 	const char  *prefix;
 	int          in_place;
+	int          num_merged;
 
 	// Log
 	Logger      *logger;
@@ -141,8 +142,8 @@ print_summary (const MergeCall *mc, sqlite3 *db, const char *db_file,
 
 	// --in-place: The output database is an input
 	// database too, but it is not at the list
-	summary_line (s, "Databases", "%zu",
-			array_len (mc->db_files) + (mc->in_place ? 1 : 0));
+	summary_line (s, "Databases", "%d",
+			mc->num_merged + (mc->in_place ? 1 : 0));
 	summary_line (s, "Samples", "%s",
 			summary_count (query_count (db, "SELECT COUNT(*) FROM source"), b1));
 	summary_line (s, "Stored alignments", "%s",
@@ -342,7 +343,7 @@ run (MergeCall *mc)
 
 			// Time to merge them all!
 			log_info ("Merge the databases into '%s'", db_file);
-			db_merge (db, array_len (mc->db_files),
+			mc->num_merged = db_merge (db, array_len (mc->db_files),
 					(char **) array_data (mc->db_files));
 
 			// Commit

@@ -27,14 +27,17 @@
 #include "../src/db_merge.h"
 
 static void
-create_db (char *path)
+create_db_sample (char *path, const char *sample)
 {
-	const char sql[] =
+	char *sql = NULL;
+
+	// One sample by database, as process-sample of each one
+	xasprintf (&sql,
 		"INSERT INTO batch VALUES(1,\"2019-02-31\");\n"
-		"INSERT INTO source VALUES(1,1,\"ponga.bam\");\n"
+		"INSERT INTO source VALUES(1,1,\"%s\");\n"
 		"INSERT INTO exon VALUES(1,\"g1\",\"chr1\",1,200,\"+\",\"ENG0066\",\"ENSE0066\");\n"
 		"INSERT INTO alignment VALUES(1,\"r1\",99,\"chr1\",1,20,\"101M\",101,101,\"chr1\",200,0,1,\"*\",\"*\");\n"
-		"INSERT INTO overlapping VALUES(1,1,1,101);";
+		"INSERT INTO overlapping VALUES(1,1,1,101);", sample);
 
 	int fd = xmkstemp (path);
 	close (fd);
@@ -42,6 +45,28 @@ create_db (char *path)
 	sqlite3 *db = db_create (path);
 	db_exec (db, sql);
 	db_close (db);
+
+	xfree (sql);
+}
+
+static void
+create_db (char *path)
+{
+	// A sample named after the database
+	create_db_sample (path, path);
+}
+
+static long
+count_rows (sqlite3 *db, const char *sql)
+{
+	sqlite3_stmt *stmt = db_prepare (db, sql);
+	long n = 0;
+
+	if (db_step (stmt) == SQLITE_ROW)
+		n = db_column_int64 (stmt, 0);
+
+	db_finalize (stmt);
+	return n;
 }
 
 START_TEST (test_db_merge)
@@ -60,6 +85,12 @@ START_TEST (test_db_merge)
 	sqlite3 *db = db_create (":memory:");
 
 	db_merge (db, num_db, db_paths);
+
+	// The exon is shared: Merged once
+	ck_assert_int_eq (count_rows (db, "SELECT COUNT(*) FROM source"), 3);
+	ck_assert_int_eq (count_rows (db, "SELECT COUNT(*) FROM alignment"), 3);
+	ck_assert_int_eq (count_rows (db, "SELECT COUNT(*) FROM exon"), 1);
+	ck_assert_int_eq (count_rows (db, "SELECT COUNT(*) FROM overlapping"), 3);
 
 	db_close (db);
 
@@ -85,6 +116,9 @@ START_TEST (test_db_merge_in_line)
 	sqlite3 *db = db_connect (db_path1);
 
 	db_merge (db, num_db - 1, &db_paths[1]);
+
+	ck_assert_int_eq (count_rows (db, "SELECT COUNT(*) FROM source"), 3);
+	ck_assert_int_eq (count_rows (db, "SELECT COUNT(*) FROM alignment"), 3);
 
 	db_close (db);
 
@@ -147,11 +181,88 @@ START_TEST (test_db_merge_exon_id)
 }
 END_TEST
 
+START_TEST (test_db_merge_same_file)
+{
+	char db_path1[] = "/tmp/ponga1.db.XXXXXX";
+	char db_path2[] = "/tmp/ponga2.db.XXXXXX";
+	char *alias = NULL;
+	char *db_paths[3] = {};
+
+	create_db (db_path1);
+	create_db (db_path2);
+
+	// The second database again, by another path, and
+	// the output database itself: Merged only once
+	xasprintf (&alias, "/tmp/../tmp/%s", db_path2 + 5);
+
+	db_paths[0] = db_path2;
+	db_paths[1] = alias;
+	db_paths[2] = db_path1;
+
+	sqlite3 *db = db_connect (db_path1);
+	db_merge (db, 3, db_paths);
+
+	ck_assert_int_eq (count_rows (db, "SELECT COUNT(*) FROM source"), 2);
+	ck_assert_int_eq (count_rows (db, "SELECT COUNT(*) FROM alignment"), 2);
+
+	db_close (db);
+	xunlink (db_path1);
+	xunlink (db_path2);
+	xfree (alias);
+}
+END_TEST
+
+START_TEST (test_db_merge_same_sample)
+{
+	// The same sample in two databases: Its reads
+	// would be counted twice
+	char db_path1[] = "/tmp/ponga1.db.XXXXXX";
+	char db_path2[] = "/tmp/ponga2.db.XXXXXX";
+	char *db_paths[] = {db_path1, db_path2};
+
+	create_db_sample (db_path1, "/data/ponga.bam");
+	create_db_sample (db_path2, "/data/ponga.bam");
+
+	sqlite3 *db = db_create (":memory:");
+	db_merge (db, 2, db_paths);
+}
+END_TEST
+
+START_TEST (test_db_merge_warnings)
+{
+	char db_path1[] = "/tmp/ponga1.db.XXXXXX";
+	char db_path2[] = "/tmp/ponga2.db.XXXXXX";
+	char *db_paths[] = {db_path1, db_path2};
+	sqlite3 *db2 = NULL;
+
+	// The same sample name from different paths, and a
+	// database with one more exon (another annotation):
+	// Warnings only
+	create_db_sample (db_path1, "/data1/ponga.bam");
+	create_db_sample (db_path2, "/data2/ponga.bam");
+
+	db2 = db_connect (db_path2);
+	db_exec (db2, "INSERT INTO exon VALUES(2,\"g2\",\"chr2\",1,200,\"+\",\"ENG0067\",\"ENSE0067\");");
+	db_close (db2);
+
+	sqlite3 *db = db_create (":memory:");
+	db_merge (db, 2, db_paths);
+
+	ck_assert_int_eq (count_rows (db, "SELECT COUNT(*) FROM source"), 2);
+	ck_assert_int_eq (count_rows (db, "SELECT COUNT(*) FROM exon"), 2);
+
+	db_close (db);
+	xunlink (db_path1);
+	xunlink (db_path2);
+}
+END_TEST
+
 Suite *
 make_db_merge_suite (void)
 {
 	Suite *s;
 	TCase *tc_core;
+	TCase *tc_abort;
 
 	s = suite_create ("DBMerge");
 
@@ -161,8 +272,15 @@ make_db_merge_suite (void)
 	tcase_add_test (tc_core, test_db_merge);
 	tcase_add_test (tc_core, test_db_merge_in_line);
 	tcase_add_test (tc_core, test_db_merge_exon_id);
-
+	tcase_add_test (tc_core, test_db_merge_same_file);
+	tcase_add_test (tc_core, test_db_merge_warnings);
 	suite_add_tcase (s, tc_core);
+
+	/* Abort test case */
+	tc_abort = tcase_create ("Abort");
+
+	tcase_add_exit_test (tc_abort, test_db_merge_same_sample, EXIT_FAILURE);
+	suite_add_tcase (s, tc_abort);
 
 	return s;
 }

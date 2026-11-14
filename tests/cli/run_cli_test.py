@@ -172,7 +172,9 @@ def cases(t, sim):
           expect=['process-sample summary', 'After deduplication',
                   '--gff-attribute=', '--log-file=', '--deduplicate',
                   '--sorted', '--either'])
-    t.run('ps: run with -r', ps + ann + ['-o', P('ps2'), '-f', '0.5', '-r'] + sam,
+    # Another sample (merge-call refuses the same sample twice)
+    shutil.copy(P('sim.sam'), P('sim_b.sam'))
+    t.run('ps: run with -r', ps + ann + ['-o', P('ps2'), '-f', '0.5', '-r', P('sim_b.sam')],
           expect=['--exon-frac=5.000000e-01', '--alignment-frac=5.000000e-01'])
     t.run('ps: run quiet with log', ps + ann + ['-o', P('ps3'), '-q',
           '-l', P('ps3.log')] + sam, absent=['summary'])
@@ -242,6 +244,13 @@ def cases(t, sim):
     t.run('mc: run in place, two databases',
           mc + ['-I', P('inplace2.db'), P('ps2/out.db')],
           expect=['Databases                2'])
+    t.run('mc: the same sample twice', mc + ['-o', P('mc5'), P('ps/sim.db'),
+          P('ps3/out.db')], rc=-6,
+          expect=['is in both', 'Merge each sample only once'])
+    t.run('mc: the same database by two paths',
+          mc + ['-o', P('mc6'), P('ps/sim.db'), os.path.join(t.d, '.', 'ps', 'sim.db'),
+                P('ps2/out.db')],
+          expect=['Merge it only once', 'Databases                2'])
     t.run('mc: no cluster', mc + ['-o', P('mc4'), '-m', '1000'] + db,
           expect=['No cluster found'])
 

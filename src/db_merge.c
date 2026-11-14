@@ -19,7 +19,9 @@
 #include "config.h"
 
 #include <assert.h>
+#include <sys/stat.h>
 #include "wrapper.h"
+#include "utils.h"
 #include "log.h"
 #include "hash.h"
 #include "db_merge.h"
@@ -321,7 +323,111 @@ exon_id_init (sqlite3 *db)
 	db_finalize (sel_stmt);
 }
 
-void
+static int
+same_file (const char *path1, const char *path2)
+{
+	struct stat s1;
+	struct stat s2;
+
+	// The same file may be reached by different paths
+	if (path1 == NULL || path2 == NULL
+			|| stat (path1, &s1) < 0 || stat (path2, &s2) < 0)
+		return 0;
+
+	return s1.st_dev == s2.st_dev && s1.st_ino == s2.st_ino;
+}
+
+static long
+count_exons (sqlite3 *db)
+{
+	sqlite3_stmt *stmt = NULL;
+	long n = 0;
+
+	stmt = db_prepare (db, "SELECT COUNT(*) FROM exon");
+
+	if (db_step (stmt) == SQLITE_ROW)
+		n = db_column_int64 (stmt, 0);
+
+	db_finalize (stmt);
+	return n;
+}
+
+static void
+index_sources (sqlite3 *db, const char *db_file, Hash *path_h,
+		Hash *name_h)
+{
+	sqlite3_stmt *stmt = NULL;
+	const char *path = NULL;
+	const char *prev = NULL;
+	char *name = NULL;
+
+	stmt = db_prepare (db, "SELECT path FROM source");
+
+	while (db_step (stmt) == SQLITE_ROW)
+		{
+			path = db_column_text (stmt, 0);
+
+			// The same sample twice: Its reads would be counted
+			// twice and it would be twice at the VCF
+			prev = hash_lookup (path_h, path);
+			if (prev != NULL)
+				log_fatal ("The sample '%s' is in both '%s' and '%s': "
+						"Merge each sample only once", path, prev, db_file);
+
+			hash_insert (path_h, xstrdup (path), xstrdup (db_file));
+
+			// The VCF names the samples by their file names
+			name = path_file (path, 1);
+			prev = hash_lookup (name_h, name);
+
+			if (prev != NULL)
+				{
+					log_warn ("The samples '%s' and '%s' have the same name '%s' "
+							"at the VCF", prev, path, name);
+					xfree (name);
+				}
+			else
+				hash_insert (name_h, name, xstrdup (path));
+		}
+
+	db_finalize (stmt);
+}
+
+static void
+check_sources (sqlite3 *db, const char *db_file, int argc, char **argv,
+		const int *skip)
+{
+	sqlite3 *db2 = NULL;
+	Hash *path_h = NULL;
+	Hash *name_h = NULL;
+	int i = 0;
+
+	path_h = hash_new_full (str_hash, str_equal, xfree, xfree);
+	name_h = hash_new_full (str_hash, str_equal, xfree, xfree);
+
+	// The samples already at the output database (--in-place)
+	index_sources (db, db_file, path_h, name_h);
+
+	for (i = 0; i < argc; i++)
+		{
+			if (skip[i])
+				continue;
+
+			db2 = db_connect (argv[i]);
+			index_sources (db2, argv[i], path_h, name_h);
+			db_close (db2);
+		}
+
+	hash_free (path_h);
+	hash_free (name_h);
+}
+
+/*
+ * Merge the databases at argv into db. The same database
+ * file is merged only once. Returns the number of merged
+ * databases
+ */
+int
 db_merge (sqlite3 *db, int argc, char **argv)
 {
 	log_trace ("Inside %s", __func__);
@@ -334,8 +440,47 @@ db_merge (sqlite3 *db, int argc, char **argv)
 	sqlite3_stmt *max_id_stmt[NUM_TABLES];
 
 	int max_id[NUM_TABLES] = {};
+	int *skip = NULL;
+	const char *db_file = NULL;
+	long exons_before = 0;
+	long exons_db2 = 0;
+	long exons_after = 0;
+	int merged = 0;
 	int i = 0;
 	int j = 0;
+
+	// The output database: Empty or --in-place
+	db_file = sqlite3_db_filename (db, "main");
+
+	/*
+	* The same database file twice - by different paths, or the
+	* output database of --in-place again: Merge it only once
+	*/
+	skip = xcalloc (argc, sizeof (int));
+
+	for (i = 0; i < argc; i++)
+		{
+			if (same_file (argv[i], db_file))
+				{
+					log_warn ("'%s' is the output database itself: Skip it", argv[i]);
+					skip[i] = 1;
+					continue;
+				}
+
+			for (j = 0; j < i; j++)
+				{
+					if (!skip[j] && same_file (argv[i], argv[j]))
+						{
+							log_warn ("'%s' is the same database as '%s': Merge it only once",
+									argv[i], argv[j]);
+							skip[i] = 1;
+							break;
+						}
+				}
+		}
+
+	// Before writing anything: Each sample only once
+	check_sources (db, db_file, argc, argv, skip);
 
 	// Init insert and max_id statement
 	for (i = 0; i < NUM_TABLES; i++)
@@ -354,8 +499,14 @@ db_merge (sqlite3 *db, int argc, char **argv)
 	// Merge all files at argv
 	for (i = 0; i < argc; i++)
 		{
+			if (skip[i])
+				continue;
+
 			log_info ("Merge database '%s'", argv[i]);
 			db2 = db_connect (argv[i]);
+
+			exons_before = count_exons (db);
+			exons_db2 = count_exons (db2);
 
 			// Calculate de max id for all tables
 			// to be merged
@@ -384,8 +535,23 @@ db_merge (sqlite3 *db, int argc, char **argv)
 					db_finalize (sel_stmt[j]);
 				}
 
+			/*
+			* All databases must come from the same annotation:
+			* Otherwise, the reads at the exons missing from one
+			* database were not marked as exonic in its samples
+			*/
+			exons_after = count_exons (db);
+
+			if (exons_before > 0
+					&& (exons_after != exons_before || exons_db2 != exons_after))
+				log_warn ("The annotation of '%s' (%li exons) differs from the "
+						"one of the other databases (%li exons): The samples may "
+						"not be comparable. Process all samples with the same "
+						"annotation", argv[i], exons_db2, exons_before);
+
 			// Goodbye
 			db_close (db2);
+			merged++;
 		}
 
 	// Cleanup the rest of the mess
@@ -399,4 +565,7 @@ db_merge (sqlite3 *db, int argc, char **argv)
 
 	hash_free (ense_h);
 	hash_free (exon_id_h);
+	xfree (skip);
+
+	return merged;
 }
