@@ -789,12 +789,13 @@ Notwithstanding **sideRETRO**'s native run, user can happily run it from a
 **Docker** image just prepending **Docker**'s directives to any example shown.
 That is, supposing the user has *Docker* installed and has pulled the image
 *galantelab/sider:latest* from `DockerHub
-<https://hub.docker.com/r/galantelab/sider>`_, he can just prepend
-``docker --rm -ti -v $(pwd):/home/sider -w /home/sider galantelab/sider``
-to the ordinary ``sider`` command, like::
+<https://hub.docker.com/r/galantelab/sider>`_, he can just replace the
+ordinary ``sider`` command by
+``docker run --rm -ti -v $(pwd):/home/sider -w /home/sider galantelab/sider``
+- the image runs ``sider`` itself - like::
 
-  $ docker --rm -ti -v $(pwd):/home/sider -w /home/sider galantelab/sider \
-    sider ps \
+  $ docker run --rm -ti -v $(pwd):/home/sider -w /home/sider galantelab/sider \
+    ps \
         -i my_files_list.txt \
         -a annotation_file.gtf \
         -o output_dir \

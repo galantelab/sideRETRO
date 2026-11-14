@@ -10,10 +10,12 @@
   <a href="https://hub.docker.com/r/galantelab/sider/tags"><img alt="" src="https://img.shields.io/badge/docker-%230db7ed.svg?style=flat&logo=docker&logoColor=white" align="center"></a>
 </p>
 
-**sideRETRO** is a bioinformatic tool devoted for the detection of somatic **retrocopy** insertion, also known as
-**retroCNV**, in whole genome and whole exome sequencing data (WGS, WES). The program has been written from scratch
-in C, and uses [HTSlib](http://www.htslib.org/) and [SQLite3](https://www.sqlite.org) libraries, in order to manage
-**SAM/BAM/CRAM** reading and data analysis.
+**sideRETRO** is a bioinformatic tool devoted for the detection of somatic and polymorphic **retrocopy** insertions,
+also known as **retroCNV**, in whole genome and whole exome sequencing data (WGS, WES). The program has been written
+from scratch in C, and uses [HTSlib](http://www.htslib.org/) and [SQLite3](https://www.sqlite.org) libraries, in order
+to manage **SAM/BAM/CRAM** reading and data analysis. It works with any gene annotation in **GTF/GFF3** or **BED**
+format, and scales to large cohorts: The samples can be processed apart - even at different servers - and merged
+at the end.
 
 For full documentation, please visit <https://sideretro.readthedocs.io>.
 
@@ -80,13 +82,24 @@ When detecting retrocopies, **sideRETRO** can annotate several other features re
    Our tool provides information about the ploidy of the event, i.e., whether it occurs in one or both homologous
    chromosomes (homozygous or heterozygous).
 
+* **Any annotation**
+
+   GENCODE by default, but any **GTF/GFF3** annotation - choosing the feature, the attributes to filter, the gene
+   name and the exon id - or a **BED6** file of exons.
+
+* **Large cohorts**
+
+   Each `process-sample` run writes its own database, so the samples can be processed apart and merged by
+   `merge-call`. The same sample is never merged twice, and the calls do not depend on how the samples were split.
+
 ## Getting Started
 
 ### Installation
 
 The project depends on [Meson build system](https://mesonbuild.com) and [Ninja](https://github.com/ninja-build/ninja)
-to manage configuration and compilation process. They can be obtained using package manager or from source. For example,
-using [Ubuntu](https://ubuntu.com) distribution:
+to manage configuration and compilation process. They can be obtained using package manager or from source. HTSlib,
+SQLite3 and zlib are used from the system if found, otherwise they are downloaded and built with **sideRETRO**.
+For example, using [Ubuntu](https://ubuntu.com) distribution:
 
 ```
 $ sudo apt-get install python3 \
@@ -109,11 +122,31 @@ Finally, clone this repository:
 
 Inside sideRETRO directory, run:
 
-`$ meson build && ninja -C build`
+`$ meson setup build && meson compile -C build`
 
 You can find `sider` executable inside `build/src`. Optionally, install to system directories with:
 
-`$ sudo ninja -C build install`
+`$ sudo meson install -C build`
+
+The tests (unit tests with [check](https://libcheck.github.io/check/) and simulated retrocopies through the
+whole pipeline with Python 3) run with:
+
+`$ meson test -C build`
+
+### Docker
+
+For Windows and macOS users - or anyone who does not want to build it - there is a
+[Docker image](https://hub.docker.com/r/galantelab/sider):
+
+`$ docker pull galantelab/sider`
+
+The image runs `sider` itself, so just pass the subcommand and its options. The files must be reached
+from inside the container, e.g. by mounting the current directory:
+
+```sh
+$ docker run --rm -v $(pwd):/data -w /data galantelab/sider \
+    process-sample --annotation-file='my-annotation.gtf' --input-file='my-bam-list.txt'
+```
 
 ### Usage
 
@@ -149,6 +182,16 @@ $ sider merge-call --in-place \
 # Run make-vcf step
 $ sider make-vcf \
     --reference-file='my-genome.fa' out.db
+```
+
+For large cohorts, process the samples in batches - at the same or at different servers - and merge them.
+The alignment files must be reached at the same paths by `merge-call`, which genotypes the samples:
+
+```sh
+$ sider process-sample -a 'my-annotation.gtf' -p batch1 -i 'batch1.txt'
+$ sider process-sample -a 'my-annotation.gtf' -p batch2 -i 'batch2.txt'
+$ sider merge-call -r 'my-genome.fa' batch1.db batch2.db
+$ sider make-vcf -r 'my-genome.fa' out.db
 ```
 
 ## Citation
