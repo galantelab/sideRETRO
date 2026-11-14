@@ -101,7 +101,7 @@ static void
 region_free (Region *r)
 {
 	if (r == NULL)
-		return;
+		return; // LCOV_EXCL_LINE: static: never NULL
 
 	xfree ((void *) r->chr);
 	xfree (r);
@@ -129,7 +129,7 @@ static void
 genotype_free (Genotype *g)
 {
 	if (g == NULL)
-		return;
+		return; // LCOV_EXCL_LINE: static: never NULL
 
 	array_free (g->abnormal_scores, 1);
 	array_free (g->normal_scores, 1);
@@ -150,7 +150,7 @@ static void
 zygosity_data_free (ZygosityData *zd)
 {
 	if (zd == NULL)
-		return;
+		return; // LCOV_EXCL_LINE: static: never NULL
 
 	list_free (zd->genotype);
 	xfree ((char *) zd->path);

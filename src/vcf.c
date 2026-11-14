@@ -205,7 +205,7 @@ static void
 vcf_header_free (VCFHeader *h)
 {
 	if (h == NULL)
-		return;
+		return; // LCOV_EXCL_LINE: static: never NULL
 
 	xfree ((void *) h->name);
 	xfree (h);

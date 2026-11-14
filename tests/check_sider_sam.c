@@ -22,6 +22,9 @@
 #include <stdlib.h>
 #include <check.h>
 #include "check_sider.h"
+#include <sys/resource.h>
+#include <signal.h>
+#include <unistd.h>
 
 #include "../src/utils.h"
 #include "../src/wrapper.h"
@@ -128,11 +131,124 @@ START_TEST (test_sam_test_sorted_order)
 }
 END_TEST
 
+static void
+write_file (char *path, const char *body)
+{
+	int fd = xmkstemp (path);
+	FILE *fp = xfdopen (fd, "w");
+	xfprintf (fp, "%s", body);
+	xfclose (fp);
+}
+
+START_TEST (test_sam_to_bam_fp_closed_fatal)
+{
+	// The fd under the stream is closed: It cannot be duplicated
+	char sam[] = "/tmp/ponga.sam.XXXXXX";
+	FILE *fp = NULL;
+
+	write_file (sam, sam_str);
+	fp = xfopen (sam, "r");
+	close (fileno (fp));
+
+	sam_to_bam_fp (fp, "/tmp/ponga.bam");
+}
+END_TEST
+
+START_TEST (test_sam_to_bam_output_fatal)
+{
+	char sam[] = "/tmp/ponga.sam.XXXXXX";
+
+	write_file (sam, sam_str);
+	sam_to_bam (sam, "/it-must-not-exist/ponga.bam");
+}
+END_TEST
+
+START_TEST (test_sam_to_bam_faults)
+{
+	char sam[] = "/tmp/ponga.sam.XXXXXX";
+	char bam[] = "/tmp/ponga.bam.XXXXXX";
+	char bad[] = "/tmp/ponga.bad.XXXXXX";
+	char out[] = "/tmp/ponga.out.XXXXXX";
+	int fd = 0;
+
+	write_file (sam, sam_str);
+
+	// Truncated BAM as input: The header cannot be read
+	fd = xmkstemp (bam);
+	close (fd);
+	ck_assert_int_eq (sam_to_bam (sam, bam), 1);
+	ck_assert_int_eq (truncate (bam, 20), 0);
+
+	fd = xmkstemp (out);
+	close (fd);
+	ck_assert_int_eq (sam_to_bam (bam, out), 0);
+
+	// A broken record
+	write_file (bad,
+		"@SQ\tSN:PONGA\tLN:520052\n"
+		"ponga1\tponga\tPONGA\t35361\t0\t10M\t*\t0\t0\tATCGATCGAT\t!!!!!!!!!!\n");
+	ck_assert_int_eq (sam_to_bam (bad, out), 0);
+
+	xunlink (sam);
+	xunlink (bam);
+	xunlink (bad);
+	xunlink (out);
+}
+END_TEST
+
+START_TEST (test_sam_to_bam_full)
+{
+	char sam[] = "/tmp/ponga.sam.XXXXXX";
+
+	// /dev/full as output: The header cannot be written,
+	// neither the output stream closed
+	write_file (sam, sam_str);
+	ck_assert_int_eq (sam_to_bam (sam, "/dev/full"), 0);
+	xunlink (sam);
+}
+END_TEST
+
+START_TEST (test_sam_to_bam_write_fail)
+{
+	char sam[] = "/tmp/ponga.sam.XXXXXX";
+	char out[] = "/tmp/ponga.out.XXXXXX";
+	struct rlimit limit = {.rlim_cur = 4096, .rlim_max = RLIM_INFINITY};
+	FILE *fp = NULL;
+	int fd = 0;
+	int i = 0;
+
+	// Many records, so the BGZF blocks are flushed while
+	// writing them, after the header
+	fd = xmkstemp (sam);
+	fp = xfdopen (fd, "w");
+	xfprintf (fp, "@SQ\tSN:PONGA\tLN:520052\n");
+	for (i = 0; i < 20000; i++)
+		xfprintf (fp, "ponga%d\t0\tPONGA\t%d\t60\t10M\t*\t0\t0\tATCGATCGAT\t!!!!!!!!!!\n",
+				i, i + 1);
+	xfclose (fp);
+
+	fd = xmkstemp (out);
+	close (fd);
+
+	// The output file cannot grow beyond 4KiB: The header fits,
+	// the records do not (EFBIG instead of SIGXFSZ)
+	signal (SIGXFSZ, SIG_IGN);
+	ck_assert_int_eq (setrlimit (RLIMIT_FSIZE, &limit), 0);
+
+	ck_assert_int_eq (sam_to_bam (sam, out), 0);
+
+	xunlink (sam);
+	xunlink (out);
+}
+END_TEST
+
 Suite *
 make_sam_suite (void)
 {
 	Suite *s;
 	TCase *tc_core;
+	TCase *tc_write;
+	TCase *tc_abort;
 
 	s = suite_create ("SAM");
 
@@ -142,7 +258,28 @@ make_sam_suite (void)
 	tcase_add_test (tc_core, test_sam_to_bam);
 	tcase_add_test (tc_core, test_sam_to_bam_fp);
 	tcase_add_test (tc_core, test_sam_test_sorted_order);
+	tcase_add_test (tc_core, test_sam_to_bam_faults);
 	suite_add_tcase (s, tc_core);
+
+	/*
+	* Write failures: htslib 1.9 (bgzf_close) does not release
+	* the output stream when its last flush fails - a leak that
+	* is not ours. Skip them under valgrind or AddressSanitizer
+	* (CK_EXCLUDE_TAGS=htslib-leak)
+	*/
+	tc_write = tcase_create ("Write");
+	tcase_set_tags (tc_write, "htslib-leak");
+
+	tcase_add_test (tc_write, test_sam_to_bam_full);
+	tcase_add_test (tc_write, test_sam_to_bam_write_fail);
+	suite_add_tcase (s, tc_write);
+
+	/* Abort test case */
+	tc_abort = tcase_create ("Abort");
+
+	tcase_add_exit_test (tc_abort, test_sam_to_bam_output_fatal,   EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_sam_to_bam_fp_closed_fatal, EXIT_FAILURE);
+	suite_add_tcase (s, tc_abort);
 
 	return s;
 }

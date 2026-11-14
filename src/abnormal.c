@@ -131,7 +131,7 @@ static void
 abnormal_filter_destroy (AbnormalFilter *argf)
 {
 	if (argf == NULL)
-		return;
+		return; // LCOV_EXCL_LINE: static: never NULL
 
 	if (sam_close (argf->in) < 0)
 		log_errno_fatal ("Failed to close input stream for '%s'",
@@ -300,7 +300,7 @@ dump_alignment (AbnormalFilter *argf, const bam1_t *align,
 	// Get sequence and quality as strings
 	fill_seq_qual (argf, align);
 
-	chr = align->core.tid > -1
+	chr = align->core.tid > -1 // LCOV_EXCL_LINE: htslib unmaps any read without chromosome
 		? argf->hdr->target_name[align->core.tid]
 		: "*";
 
@@ -508,7 +508,7 @@ static void
 abnormal_fragment_free (AbnormalFragment *frag)
 {
 	if (frag == NULL)
-		return;
+		return; // LCOV_EXCL_LINE: static: never NULL
 
 	list_free (frag->buffer);
 	xfree (frag);

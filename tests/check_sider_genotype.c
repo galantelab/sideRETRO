@@ -193,11 +193,129 @@ START_TEST (test_genotype)
 }
 END_TEST
 
+static void
+run_genotype_on (const char *path)
+{
+	char db_file[] = "/tmp/ponga.db.XXXXXX";
+	sqlite3 *db = create_db (db_file);
+	sqlite3_stmt *stmt = NULL;
+
+	populate_db (db, path, path);
+	stmt = db_prepare_genotype_stmt (db);
+
+	genotype (stmt, 1, 0);
+}
+
+static void
+corrupt_second_block (const char *path)
+{
+	FILE *fp = xfopen (path, "rb+");
+	unsigned char head[18];
+	long second = 0;
+
+	// BGZF: The block size minus 1 is at bytes 16-17. The
+	// header has a block of its own, so the records begin
+	// at the second block
+	ck_assert_int_eq (fread (head, 1, 18, fp), 18);
+	second = (head[16] | (head[17] << 8)) + 1;
+
+	fseek (fp, second + 24, SEEK_SET);
+	fputc (0xff, fp);
+	fseek (fp, second + 25, SEEK_SET);
+	fputc (0x00, fp);
+	xfclose (fp);
+}
+
+#ifdef HAVE_LD_WRAP
+static void
+run_genotype_fault (Fault f)
+{
+	char bam[] = "/tmp/ponga.bam.XXXXXX";
+
+	create_file (bam);
+	populate_sorted_bam (bam);
+	index_bam (bam);
+
+	fault_inject (f);
+	run_genotype_on (bam);
+}
+
+START_TEST (test_genotype_bam_init1_fail)
+{
+	run_genotype_fault (FAULT_BAM_INIT1);
+}
+END_TEST
+
+START_TEST (test_genotype_query_fail)
+{
+	run_genotype_fault (FAULT_SAM_ITR_QUERYI);
+}
+END_TEST
+
+START_TEST (test_genotype_close_fail)
+{
+	run_genotype_fault (FAULT_HTS_CLOSE);
+}
+END_TEST
+#endif
+
+START_TEST (test_genotype_open_fail)
+{
+	run_genotype_on ("/it-must-not-exist.bam");
+}
+END_TEST
+
+START_TEST (test_genotype_header_fail)
+{
+	char bam[] = "/tmp/ponga.bam.XXXXXX";
+
+	// A BAM truncated after the BGZF header of the first block
+	create_file (bam);
+	populate_sorted_bam (bam);
+	ck_assert_int_eq (truncate (bam, 20), 0);
+
+	run_genotype_on (bam);
+}
+END_TEST
+
+START_TEST (test_genotype_linear_read_fail)
+{
+	char sam[] = "/tmp/ponga.sam.XXXXXX";
+	FILE *fp = NULL;
+
+	// No index: Linear search. The second record is broken
+	create_file (sam);
+	fp = xfopen (sam, "w");
+	xfprintf (fp, "%s",
+		"@SQ\tSN:chr1\tLN:248956422\n"
+		"R1\t99\tchr1\t1\t60\t10M\t=\t20\t29\tATCGATCGAT\t~~~~~~~~~~\n"
+		"R2\tponga\tchr1\t1\t60\t10M\t=\t20\t29\tATCGATCGAT\t~~~~~~~~~~\n");
+	xfclose (fp);
+
+	run_genotype_on (sam);
+}
+END_TEST
+
+START_TEST (test_genotype_indexed_read_fail)
+{
+	char bam[] = "/tmp/ponga.bam.XXXXXX";
+
+	// Indexed, then its records are corrupted
+	create_file (bam);
+	populate_sorted_bam (bam);
+	index_bam (bam);
+	corrupt_second_block (bam);
+
+	run_genotype_on (bam);
+}
+END_TEST
+
 Suite *
 make_genotype_suite (void)
 {
 	Suite *s;
 	TCase *tc_core;
+	TCase *tc_abort;
 
 	s = suite_create ("Genotype");
 
@@ -206,6 +324,20 @@ make_genotype_suite (void)
 
 	tcase_add_test (tc_core, test_genotype);
 	suite_add_tcase (s, tc_core);
+
+	/* Abort test case */
+	tc_abort = tcase_create ("Abort");
+
+	tcase_add_exit_test (tc_abort, test_genotype_open_fail,         EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_genotype_header_fail,       EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_genotype_linear_read_fail,  EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_genotype_indexed_read_fail, EXIT_FAILURE);
+#ifdef HAVE_LD_WRAP
+	tcase_add_exit_test (tc_abort, test_genotype_bam_init1_fail,    EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_genotype_query_fail,        EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_genotype_close_fail,        EXIT_FAILURE);
+#endif
+	suite_add_tcase (s, tc_abort);
 
 	return s;
 }

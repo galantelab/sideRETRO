@@ -109,7 +109,7 @@ static inline int
 balance_factor (const BiTreeNode *node)
 {
 	if (node == NULL)
-		return 0;
+		return 0; // LCOV_EXCL_LINE: static: never NULL
 	return height (bitree_left (node)) - height (bitree_right (node));
 }
 

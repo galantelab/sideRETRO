@@ -40,6 +40,43 @@ Suite * make_wrapper_suite        (void);
 Suite * make_db_merge_suite       (void);
 Suite * make_set_suite            (void);
 Suite * make_summary_suite        (void);
+Suite * make_fault_suite          (void);
+
+#ifdef HAVE_LD_WRAP
+/*
+ * Fault injection (check_sider_fault.c): The next
+ * call of the function fails - or the call after
+ * 'calls' calls
+ */
+enum _Fault
+{
+	FAULT_MALLOC,
+	FAULT_CALLOC,
+	FAULT_REALLOC,
+	FAULT_STRDUP,
+	FAULT_POPEN,
+	FAULT_PCLOSE,
+	FAULT_REGCOMP,
+	FAULT_PTHREAD_MUTEX_INIT,
+	FAULT_GZCLOSE,
+	FAULT_BAM_INIT1,
+	FAULT_BAM_DUP1,
+	FAULT_BAM_COPY1,
+	FAULT_HTS_CLOSE,
+	FAULT_SAM_ITR_QUERYI,
+	FAULT_HTS_SET_THREADS,
+	FAULT_SAM_HDR_WRITE,
+	FAULT_HDOPEN,
+	FAULT_HTS_HOPEN,
+	FAULT_SAM_READ1,
+	FAULT_NUM
+};
+
+typedef enum _Fault Fault;
+
+void fault_inject       (Fault f);
+void fault_inject_after (Fault f, int calls);
+#endif
 Suite * make_correlation_suite    (void);
 Suite * make_bed_suite            (void);
 Suite * make_blacklist_suite      (void);

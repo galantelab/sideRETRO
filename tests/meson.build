@@ -14,6 +14,7 @@ test_sources = files(
   'check_sider_dbscan.c',
   'check_sider_dedup.c',
   'check_sider_exon.c',
+  'check_sider_fault.c',
   'check_sider_fasta.c',
   'check_sider_genotype.c',
   'check_sider_gff.c',
@@ -38,6 +39,26 @@ test_sources = files(
 # Package executable tester
 check = '_'.join(['check', package])
 
+# Fault injection: Wrap the allocators and the pipes at the
+# check executable only, if the linker supports it (GNU ld, lld).
+# The wrappers are at check_sider_fault.c
+wrap_args = []
+wrap_c_args = []
+
+foreach f : ['malloc', 'calloc', 'realloc', 'strdup', 'popen', 'pclose',
+  'regcomp', 'pthread_mutex_init', 'gzclose', 'bam_init1', 'bam_dup1',
+  'bam_copy1', 'hts_close', 'sam_itr_queryi', 'hts_set_threads',
+  'sam_hdr_write', 'sam_read1', 'hdopen', 'hts_hopen']
+  wrap_args += '-Wl,--wrap=' + f
+endforeach
+
+if cc.has_multi_link_arguments(wrap_args)
+  wrap_c_args += '-DHAVE_LD_WRAP'
+else
+  wrap_args = []
+  warning('Out of memory tests are disabled: The linker has no \'--wrap\'')
+endif
+
 # Test only if libcheck is found
 if check_dep.found()
   # The executable tester for the units
@@ -47,6 +68,8 @@ if check_dep.found()
     include_directories : inc,
            dependencies : [deps, check_dep],
            link_with    : sider_lib,
+                 c_args : wrap_c_args,
+              link_args : wrap_args,
                 install : false
   )
 

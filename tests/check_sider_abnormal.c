@@ -29,6 +29,7 @@
 #include "../src/utils.h"
 #include "../src/db.h"
 #include "../src/abnormal.h"
+#include "../src/sam.h"
 
 #define TEST_ABNORMAL_BUFSIZ 64
 
@@ -450,11 +451,192 @@ START_TEST (test_abnormal_filter_edge)
 }
 END_TEST
 
+START_TEST (test_abnormal_filter_no_chr)
+{
+	TestAbnormal a;
+	AbnormalStat stat = {};
+
+	/*
+	* Mate mapped (no flag 0x8), but without a mate chromosome
+	* (RNEXT '*'): Abnormal by chromosome, and the mate
+	* chromosome is reported as '*'
+	*/
+	const char *sam_no_chr =
+		"@HD\tVN:1.0\tSO:queryname\n"
+		"@SQ\tSN:chr1\tLN:248956422\n"
+		"S1\t97\tchr1\t1\t60\t10M\t*\t0\t0\tATCGATCGAT\t~~~~~~~~~~\n"
+		"S1\t145\tchr1\t9000\t60\t10M\t*\t0\t0\tAAAGGGCCCT\t~~~~~~~~~~\n";
+
+	test_abnormal_init (&a, sam_no_chr);
+	a.arg->stat = &stat;
+
+	abnormal_filter (a.arg);
+
+	ck_assert_int_eq (stat.alignments, 2);
+	ck_assert_int_eq (stat.abnormal, 2);
+
+	test_abnormal_destroy (&a);
+}
+END_TEST
+
+static void
+run_abnormal_on (const char *sam_body, const char *path)
+{
+	TestAbnormal a;
+
+	test_abnormal_init (&a, sam_body);
+
+	if (path != NULL)
+		a.arg->sam_file = path;
+
+	abnormal_filter (a.arg);
+}
+
+#ifdef HAVE_LD_WRAP
+static void
+run_abnormal_fault (const char *sam_body, Fault f, int hts_threads)
+{
+	TestAbnormal a;
+
+	test_abnormal_init (&a, sam_body);
+	a.arg->hts_threads = hts_threads;
+
+	fault_inject (f);
+	abnormal_filter (a.arg);
+}
+
+/* Two fragments: The second one reuses the trash of the first */
+static const char *sam_two_frags =
+	"@HD\tVN:1.0\tSO:queryname\n"
+	"@SQ\tSN:chr1\tLN:248956422\n"
+	"N1\t99\tchr1\t1\t60\t10M\t=\t20\t29\tATCGATCGAT\t~~~~~~~~~~\n"
+	"N1\t147\tchr1\t20\t60\t10M\t=\t1\t-29\tAAAGGGCCCT\t~~~~~~~~~~\n"
+	"N2\t99\tchr1\t1\t60\t10M\t=\t20\t29\tATCGATCGAT\t~~~~~~~~~~\n"
+	"N2\t147\tchr1\t20\t60\t10M\t=\t1\t-29\tAAAGGGCCCT\t~~~~~~~~~~\n";
+
+START_TEST (test_abnormal_threads_fail)
+{
+	// Not fatal: Go on without decompression threads
+	TestAbnormal a;
+
+	test_abnormal_init (&a, sam_normal);
+	a.arg->hts_threads = 1;
+
+	fault_inject (FAULT_HTS_SET_THREADS);
+	abnormal_filter (a.arg);
+
+	test_abnormal_destroy (&a);
+}
+END_TEST
+
+START_TEST (test_abnormal_bam_init1_fail)
+{
+	run_abnormal_fault (sam_normal, FAULT_BAM_INIT1, 0);
+}
+END_TEST
+
+START_TEST (test_abnormal_sorted_dup_fail)
+{
+	run_abnormal_fault (sam_sorted, FAULT_BAM_DUP1, 0);
+}
+END_TEST
+
+START_TEST (test_abnormal_sorted_copy_fail)
+{
+	run_abnormal_fault (sam_two_frags, FAULT_BAM_COPY1, 0);
+}
+END_TEST
+
+START_TEST (test_abnormal_unsorted_dup_fail)
+{
+	run_abnormal_fault (sam_unsorted, FAULT_BAM_DUP1, 0);
+}
+END_TEST
+
+START_TEST (test_abnormal_sorted_close_fail)
+{
+	run_abnormal_fault (sam_sorted, FAULT_HTS_CLOSE, 0);
+}
+END_TEST
+
+START_TEST (test_abnormal_second_read_fail)
+{
+	TestAbnormal a;
+	const char *c = NULL;
+	int records = 0;
+
+	// The first reading goes to the end of file (-1):
+	// Fail the first read of the second reading
+	for (c = sam_unsorted; *c != '\0'; c++)
+		if (*c != '@' && (c == sam_unsorted || c[-1] == '\n'))
+			records++;
+
+	test_abnormal_init (&a, sam_unsorted);
+
+	fault_inject_after (FAULT_SAM_READ1, records + 1);
+	abnormal_filter (a.arg);
+}
+END_TEST
+
+START_TEST (test_abnormal_rewind_fail)
+{
+	run_abnormal_fault (sam_unsorted, FAULT_HTS_CLOSE, 0);
+}
+END_TEST
+#endif
+
+START_TEST (test_abnormal_open_fail)
+{
+	run_abnormal_on (sam_normal, "/it-must-not-exist.bam");
+}
+END_TEST
+
+START_TEST (test_abnormal_header_fail)
+{
+	char sam[] = "/tmp/ponga.sam.XXXXXX";
+	char bam[] = "/tmp/ponga.bam.XXXXXX";
+	int fd = 0;
+
+	// A BAM truncated after the BGZF header of the first block
+	create_file (sam, sam_normal);
+	fd = xmkstemp (bam);
+	close (fd);
+	ck_assert_int_eq (sam_to_bam (sam, bam), 1);
+	ck_assert_int_eq (truncate (bam, 20), 0);
+
+	run_abnormal_on (sam_normal, bam);
+}
+END_TEST
+
+static const char *sam_broken_sorted =
+	"@HD\tVN:1.0\tSO:queryname\n"
+	"@SQ\tSN:chr1\tLN:248956422\n"
+	"N1\t99\tchr1\t1\t60\t10M\t=\t20\t29\tATCGATCGAT\t~~~~~~~~~~\n"
+	"N1\tponga\tchr1\t20\t60\t10M\t=\t1\t-29\tAAAGGGCCCT\t~~~~~~~~~~\n";
+
+static const char *sam_broken_unsorted =
+	"@SQ\tSN:chr1\tLN:248956422\n"
+	"N1\t99\tchr1\t1\t60\t10M\t=\t20\t29\tATCGATCGAT\t~~~~~~~~~~\n"
+	"N1\tponga\tchr1\t20\t60\t10M\t=\t1\t-29\tAAAGGGCCCT\t~~~~~~~~~~\n";
+
+START_TEST (test_abnormal_sorted_read_fail)
+{
+	run_abnormal_on (sam_broken_sorted, NULL);
+}
+END_TEST
+
+START_TEST (test_abnormal_unsorted_read_fail)
+{
+	run_abnormal_on (sam_broken_unsorted, NULL);
+}
+END_TEST
+
 Suite *
 make_abnormal_suite (void)
 {
 	Suite *s;
 	TCase *tc_core;
+	TCase *tc_abort;
 
 	s = suite_create ("Abnormal");
 
@@ -465,7 +647,29 @@ make_abnormal_suite (void)
 	tcase_add_test (tc_core, test_abnormal_filter_unsorted);
 	tcase_add_test (tc_core, test_abnormal_filter_seq_qual);
 	tcase_add_test (tc_core, test_abnormal_filter_edge);
+	tcase_add_test (tc_core, test_abnormal_filter_no_chr);
+#ifdef HAVE_LD_WRAP
+	tcase_add_test (tc_core, test_abnormal_threads_fail);
+#endif
 	suite_add_tcase (s, tc_core);
+
+	/* Abort test case */
+	tc_abort = tcase_create ("Abort");
+
+	tcase_add_exit_test (tc_abort, test_abnormal_open_fail,          EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_abnormal_header_fail,        EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_abnormal_sorted_read_fail,   EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_abnormal_unsorted_read_fail, EXIT_FAILURE);
+#ifdef HAVE_LD_WRAP
+	tcase_add_exit_test (tc_abort, test_abnormal_bam_init1_fail,     EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_abnormal_sorted_dup_fail,    EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_abnormal_sorted_copy_fail,   EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_abnormal_unsorted_dup_fail,  EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_abnormal_sorted_close_fail,  EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_abnormal_rewind_fail,        EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_abnormal_second_read_fail,   EXIT_FAILURE);
+#endif
+	suite_add_tcase (s, tc_abort);
 
 	return s;
 }

@@ -217,7 +217,7 @@ db_clear_bindings (sqlite3_stmt *stmt)
 	rc = sqlite3_clear_bindings (stmt);
 
 	if (rc != SQLITE_OK)
-		log_fatal ("Failed sqlite3_clear_bindings: %s",
+		log_fatal ("Failed sqlite3_clear_bindings: %s", // LCOV_EXCL_LINE: it always returns SQLITE_OK
 				sqlite3_errmsg (sqlite3_db_handle (stmt)));
 }
 

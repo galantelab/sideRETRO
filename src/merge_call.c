@@ -550,7 +550,7 @@ static void
 merge_call_destroy (MergeCall *mc)
 {
 	if (mc == NULL)
-		return;
+		return; // LCOV_EXCL_LINE: static: never NULL
 
 	array_free (mc->db_files, 1);
 	set_free (mc->blacklist_chr);

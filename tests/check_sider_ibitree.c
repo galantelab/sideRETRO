@@ -42,6 +42,13 @@ teardown (void)
 	list_free (list);
 }
 
+START_TEST (test_ibitree_free_empty)
+{
+	ibitree_free (ibitree_new (xfree));
+	ibitree_free (NULL);
+}
+END_TEST
+
 START_TEST (test_ibitree_insert)
 {
 	int i = 0;
@@ -142,6 +149,7 @@ make_ibitree_suite (void)
 	tc_core = tcase_create ("Core");
 	tcase_add_checked_fixture (tc_core, setup, teardown);
 
+	tcase_add_test (tc_core, test_ibitree_free_empty);
 	tcase_add_test (tc_core, test_ibitree_insert);
 	tcase_add_test (tc_core, test_ibitree_lookup);
 	tcase_add_test (tc_core, test_ibitree_lookup_frac);

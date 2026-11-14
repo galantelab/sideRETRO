@@ -342,7 +342,7 @@ static void
 gff_pair_free (GffPair *pair)
 {
 	if (pair == NULL)
-		return;
+		return; // LCOV_EXCL_LINE: static: never NULL
 
 	xfree (pair->key);
 	xfree (pair->value);

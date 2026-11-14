@@ -497,7 +497,7 @@ static void
 process_sample_destroy (ProcessSample *ps)
 {
 	if (ps == NULL)
-		return;
+		return; // LCOV_EXCL_LINE: static: never NULL
 
 	array_free (ps->sam_files, 1);
 	gff_filter_free (ps->filter);

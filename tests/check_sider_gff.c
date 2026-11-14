@@ -24,6 +24,8 @@
 #include <unistd.h>
 #include <check.h>
 #include "check_sider.h"
+#include <zlib.h>
+#include <sys/stat.h>
 
 #include "../src/utils.h"
 #include "../src/wrapper.h"
@@ -149,18 +151,43 @@ START_TEST (test_open_fatal)
 }
 END_TEST
 
-START_TEST (test_close_fatal)
+static void
+create_truncated_gz (const char *body, char *path)
 {
-	GffFile *gff;
+	gzFile gzfp = NULL;
+	struct stat st = {};
+	int fd = 0;
+	int i = 0;
+
+	// A gzip file cut in the middle of its stream
+	fd = xmkstemp (path);
+	close (fd);
+
+	gzfp = gzopen (path, "wb");
+	for (i = 0; i < 2000; i++)
+		{
+			// Vary the lines, so the stream is long enough
+			gzputs (gzfp, body);
+			gzprintf (gzfp, "%s%d\n", body[0] == '>' ? "ACGT" : "#", i * 7919);
+		}
+	gzclose (gzfp);
+
+	ck_assert_int_eq (stat (path, &st), 0);
+	ck_assert_int_gt (st.st_size, 1000);
+	ck_assert_int_eq (truncate (path, st.st_size / 2), 0);
+}
+
+START_TEST (test_truncated_fatal)
+{
+	GffFile *gff = NULL;
+	GffEntry *entry = gff_entry_new ();
 	char gff_path[] = "/tmp/ponga.gff3.XXXXXX";
 
-	create_gff (gff_header, gff_path);
+	create_truncated_gz ("chr1\t.\tgene\t1\t100\t.\t+\t.\tgene_name=ponga;\n", gff_path);
 	gff = gff_open_for_reading (gff_path);
 
-	gff_close (gff);
-	gff_close (gff);
-
-	xunlink (gff_path);
+	while (gff_read (gff, entry))
+		;
 }
 END_TEST
 
@@ -550,7 +577,7 @@ make_gff_suite (void)
 	tcase_add_exit_test (tc_abort, test_strand_fatal,    EXIT_FAILURE);
 	tcase_add_exit_test (tc_abort, test_frame_fatal,     EXIT_FAILURE);
 	tcase_add_exit_test (tc_abort, test_key_value_fatal, EXIT_FAILURE);
-	tcase_add_exit_test (tc_abort, test_close_fatal,     EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_truncated_fatal,     EXIT_FAILURE);
 
 	suite_add_tcase (s, tc_core);
 	suite_add_tcase (s, tc_abort);

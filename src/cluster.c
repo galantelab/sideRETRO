@@ -104,7 +104,7 @@ cluster_filter_get (Hash *h, const int id, const int sid)
 
 	s_h = hash_lookup (h, &id);
 	if (s_h == NULL)
-		return NULL;
+		return NULL; // LCOV_EXCL_LINE: every cluster id is set before
 
 	return hash_lookup (s_h, &sid);
 }

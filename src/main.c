@@ -139,6 +139,9 @@ parse_no_command_opt (int argc, char **argv)
 				}
 		}
 
+	// No option at all (e.g. '--'): Show the usage
+	print_usage (stdout);
+
 Exit:
 	return rc;
 }

@@ -123,6 +123,7 @@ def cases(t, sim):
     t.run('sider: version', ['-v'], expect=['sideRETRO'])
     t.run('sider: citation', ['--cite'], expect=['@article', 'btaa689'])
     t.run('sider: invalid option', ['--ponga'], rc=FAIL, expect=['--help'])
+    t.run('sider: no option', ['--'], expect=['Commands:'])
     t.run('sider: invalid command', ['ponga'], rc=FAIL,
           expect=["'ponga' is not a valid command"])
 
@@ -270,6 +271,15 @@ def cases(t, sim):
     t.run('vcf: run without reference',
           vcf + ['-o', P('vcf3')] + mdb,
           expect=["REF is 'N'"])
+
+    with open(P('normal.sam'), 'w') as fp:
+        fp.write('@SQ\tSN:chr1\tLN:20000\n'
+                 'N1\t99\tchr1\t1\t60\t10M\t=\t20\t29\tATCGATCGAT\t~~~~~~~~~~\n'
+                 'N1\t147\tchr1\t20\t60\t10M\t=\t1\t-29\tAAAGGGCCCT\t~~~~~~~~~~\n')
+    t.run('ps: two files', ps + ann + ['-o', P('ps6'), P('sim.sam'), P('normal.sam')],
+          expect=['Total', 'No abnormal alignment found out of 2'])
+    t.run('ps: no abnormal alignment', ps + ann + ['-o', P('ps7'), P('normal.sam')],
+          expect=['No abnormal alignment was found: No retrocopy can be called'])
 
     # ================= quiet without log: --silent
     t.run('ps: silent', ps + ann + ['-o', P('ps5'), '--silent'] + sam,

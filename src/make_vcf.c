@@ -235,7 +235,7 @@ static void
 make_vcf_destroy (MakeVcf *vcf)
 {
 	if (vcf == NULL)
-		return;
+		return; // LCOV_EXCL_LINE: static: never NULL
 
 	logger_free (vcf->logger);
 	string_free (vcf->disabled_ids, 1);
