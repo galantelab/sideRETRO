@@ -147,6 +147,10 @@ populate_db (sqlite3 *db)
 		"INSERT INTO exon VALUES (1,'gene1','chr1',1,3000,'+','eg1','ee1');\n"
 		"INSERT INTO exon VALUES (13,'gene1','chr1',4000,5000,'+','eg1','ee13');\n"
 		"INSERT INTO junction VALUES (1,1,13,5);\n"
+		"INSERT INTO evidence VALUES (1,1,1);\n"
+		"INSERT INTO evidence VALUES (2,2,2);\n"
+		"INSERT INTO evidence VALUES (2,2,4);\n"
+		"INSERT INTO evidence VALUES (2,3,8);\n"
 		"INSERT INTO insertion VALUES (1,1050,1,7,3000,13,2,2000,'ACGT','GGTTAACC','TTGGCC');\n"
 		"INSERT INTO insertion VALUES (8,NULL,NULL,0,150,1,3,NULL,NULL,NULL,NULL);\n"
 		"INSERT INTO exon VALUES (2,'gene2_1','chr2',1,3000,'-','eg2','ee2');\n"
@@ -320,21 +324,23 @@ START_TEST (test_vcf)
 
 	// Read names by retrocopy: 'sample:read,read'
 	// One read per line, sorted by read name for each sample.
-	// Read names may have colons (Illumina)
+	// Read names may have colons (Illumina). The roles come from
+	// the evidence of each retrocopy: q1 is split_left only at
+	// RTC000001
 	const char *rnames[] = {
-		"#retrocopy_id\tsample\tread_name\n",
-		"RTC000001\tPONGA\tq1\n",
-		"RTC000002\tPONGA\tA00123:45:HV7KJDSXY:1:1101:12345:6789\n",
-		"RTC000002\tPONGA\tq5\n",
-		"RTC000003\tPONGA\tq2\n",
-		"RTC000003\tPONGA\tq3\n",
-		"RTC000004\tPONGA\tq6\n",
-		"RTC000005\tPONGA\tq7\n",
-		"RTC000006\tPONGA\tq8\n",
-		"RTC000006\tPONGA\tq9\n",
-		"RTC000007\tPONGA\tq10\n",
-		"RTC000007\tPONGA\tq11\n",
-		"RTC000008\tPONGA\tq1\n"
+		"#retrocopy_id\tsample\tread_name\trole\n",
+		"RTC000001\tPONGA\tq1\tsplit_left\n",
+		"RTC000002\tPONGA\tA00123:45:HV7KJDSXY:1:1101:12345:6789\tsplit_right,polya\n",
+		"RTC000002\tPONGA\tq5\tjunction\n",
+		"RTC000003\tPONGA\tq2\tdiscordant\n",
+		"RTC000003\tPONGA\tq3\tdiscordant\n",
+		"RTC000004\tPONGA\tq6\tdiscordant\n",
+		"RTC000005\tPONGA\tq7\tdiscordant\n",
+		"RTC000006\tPONGA\tq8\tdiscordant\n",
+		"RTC000006\tPONGA\tq9\tdiscordant\n",
+		"RTC000007\tPONGA\tq10\tdiscordant\n",
+		"RTC000007\tPONGA\tq11\tdiscordant\n",
+		"RTC000008\tPONGA\tq1\tdiscordant\n"
 	};
 
 	const int rnames_size = sizeof (rnames) / sizeof (char *);

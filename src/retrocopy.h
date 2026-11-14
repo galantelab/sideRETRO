@@ -96,6 +96,21 @@ typedef enum _RetrocopyInsertionPoint RetrocopyInsertionPoint;
  * junction into the parental exons: Its maximum
  * length and the minimum length allowed
  */
+/*
+ * Role of a read in the evidence of a retrocopy. A read
+ * may have more than one role. A read with none is a
+ * discordant read
+ */
+enum _RetrocopyEvidence
+{
+	RETROCOPY_EVIDENCE_SPLIT_LEFT  = 1,
+	RETROCOPY_EVIDENCE_SPLIT_RIGHT = 2,
+	RETROCOPY_EVIDENCE_POLYA       = 4,
+	RETROCOPY_EVIDENCE_JUNCTION    = 8
+};
+
+typedef enum _RetrocopyEvidence RetrocopyEvidence;
+
 #define RETROCOPY_SEED_LEN 20
 #define RETROCOPY_MIN_SEED 12
 
@@ -103,6 +118,7 @@ void retrocopy (sqlite3_stmt *retrocopy_stmt,
 		sqlite3_stmt *cluster_merging_stmt,
 		sqlite3_stmt *junction_stmt,
 		sqlite3_stmt *insertion_stmt,
+		sqlite3_stmt *evidence_stmt,
 		const char *fasta_file,
 		int near_gene_dist);
 

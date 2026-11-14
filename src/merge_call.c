@@ -230,6 +230,7 @@ run (MergeCall *mc)
 	sqlite3_stmt *retrocopy_stmt = NULL;
 	sqlite3_stmt *junction_stmt = NULL;
 	sqlite3_stmt *insertion_stmt = NULL;
+	sqlite3_stmt *evidence_stmt = NULL;
 	sqlite3_stmt *cluster_merging_stmt = NULL;
 	sqlite3_stmt *genotype_stmt = NULL;
 
@@ -289,6 +290,9 @@ run (MergeCall *mc)
 
 	log_debug ("Prepare insertion statement");
 	insertion_stmt = db_prepare_insertion_stmt (db);
+
+	log_debug ("Prepare evidence statement");
+	evidence_stmt = db_prepare_evidence_stmt (db);
 
 	// Create cluster merging statement
 	cluster_merging_stmt =
@@ -365,7 +369,7 @@ run (MergeCall *mc)
 			// Filtering and Annotation
 			log_info ("Run the annotation step");
 			retrocopy (retrocopy_stmt, cluster_merging_stmt,
-					junction_stmt, insertion_stmt, mc->fasta_file,
+					junction_stmt, insertion_stmt, evidence_stmt, mc->fasta_file,
 					mc->near_gene_rank);
 
 			// Commit
@@ -393,6 +397,7 @@ run (MergeCall *mc)
 	db_finalize (retrocopy_stmt);
 	db_finalize (junction_stmt);
 	db_finalize (insertion_stmt);
+	db_finalize (evidence_stmt);
 	db_finalize (cluster_merging_stmt);
 	db_finalize (genotype_stmt);
 	db_close (db);

@@ -126,6 +126,7 @@ clean_retrocopy_tables (sqlite3 *db)
 		"DELETE FROM cluster_merging;\n"
 		"DELETE FROM junction;\n"
 		"DELETE FROM insertion;\n"
+		"DELETE FROM evidence;\n"
 		"DELETE FROM retrocopy;";
 
 	log_debug ("Clean tables:\n%s", sql);
@@ -642,6 +643,7 @@ struct _Breakpoint
 {
 	long pos;
 	int  strong;
+	int  aid;
 };
 
 typedef struct _Breakpoint Breakpoint;
@@ -656,7 +658,7 @@ cmp_breakpoint (const void *p1, const void *p2)
 
 static inline void
 breakpoint_push (Breakpoint **a, size_t *size, size_t *alloc,
-		const long pos, const int strong)
+		const long pos, const int strong, const int aid)
 {
 	if (*size >= *alloc)
 		{
@@ -664,7 +666,7 @@ breakpoint_push (Breakpoint **a, size_t *size, size_t *alloc,
 			*a = xrealloc (*a, sizeof (Breakpoint) * *alloc);
 		}
 
-	(*a)[*size] = (Breakpoint) {.pos = pos, .strong = strong};
+	(*a)[*size] = (Breakpoint) {.pos = pos, .strong = strong, .aid = aid};
 	(*size)++;
 }
 
@@ -721,8 +723,25 @@ breakpoint_mode (Breakpoint *a, const size_t size, long *mode, int *support)
 }
 
 static inline void
-breakpoint_set_entry (Hash *rtc_h, const int rid, Breakpoint *left_a,
-		const size_t left_size, Breakpoint *right_a, const size_t right_size)
+breakpoint_dump_evidence (sqlite3_stmt *evidence_stmt, const int rid,
+		const Breakpoint *a, const size_t size, const long mode,
+		const int support, const int role)
+{
+	size_t i = 0;
+
+	if (support == 0)
+		return;
+
+	// The reads supporting the accepted breakpoint
+	for (i = 0; i < size; i++)
+		if (a[i].pos == mode)
+			db_insert_evidence (evidence_stmt, rid, a[i].aid, role);
+}
+
+static inline void
+breakpoint_set_entry (sqlite3_stmt *evidence_stmt, Hash *rtc_h, const int rid,
+		Breakpoint *left_a, const size_t left_size, Breakpoint *right_a,
+		const size_t right_size)
 {
 	RetrocopyEntry *e = NULL;
 
@@ -735,13 +754,21 @@ breakpoint_set_entry (Hash *rtc_h, const int rid, Breakpoint *left_a,
 	breakpoint_mode (right_a, right_size,
 			&e->breakpoint_right, &e->breakpoint_right_sr);
 
+	breakpoint_dump_evidence (evidence_stmt, rid, left_a, left_size,
+			e->breakpoint_left, e->breakpoint_left_sr,
+			RETROCOPY_EVIDENCE_SPLIT_LEFT);
+
+	breakpoint_dump_evidence (evidence_stmt, rid, right_a, right_size,
+			e->breakpoint_right, e->breakpoint_right_sr,
+			RETROCOPY_EVIDENCE_SPLIT_RIGHT);
+
 	log_debug ("Retrocopy %d breakpoints: left %li (%d SR) right %li (%d SR)",
 			rid, e->breakpoint_left, e->breakpoint_left_sr,
 			e->breakpoint_right, e->breakpoint_right_sr);
 }
 
 static void
-calculate_breakpoint (sqlite3 *db, Hash *rtc_h)
+calculate_breakpoint (sqlite3 *db, sqlite3_stmt *evidence_stmt, Hash *rtc_h)
 {
 	log_trace ("Inside %s", __func__);
 
@@ -788,8 +815,8 @@ calculate_breakpoint (sqlite3 *db, Hash *rtc_h)
 			// Set breakpoints for the previous retrocopy
 			if (rid_prev != rid)
 				{
-					breakpoint_set_entry (rtc_h, rid_prev, left_a,
-							left_size, right_a, right_size);
+					breakpoint_set_entry (evidence_stmt, rtc_h, rid_prev,
+							left_a, left_size, right_a, right_size);
 
 					left_size = 0;
 					right_size = 0;
@@ -816,17 +843,17 @@ calculate_breakpoint (sqlite3 *db, Hash *rtc_h)
 			*/
 			if (clip_right >= RETROCOPY_MIN_CLIP && rlen > 0)
 				breakpoint_push (&left_a, &left_size, &left_alloc,
-						pos + rlen - 1, strong);
+						pos + rlen - 1, strong, aid);
 
 			if (clip_left >= RETROCOPY_MIN_CLIP)
 				breakpoint_push (&right_a, &right_size, &right_alloc,
-						pos, strong);
+						pos, strong, aid);
 		}
 
 	// The last or the first retrocopy
 	if (rid_prev)
-		breakpoint_set_entry (rtc_h, rid_prev, left_a,
-				left_size, right_a, right_size);
+		breakpoint_set_entry (evidence_stmt, rtc_h, rid_prev,
+				left_a, left_size, right_a, right_size);
 
 	xfree (left_a);
 	xfree (right_a);
@@ -866,9 +893,13 @@ prepare_polya_stmt (sqlite3 *db)
  */
 struct _PolyA
 {
-	int exact;
-	int lower_bound;
-	int sr;
+	int  exact;
+	int  lower_bound;
+	int  sr;
+
+	// The reads supporting this strand
+	int *aids;
+	int  aids_alloc;
 };
 
 typedef struct _PolyA PolyA;
@@ -895,12 +926,18 @@ polya_run (const char *seq, const int len, const char base, const int reverse)
 }
 
 static inline void
-polya_add (PolyA *p, const int run, const int clip_len)
+polya_add (PolyA *p, const int run, const int clip_len, const int aid)
 {
 	if (run < RETROCOPY_MIN_POLYA)
 		return;
 
-	p->sr++;
+	if (p->sr >= p->aids_alloc)
+		{
+			p->aids_alloc += BLOCK_SIZE;
+			p->aids = xrealloc (p->aids, sizeof (int) * p->aids_alloc);
+		}
+
+	p->aids[p->sr++] = aid;
 
 	// If the whole clip is poly-A, the tail
 	// extends beyond the read: Lower bound
@@ -914,11 +951,22 @@ polya_add (PolyA *p, const int run, const int clip_len)
 }
 
 static inline void
-polya_set_entry (Hash *rtc_h, const int rid, const PolyA *plus,
-		const PolyA *minus)
+polya_reset (PolyA *p)
+{
+	int *aids = p->aids;
+	int aids_alloc = p->aids_alloc;
+
+	// Keep the buffer
+	*p = (PolyA) {.aids = aids, .aids_alloc = aids_alloc};
+}
+
+static inline void
+polya_set_entry (sqlite3_stmt *evidence_stmt, Hash *rtc_h, const int rid,
+		const PolyA *plus, const PolyA *minus)
 {
 	RetrocopyEntry *e = NULL;
 	const PolyA *p = NULL;
+	int i = 0;
 
 	e = hash_lookup (rtc_h, &rid);
 	assert (e != NULL);
@@ -940,6 +988,10 @@ polya_set_entry (Hash *rtc_h, const int rid, const PolyA *plus,
 		}
 
 	e->polya_sr = p->sr;
+
+	for (i = 0; i < p->sr; i++)
+		db_insert_evidence (evidence_stmt, rid, p->aids[i],
+				RETROCOPY_EVIDENCE_POLYA);
 
 	// A read with non poly-A bases before the tail
 	// gives its exact length. Otherwise all we know
@@ -1003,7 +1055,7 @@ locate_soft_clips (const uint32_t *cigar, const uint32_t n_cigar, const long pos
 }
 
 static void
-calculate_polya (sqlite3 *db, Hash *rtc_h)
+calculate_polya (sqlite3 *db, sqlite3_stmt *evidence_stmt, Hash *rtc_h)
 {
 	log_trace ("Inside %s", __func__);
 
@@ -1048,10 +1100,10 @@ calculate_polya (sqlite3 *db, Hash *rtc_h)
 			// Set poly-A for the previous retrocopy
 			if (rid_prev != rid)
 				{
-					polya_set_entry (rtc_h, rid_prev, &plus, &minus);
+					polya_set_entry (evidence_stmt, rtc_h, rid_prev, &plus, &minus);
 
-					plus = (PolyA) {};
-					minus = (PolyA) {};
+					polya_reset (&plus);
+					polya_reset (&minus);
 					rid_prev = rid;
 				}
 
@@ -1092,7 +1144,7 @@ calculate_polya (sqlite3 *db, Hash *rtc_h)
 					clip = cigar_op_seq (&left_op, seq);
 					if (clip != NULL)
 						polya_add (&plus, polya_run (clip, left_op.qlen, 'A', 1),
-								left_op.qlen);
+								left_op.qlen, aid);
 					xfree (clip);
 				}
 
@@ -1102,17 +1154,62 @@ calculate_polya (sqlite3 *db, Hash *rtc_h)
 					clip = cigar_op_seq (&right_op, seq);
 					if (clip != NULL)
 						polya_add (&minus, polya_run (clip, right_op.qlen, 'T', 0),
-								right_op.qlen);
+								right_op.qlen, aid);
 					xfree (clip);
 				}
 		}
 
 	// The last or the first retrocopy
 	if (rid_prev)
-		polya_set_entry (rtc_h, rid_prev, &plus, &minus);
+		polya_set_entry (evidence_stmt, rtc_h, rid_prev, &plus, &minus);
+
+	xfree (plus.aids);
+	xfree (minus.aids);
 
 	db_finalize (polya_stmt);
 }
+
+/*
+ * The fragments of each retrocopy and their alignments
+ * overlapping exons, shared by the junction queries
+ */
+#define JUNCTION_QUERY_WITH \
+	"WITH\n" \
+	"	fragment (rid, gene_name, qname, source_id) AS (\n" \
+	"		SELECT DISTINCT cm.retrocopy_id, cl.gene_name,\n" \
+	"			a.qname, a.source_id\n" \
+	"		FROM cluster_merging AS cm\n" \
+	"		INNER JOIN cluster AS cl\n" \
+	"			ON cl.id = cm.cluster_id AND cl.sid = cm.cluster_sid\n" \
+	"		INNER JOIN clustering AS c\n" \
+	"			ON c.cluster_id = cm.cluster_id\n" \
+	"				AND c.cluster_sid = cm.cluster_sid\n" \
+	"		INNER JOIN alignment AS a\n" \
+	"			ON a.id = c.alignment_id\n" \
+	"	),\n" \
+	"	exonic (qname, source_id, read, aid, eid, gene_name, start, end) AS (\n" \
+	"		SELECT a.qname, a.source_id, a.flag & 0xC0, a.id,\n" \
+	"			e.id, e.gene_name, e.start, e.end\n" \
+	"		FROM alignment AS a\n" \
+	"		INNER JOIN overlapping AS o\n" \
+	"			ON o.alignment_id = a.id\n" \
+	"		INNER JOIN exon AS e\n" \
+	"			ON e.id = o.exon_id\n" \
+	"	)\n"
+
+#define JUNCTION_QUERY_FROM \
+	"FROM fragment AS f\n" \
+	"INNER JOIN exonic AS x1\n" \
+	"	ON x1.qname = f.qname\n" \
+	"		AND x1.source_id = f.source_id\n" \
+	"		AND x1.gene_name = f.gene_name\n" \
+	"INNER JOIN exonic AS x2\n" \
+	"	ON x2.qname = x1.qname\n" \
+	"		AND x2.source_id = x1.source_id\n" \
+	"		AND x2.read = x1.read\n" \
+	"		AND x2.gene_name = x1.gene_name\n" \
+	"		AND x2.aid != x1.aid\n" \
+	"WHERE x1.end < x2.start\n"
 
 static sqlite3_stmt *
 prepare_junction_query_stmt (sqlite3 *db)
@@ -1131,42 +1228,10 @@ prepare_junction_query_stmt (sqlite3 *db)
 	* source and the flag bits 0x40|0x80
 	*/
 	const char sql[] =
-		"WITH\n"
-		"	fragment (rid, gene_name, qname, source_id) AS (\n"
-		"		SELECT DISTINCT cm.retrocopy_id, cl.gene_name,\n"
-		"			a.qname, a.source_id\n"
-		"		FROM cluster_merging AS cm\n"
-		"		INNER JOIN cluster AS cl\n"
-		"			ON cl.id = cm.cluster_id AND cl.sid = cm.cluster_sid\n"
-		"		INNER JOIN clustering AS c\n"
-		"			ON c.cluster_id = cm.cluster_id\n"
-		"				AND c.cluster_sid = cm.cluster_sid\n"
-		"		INNER JOIN alignment AS a\n"
-		"			ON a.id = c.alignment_id\n"
-		"	),\n"
-		"	exonic (qname, source_id, read, aid, eid, gene_name, start, end) AS (\n"
-		"		SELECT a.qname, a.source_id, a.flag & 0xC0, a.id,\n"
-		"			e.id, e.gene_name, e.start, e.end\n"
-		"		FROM alignment AS a\n"
-		"		INNER JOIN overlapping AS o\n"
-		"			ON o.alignment_id = a.id\n"
-		"		INNER JOIN exon AS e\n"
-		"			ON e.id = o.exon_id\n"
-		"	)\n"
+		JUNCTION_QUERY_WITH
 		"SELECT f.rid, x1.eid, x2.eid,\n"
 		"	COUNT(DISTINCT x1.qname || '/' || x1.source_id || '/' || x1.read)\n"
-		"FROM fragment AS f\n"
-		"INNER JOIN exonic AS x1\n"
-		"	ON x1.qname = f.qname\n"
-		"		AND x1.source_id = f.source_id\n"
-		"		AND x1.gene_name = f.gene_name\n"
-		"INNER JOIN exonic AS x2\n"
-		"	ON x2.qname = x1.qname\n"
-		"		AND x2.source_id = x1.source_id\n"
-		"		AND x2.read = x1.read\n"
-		"		AND x2.gene_name = x1.gene_name\n"
-		"		AND x2.aid != x1.aid\n"
-		"WHERE x1.end < x2.start\n"
+		JUNCTION_QUERY_FROM
 		"GROUP BY f.rid, x1.eid, x2.eid\n"
 		"ORDER BY f.rid ASC, x1.start ASC, x2.start ASC";
 
@@ -1177,7 +1242,7 @@ prepare_junction_query_stmt (sqlite3 *db)
 }
 
 static void
-calculate_junction (sqlite3_stmt *junction_stmt)
+calculate_junction (sqlite3_stmt *junction_stmt, sqlite3_stmt *evidence_stmt)
 {
 	log_trace ("Inside %s", __func__);
 
@@ -1204,6 +1269,23 @@ calculate_junction (sqlite3_stmt *junction_stmt)
 			db_insert_junction (junction_stmt, rid,
 					exon_id1, exon_id2, reads);
 		}
+
+	db_finalize (junction_query_stmt);
+
+	// The reads spanning the junctions
+	const char sql[] =
+		JUNCTION_QUERY_WITH
+		"SELECT DISTINCT f.rid, x1.aid\n"
+		JUNCTION_QUERY_FROM;
+
+	log_debug ("Query schema:\n%s", sql);
+	junction_query_stmt = db_prepare (sqlite3_db_handle (junction_stmt), sql);
+
+	while (db_step (junction_query_stmt) == SQLITE_ROW)
+		db_insert_evidence (evidence_stmt,
+				db_column_int (junction_query_stmt, 0),
+				db_column_int (junction_query_stmt, 1),
+				RETROCOPY_EVIDENCE_JUNCTION);
 
 	db_finalize (junction_query_stmt);
 }
@@ -2168,6 +2250,7 @@ retrocopy (sqlite3_stmt *retrocopy_stmt,
 		sqlite3_stmt *cluster_merging_stmt,
 		sqlite3_stmt *junction_stmt,
 		sqlite3_stmt *insertion_stmt,
+		sqlite3_stmt *evidence_stmt,
 		const char *fasta_file,
 		int near_gene_dist)
 {
@@ -2176,6 +2259,7 @@ retrocopy (sqlite3_stmt *retrocopy_stmt,
 			&& cluster_merging_stmt != NULL
 			&& junction_stmt != NULL
 			&& insertion_stmt != NULL
+			&& evidence_stmt != NULL
 			&& near_gene_dist > 0);
 
 	// Keep ID => level
@@ -2206,18 +2290,18 @@ retrocopy (sqlite3_stmt *retrocopy_stmt,
 	log_info ("Find the breakpoints and target site duplications");
 	calculate_breakpoint (
 			sqlite3_db_handle (retrocopy_stmt),
-			rtc_h);
+			evidence_stmt, rtc_h);
 
 	log_info ("Find the poly-A tails");
 	calculate_polya (
 			sqlite3_db_handle (retrocopy_stmt),
-			rtc_h);
+			evidence_stmt, rtc_h);
 
 	log_info ("Annotate the insertion points");
 	annotate_retrocopy (retrocopy_stmt, rtc_h);
 
 	log_info ("Search for reads spanning exon-exon junctions");
-	calculate_junction (junction_stmt);
+	calculate_junction (junction_stmt, evidence_stmt);
 
 	if (fasta_file != NULL)
 		log_info ("Search for the retrocopy ends in the parental genes");

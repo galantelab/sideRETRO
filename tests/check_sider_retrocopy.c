@@ -271,6 +271,7 @@ START_TEST (test_retrocopy)
 	sqlite3_stmt *retrocopy_stmt = NULL;
 	sqlite3_stmt *junction_stmt = NULL;
 	sqlite3_stmt *insertion_stmt = NULL;
+	sqlite3_stmt *evidence_stmt = NULL;
 
 	db = create_db (db_file);
 	create_fasta (fasta_file);
@@ -278,6 +279,7 @@ START_TEST (test_retrocopy)
 	retrocopy_stmt = db_prepare_retrocopy_stmt (db);
 	junction_stmt = db_prepare_junction_stmt (db);
 	insertion_stmt = db_prepare_insertion_stmt (db);
+	evidence_stmt = db_prepare_evidence_stmt (db);
 
 	// Populate database
 	populate_db (db);
@@ -286,6 +288,7 @@ START_TEST (test_retrocopy)
 			cluster_merging_stmt,
 			junction_stmt,
 			insertion_stmt,
+			evidence_stmt,
 			fasta_file,
 			near_dist);
 
@@ -434,10 +437,59 @@ START_TEST (test_retrocopy)
 	ck_assert_int_eq (i, 2);
 	db_finalize (search_stmt);
 
+	// Roles of the reads in the evidence (flags):
+	// 1 split_left; 2 split_right; 4 polya; 8 junction.
+	// Only the reads supporting the accepted breakpoints
+	// count: q15 (2 bases clipped), q18 and q19 (lone
+	// clips without supplementary) have no role
+	const struct
+	{
+		int rid;
+		const char *qname;
+		int role;
+	} roles[] = {
+		{1,  "q1",  1},
+		{3,  "q2",  2},
+		{3,  "q3",  1},
+		{8,  "q12", 1},
+		{8,  "q13", 2},
+		{8,  "q14", 2},
+		{9,  "q16", 1},
+		{9,  "q17", 1},
+		{10, "q20", 2|4},
+		{10, "q21", 2|4},
+		{10, "q22", 1},
+		{11, "q23", 1|4},
+		{11, "q24", 1|4},
+		{12, "q25", 8}
+	};
+
+	const int roles_size = sizeof (roles) / sizeof (roles[0]);
+
+	search_stmt = db_prepare (db,
+			"SELECT e.retrocopy_id, a.qname, SUM(DISTINCT e.role)\n"
+			"FROM evidence AS e\n"
+			"INNER JOIN alignment AS a\n"
+			"	ON a.id = e.alignment_id\n"
+			"GROUP BY e.retrocopy_id, a.qname\n"
+			"ORDER BY e.retrocopy_id ASC, a.qname ASC");
+
+	for (i = 0; db_step (search_stmt) == SQLITE_ROW; i++)
+		{
+			ck_assert_int_lt (i, roles_size);
+			ck_assert_int_eq (db_column_int (search_stmt, 0), roles[i].rid);
+			ck_assert_str_eq (db_column_text (search_stmt, 1), roles[i].qname);
+			ck_assert_int_eq (db_column_int (search_stmt, 2), roles[i].role);
+		}
+
+	ck_assert_int_eq (i, roles_size);
+	db_finalize (search_stmt);
+
 	db_finalize (cluster_merging_stmt);
 	db_finalize (retrocopy_stmt);
 	db_finalize (junction_stmt);
 	db_finalize (insertion_stmt);
+	db_finalize (evidence_stmt);
 	db_close (db);
 
 	xunlink (db_file);

@@ -679,20 +679,60 @@ prepare_rnames_query_stmt (sqlite3 *db)
 {
 	log_trace ("Inside %s", __func__);
 
-	// Reads used to detect the retrocopy by source
+	// Reads used to detect the retrocopy by source, with
+	// their roles in the evidence: The roles are flags,
+	// so their distinct sum is a bitwise OR
 	const char sql[] =
-		"SELECT DISTINCT a.source_id, a.qname\n"
-		"FROM cluster_merging AS cm\n"
-		"INNER JOIN clustering AS c\n"
-		"	ON c.cluster_id = cm.cluster_id\n"
-		"		AND c.cluster_sid = cm.cluster_sid\n"
-		"INNER JOIN alignment AS a\n"
-		"	ON a.id = c.alignment_id\n"
-		"WHERE cm.retrocopy_id = ?1\n"
-		"ORDER BY a.source_id ASC, a.qname ASC";
+		"WITH\n"
+		"	role (source_id, qname, role) AS (\n"
+		"		SELECT a.source_id, a.qname, SUM(DISTINCT e.role)\n"
+		"		FROM evidence AS e\n"
+		"		INNER JOIN alignment AS a\n"
+		"			ON a.id = e.alignment_id\n"
+		"		WHERE e.retrocopy_id = ?1\n"
+		"		GROUP BY a.source_id, a.qname\n"
+		"	),\n"
+		"	read (source_id, qname) AS (\n"
+		"		SELECT DISTINCT a.source_id, a.qname\n"
+		"		FROM cluster_merging AS cm\n"
+		"		INNER JOIN clustering AS c\n"
+		"			ON c.cluster_id = cm.cluster_id\n"
+		"				AND c.cluster_sid = cm.cluster_sid\n"
+		"		INNER JOIN alignment AS a\n"
+		"			ON a.id = c.alignment_id\n"
+		"		WHERE cm.retrocopy_id = ?1\n"
+		"	)\n"
+		"SELECT r.source_id, r.qname, COALESCE(o.role, 0)\n"
+		"FROM read AS r\n"
+		"LEFT JOIN role AS o\n"
+		"	USING (source_id, qname)\n"
+		"ORDER BY r.source_id ASC, r.qname ASC";
 
 	log_debug ("Query schema:\n%s", sql);
 	return db_prepare (db, sql);
+}
+
+static const char *
+vcf_evidence_roles (const int role, char *buf, const size_t size)
+{
+	buf[0] = '\0';
+
+	// No role: A discordant read
+	if (role == 0)
+		{
+			snprintf (buf, size, "discordant");
+			return buf;
+		}
+
+	snprintf (buf, size, "%s%s%s%s",
+			role & RETROCOPY_EVIDENCE_SPLIT_LEFT  ? ",split_left"  : "",
+			role & RETROCOPY_EVIDENCE_SPLIT_RIGHT ? ",split_right" : "",
+			role & RETROCOPY_EVIDENCE_POLYA       ? ",polya"       : "",
+			role & RETROCOPY_EVIDENCE_JUNCTION    ? ",junction"    : "");
+
+	// Skip the leading comma
+	memmove (buf, buf + 1, strlen (buf));
+	return buf;
 }
 
 static void
@@ -708,11 +748,13 @@ vcf_print_rnames (sqlite3_stmt *stmt, const List *hl, FILE *fp,
 	db_clear_bindings (stmt);
 	db_bind_int (stmt, 1, retrocopy_id);
 
+	char roles[64] = {};
+
 	/*
-	* One read per line: retrocopy id, sample and read name,
-	* separated by tab. A read name (QNAME) never has tab,
-	* so it can be written as it is - e.g. Illumina names
-	* with colons
+	* One read per line: retrocopy id, sample, read name and
+	* its roles, separated by tab. A read name (QNAME) never
+	* has tab, so it can be written as it is - e.g. Illumina
+	* names with colons
 	*/
 	while (db_step (stmt) == SQLITE_ROW)
 		{
@@ -732,8 +774,10 @@ vcf_print_rnames (sqlite3_stmt *stmt, const List *hl, FILE *fp,
 					source_id_prev = source_id;
 				}
 
-			xfprintf (fp, VCF_ID_FMT "\t%s\t%s\n", retrocopy_id,
-					h->name, db_column_text (stmt, 1));
+			xfprintf (fp, VCF_ID_FMT "\t%s\t%s\t%s\n", retrocopy_id,
+					h->name, db_column_text (stmt, 1),
+					vcf_evidence_roles (db_column_int (stmt, 2),
+						roles, sizeof (roles)));
 		}
 }
 
@@ -1009,7 +1053,7 @@ vcf (sqlite3 *db, const char *output_file, VCFOption *opt)
 		{
 			log_debug ("Create the read names file '%s'", opt->rnames_file);
 			rnames_fp = xfopen (opt->rnames_file, "w");
-			xfprintf (rnames_fp, "#retrocopy_id\tsample\tread_name\n");
+			xfprintf (rnames_fp, "#retrocopy_id\tsample\tread_name\trole\n");
 		}
 
 	if (opt->insertion_file != NULL)

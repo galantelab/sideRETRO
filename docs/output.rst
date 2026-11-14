@@ -289,26 +289,49 @@ The read names file
 ===================
 
 A tab separated file with **one read per line**: The retrocopy ID, the
-sample and the read name, after a header line::
+sample, the read name and its **role** in the evidence, after a header
+line::
 
-   #retrocopy_id	sample	read_name
-   RTC000001	NA12878	A00123:45:HV7KJDSXY:1:1101:12345:6789
-   RTC000001	NA12878	A00123:45:HV7KJDSXY:1:1102:2210:1003
-   RTC000001	NA12778	A00456:12:HT2LMDSXY:2:2201:8812:4410
-   RTC000002	NA12878	A00123:45:HV7KJDSXY:3:1203:7781:2004
+   #retrocopy_id	sample	read_name	role
+   RTC000001	NA12878	A00123:45:HV7KJDSXY:1:1101:12345:6789	discordant
+   RTC000001	NA12878	A00123:45:HV7KJDSXY:1:1102:2210:1003	split_left
+   RTC000001	NA12878	A00123:45:HV7KJDSXY:1:1203:7781:2004	split_right,polya
+   RTC000001	NA12778	A00456:12:HT2LMDSXY:2:2201:8812:4410	junction
 
 Samples are named as in the VCF header. The file follows the VCF order and,
 for each retrocopy and sample, the reads are sorted by name. These are the
-**abnormal reads** clustered at the insertion site - discordant mates and
-clipped reads - exactly the evidence that called the retrocopy.
+**abnormal reads** clustered at the insertion site - exactly the evidence that
+called the retrocopy. Each read name stands for the **fragment** (the read and
+its mate), and its roles are:
+
++-------------+-------------------------------------------------------------+
+| split_left  | Clipped at the accepted **left breakpoint** (counted at     |
+|             | ``LSR``)                                                    |
++-------------+-------------------------------------------------------------+
+| split_right | Clipped at the accepted **right breakpoint** (counted at    |
+|             | ``RSR``)                                                    |
++-------------+-------------------------------------------------------------+
+| polya       | Its clip has the **poly-A** tail (counted at ``POLYASR``)   |
++-------------+-------------------------------------------------------------+
+| junction    | Spans an **exon-exon junction** of the parental gene        |
+|             | (counted at ``EEJ``)                                        |
++-------------+-------------------------------------------------------------+
+| discordant  | None of the above: A read at the insertion site whose mate  |
+|             | falls into the parental gene                                |
++-------------+-------------------------------------------------------------+
+
+A read may have more than one role, separated by comma - a read clipped at
+the right breakpoint whose clip ends with the poly-A is ``split_right,polya``.
+Only the reads supporting the **accepted** breakpoints are split reads: A read
+clipped somewhere else, by an adapter for instance, is ``discordant``.
 
 A read name never has a tab (see the `SAM specification
 <https://samtools.github.io/hts-specs/SAMv1.pdf>`_), so the names are written
 as they are - with the colons of Illumina, for instance - and the file can be
-read by any tool, with no escaping. To inspect the alignments of a retrocopy
-in a sample::
+read by any tool, with no escaping. To inspect the reads crossing the left
+breakpoint of a retrocopy in a sample::
 
-   $ awk -F'\t' '$1 == "RTC000001" && $2 == "NA12878" {print $3}' \
+   $ awk -F'\t' '$1 == "RTC000001" && $2 == "NA12878" && $4 ~ /split_left/ {print $3}' \
        out.rnames.tsv > reads.txt
    $ samtools view -N reads.txt NA12878.bam
 
@@ -317,7 +340,7 @@ In R or Python, read it as any table and group it by ``retrocopy_id`` and
 
    >>> import pandas as pd
    >>> rnames = pd.read_csv('out.rnames.tsv', sep='\t')
-   >>> rnames.groupby(['#retrocopy_id', 'sample']).size()
+   >>> rnames.groupby(['#retrocopy_id', 'sample', 'role']).size()
 
 .. _insertions_file:
 

@@ -367,10 +367,41 @@ class Sim:
             ('RIGHT_SVINSSEQ', right_seq),
             ('INSSEQ', insseq),
             ('RNAMES', ','.join(sorted(set(r.split('\t')[0] for r in self.recs)))),
+            ('ROLES', self.roles(left, right, run, all_clips, polya)),
             ('EEJ', a.n_junction_reads if a.n_junction_reads else 'NA'),
             ('EEJLIST', 'ENSEP0-ENSEP1' if a.n_junction_reads else 'NA'),
             ('INS', self.ins),
         ]
+
+    def roles(self, left, right, run, all_clips, polya):
+        """
+        Expected role of each read: 'name=role1,role2' separated
+        by ';'. Only the reads supporting an accepted breakpoint
+        (clipped at least MIN_CLIP bases) are split reads; a right
+        junction read supports the poly-A if its run is long enough
+        """
+        a = self.args
+        roles = {}
+
+        for rec in self.recs:
+            name = rec.split('\t')[0]
+            kind = name[len(READ_PREFIX):]
+            r = []
+
+            if kind.startswith('splitL') and left:
+                r.append('split_left')
+            elif kind.startswith('splitR') and right:
+                c = all_clips[int(kind[len('splitR'):])]
+                if c >= MIN_CLIP:
+                    r.append('split_right')
+                if polya and min(c, run) >= MIN_POLYA:
+                    r.append('polya')
+            elif kind.startswith('junc'):
+                r.append('junction')
+
+            roles[name] = ','.join(r) if r else 'discordant'
+
+        return ';'.join('%s=%s' % kv for kv in sorted(roles.items()))
 
     def write(self):
         a = self.args
@@ -466,11 +497,11 @@ def check(vcf_file, truth_file, no_ref=False):
     if os.path.exists(rnames_file):
         lines = open(rnames_file).read().splitlines()
         rows = [l.split('\t') for l in lines[1:]]
-        if not lines or lines[0] != '#retrocopy_id\tsample\tread_name':
+        if not lines or lines[0] != '#retrocopy_id\tsample\tread_name\trole':
             print('FAIL: rnames file header: %s' % (lines[0] if lines else '<empty>'))
             errors += 1
-        elif any(len(r) != 3 or r[0] != truth['ID'] or r[1] != 'sim' for r in rows):
-            print('FAIL: rnames rows must be <%s, sim, read_name>' % truth['ID'])
+        elif any(len(r) != 4 or r[0] != truth['ID'] or r[1] != 'sim' for r in rows):
+            print('FAIL: rnames rows must be <%s, sim, read_name, role>' % truth['ID'])
             errors += 1
         else:
             names = [r[2] for r in rows]
@@ -481,6 +512,14 @@ def check(vcf_file, truth_file, no_ref=False):
             if missing:
                 print('FAIL: rnames missing reads: %s' % ','.join(sorted(missing)))
                 errors += 1
+
+            # Roles: Without the reference, nothing changes
+            expected = dict(kv.split('=') for kv in truth['ROLES'].split(';'))
+            for name, role in ((r[2], r[3]) for r in rows):
+                if expected.get(name) != role:
+                    print('FAIL: rnames role of %s = %s, expected %s'
+                          % (name, role, expected.get(name)))
+                    errors += 1
 
     if os.path.exists(ins_file) and truth['INSSEQ'] != 'SKIP':
         lines = open(ins_file).read().splitlines()

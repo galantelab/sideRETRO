@@ -427,6 +427,15 @@ db_create_tables (sqlite3 *db)
 		"	FOREIGN KEY (five_prime_exon_id) REFERENCES exon(id),\n"
 		"	FOREIGN KEY (three_prime_exon_id) REFERENCES exon(id));\n"
 		"\n"
+		"DROP TABLE IF EXISTS evidence;\n"
+		"CREATE TABLE evidence (\n"
+		"	retrocopy_id INTEGER NOT NULL,\n"
+		"	alignment_id INTEGER NOT NULL,\n"
+		"	role INTEGER NOT NULL,\n"
+		"	FOREIGN KEY (retrocopy_id) REFERENCES retrocopy(id),\n"
+		"	FOREIGN KEY (alignment_id) REFERENCES alignment(id),\n"
+		"	PRIMARY KEY (retrocopy_id, alignment_id, role));\n"
+		"\n"
 		"DROP TABLE IF EXISTS genotype;\n"
 		"CREATE TABLE genotype (\n"
 		"	source_id INTEGER NOT NULL,\n"
@@ -1141,6 +1150,40 @@ db_insert_insertion (sqlite3_stmt *stmt, int retrocopy_id,
 		db_bind_text (stmt, 11, right_seq);
 	else
 		db_bind_null (stmt, 11);
+
+	db_step (stmt);
+
+	sqlite3_mutex_leave (sqlite3_db_mutex (sqlite3_db_handle (stmt)));
+}
+
+sqlite3_stmt *
+db_prepare_evidence_stmt (sqlite3 *db)
+{
+	log_trace ("Inside %s", __func__);
+	assert (db != NULL);
+
+	const char sql[] =
+		"INSERT OR IGNORE INTO evidence (retrocopy_id,alignment_id,role)\n"
+		"VALUES (?1,?2,?3)";
+
+	return db_prepare (db, sql);
+}
+
+void
+db_insert_evidence (sqlite3_stmt *stmt, int retrocopy_id,
+		int alignment_id, int role)
+{
+	log_trace ("Inside %s", __func__);
+	assert (stmt != NULL);
+
+	sqlite3_mutex_enter (sqlite3_db_mutex (sqlite3_db_handle (stmt)));
+
+	db_reset (stmt);
+	db_clear_bindings (stmt);
+
+	db_bind_int (stmt, 1, retrocopy_id);
+	db_bind_int (stmt, 2, alignment_id);
+	db_bind_int (stmt, 3, role);
 
 	db_step (stmt);
 
