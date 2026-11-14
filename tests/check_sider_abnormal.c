@@ -346,9 +346,13 @@ START_TEST (test_abnormal_filter_seq_qual)
 		"WHERE qname = 'S4'\n"
 		"ORDER BY chr ASC, pos ASC";
 
-	// The sequence is at the forward strand as it is
-	// into the SAM - hard clipped bases are not present
-	const char *seqs[] = {"AAACCCGGGG", "GGGCCCCCCC", "CCCCC"};
+	/*
+	* The sequence is at the forward strand as it is
+	* into the SAM. Only soft clipped alignments keep
+	* it: Not '10M', neither '5H5M' (hard clipped bases
+	* are not present)
+	*/
+	const char *seqs[] = {"*", "GGGCCCCCCC", "*"};
 	// The base qualities are not stored
 	const char *quals[] = {"*", "*", "*"};
 
@@ -377,9 +381,9 @@ static const char *sam_edge =
 	"@HD\tVN:1.0\tSO:queryname\n"
 	"@SQ\tSN:chr1\tLN:248956422\n"
 	"@SQ\tSN:chr2\tLN:242193529\n"
-	"D7\t97\tchr2\t20\t60\t300M\t=\t20000\t20280\tACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGT\t*\n"
+	"D7\t97\tchr2\t20\t60\t290M10S\t=\t20000\t20280\tACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGT\t*\n"
 	"D7\t145\tchr2\t20000\t60\t10M\t=\t20\t-20280\tCCCCCTTTAG\t~~~~~~~~~~\n"
-	"D8\t97\tchr2\t30\t60\t10M\t=\t30000\t29980\t*\t*\n"
+	"D8\t97\tchr2\t30\t60\t5M5S\t=\t30000\t29980\t*\t*\n"
 	"D8\t145\tchr2\t30000\t60\t10M\t=\t30\t-29980\tCCCCCTTTAG\t~~~~~~~~~~\n"
 	"L9\t97\tchr2\t40\t60\t10M\t=\t40000\t39970\tAAAAAAAAAA\t~~~~~~~~~~\n"
 	"L9\t145\tchr2\t40000\t60\t10M\t=\t40\t-39970\tCCCCCTTTAG\t~~~~~~~~~~\n";
@@ -398,8 +402,8 @@ START_TEST (test_abnormal_filter_edge)
 	int i = 0;
 
 	/*
-	* D7: A 300 bases read without quality ('*')
-	* D8: A read without sequence ('*')
+	* D7: A 300 bases soft clipped read without quality ('*')
+	* D8: A soft clipped read without sequence ('*')
 	* L9: A low complexity read (poly-A): Discarded
 	*/
 	test_abnormal_init (&a, sam_edge);
@@ -417,12 +421,15 @@ START_TEST (test_abnormal_filter_edge)
 			"SELECT qname, flag, length (seq), qual FROM alignment\n"
 			"ORDER BY qname ASC, flag ASC");
 
-	// The base qualities are never stored ('*')
+	/*
+	* The base qualities are never stored ('*'), and the
+	* sequence only for soft clipped alignments
+	*/
 	const struct {const char *qname; int flag; int len; const char *qual;} rows[] = {
 		{"D7", 97,  300, "*"},
-		{"D7", 145, 10,  "*"},
+		{"D7", 145, 1,   "*"},
 		{"D8", 97,  1,   "*"},
-		{"D8", 145, 10,  "*"}
+		{"D8", 145, 1,   "*"}
 	};
 
 	for (i = 0; db_step (stmt) == SQLITE_ROW; i++)

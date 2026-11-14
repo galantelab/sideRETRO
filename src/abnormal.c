@@ -271,14 +271,20 @@ dump_alignment (AbnormalFilter *argf, const bam1_t *align,
 	int rlen = 0;
 	int len = 0;
 	int acm = 0;
+	int soft_clip = 0;
 
 	cigar = bam_get_cigar (align);
 	argf->cigar = string_clear (argf->cigar);
 
 	for (n_cigar = 0; n_cigar < align->core.n_cigar; n_cigar++)
-		argf->cigar = string_concat_printf (argf->cigar, "%d%c",
-				bam_cigar_oplen (cigar[n_cigar]),
-				bam_cigar_opchr (cigar[n_cigar]));
+		{
+			argf->cigar = string_concat_printf (argf->cigar, "%d%c",
+					bam_cigar_oplen (cigar[n_cigar]),
+					bam_cigar_opchr (cigar[n_cigar]));
+
+			if (bam_cigar_op (cigar[n_cigar]) == BAM_CSOFT_CLIP)
+				soft_clip = 1;
+		}
 
 	qlen = bam_cigar2qlen (align->core.n_cigar, cigar);
 	rlen = bam_cigar2rlen (align->core.n_cigar, cigar);
@@ -286,8 +292,16 @@ dump_alignment (AbnormalFilter *argf, const bam1_t *align,
 
 	qname = bam_get_qname (align);
 
-	// Get the sequence as string
-	fill_seq (argf, align);
+	/*
+	* Get the sequence as string - only for soft clipped
+	* alignments: The clipped bases are the only ones read
+	* (breakpoints, poly-A tail and the retrocopy ends).
+	* Otherwise, SAM '*' (not stored)
+	*/
+	if (soft_clip)
+		fill_seq (argf, align);
+	else
+		strcpy (argf->seq, "*");
 
 	chr = align->core.tid > -1 // LCOV_EXCL_LINE: htslib unmaps any read without chromosome
 		? argf->hdr->target_name[align->core.tid]
