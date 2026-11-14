@@ -49,7 +49,7 @@ jobs:
           CK_EXCLUDE_TAGS: htslib-leak
 
       - name: After failure
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: meson-testlog
           path: builddir/meson-logs/
