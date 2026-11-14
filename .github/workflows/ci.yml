@@ -7,7 +7,7 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     name: Build and test
     steps:
       - uses: actions/checkout@v3
@@ -17,7 +17,8 @@ jobs:
 
       - name: Install ubuntu dependencies
         run: >
-          sudo apt-get install -y
+          sudo apt update
+          && sudo apt install -y
           check
           lcov
           ninja-build
