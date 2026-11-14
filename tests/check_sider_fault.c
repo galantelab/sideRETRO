@@ -319,7 +319,7 @@ START_TEST (test_xalloc_zero)
 	ck_assert_ptr_ne (p, NULL);
 	xfree (p);
 
-	// glibc realloc (p, 0) frees p and returns NULL for real
+	// realloc (p, 0) is never called: It is undefined
 	p = xmalloc (16);
 	p = xrealloc (p, 0);
 	ck_assert_ptr_ne (p, NULL);

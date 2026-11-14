@@ -125,10 +125,12 @@ xcalloc (size_t nmemb, size_t size)
 void *
 xrealloc (void *ptr, size_t size)
 {
-	void *ret = realloc (ptr, size);
-
-	if (ret == NULL && !size)
-		ret = realloc (ret, 1);
+	/*
+	* realloc (ptr, 0) is undefined behaviour since C23 - glibc
+	* frees ptr and returns NULL, others return a new block. Ask
+	* for one byte instead, so the caller never gets NULL
+	*/
+	void *ret = realloc (ptr, size ? size : 1);
 
 	if (ret == NULL)
 		log_errno_fatal ("realloc failed");
