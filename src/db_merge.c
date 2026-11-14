@@ -124,6 +124,7 @@ merge_exon (sqlite3_stmt *in_stmt, sqlite3_stmt *sel_stmt,
 
 	const int *exon_id = NULL;
 	int *id_copy = NULL;
+	int *merged_id = NULL;
 
 	db_reset (sel_stmt);
 
@@ -139,29 +140,31 @@ merge_exon (sqlite3_stmt *in_stmt, sqlite3_stmt *sel_stmt,
 			ensg = db_column_text (sel_stmt, 6);
 			ense = db_column_text (sel_stmt, 7);
 
+			/*
+			* exon_id_h maps the exon id at this database to the
+			* exon id at the merged database. An exon already
+			* merged (the same ense) keeps its id, a new one is
+			* shifted by max_id
+			*/
+			id_copy = xcalloc (1, sizeof (int));
+			*id_copy = id;
+
 			exon_id = hash_lookup (ense_h, ense);
 
-			if (exon_id == NULL)
+			if (exon_id != NULL)
 				{
-					id_copy = xcalloc (1, sizeof (int));
-					*id_copy = id;
-					hash_insert (ense_h, xstrdup (ense), id_copy);
-					hash_insert (exon_id_h, id_copy, id_copy);
-				}
-			else
-				{
-					if (*exon_id != id)
-						{
-							id_copy = xcalloc (1, sizeof (int));
-							*id_copy = id;
-							hash_insert (exon_id_h, id_copy, exon_id);
-						}
-
+					hash_insert (exon_id_h, id_copy, exon_id);
 					continue;
 				}
 
+			merged_id = xcalloc (1, sizeof (int));
+			*merged_id = id + max_id[EXON];
+
+			hash_insert (ense_h, xstrdup (ense), merged_id);
+			hash_insert (exon_id_h, id_copy, merged_id);
+
 			// Insert them into db
-			db_insert_exon (in_stmt, id + max_id[EXON], gene_name,
+			db_insert_exon (in_stmt, *merged_id, gene_name,
 					chr, start, end, strand, ensg, ense);
 		}
 }
@@ -296,11 +299,9 @@ exon_id_init (sqlite3 *db)
 	// Prepare select stmt
 	sel_stmt = db_prepare (db, sel_sql[EXON]);
 
-	// Init hash ense => exon_id
-	ense_h = hash_new_full (str_hash, str_equal, xfree, NULL);
-
-	// Init hash exon_id => exon_id
-	exon_id_h = hash_new_full (int_hash, int_equal, xfree, NULL);
+	// Init hash ense => exon_id at the merged database.
+	// It owns the ids
+	ense_h = hash_new_full (str_hash, str_equal, xfree, xfree);
 
 	db_reset (sel_stmt);
 
@@ -313,9 +314,8 @@ exon_id_init (sqlite3 *db)
 			id_copy = xcalloc (1, sizeof (int));
 			*id_copy = id;
 
-			// Index to the new hashes
+			// Index to the new hash
 			hash_insert (ense_h, xstrdup (ense), id_copy);
-			hash_insert (exon_id_h, id_copy, id_copy);
 		}
 
 	db_finalize (sel_stmt);
@@ -360,6 +360,11 @@ db_merge (sqlite3 *db, int argc, char **argv)
 			// Calculate de max id for all tables
 			// to be merged
 			calc_max_id (max_id_stmt, max_id);
+
+			// The exon ids are local to each database: Map
+			// them to the merged database ids again
+			hash_free (exon_id_h);
+			exon_id_h = hash_new_full (int_hash, int_equal, xfree, NULL);
 
 			for (j = 0; j < NUM_TABLES; j++)
 				{
