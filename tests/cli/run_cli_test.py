@@ -234,6 +234,14 @@ def cases(t, sim):
     t.run('mc: run in place from a list, quiet',
           mc + ['-I', '-q', '-l', P('mc3.log'), '-i', P('dbs.txt')],
           absent=['summary'])
+    shutil.copy(P('ps/sim.db'), P('inplace1.db'))
+    t.run('mc: run in place, one database',
+          mc + ['-I', P('inplace1.db')],
+          expect=['Databases                1'])
+    shutil.copy(P('ps/sim.db'), P('inplace2.db'))
+    t.run('mc: run in place, two databases',
+          mc + ['-I', P('inplace2.db'), P('ps2/out.db')],
+          expect=['Databases                2'])
     t.run('mc: no cluster', mc + ['-o', P('mc4'), '-m', '1000'] + db,
           expect=['No cluster found'])
 

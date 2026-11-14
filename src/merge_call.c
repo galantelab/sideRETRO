@@ -138,7 +138,11 @@ print_summary (const MergeCall *mc, sqlite3 *db, const char *db_file,
 	s = summary_new ("merge-call summary", start);
 
 	summary_section (s, "Input");
-	summary_line (s, "Databases", "%zu", array_len (mc->db_files));
+
+	// --in-place: The output database is an input
+	// database too, but it is not at the list
+	summary_line (s, "Databases", "%zu",
+			array_len (mc->db_files) + (mc->in_place ? 1 : 0));
 	summary_line (s, "Samples", "%s",
 			summary_count (query_count (db, "SELECT COUNT(*) FROM source"), b1));
 	summary_line (s, "Abnormal alignments", "%s",
