@@ -349,7 +349,8 @@ START_TEST (test_abnormal_filter_seq_qual)
 	// The sequence is at the forward strand as it is
 	// into the SAM - hard clipped bases are not present
 	const char *seqs[] = {"AAACCCGGGG", "GGGCCCCCCC", "CCCCC"};
-	const char *quals[] = {"~~~~~~~~~~", "~~~~~~~~~~", "~~~~~"};
+	// The base qualities are not stored
+	const char *quals[] = {"*", "*", "*"};
 
 	for (i = 0; i < 2; i++)
 		{
@@ -416,11 +417,12 @@ START_TEST (test_abnormal_filter_edge)
 			"SELECT qname, flag, length (seq), qual FROM alignment\n"
 			"ORDER BY qname ASC, flag ASC");
 
+	// The base qualities are never stored ('*')
 	const struct {const char *qname; int flag; int len; const char *qual;} rows[] = {
 		{"D7", 97,  300, "*"},
-		{"D7", 145, 10,  "~~~~~~~~~~"},
+		{"D7", 145, 10,  "*"},
 		{"D8", 97,  1,   "*"},
-		{"D8", 145, 10,  "~~~~~~~~~~"}
+		{"D8", 145, 10,  "*"}
 	};
 
 	for (i = 0; db_step (stmt) == SQLITE_ROW; i++)

@@ -54,7 +54,6 @@ struct _AbnormalFilter
 	bam1_t        *align;
 	String        *cigar;
 	char          *seq;
-	char          *qual;
 	int            seq_alloc;
 	long           alignment_id;
 	long           alignment_acm;
@@ -108,11 +107,10 @@ abnormal_filter_init (AbnormalFilter *argf)
 	// free and realloc often
 	argf->cigar = string_sized_new (128);
 
-	// Alloc sequence and quality buffers for the
+	// Alloc the sequence buffer for the
 	// same reason. They grow if needed
 	argf->seq_alloc = 256;
 	argf->seq = xcalloc (argf->seq_alloc, sizeof (char));
-	argf->qual = xcalloc (argf->seq_alloc, sizeof (char));
 
 	// Init alignment_id to its thread id
 	// Whenever it is needed to update its value,
@@ -143,7 +141,6 @@ abnormal_filter_destroy (AbnormalFilter *argf)
 	string_free (argf->cigar, 1);
 
 	xfree (argf->seq);
-	xfree (argf->qual);
 }
 
 static int
@@ -218,11 +215,18 @@ abnormal_classifier (const bam1_t *align, int max_distance,
 	return 1;
 }
 
+/*
+ * The base qualities are not stored: No step reads them
+ * and they took a quarter of the database. The column is
+ * kept with the SAM '*' (not stored), so the databases of
+ * former versions can still be merged
+ */
+#define ABNORMAL_NO_QUAL "*"
+
 static void
-fill_seq_qual (AbnormalFilter *argf, const bam1_t *align)
+fill_seq (AbnormalFilter *argf, const bam1_t *align)
 {
 	uint8_t *seq = NULL;
-	uint8_t *qual = NULL;
 	int len = 0;
 	int i = 0;
 
@@ -233,19 +237,16 @@ fill_seq_qual (AbnormalFilter *argf, const bam1_t *align)
 		{
 			argf->seq_alloc = len + 1;
 			argf->seq = xrealloc (argf->seq, argf->seq_alloc);
-			argf->qual = xrealloc (argf->qual, argf->seq_alloc);
 		}
 
 	// SAM: '*' means the sequence is not stored
 	if (len == 0)
 		{
 			strcpy (argf->seq, "*");
-			strcpy (argf->qual, "*");
 			return;
 		}
 
 	seq = bam_get_seq (align);
-	qual = bam_get_qual (align);
 
 	// The sequence is always at the forward strand
 	// of the reference - as in the SAM format
@@ -253,18 +254,6 @@ fill_seq_qual (AbnormalFilter *argf, const bam1_t *align)
 		argf->seq[i] = seq_nt16_str[bam_seqi (seq, i)];
 
 	argf->seq[len] = '\0';
-
-	// BAM: 0xff means the quality is not stored
-	if (qual[0] == 0xff)
-		strcpy (argf->qual, "*");
-	else
-		{
-			// Phred+33 as in the SAM format
-			for (i = 0; i < len; i++)
-				argf->qual[i] = qual[i] + 33;
-
-			argf->qual[len] = '\0';
-		}
 }
 
 static void
@@ -297,8 +286,8 @@ dump_alignment (AbnormalFilter *argf, const bam1_t *align,
 
 	qname = bam_get_qname (align);
 
-	// Get sequence and quality as strings
-	fill_seq_qual (argf, align);
+	// Get the sequence as string
+	fill_seq (argf, align);
 
 	chr = align->core.tid > -1 // LCOV_EXCL_LINE: htslib unmaps any read without chromosome
 		? argf->hdr->target_name[align->core.tid]
@@ -336,7 +325,7 @@ dump_alignment (AbnormalFilter *argf, const bam1_t *align,
 			chr_std, align->core.pos + 1, align->core.qual,
 			argf->cigar->str, qlen, rlen, chr_std_next,
 			align->core.mpos + 1, type, argf->tid,
-			argf->seq, argf->qual);
+			argf->seq, ABNORMAL_NO_QUAL);
 
 	// sum the number of files - in order to
 	// avoid database insertion chocking and
