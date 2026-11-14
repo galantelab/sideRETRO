@@ -57,33 +57,38 @@ First, you need to **clone** sideRETRO repository::
 
 Inside :file:`sideRETRO` folder, **configure** the project with Meson::
 
-  $ meson build
+  $ meson setup build
 
 if everything went well, you will see a new **folder** :file:`build`.
-Now it is time to **compiling** the code::
+Now it is time to **compile** the code::
 
-  $ ninja -C build
+  $ meson compile -C build
 
 It will be created the **executable** :file:`sider` inside the folder
 :file:`build/src/`, which can already be used. Anyway, if want to
 **install** sideRETRO to a system folder::
 
-  $ sudo ninja -C build install
+  $ sudo meson install -C build
 
 By default, sideRETRO will install under :file:`/usr/local/`.
-The configure script can **customize** the prefix directory. Run::
+Choose another **prefix** when configuring the project::
 
-  $ meson build configure
+  $ meson setup build --prefix=$HOME/.local
 
-for instructions and other installation options.
+or change it, and see the other options, in an already configured
+:file:`build` folder::
+
+  $ meson configure build
+  $ meson configure build --prefix=$HOME/.local
 
 Testing
 =======
 
-The test suite has two parts: The **unit** tests, which need
-`libcheck <https://libcheck.github.io/check/>`_, and the **simulation**
-tests, which run simulated retrocopies through the whole pipeline and
-need only **Python 3**. Run them with::
+The test suite has three parts: The **unit** tests, which need
+`libcheck <https://libcheck.github.io/check/>`_, the **simulation**
+tests, which run simulated retrocopies through the whole pipeline,
+and the **cli** tests, which run each command with its options and
+errors. The last two need only **Python 3**. Run them with::
 
   $ meson test -C build
 
@@ -91,6 +96,7 @@ or one suite at a time::
 
   $ meson test -C build --suite unit
   $ meson test -C build --suite simulation
+  $ meson test -C build --suite cli
 
 See :ref:`A quick test with simulated data <sim_test>` for running the
 simulator by hand.

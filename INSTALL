@@ -4,18 +4,27 @@ Installation
 sideRETRO uses Meson build system to manage configuration and compilation process.
 To build and install sideRETRO, type the following commands:
 
-    $ meson build
-    $ ninja -C build
-    $ Optional: ninja -C build install
+    $ meson setup build
+    $ meson compile -C build
+    $ meson test -C build          (optional: run the tests)
+    $ meson install -C build       (optional: install)
+
+zlib, HTSlib and SQLite3 are used from the system if found. Otherwise,
+they are downloaded, compiled and statically linked into sideRETRO.
+The unit tests need libcheck, and the other tests need Python 3.
 
 By default, sideRETRO will install under '/usr/local'.
-The configure script can customize the prefix directory. Run:
+Choose another prefix when configuring the project:
+
+    $ meson setup build --prefix=$HOME/.local
+
+or change it, and see the other options, in an already configured
+build directory:
 
     $ meson configure build
+    $ meson configure build --prefix=$HOME/.local
 
-for instructions and other installation options.
-
-You may need to execute "ninja -C build install" as root
-(i.e. sudo ninja -C build install) if installing to system directories.
+You may need to execute "meson install -C build" as root
+(i.e. sudo meson install -C build) if installing to system directories.
 
 For more details about Meson, please visit https://mesonbuild.com/.
