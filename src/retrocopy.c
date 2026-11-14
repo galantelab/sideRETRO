@@ -1762,6 +1762,7 @@ clip_consensus (char **clips, const size_t n, const int from_end)
 	size_t i = 0;
 	int count[5] = {};
 	int best = 0;
+	int tie = 0;
 	int k = 0;
 	char c = 0;
 
@@ -1781,13 +1782,12 @@ clip_consensus (char **clips, const size_t n, const int from_end)
 	* The clips are anchored at the junction: At their
 	* beginning (left junction) or at their end (right
 	* junction). Vote base by base from the junction.
-	* In case of tie, the first read to reach the count
-	* wins
+	* A tie is unknown: 'N' - it does not depend on the
+	* order of the reads
 	*/
 	for (col = 0; col < max_len; col++)
 		{
 			memset (count, 0, sizeof (count));
-			best = 4;
 
 			for (i = 0; i < n; i++)
 				{
@@ -1808,11 +1808,24 @@ clip_consensus (char **clips, const size_t n, const int from_end)
 						default:  {k = 4; break;}
 						}
 
-					if (++count[k] > count[best] || best == 4)
-						best = k;
+					count[k]++;
 				}
 
-			cons[from_end ? max_len - 1 - col : col] = "ACGTN"[best];
+			best = 0;
+			tie = 0;
+
+			for (k = 1; k < 5; k++)
+				{
+					if (count[k] > count[best])
+						{
+							best = k;
+							tie = 0;
+						}
+					else if (count[k] == count[best])
+						tie = 1;
+				}
+
+			cons[from_end ? max_len - 1 - col : col] = tie ? 'N' : "ACGTN"[best];
 		}
 
 	return cons;

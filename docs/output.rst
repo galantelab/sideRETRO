@@ -210,10 +210,12 @@ The fields are grouped by subject. Fields without a value are
 +----------------+----------------------------------------------------------+
 | LEFT_SVINSSEQ  | **Observed** sequence of the insertion at the left       |
 |                | junction: The consensus of the clipped reads at LBKP,    |
-|                | read from the junction into the insertion                |
+|                | read from the junction into the insertion. A base where  |
+|                | the reads tie is ``N``                                   |
 +----------------+----------------------------------------------------------+
 | RIGHT_SVINSSEQ | Observed sequence at the right junction: The consensus   |
-|                | of the clipped reads at RBKP, ending at the junction     |
+|                | of the clipped reads at RBKP, ending at the junction.    |
+|                | A base where the reads tie is ``N``                      |
 +----------------+----------------------------------------------------------+
 
 A retrocopy with a TSD looks like this at the reference and at the
