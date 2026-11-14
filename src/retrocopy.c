@@ -108,7 +108,7 @@ static void
 cluster_entry_free (ClusterEntry *c)
 {
 	if (c == NULL)
-		return;
+		return; // LCOV_EXCL_LINE: static: never NULL
 
 	xfree ((void *) c->cchr);
 	xfree ((void *) c->gene_name);
@@ -202,17 +202,19 @@ cmp_cluster (const void *p1, const void *p2)
 
 	int rc = strcmp (c1->gchr, c2->gchr);
 
-	if (!rc)
-		{
-			if (c1->gstart < c2->gend)
-				return -1;
-			else if (c1->gstart > c2->gend)
-				return 1;
-			else
-				return 0;
-		}
+	if (rc)
+		return rc;
 
-	return rc;
+	/*
+	* Sort by the parental gene position: Start and then end.
+	* Comparing the start of one with the end of the other was
+	* not a consistent order for overlapping genes - each one
+	* came before the other - and qsort needs one
+	*/
+	if (c1->gstart != c2->gstart)
+		return c1->gstart < c2->gstart ? -1 : 1;
+
+	return (c1->gend > c2->gend) - (c1->gend < c2->gend);
 }
 
 static void

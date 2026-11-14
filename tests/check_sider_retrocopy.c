@@ -528,6 +528,7 @@ populate_db_edge (sqlite3 *db)
 		"INSERT INTO cluster VALUES (3,1,'chrS',150,250,'geneX',31);\n"
 		"INSERT INTO cluster VALUES (4,1,'chrS',180,260,'geneY',31);\n"
 		"INSERT INTO cluster VALUES (5,1,'chrT',100,200,'geneQ',31);\n"
+		"INSERT INTO cluster VALUES (6,1,'chrS',190,255,'geneX',31);\n"
 		"INSERT INTO clustering VALUES (1,1,1,3,100);\n"
 		"INSERT INTO clustering VALUES (1,1,2,3,100);\n"
 		"INSERT INTO clustering VALUES (1,1,3,3,100);\n"
@@ -707,7 +708,8 @@ START_TEST (test_retrocopy_edge)
 	* (discarded) and one with an 'N'. Right junction: Only poly-A
 	* (a lower bound), one of them hard clipped, and one with an
 	* invalid cigar (skipped)
-	* RTC 2 (chrS): geneX and geneY overlap: No single parental gene
+	* RTC 2 (chrS): geneX (two clusters) and geneY overlap: No single
+	* parental gene
 	* RTC 3 (chrS): geneZ, at the same window, sorted after them
 	* RTC 4 (chrT): geneQ, whose exon is absent from the reference
 	*/
