@@ -153,6 +153,7 @@ zygosity_data_free (ZygosityData *zd)
 		return;
 
 	list_free (zd->genotype);
+	xfree ((char *) zd->path);
 	xfree (zd);
 }
 
@@ -325,7 +326,7 @@ genotype_index_zygosity_data (sqlite3 *db, Hash *retrocopy_h)
 	HashIter iter = {};
 
 	const int *retrocopy_id = NULL;
-	const char *path_copy = NULL;
+	int *source_id_copy = NULL;
 
 	int source_id = 0;
 	const char *path = NULL;
@@ -340,7 +341,9 @@ genotype_index_zygosity_data (sqlite3 *db, Hash *retrocopy_h)
 	// Prepare mapq query for normal_scores
 	mapq_stmt = prepare_alignment_score_query_stmt (db);
 
-	zi = hash_new_full (str_hash, str_equal, xfree,
+	// SOURCE_ID => @ZYGOSITYDATA. Not by path: Two sources
+	// may come from the same file (e.g. merged databases)
+	zi = hash_new_full (int_hash, int_equal, xfree,
 			(DestroyNotify) zygosity_data_free);
 
 	while (db_step (stmt) == SQLITE_ROW)
@@ -351,15 +354,13 @@ genotype_index_zygosity_data (sqlite3 *db, Hash *retrocopy_h)
 			log_debug ("Index source path [%d] %s",
 					source_id, path);
 
-			zd = hash_lookup (zi, path);
-			assert (zd == NULL);
-
-			path_copy = xstrdup (path);
+			source_id_copy = xcalloc (1, sizeof (int));
+			*source_id_copy = source_id;
 
 			zd = zygosity_data_new ();
-			zd->path = path_copy;
+			zd->path = xstrdup (path);
 
-			hash_insert (zi, path_copy, zd);
+			hash_insert (zi, source_id_copy, zd);
 
 			gl = zd->genotype;
 			hash_iter_init (&iter, retrocopy_h);
@@ -723,7 +724,6 @@ genotype (sqlite3_stmt *genotype_stmt, int threads, int phred_quality)
 	retrocopy_h = zygosity_h = NULL;
 
 	HashIter itr = {};
-	const char *path = NULL;
 	ZygosityData *zd = NULL;
 
 	// Get DB handle
@@ -745,15 +745,15 @@ genotype (sqlite3_stmt *genotype_stmt, int threads, int phred_quality)
 
 	log_debug ("Index the retrocopies by alignment file");
 
-	// PATH => @ZYGOSITYDATA
+	// SOURCE_ID => @ZYGOSITYDATA
 	zygosity_h = genotype_index_zygosity_data (db, retrocopy_h);
 
-	// Iterator through paths
+	// Iterator through sources
 	hash_iter_init (&itr, zygosity_h);
 
-	while (hash_iter_next (&itr, (void **) &path, (void **) &zd))
+	while (hash_iter_next (&itr, NULL, (void **) &zd))
 		{
-			log_debug ("Look for retrocopies zygosity of file '%s'", path);
+			log_debug ("Look for retrocopies zygosity of file '%s'", zd->path);
 
 			// Don't forget to give chromosome standardization and
 			// genotype statement

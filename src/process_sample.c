@@ -614,7 +614,7 @@ process_sample_validate (ProcessSample *ps)
 
 	if (ps->max_base_freq <= 0.25 || ps->max_base_freq > 1)
 		{
-			fprintf (stderr, "%s: --max-base-frac must be in the range of ]0.25, 1]\n", PACKAGE);
+			fprintf (stderr, "%s: --max-base-freq must be in the range of ]0.25, 1]\n", PACKAGE);
 			rc = EXIT_FAILURE; goto Exit;
 		}
 

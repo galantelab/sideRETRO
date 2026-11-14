@@ -594,8 +594,11 @@ merge_call_validate (MergeCall *mc)
 
 	// Validate blacklist_region file
 	if (mc->blacklist_region != NULL && !exists (mc->blacklist_region))
-		fprintf (stderr, "%s: --blacklist-region '%s': No such file\n", PACKAGE,
-				mc->blacklist_region);
+		{
+			fprintf (stderr, "%s: --blacklist-region '%s': No such file\n", PACKAGE,
+					mc->blacklist_region);
+			rc = EXIT_FAILURE; goto Exit;
+		}
 
 	// Validate cache_size >= DEFAULT_CACHE_SIZE
 	if (mc->cache_size < DEFAULT_CACHE_SIZE)
@@ -613,7 +616,7 @@ merge_call_validate (MergeCall *mc)
 
 	if (mc->min_pts < 3)
 		{
-			fprintf (stderr, "%s: --min_pts must be greater than 2\n", PACKAGE);
+			fprintf (stderr, "%s: --min-pts must be greater than 2\n", PACKAGE);
 			rc = EXIT_FAILURE; goto Exit;
 		}
 
