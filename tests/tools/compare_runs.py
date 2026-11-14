@@ -25,7 +25,8 @@ comparing their results:
   - VCF: All records and header lines, but the date and the version
   - Read names (order does not matter) and predicted insertions
   - The summaries of process-sample, merge-call and make-vcf, but
-    the elapsed time and the paths
+    the elapsed time and the paths. They are reported, but a
+    difference there is not a different call
   - The number of rows of each database table (informative: Some
     changes are expected to store less)
   - The database size
@@ -44,11 +45,16 @@ Usage:
 
     compare_runs.py --sim OLD_SIDER NEW_SIDER tests/sim/retrocopy_sim.py
 
+With --sim, some scenarios add noise: Abnormal pairs that do not
+overlap any exon - some of them at the insertion site. They must
+not change the calls.
+
 Exit status: 0 if the calls are identical, 1 otherwise.
 """
 
 import argparse
 import os
+import random
 import re
 import sqlite3
 import subprocess
@@ -160,13 +166,18 @@ def compare_dirs(old_dir, new_dir, out=sys.stdout):
                  read_lines(find(old_dir, '.insertions.fa') or ''),
                  read_lines(find(new_dir, '.insertions.fa') or ''), report)
 
-    # The summaries: A difference must be explained
-    for log in LOGS:
-        same &= diff('Summary of %s' % log,
-                     summary_lines(os.path.join(old_dir, log)),
-                     summary_lines(os.path.join(new_dir, log)), report)
+    print('== Calls', file=out)
+    print('\n'.join(report) if report else 'Identical', file=out)
 
-    print('== Calls and summaries', file=out)
+    # The summaries: A difference must be explained, but
+    # it is not a different call (e.g. a new count)
+    report = []
+    for log in LOGS:
+        diff('Summary of %s' % log,
+             summary_lines(os.path.join(old_dir, log)),
+             summary_lines(os.path.join(new_dir, log)), report)
+
+    print('\n== Summaries', file=out)
     print('\n'.join(report) if report else 'Identical', file=out)
 
     # The database: Informative
@@ -208,24 +219,62 @@ def run_sim(sider, sim_dir, run_dir, ref):
         subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL)
 
 
+def add_noise(sam, n, seed):
+    """Append n abnormal pairs that do not overlap any exon.
+
+    The simulated exons are at chr2:1001-3400. The noise pairs
+    have a read at chr1 - a third of them at the insertion site
+    (chr1:9999) - and the mate at chr2 beyond the exons, or far
+    away at chr1 (abnormal by distance). Some reads are soft
+    clipped, so they carry a sequence
+    """
+    rnd = random.Random(seed)
+    seq = lambda: ''.join(rnd.choice('ACGT') for _ in range(100))
+    qual = 'F' * 100
+
+    with open(sam, 'a') as fp:
+        for i in range(n):
+            name = 'noise%04d' % i
+            pos1 = rnd.randint(9900, 10100) if i % 3 == 0 else rnd.randint(1, 19000)
+            cigar1 = '80M20S' if i % 4 == 0 else '100M'
+
+            if i % 2:
+                pos2 = rnd.randint(5000, 9800)
+                fp.write('%s\t97\tchr1\t%d\t60\t%s\tchr2\t%d\t0\t%s\t%s\n'
+                         % (name, pos1, cigar1, pos2, seq(), qual))
+                fp.write('%s\t145\tchr2\t%d\t60\t100M\tchr1\t%d\t0\t%s\t%s\n'
+                         % (name, pos2, pos1, seq(), qual))
+            else:
+                pos2 = pos1 + 15000 if pos1 < 5000 else pos1 - 15000 if pos1 > 15000 else 19800
+                fp.write('%s\t97\tchr1\t%d\t60\t%s\t=\t%d\t0\t%s\t%s\n'
+                         % (name, pos1, cigar1, pos2, seq(), qual))
+                fp.write('%s\t145\tchr1\t%d\t60\t100M\t=\t%d\t0\t%s\t%s\n'
+                         % (name, pos2, pos1, seq(), qual))
+
+
 def compare_sim(old, new, sim):
     # Several simulations: Different seeds and shapes
+    # (simulator arguments, noise pairs)
     scenarios = [
-        ['-s', '1'],
-        ['-s', '2', '--truncation', '200'],
-        ['-s', '3', '--tsd-len', '0', '--polya-len', '0'],
-        ['-s', '4', '--n-noise-clips', '20'],
-        ['-s', '5', '--n-junction-reads', '0'],
+        (['-s', '1'], 0),
+        (['-s', '2', '--truncation', '200'], 0),
+        (['-s', '3', '--tsd-len', '0', '--polya-len', '0'], 0),
+        (['-s', '4', '--n-noise-clips', '20'], 0),
+        (['-s', '5', '--n-junction-reads', '0'], 0),
+        (['-s', '6'], 300),
+        (['-s', '7', '--n-noise-clips', '20'], 1000),
     ]
     same = True
 
     with tempfile.TemporaryDirectory(prefix='sider_cmp_') as d:
-        for i, args in enumerate(scenarios):
+        for i, (args, noise) in enumerate(scenarios):
             for ref in (True, False):
                 sim_dir = os.path.join(d, 'sim%d' % i)
                 if not os.path.exists(sim_dir):
                     subprocess.run([sys.executable, sim, '-o', sim_dir] + args,
                                    check=True, stdout=subprocess.DEVNULL)
+                    if noise:
+                        add_noise(os.path.join(sim_dir, 'sim.sam'), noise, i)
 
                 tag = '%d%s' % (i, 'r' if ref else '')
                 old_dir = os.path.join(d, 'old' + tag)
@@ -234,7 +283,9 @@ def compare_sim(old, new, sim):
                 run_sim(old, sim_dir, old_dir, r)
                 run_sim(new, sim_dir, new_dir, r)
 
-                print('#### %s%s' % (' '.join(args), '' if ref else ' (no reference)'))
+                print('#### %s%s%s' % (' '.join(args),
+                                       ' + %d noise pairs' % noise if noise else '',
+                                       '' if ref else ' (no reference)'))
                 same &= compare_dirs(old_dir, new_dir)
                 print()
 
