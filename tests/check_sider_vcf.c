@@ -453,6 +453,119 @@ START_TEST (test_vcf)
 }
 END_TEST
 
+static int
+grep_vcf (const char *path, const char *needle)
+{
+	FILE *fp = xfopen (path, "r");
+	char *line = NULL;
+	size_t len = 0;
+	int found = 0;
+
+	while (!found && getline (&line, &len, fp) != EOF)
+		found = line[0] != '#' && strstr (line, needle) != NULL;
+
+	xfree (line);
+	xfclose (fp);
+	return found;
+}
+
+START_TEST (test_vcf_edge)
+{
+	char db_file[] = "/tmp/ponga.db.XXXXXX";
+	char vcf_file[] = "/tmp/ponga.vcf.XXXXXX";
+	char fasta_file[] = "/tmp/ponga.fa.XXXXXX";
+	sqlite3 *db = NULL;
+	FILE *fp = NULL;
+	int fd = 0;
+
+	/*
+	* RTC000001: chr1:1, the first base - POS is 1
+	* RTC000002: chr10:500, inside the host gene but not at its
+	* exons (INTRONIC), with a TSD of 60 bases (TSDOutlier)
+	* RTC000003: chr10:4000, 1000 bases before 'neargene' (NEAR),
+	* farther than 2000 bases after the end of 'host' (900)
+	* RTC000004: chrZ, absent from the reference: REF is 'N'
+	*/
+	const char sql[] =
+		"BEGIN TRANSACTION;\n"
+		"INSERT INTO source VALUES (1,1,'PONGA');\n"
+		"INSERT INTO exon VALUES (1,'host','chr10',100,200,'+','egh','eeh1');\n"
+		"INSERT INTO exon VALUES (2,'host','chr10',800,900,'+','egh','eeh2');\n"
+		"INSERT INTO exon VALUES (3,'gene1','chr5',1,3000,'+','eg1','ee1');\n"
+		"INSERT INTO exon VALUES (4,'neargene','chr10',5000,6000,'-','egn','een');\n"
+		"INSERT INTO alignment VALUES (1,'q1',97,'chr1',1,60,'100M',100,100,'chr5',1,2,1,'*','*');\n"
+		"INSERT INTO alignment VALUES (2,'q2',97,'chr10',450,60,'100M',100,100,'chr5',1,2,1,'*','*');\n"
+		"INSERT INTO alignment VALUES (3,'q3',97,'chr10',3950,60,'100M',100,100,'chr5',1,2,1,'*','*');\n"
+		"INSERT INTO alignment VALUES (4,'q4',97,'chrZ',100,60,'100M',100,100,'chr5',1,2,1,'*','*');\n"
+		"INSERT INTO cluster VALUES (1,1,'chr1',1,100,'gene1',31);\n"
+		"INSERT INTO cluster VALUES (2,1,'chr10',450,550,'gene1',31);\n"
+		"INSERT INTO cluster VALUES (3,1,'chr10',3950,4050,'gene1',31);\n"
+		"INSERT INTO cluster VALUES (4,1,'chrZ',100,200,'gene1',31);\n"
+		"INSERT INTO clustering VALUES (1,1,1,3,100);\n"
+		"INSERT INTO clustering VALUES (2,1,2,3,100);\n"
+		"INSERT INTO clustering VALUES (3,1,3,3,100);\n"
+		"INSERT INTO clustering VALUES (4,1,4,3,100);\n"
+		"INSERT INTO cluster_merging VALUES (1,1,1);\n"
+		"INSERT INTO cluster_merging VALUES (2,2,1);\n"
+		"INSERT INTO cluster_merging VALUES (3,3,1);\n"
+		"INSERT INTO cluster_merging VALUES (4,4,1);\n"
+		"INSERT INTO retrocopy VALUES (1,'chr1',1,100,'gene1',1,1,2,0,1,NULL,0,1,3,NULL,0,NULL,0);\n"
+		"INSERT INTO retrocopy VALUES (2,'chr10',450,550,'gene1',1,500,2,0,1,559,3,500,3,20,0,'+',3);\n"
+		"INSERT INTO retrocopy VALUES (3,'chr10',3950,4050,'gene1',1,4000,1,0,1,NULL,0,NULL,0,NULL,0,NULL,0);\n"
+		"INSERT INTO retrocopy VALUES (4,'chrZ',100,200,'gene1',1,150,1,0,1,NULL,0,NULL,0,NULL,0,NULL,0);\n"
+		"INSERT INTO genotype VALUES (1,1,0,5,-30.0,-1.5,-0.1);\n"
+		"INSERT INTO genotype VALUES (1,2,0,5,-30.0,-1.5,-0.1);\n"
+		"INSERT INTO genotype VALUES (1,3,0,5,-30.0,-1.5,-0.1);\n"
+		"INSERT INTO genotype VALUES (1,4,0,5,-30.0,-1.5,-0.1);\n"
+		"COMMIT;";
+
+	fd = xmkstemp (db_file);
+	close (fd);
+	db = db_create (db_file);
+	db_exec (db, sql);
+
+	fd = xmkstemp (fasta_file);
+	fp = xfdopen (fd, "w");
+	xfprintf (fp, ">chr1\nGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG\n>chr10\nAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGTTTTTAAAAACCCCCGGGGGTTTTTAAAAACCCCCGGGGGTTTTTAAAAACCCCCGGGGGAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\n");
+	xfclose (fp);
+
+	fd = xmkstemp (vcf_file);
+	close (fd);
+
+	VCFOption opt = {
+		.fasta_file = fasta_file,
+		.near_gene_dist = 2000,
+		.orientation_error = 0.05,
+		.min_qual = VCF_DEFAULT_MIN_QUAL,
+		.min_mapq = VCF_DEFAULT_MIN_MAPQ
+	};
+
+	vcf (db, vcf_file, &opt);
+
+	ck_assert (grep_vcf (vcf_file, "chr1\t1\tRTC000001\tG\t"));
+	ck_assert (grep_vcf (vcf_file, "chr10\t499\tRTC000002\tG\t<INS:ME:RTC>\t"));
+	ck_assert (grep_vcf (vcf_file, "\tTSDOutlier\tSVTYPE=INS;"));
+	ck_assert (grep_vcf (vcf_file, ";INTRONIC=host;"));
+	ck_assert (grep_vcf (vcf_file, ";TSDLEN=60;"));
+	ck_assert (grep_vcf (vcf_file, ";TSD=GTTTTTAAAAACCCCCGGGGGTTTTTAAAAACCCCCGGGGGTTTTTAAAAACCCCCGGGG;" ));
+	ck_assert (grep_vcf (vcf_file, ";NEAR=neargene;"));
+	ck_assert (grep_vcf (vcf_file, "chrZ\t149\tRTC000004\tN\t"));
+
+	// Without the reference: REF is 'N' and no TSD sequence
+	opt.fasta_file = NULL;
+	vcf (db, vcf_file, &opt);
+
+	ck_assert (grep_vcf (vcf_file, "chr10\t499\tRTC000002\tN\t"));
+	ck_assert (!grep_vcf (vcf_file, ";TSD="));
+	ck_assert (grep_vcf (vcf_file, ";TSDLEN=60;"));
+
+	db_close (db);
+	xunlink (db_file);
+	xunlink (vcf_file);
+	xunlink (fasta_file);
+}
+END_TEST
+
 Suite *
 make_vcf_suite (void)
 {
@@ -465,6 +578,7 @@ make_vcf_suite (void)
 	tc_core = tcase_create ("Core");
 
 	tcase_add_test (tc_core, test_vcf);
+	tcase_add_test (tc_core, test_vcf_edge);
 	suite_add_tcase (s, tc_core);
 
 	return s;
