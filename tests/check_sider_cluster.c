@@ -228,6 +228,68 @@ START_TEST (test_cluster_with_genotype_support)
 }
 END_TEST
 
+static int
+run_cluster (int populate, const char *sql, int support, const char **black_chr)
+{
+	char db_file[] = "/tmp/ponga.db.XXXXXX";
+	sqlite3 *db = create_db (db_file);
+	sqlite3_stmt *cluster_stmt = db_prepare_cluster_stmt (db);
+	sqlite3_stmt *clustering_stmt = db_prepare_clustering_stmt (db);
+	sqlite3_stmt *blacklist_stmt = db_prepare_blacklist_stmt (db);
+	sqlite3_stmt *overlapping_blacklist_stmt =
+		db_prepare_overlapping_blacklist_stmt (db);
+	ChrStd *cs = chr_std_new ();
+	Blacklist *blacklist = blacklist_new (blacklist_stmt,
+			overlapping_blacklist_stmt, cs);
+	Set *blacklist_chr = set_new_full (str_hash, str_equal, NULL);
+	int num = 0;
+
+	if (populate)
+		populate_db (db);
+
+	if (sql != NULL)
+		db_exec (db, sql);
+
+	for (; black_chr != NULL && *black_chr != NULL; black_chr++)
+		set_insert (blacklist_chr, *black_chr);
+
+	num = cluster (cluster_stmt, clustering_stmt, 500, 3, 10000,
+			support, blacklist_chr, blacklist, 0);
+
+	db_finalize (cluster_stmt);
+	db_finalize (clustering_stmt);
+	db_finalize (blacklist_stmt);
+	db_finalize (overlapping_blacklist_stmt);
+	db_close (db);
+	set_free (blacklist_chr);
+	chr_std_free (cs);
+	blacklist_free (blacklist);
+	xunlink (db_file);
+
+	return num;
+}
+
+START_TEST (test_cluster_none)
+{
+	// No abnormal alignment: No cluster
+	ck_assert_int_eq (run_cluster (0, NULL, 1, NULL), 0);
+
+	// No source reaches the genotype support
+	ck_assert_int_eq (run_cluster (1, NULL, 100, NULL), 0);
+
+	// All clusters at blacklisted chromosomes
+	const char *black_chr[] = {"chr1", "chr2", NULL};
+	ck_assert_int_eq (run_cluster (1, NULL, 1, black_chr), 0);
+
+	// All passing filters: Two clusters at chr1 and two at chr2
+	ck_assert_int_eq (run_cluster (1, NULL, 1, NULL), 4);
+
+	// The parental genes moved to chr1: The clusters there are
+	// closer than the minimum distance, only the chr2 ones pass
+	ck_assert_int_eq (run_cluster (1, "UPDATE exon SET chr = 'chr1'", 1, NULL), 2);
+}
+END_TEST
+
 Suite *
 make_cluster_suite (void)
 {
@@ -241,6 +303,7 @@ make_cluster_suite (void)
 
 	tcase_add_test (tc_core, test_cluster_without_genotype_support);
 	tcase_add_test (tc_core, test_cluster_with_genotype_support);
+	tcase_add_test (tc_core, test_cluster_none);
 	suite_add_tcase (s, tc_core);
 
 	return s;

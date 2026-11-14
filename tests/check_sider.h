@@ -39,6 +39,7 @@ Suite * make_cluster_suite        (void);
 Suite * make_wrapper_suite        (void);
 Suite * make_db_merge_suite       (void);
 Suite * make_set_suite            (void);
+Suite * make_summary_suite        (void);
 Suite * make_correlation_suite    (void);
 Suite * make_bed_suite            (void);
 Suite * make_blacklist_suite      (void);

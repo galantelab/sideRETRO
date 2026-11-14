@@ -24,6 +24,8 @@
 #include <unistd.h>
 #include <check.h>
 #include "check_sider.h"
+#include "../src/hash.h"
+#include "../src/list.h"
 
 #include "../src/utils.h"
 #include "../src/wrapper.h"
@@ -251,6 +253,51 @@ START_TEST (test_seq2_fatal)
 }
 END_TEST
 
+START_TEST (test_fasta_index_regions)
+{
+	char fasta_path[] = "/tmp/ponga.fa.XXXXXX";
+	List *regions = list_new ((DestroyNotify) fasta_region_free);
+	Hash *contig_len = NULL;
+	Hash *idx = NULL;
+	char *key = NULL;
+
+	create_fasta (fasta_body, fasta_path);
+
+	// Inside chr1, outside chr1 and an absent contig
+	list_append (regions, fasta_region_new (fasta_id1, 1, 4));
+	list_append (regions, fasta_region_new (fasta_id1, 1, 1000000));
+	list_append (regions, fasta_region_new ("chrPonga", 1, 4));
+
+	idx = fasta_index_regions (fasta_path, regions, &contig_len);
+
+	ck_assert_int_eq (hash_size (idx), 1);
+
+	key = fasta_region_key (fasta_id1, 1, 4);
+	ck_assert (hash_lookup (idx, key) != NULL);
+	xfree (key);
+
+	ck_assert_int_eq (hash_size (contig_len), 3);
+	ck_assert_int_eq (* (long *) hash_lookup (contig_len, fasta_id1),
+			strlen (fasta_seq1));
+
+	hash_free (idx);
+	hash_free (contig_len);
+	list_free (regions);
+	xunlink (fasta_path);
+}
+END_TEST
+
+START_TEST (test_fasta_index_regions_empty_fatal)
+{
+	char fasta_path[] = "/tmp/ponga.fa.XXXXXX";
+	List *regions = list_new (NULL);
+	Hash *contig_len = NULL;
+
+	create_fasta ("", fasta_path);
+	fasta_index_regions (fasta_path, regions, &contig_len);
+}
+END_TEST
+
 START_TEST (test_fasta_region_free_null)
 {
 	fasta_region_free (NULL);
@@ -275,12 +322,14 @@ make_fasta_suite (void)
 	tcase_add_test (tc_core, test_fasta_read);
 	tcase_add_test (tc_core, test_empty_file);
 	tcase_add_test (tc_core, test_fasta_region_free_null);
+	tcase_add_test (tc_core, test_fasta_index_regions);
 
 	tcase_add_exit_test (tc_abort, test_open_fatal,   EXIT_FAILURE);
 	tcase_add_exit_test (tc_abort, test_contig_fatal, EXIT_FAILURE);
 	tcase_add_exit_test (tc_abort, test_seq1_fatal,   EXIT_FAILURE);
 	tcase_add_exit_test (tc_abort, test_seq2_fatal,   EXIT_FAILURE);
 	tcase_add_exit_test (tc_abort, test_close_fatal,  EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_fasta_index_regions_empty_fatal, EXIT_FAILURE);
 
 	suite_add_tcase (s, tc_core);
 	suite_add_tcase (s, tc_abort);

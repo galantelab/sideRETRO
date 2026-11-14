@@ -374,6 +374,42 @@ START_TEST (test_db_busy_abort)
 }
 END_TEST
 
+static void
+connect_with_schema (const char *update)
+{
+	char db_path[] = "/tmp/ponga.db.XXXXXX";
+	int fd = xmkstemp (db_path);
+	sqlite3 *db = NULL;
+
+	close (fd);
+
+	// A database whose schema version differs from
+	// the current one must not be used
+	db = db_create (db_path);
+	db_exec (db, update);
+	db_close (db);
+
+	db_connect (db_path);
+}
+
+START_TEST (test_db_schema_older_abort)
+{
+	connect_with_schema ("UPDATE schema SET major_version = 0, minor_version = 1");
+}
+END_TEST
+
+START_TEST (test_db_schema_newer_abort)
+{
+	connect_with_schema ("UPDATE schema SET major_version = 99");
+}
+END_TEST
+
+START_TEST (test_db_schema_missing_abort)
+{
+	connect_with_schema ("DELETE FROM schema");
+}
+END_TEST
+
 Suite *
 make_db_suite (void)
 {
@@ -412,6 +448,9 @@ make_db_suite (void)
 	tcase_add_exit_test (tc_abort, test_db_column_double_abort, EXIT_FAILURE);
 	tcase_add_exit_test (tc_abort, test_db_column_text_abort,   EXIT_FAILURE);
 	tcase_add_exit_test (tc_abort, test_db_busy_abort,          EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_db_schema_older_abort,  EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_db_schema_newer_abort,  EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_db_schema_missing_abort, EXIT_FAILURE);
 
 	suite_add_tcase (s, tc_core);
 	suite_add_tcase (s, tc_abort);

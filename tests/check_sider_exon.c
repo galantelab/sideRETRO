@@ -411,11 +411,57 @@ START_TEST (test_exon_tree_index_dump_custom)
 }
 END_TEST
 
+START_TEST (test_exon_tree_index_dump_missing_names)
+{
+	// No gene name: Use 'gene_id'. No gene name nor 'gene_id':
+	// Skip the exon. 'gene_id' missing: Use the gene name
+	const char *gtf_missing =
+		"chr1\t.\texon\t1\t100\t.\t+\t.\t"
+		"gene_id \"G1\"; transcript_type \"protein_coding\"; exon_id \"E1\";\n"
+		"chr1\t.\texon\t200\t300\t.\t+\t.\t"
+		"transcript_type \"protein_coding\"; exon_id \"E2\";\n"
+		"chr1\t.\texon\t400\t500\t.\t+\t.\t"
+		"gene_name \"ponga\"; transcript_type \"protein_coding\"; exon_id \"E3\";\n";
+
+	const char *expected[][4] = {
+		{"G1",    "1-100",   "+", "E1"},
+		{"ponga", "400-500", "+", "E3"}
+	};
+
+	index_custom (".gtf", gtf_missing, NULL, NULL, NULL, expected, 2);
+
+	exon_tree_free (NULL);
+}
+END_TEST
+
+START_TEST (test_exon_tree_index_dump_bed_fatal)
+{
+	// BED4: No strand
+	index_custom (".bed", "chr1\t0\t100\tGENE1\n", NULL, NULL, NULL, NULL, 0);
+}
+END_TEST
+
+START_TEST (test_exon_tree_index_dump_bed_empty_fatal)
+{
+	index_custom (".bed", "", NULL, NULL, NULL, NULL, 0);
+}
+END_TEST
+
+START_TEST (test_exon_tree_index_dump_no_exon_fatal)
+{
+	// No 'transcript_type=protein_coding'
+	index_custom (".gtf",
+			"chr1\t.\texon\t1\t100\t.\t+\t.\tgene_name \"ponga\"; exon_id \"E1\";\n",
+			NULL, NULL, NULL, NULL, 0);
+}
+END_TEST
+
 Suite *
 make_exon_suite (void)
 {
 	Suite *s;
 	TCase *tc_core;
+	TCase *tc_abort;
 
 	s = suite_create ("Exon");
 
@@ -426,7 +472,16 @@ make_exon_suite (void)
 	tcase_add_test (tc_core, test_exon_tree_lookup_dump);
 	tcase_add_test (tc_core, test_exon_tree_index_dump_bed);
 	tcase_add_test (tc_core, test_exon_tree_index_dump_custom);
+	tcase_add_test (tc_core, test_exon_tree_index_dump_missing_names);
 	suite_add_tcase (s, tc_core);
+
+	/* Abort test case */
+	tc_abort = tcase_create ("Abort");
+
+	tcase_add_exit_test (tc_abort, test_exon_tree_index_dump_bed_fatal,       EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_exon_tree_index_dump_bed_empty_fatal, EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_exon_tree_index_dump_no_exon_fatal,   EXIT_FAILURE);
+	suite_add_tcase (s, tc_abort);
 
 	return s;
 }

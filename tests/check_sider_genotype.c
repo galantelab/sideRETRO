@@ -134,6 +134,10 @@ populate_db (sqlite3 *db, const char *bam1, const char *bam2)
 		"INSERT INTO cluster_merging VALUES (2,2,2);\n"
 		"INSERT INTO cluster_merging VALUES (3,3,2);\n"
 		"INSERT INTO cluster_merging VALUES (4,4,2);\n"
+		"INSERT INTO alignment VALUES (5,'q5',97,'chr9',1,100,'100M',100,100,'chr1',1,1,1,'*','*');\n"
+		"INSERT INTO clustering VALUES (5,2,5,3,100);\n"
+		"INSERT INTO cluster_merging VALUES (5,5,2);\n"
+		"INSERT INTO retrocopy VALUES (5,'chr9',1,200,'PONGA1',1,100,2,1,0.0,NULL,0,NULL,0,NULL,0,NULL,0);\n"
 		"INSERT INTO retrocopy VALUES (1,'chr1',1,200,'PONGA1',1,100,2,1,0.0,NULL,0,NULL,0,NULL,0,NULL,0);\n"
 		"INSERT INTO retrocopy VALUES (2,'chr2',1,200,'PONGA2',1,100,2,1,0.0,NULL,0,NULL,0,NULL,0,NULL,0);\n"
 		"INSERT INTO retrocopy VALUES (3,'chr3',1,200,'PONGA1',1,100,2,1,0.0,NULL,0,NULL,0,NULL,0,NULL,0);\n"
@@ -165,6 +169,20 @@ START_TEST (test_genotype)
 	stmt = db_prepare_genotype_stmt (db);
 
 	genotype (stmt, 2, 0);
+
+	// chr9 is not at the alignment headers, sorted (indexed)
+	// nor unsorted (linear search): Its retrocopy still gets a
+	// genotype at both sources, with no reference reads
+	sqlite3_stmt *search_stmt = db_prepare (db,
+			"SELECT COUNT(*), SUM(retrocopy_id = 5),\n"
+			"	SUM(retrocopy_id = 5 AND reference_depth = 0)\n"
+			"FROM genotype");
+
+	ck_assert_int_eq (db_step (search_stmt), SQLITE_ROW);
+	ck_assert_int_eq (db_column_int (search_stmt, 0), 10);
+	ck_assert_int_eq (db_column_int (search_stmt, 1), 2);
+	ck_assert_int_eq (db_column_int (search_stmt, 2), 2);
+	db_finalize (search_stmt);
 
 	db_finalize (stmt);
 	db_close (db);

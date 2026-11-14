@@ -487,7 +487,7 @@ index_region (const List *genotype, Hash *chr_tid)
 			tid = hash_lookup (chr_tid, r->chr);
 			if (tid == NULL)
 				{
-					log_warn ("Contig '%s' of retrocopy %d not found at the alignment header: Skip it",
+					log_warn ("Contig '%s' of retrocopy %d not found at the alignment header",
 							r->chr, g->retrocopy_id);
 					continue;
 				}
@@ -613,6 +613,16 @@ zygosity_indexed_search (samFile *fp, bam_hdr_t *hdr, bam1_t *align,
 
 			// Get standardized tid
 			tid = hash_lookup (chr_tid, r->chr);
+
+			// Contig not at the alignment header: No reads
+			// for the reference allele, as at the linear search
+			if (tid == NULL)
+				{
+					log_warn ("Contig '%s' of retrocopy %d not found at the header of '%s'",
+							r->chr, g->retrocopy_id, zd->path);
+					dump_genotype (zd->stmt, g);
+					continue;
+				}
 
 			// Query position CHR:START-END
 			// START is 0-based

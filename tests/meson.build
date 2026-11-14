@@ -29,6 +29,7 @@ test_sources = files(
   'check_sider_set.c',
   'check_sider_set.c',
   'check_sider_str.c',
+  'check_sider_summary.c',
   'check_sider_utils.c',
   'check_sider_vcf.c',
   'check_sider_wrapper.c'
