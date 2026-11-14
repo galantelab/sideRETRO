@@ -118,9 +118,11 @@ def cases(t, sim):
                  'gene_type "processed_pseudogene";\n')
 
     # ================= sider
-    t.run('sider: usage', [], expect=['Usage: sider [-hv]', 'Commands:'])
+    t.run('sider: usage', [], expect=['Usage: sider [-hV]', 'Commands:'])
     t.run('sider: help', ['--help'], expect=['Commands:'])
-    t.run('sider: version', ['-v'], expect=['sideRETRO'])
+    t.run('sider: version', ['-V'], expect=['sideRETRO'])
+    t.run('sider: version, long', ['--version'], expect=['sideRETRO'])
+    t.run('sider: -v is not an option', ['-v'], rc=FAIL, expect=['--help'])
     t.run('sider: citation', ['--cite'], expect=['@article', 'btaa689'])
     t.run('sider: invalid option', ['--ponga'], rc=FAIL, expect=['--help'])
     t.run('sider: no option', ['--'], expect=['Commands:'])

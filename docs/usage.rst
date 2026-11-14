@@ -18,7 +18,7 @@ So, in order to test the installation process and run a first example, user can
 call it without any argument from the command line, like this::
 
   $ sider
-  Usage: sider [-hv]
+  Usage: sider [-hV]
          sider <command> [options]
 
   A pipeline for detecting
@@ -26,7 +26,7 @@ call it without any argument from the command line, like this::
 
   Options:
      -h, --help            Show help options
-     -v, --version         Show current version
+     -V, --version         Show current version
      -c, --cite            Show citation in BibTeX
 
   Commands:
@@ -41,10 +41,10 @@ In the above situation, if **sideRETRO** was correctly installed, it will give
 that default *usage* help.
 
 Another classical example is to print **sideRETRO**'s installed version using
-the ``-v`` option::
+the ``-V`` option::
 
-  $ sider --version
-  sideRETRO 1.7.0
+  $ sider -V
+  sideRETRO 1.9.0
 
 And, if the user need further help, he can find it both at the **sideRETRO**'s
 `readthedocs page <https://sideretro.readthedocs.io>`_ or in the already

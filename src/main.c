@@ -40,7 +40,7 @@ print_usage (FILE *fp)
 	fprintf (fp,
 		"%s\n"
 		"\n"
-		"Usage: %s [-hv]\n"
+		"Usage: %s [-hV]\n"
 		"       %s <command> [options]\n"
 		"\n"
 		"A pipeline for detecting\n"
@@ -48,7 +48,7 @@ print_usage (FILE *fp)
 		"\n"
 		"Options:\n"
 		"   -h, --help            Show help options\n"
-		"   -v, --version         Show current version\n"
+		"   -V, --version         Show current version\n"
 		"   -c, --cite            Show citation in BibTeX\n"
 		"\n"
 		"Commands:\n"
@@ -98,7 +98,7 @@ parse_no_command_opt (int argc, char **argv)
 	struct option opt[] =
 	{
 		{"cite",    no_argument, 0, 'c'},
-		{"version", no_argument, 0, 'v'},
+		{"version", no_argument, 0, 'V'},
 		{"help",    no_argument, 0, 'h'},
 		{0,         0,           0,  0 }
 	};
@@ -107,7 +107,7 @@ parse_no_command_opt (int argc, char **argv)
 	int option_index = 0;
 	int c;
 
-	while ((c = getopt_long (argc, argv, "cvh", opt, &option_index)) >= 0)
+	while ((c = getopt_long (argc, argv, "cVh", opt, &option_index)) >= 0)
 		{
 			switch (c)
 				{
@@ -117,7 +117,7 @@ parse_no_command_opt (int argc, char **argv)
 						goto Exit;
 						break;
 					}
-				case 'v':
+				case 'V':
 					{
 						print_version (stdout);
 						goto Exit;
