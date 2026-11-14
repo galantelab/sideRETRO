@@ -1,4 +1,12 @@
-<p align="center"><a href="https://sideretro.readthedocs.io/en/latest/?badge=latest"><img src="docs/images/logo_sideRETRO.png" alt="sideRETRO" width="200"></a></p>
+<p align="center">
+  <a href="https://sideretro.readthedocs.io/en/latest/?badge=latest">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/images/logo_sideRETRO_dark.png">
+      <source media="(prefers-color-scheme: light)" srcset="docs/images/logo_sideRETRO_light.png">
+      <img src="docs/images/logo_sideRETRO_light.png" alt="sideRETRO" width="200">
+    </picture>
+  </a>
+</p>
 <h2 align="center">A pipeline for detecting Somatic Insertion of DE novo RETROcopies</h2>
 
 <p align="center">
