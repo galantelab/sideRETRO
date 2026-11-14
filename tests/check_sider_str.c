@@ -152,6 +152,12 @@ START_TEST (test_string_clear)
 }
 END_TEST
 
+START_TEST (test_string_free_null)
+{
+	ck_assert_ptr_eq (string_free (NULL, 1), NULL);
+}
+END_TEST
+
 Suite *
 make_str_suite (void)
 {
@@ -171,6 +177,7 @@ make_str_suite (void)
 	tcase_add_test (tc_core, test_string_concat_printf);
 	tcase_add_test (tc_core, test_string_free);
 	tcase_add_test (tc_core, test_string_clear);
+	tcase_add_test (tc_core, test_string_free_null);
 	suite_add_tcase (s, tc_core);
 
 	return s;

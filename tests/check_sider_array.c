@@ -270,6 +270,26 @@ START_TEST (test_array_remove_index)
 }
 END_TEST
 
+START_TEST (test_array_remove_edge)
+{
+	Array *arr = array_new (xfree);
+	char not_member[] = "ponga";
+
+	array_add (arr, xstrdup ("a"));
+	array_add (arr, xstrdup ("b"));
+
+	// The element is freed by the array
+	array_remove_index (arr, 0);
+	ck_assert_int_eq (array_len (arr), 1);
+
+	// Not a member
+	ck_assert_int_eq (array_remove (arr, not_member), 0);
+	ck_assert_int_eq (array_len (arr), 1);
+
+	array_free (arr, 1);
+}
+END_TEST
+
 Suite *
 make_array_suite (void)
 {
@@ -302,6 +322,7 @@ make_array_suite (void)
 	tc_free = tcase_create ("Free");
 
 	tcase_add_test (tc_free, test_array_no_free_segment);
+	tcase_add_test (tc_free, test_array_remove_edge);
 	suite_add_tcase (s, tc_free);
 
 	return s;

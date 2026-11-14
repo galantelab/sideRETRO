@@ -81,10 +81,6 @@ sort2 (double *data1, double *data2, const size_t n)
 	size_t N;
 	size_t k;
 
-	if (n == 0)
-		{
-			return;   /* No data to sort */
-		}
 
 	/* We have n_data elements, last element is at 'n_data-1', first at
 	'0' Set N to the last element number. */
@@ -234,6 +230,10 @@ spearman (const double data1[], const double data2[],
 
 	double r;
 
+	// No data: The correlation is undefined
+	if (n == 0)
+		return NAN;
+
 	for (i = 0; i < n; ++i)
 		{
 			ranks1[i] = data1[i];
@@ -282,6 +282,10 @@ spearman_permutation_test (const double data1[], const double data2[],
 	size_t i = 0;
 	size_t acm = 0;
 	double p_value = 0.0;
+
+	// No data: Nothing is significant
+	if (n == 0)
+		return 1.0;
 
 	for (i = 0; i < n; i++)
 		{

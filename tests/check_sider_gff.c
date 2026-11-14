@@ -477,6 +477,48 @@ START_TEST (test_gff_looks_like_gff_file)
 }
 END_TEST
 
+START_TEST (test_gff_entry_copy_again)
+{
+	GffEntry *from = gff_entry_new ();
+	GffEntry *to = gff_entry_new ();
+	GffFile *gff = NULL;
+	char gff_path[] = "/tmp/ponga.gff3.XXXXXX";
+
+	create_gff (gff_body, gff_path);
+	gff = gff_open_for_reading (gff_path);
+
+	// Copy twice: The attributes of the first copy are released
+	ck_assert_int_eq (gff_read (gff, from), 1);
+	gff_entry_copy (to, from);
+	ck_assert_int_eq (gff_read (gff, from), 1);
+	gff_entry_copy (to, from);
+
+	ck_assert_str_eq (to->feature, from->feature);
+	ck_assert_int_eq (to->num_attributes, from->num_attributes);
+
+	gff_close (gff);
+	gff_entry_free (from);
+	gff_entry_free (to);
+	xunlink (gff_path);
+
+	// A packed GFF3 value matches each of its parts
+	char packed_path[] = "/tmp/ponga.gff3.XXXXXX";
+	create_gff ("chr1\t.\tgene\t1\t100\t.\t+\t.\tgene_name=a;tag=retrogene,basic,CCDS;\n", packed_path);
+
+	GffFilter *filter = gff_filter_new ();
+	gff_filter_insert_attribute (filter, "tag=basic");
+	ck_assert_int_eq (count_filtered (packed_path, filter), 1);
+	gff_filter_free (filter);
+
+	filter = gff_filter_new ();
+	gff_filter_insert_attribute (filter, "tag=bas");
+	ck_assert_int_eq (count_filtered (packed_path, filter), 0);
+	gff_filter_free (filter);
+
+	xunlink (packed_path);
+}
+END_TEST
+
 Suite *
 make_gff_suite (void)
 {
@@ -496,6 +538,7 @@ make_gff_suite (void)
 	tcase_add_test (tc_core, test_gff_read);
 	tcase_add_test (tc_core, test_gff_filter);
 	tcase_add_test (tc_core, test_gff_looks_like_gff_file);
+	tcase_add_test (tc_core, test_gff_entry_copy_again);
 
 	tcase_add_exit_test (tc_abort, test_open_fatal,      EXIT_FAILURE);
 	tcase_add_exit_test (tc_abort, test_seqname_fatal,   EXIT_FAILURE);

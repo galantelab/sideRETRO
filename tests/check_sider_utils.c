@@ -359,6 +359,38 @@ START_TEST (test_entry_size)
 }
 END_TEST
 
+START_TEST (test_utils_edge)
+{
+	char empty[] = "";
+	char all[] = "xxxx";
+	char *str = NULL;
+	char *path = NULL;
+
+	ck_assert_ptr_eq (trimc (NULL, 'x'), NULL);
+	ck_assert_str_eq (trimc (empty, 'x'), "");
+	ck_assert_str_eq (trimc (all, 'x'), "");
+
+	ck_assert_ptr_eq (path_dir (NULL), NULL);
+	ck_assert_ptr_eq (path_file (NULL, 0), NULL);
+
+	ck_assert_int_eq (xasprintf_concat (NULL, "%s", "ponga"), 0);
+
+	// Without PATH, nothing is found
+	str = getenv ("PATH");
+	if (str != NULL)
+		path = xstrdup (str);
+
+	unsetenv ("PATH");
+	ck_assert_int_eq (which ("ls"), 0);
+
+	if (path != NULL)
+		{
+			setenv ("PATH", path, 1);
+			xfree (path);
+		}
+}
+END_TEST
+
 Suite *
 make_utils_suite (void)
 {
@@ -390,6 +422,7 @@ make_utils_suite (void)
 	tcase_add_test (tc_core, test_setup_signal);
 	tcase_add_test (tc_core, test_buf_expand);
 	tcase_add_test (tc_core, test_entry_size);
+	tcase_add_test (tc_core, test_utils_edge);
 	suite_add_tcase (s, tc_core);
 
 	return s;

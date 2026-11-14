@@ -20,6 +20,7 @@
 
 #include <check.h>
 #include "check_sider.h"
+#include <math.h>
 
 #include "../src/correlation.h"
 
@@ -71,6 +72,23 @@ START_TEST (test_spearman_permutation_test)
 }
 END_TEST
 
+START_TEST (test_spearman_empty)
+{
+	double data1[1] = {0};
+	double data2[1] = {0};
+	double work[2] = {0};
+
+	double work2[2] = {0};
+	unsigned int seed = 17;
+
+	// No data: The correlation is undefined and
+	// nothing is significant
+	ck_assert (isnan (spearman (data1, data2, 0, work)));
+	ck_assert (spearman_permutation_test (data1, data2, 0,
+				work, work2, &seed, 0.0) == 1.0);
+}
+END_TEST
+
 Suite *
 make_correlation_suite (void)
 {
@@ -86,6 +104,7 @@ make_correlation_suite (void)
 	tcase_add_test (tc_core, test_spearman);
 	tcase_add_test (tc_core, test_spearman_eq);
 	tcase_add_test (tc_core, test_spearman_permutation_test);
+	tcase_add_test (tc_core, test_spearman_empty);
 	suite_add_tcase (s, tc_core);
 
 	return s;

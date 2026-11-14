@@ -60,6 +60,11 @@ gff_entry_copy (GffEntry *to, const GffEntry *from)
 {
 	int i = 0;
 
+	// Release the previous values, if any
+	xfree (to->seqname);
+	xfree (to->source);
+	xfree (to->feature);
+
 	to->seqname = xstrdup (from->seqname);
 	to->source = xstrdup (from->source);
 	to->feature = xstrdup (from->feature);

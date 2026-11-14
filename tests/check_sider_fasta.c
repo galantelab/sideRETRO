@@ -251,6 +251,12 @@ START_TEST (test_seq2_fatal)
 }
 END_TEST
 
+START_TEST (test_fasta_region_free_null)
+{
+	fasta_region_free (NULL);
+}
+END_TEST
+
 Suite *
 make_fasta_suite (void)
 {
@@ -268,6 +274,7 @@ make_fasta_suite (void)
 
 	tcase_add_test (tc_core, test_fasta_read);
 	tcase_add_test (tc_core, test_empty_file);
+	tcase_add_test (tc_core, test_fasta_region_free_null);
 
 	tcase_add_exit_test (tc_abort, test_open_fatal,   EXIT_FAILURE);
 	tcase_add_exit_test (tc_abort, test_contig_fatal, EXIT_FAILURE);

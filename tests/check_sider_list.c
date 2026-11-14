@@ -167,6 +167,39 @@ START_TEST (test_list_foreach)
 }
 END_TEST
 
+START_TEST (test_list_middle)
+{
+	List *list = list_new (NULL);
+	int a = 1, b = 2, c = 3, d = 4, e = 5;
+	ListElmt *cur = NULL;
+	int expected[] = {1, 4, 5, 2, 3};
+	int i = 0;
+
+	list_append (list, &a);
+	list_append (list, &b);
+	list_append (list, &c);
+
+	// Insert into the middle: Next of the head and
+	// previous of the second element
+	list_ins_next (list, list_head (list), &d);
+	list_ins_prev (list, list_next (list_next (list_head (list))), &e);
+
+	for (cur = list_head (list), i = 0; cur != NULL; cur = list_next (cur), i++)
+		ck_assert_int_eq (* (int *) list_data (cur), expected[i]);
+
+	ck_assert_int_eq (list_size (list), 5);
+
+	// Remove from the middle: The links of both neighbors
+	list_remove (list, list_next (list_head (list)), NULL);
+
+	ck_assert_int_eq (* (int *) list_data (list_next (list_head (list))), 5);
+	ck_assert_ptr_eq (list_prev (list_next (list_head (list))), list_head (list));
+	ck_assert_int_eq (list_size (list), 4);
+
+	list_free (list);
+}
+END_TEST
+
 Suite *
 make_list_suite (void)
 {
@@ -187,6 +220,7 @@ make_list_suite (void)
 	tcase_add_test (tc_core, test_list_remove);
 	tcase_add_test (tc_core, test_list_remove_link);
 	tcase_add_test (tc_core, test_list_foreach);
+	tcase_add_test (tc_core, test_list_middle);
 	suite_add_tcase (s, tc_core);
 
 	return s;

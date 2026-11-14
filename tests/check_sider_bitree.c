@@ -95,6 +95,20 @@ START_TEST (test_bitree)
 }
 END_TEST
 
+START_TEST (test_bitree_rem_empty)
+{
+	BiTree *tree = bitree_new (NULL);
+
+	// Nothing to remove from an empty tree
+	bitree_rem_left (tree, NULL);
+	bitree_rem_right (tree, NULL);
+	bitree_rem_left (NULL, NULL);
+
+	ck_assert_int_eq (bitree_size (tree), 0);
+	bitree_free (tree);
+}
+END_TEST
+
 Suite *
 make_bitree_suite (void)
 {
@@ -107,6 +121,7 @@ make_bitree_suite (void)
 	tc_core = tcase_create ("Core");
 
 	tcase_add_test (tc_core, test_bitree);
+	tcase_add_test (tc_core, test_bitree_rem_empty);
 	suite_add_tcase (s, tc_core);
 
 	return s;

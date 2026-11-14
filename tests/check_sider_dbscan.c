@@ -114,6 +114,12 @@ START_TEST (test_dbscan)
 }
 END_TEST
 
+START_TEST (test_dbscan_free_null)
+{
+	dbscan_free (NULL);
+}
+END_TEST
+
 Suite *
 make_dbscan_suite (void)
 {
@@ -126,6 +132,7 @@ make_dbscan_suite (void)
 	tc_core = tcase_create ("Core");
 
 	tcase_add_test (tc_core, test_dbscan);
+	tcase_add_test (tc_core, test_dbscan_free_null);
 	suite_add_tcase (s, tc_core);
 
 	return s;

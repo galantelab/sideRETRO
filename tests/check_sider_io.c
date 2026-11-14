@@ -74,6 +74,25 @@ START_TEST (test_read_file_lines)
 }
 END_TEST
 
+START_TEST (test_read_file_lines_blank)
+{
+	const char *lines[] = {"ponga0", "", "   ", "ponga1"};
+	char *filename = create_tmpfile (4, lines);
+	Array *arr = array_new (xfree);
+
+	// Blank lines are skipped
+	read_file_lines (arr, filename);
+
+	ck_assert_int_eq (arr->len, 2);
+	ck_assert_str_eq ((char *) array_get (arr, 0), "ponga0");
+	ck_assert_str_eq ((char *) array_get (arr, 1), "ponga1");
+
+	array_free (arr, 1);
+	xunlink (filename);
+	xfree (filename);
+}
+END_TEST
+
 Suite *
 make_io_suite (void)
 {
@@ -86,6 +105,7 @@ make_io_suite (void)
 	tc_core = tcase_create ("Core");
 
 	tcase_add_test (tc_core, test_read_file_lines);
+	tcase_add_test (tc_core, test_read_file_lines_blank);
 	suite_add_tcase (s, tc_core);
 
 	return s;

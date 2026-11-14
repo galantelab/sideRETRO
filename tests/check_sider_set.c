@@ -253,6 +253,19 @@ START_TEST (test_set_is_member)
 }
 END_TEST
 
+START_TEST (test_set_remove_not_member)
+{
+	Set *set = set_new (NULL);
+	void *data = "ponga";
+
+	set_insert (set, "pongo");
+	ck_assert_int_eq (set_remove (set, &data), 0);
+	ck_assert_int_eq (set_size (set), 1);
+
+	set_free (set);
+}
+END_TEST
+
 Suite *
 make_set_suite (void)
 {
@@ -274,6 +287,7 @@ make_set_suite (void)
 	tcase_add_test (tc_core, test_set_is_subset);
 	tcase_add_test (tc_core, test_set_is_equal);
 	tcase_add_test (tc_core, test_set_is_member);
+	tcase_add_test (tc_core, test_set_remove_not_member);
 	suite_add_tcase (s, tc_core);
 
 	return s;
