@@ -42,6 +42,7 @@ struct _AbnormalStat
 	long           alignments;
 	long           abnormal;
 	long           exonic;
+	long           stored;
 	int            sorted;
 };
 

@@ -58,4 +58,8 @@ int exon_tree_lookup_dump (ExonTree *exon_tree, const char *chr,
 		float alignment_overlap_frac, int either,
 		long alignment_id);
 
+int exon_tree_lookup (ExonTree *exon_tree, const char *chr,
+		long low, long high, float exon_overlap_frac,
+		float alignment_overlap_frac, int either);
+
 #endif /* exon.h */

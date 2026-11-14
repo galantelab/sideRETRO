@@ -119,7 +119,8 @@ count_alignments (sqlite3 *db)
 static void
 print_summary (const ProcessSample *ps, const char *db_file, size_t num_exons,
 		const AbnormalStat *stats, int num_files, long num_alignments,
-		long num_abnormal, long num_exonic, long num_dedup, time_t start)
+		long num_abnormal, long num_exonic, long num_stored, long num_dedup,
+		time_t start)
 {
 	Summary *s = NULL;
 	char *name = NULL;
@@ -158,10 +159,15 @@ print_summary (const ProcessSample *ps, const char *db_file, size_t num_exons,
 				summary_count (num_exonic, b3),
 				summary_percent (num_exonic, num_abnormal, b4));
 
+	// Only the fragments with an exonic alignment are useful
+	summary_line (s, "Stored", "%s alignments (%s): Fragments overlapping exons",
+			summary_count (num_stored, b1),
+			summary_percent (num_stored, num_abnormal, b2));
+
 	if (num_dedup >= 0)
-		summary_line (s, "After deduplication", "%s abnormal alignments (%s removed)",
+		summary_line (s, "After deduplication", "%s stored alignments (%s removed)",
 				summary_count (num_dedup, b1),
-				summary_count (num_abnormal - num_dedup, b2));
+				summary_count (num_stored - num_dedup, b2));
 
 	summary_section (s, "Output");
 	summary_line (s, "Database", "%s", db_file);
@@ -172,6 +178,8 @@ print_summary (const ProcessSample *ps, const char *db_file, size_t num_exons,
 
 	if (num_abnormal == 0)
 		log_warn ("No abnormal alignment was found: No retrocopy can be called");
+	else if (num_stored == 0)
+		log_warn ("No abnormal fragment overlaps an exon: No retrocopy can be called");
 }
 
 static void
@@ -208,6 +216,7 @@ run (ProcessSample *ps)
 	long num_alignments = 0;
 	long num_abnormal = 0;
 	long num_exonic = 0;
+	long num_stored = 0;
 	long num_dedup = -1;
 
 	// Assemble database output filename
@@ -328,11 +337,12 @@ run (ProcessSample *ps)
 			num_alignments += stats[i].alignments;
 			num_abnormal += stats[i].abnormal;
 			num_exonic += stats[i].exonic;
+			num_stored += stats[i].stored;
 		}
 
 	print_summary (ps, db_file, hash_size (exon_tree->cache), stats,
 			num_files, num_alignments, num_abnormal, num_exonic,
-			num_dedup, start);
+			num_stored, num_dedup, start);
 
 	// Time to clean
 	db_finalize (exon_stmt);

@@ -288,6 +288,13 @@ def cases(t, sim):
           expect=['Total', 'No abnormal alignment found out of 2'])
     t.run('ps: no abnormal alignment', ps + ann + ['-o', P('ps7'), P('normal.sam')],
           expect=['No abnormal alignment was found: No retrocopy can be called'])
+    with open(P('intergenic.sam'), 'w') as fp:
+        fp.write('@SQ\tSN:chr1\tLN:20000\n@SQ\tSN:chr2\tLN:10000\n'
+                 'X1\t97\tchr1\t500\t60\t10M\tchr2\t9000\t0\tATCGATCGAT\t~~~~~~~~~~\n'
+                 'X1\t145\tchr2\t9000\t60\t10M\tchr1\t500\t0\tAAAGGGCCCT\t~~~~~~~~~~\n')
+    t.run('ps: abnormal, but no exon', ps + ann + ['-o', P('ps8'), P('intergenic.sam')],
+          expect=['Stored                   0 alignments',
+                  'No abnormal fragment overlaps an exon: No retrocopy can be called'])
 
     # ================= quiet without log: --silent
     t.run('ps: silent', ps + ann + ['-o', P('ps5'), '--silent'] + sam,

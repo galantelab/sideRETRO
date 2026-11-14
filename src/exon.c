@@ -293,3 +293,29 @@ exon_tree_lookup_dump (ExonTree *exon_tree, const char *chr,
 
 	return acm;
 }
+
+static void
+count_if_overlaps_exon (IBiTreeLookupData *ldata,
+		void *user_data)
+{
+	// Only count: ibitree_lookup returns the number
+	// of overlaps
+}
+
+int
+exon_tree_lookup (ExonTree *exon_tree, const char *chr,
+		long low, long high, float exon_overlap_frac,
+		float alignment_overlap_frac, int either)
+{
+	assert (exon_tree != NULL && chr != NULL);
+
+	IBiTree *tree = NULL;
+
+	tree = hash_lookup (exon_tree->idx, chr);
+
+	if (tree == NULL)
+		return 0;
+
+	return ibitree_lookup (tree, low, high, exon_overlap_frac,
+			alignment_overlap_frac, either, count_if_overlaps_exon, NULL);
+}

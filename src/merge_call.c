@@ -145,7 +145,7 @@ print_summary (const MergeCall *mc, sqlite3 *db, const char *db_file,
 			array_len (mc->db_files) + (mc->in_place ? 1 : 0));
 	summary_line (s, "Samples", "%s",
 			summary_count (query_count (db, "SELECT COUNT(*) FROM source"), b1));
-	summary_line (s, "Abnormal alignments", "%s",
+	summary_line (s, "Stored alignments", "%s",
 			summary_count (query_count (db, "SELECT COUNT(*) FROM alignment"), b1));
 	summary_line (s, "Clusters", "%s (after all filters)",
 			summary_count (num_clusters, b1));

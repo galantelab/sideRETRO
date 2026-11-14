@@ -59,6 +59,7 @@ struct _AbnormalFilter
 	long           alignment_acm;
 	long           abnormal_acm;
 	long           exonic_acm;
+	long           stored_acm;
 };
 
 typedef struct _AbnormalFilter AbnormalFilter;
@@ -123,6 +124,7 @@ abnormal_filter_init (AbnormalFilter *argf)
 	argf->alignment_acm = 0;
 	argf->abnormal_acm = 0;
 	argf->exonic_acm = 0;
+	argf->stored_acm = 0;
 }
 
 static void
@@ -256,6 +258,29 @@ fill_seq (AbnormalFilter *argf, const bam1_t *align)
 	argf->seq[len] = '\0';
 }
 
+/*
+ * The same exon lookup of dump_alignment, without
+ * dumping: Does the alignment overlap any exon?
+ */
+static int
+overlaps_exon (AbnormalFilter *argf, const bam1_t *align)
+{
+	const char *chr = NULL;
+	const char *chr_std = NULL;
+	int rlen = 0;
+
+	chr = align->core.tid > -1 // LCOV_EXCL_LINE: htslib unmaps any read without chromosome
+		? argf->hdr->target_name[align->core.tid]
+		: "*";
+
+	chr_std = chr_std_lookup (argf->cs, chr);
+	rlen = bam_cigar2rlen (align->core.n_cigar, bam_get_cigar (align));
+
+	return exon_tree_lookup (argf->exon_tree, chr_std,
+			align->core.pos + 1, align->core.pos + (rlen < 1 ? 1 : rlen),
+			argf->exon_frac, argf->alignment_frac, argf->either) > 0;
+}
+
 static void
 dump_alignment (AbnormalFilter *argf, const bam1_t *align,
 		AbnormalType type)
@@ -341,6 +366,8 @@ dump_alignment (AbnormalFilter *argf, const bam1_t *align,
 			align->core.mpos + 1, type, argf->tid,
 			argf->seq, ABNORMAL_NO_QUAL);
 
+	argf->stored_acm++;
+
 	// sum the number of files - in order to
 	// avoid database insertion chocking and
 	// constraints
@@ -368,15 +395,29 @@ dump_stack_if_abnormal (AbnormalFilter *argf, const List *stack)
 			type |= rtype;
 		}
 
-	if (type != ABNORMAL_NONE)
+	if (type == ABNORMAL_NONE)
+		return;
+
+	argf->abnormal_acm += stack->size;
+
+	/*
+	* A fragment without any alignment overlapping an exon
+	* is never used: The clustering needs a mate at the
+	* parental gene. Do not store it
+	*/
+	for (cur = list_head (stack); cur != NULL;
+			cur = list_next (cur))
+		if (overlaps_exon (argf, list_data (cur)))
+			break;
+
+	if (cur == NULL)
+		return;
+
+	for (cur = list_head (stack); cur != NULL;
+			cur = list_next (cur))
 		{
-			for (cur = list_head (stack); cur != NULL;
-					cur = list_next (cur))
-				{
-					align = list_data (cur);
-					dump_alignment (argf, align, type);
-					argf->abnormal_acm++;
-				}
+			align = list_data (cur);
+			dump_alignment (argf, align, type);
 		}
 }
 
@@ -490,6 +531,7 @@ struct _AbnormalFragment
 {
 	AbnormalType   type;
 	int            failed;
+	int            exonic;
 	long           first;
 	List          *buffer;
 };
@@ -557,6 +599,12 @@ parse_unsorted_sam (AbnormalFilter *argf)
 	* until reach the first abnormal alignment. At this point,
 	* all failures are known, so dump the buffer and the
 	* remaining alignments - or discard them all.
+	*
+	* A fragment without any alignment overlapping an exon is
+	* never used - the clustering needs a mate at the parental
+	* gene - so it is not dumped. Its alignments from the first
+	* abnormal one on are tested at the first reading, and the
+	* ones before it at the second reading, into the buffer.
 	*/
 	abnormal_frags = hash_new (xfree,
 			(DestroyNotify) abnormal_fragment_free);
@@ -588,6 +636,9 @@ parse_unsorted_sam (AbnormalFilter *argf)
 					frag = abnormal_fragment_new (type, idx);
 					hash_insert (abnormal_frags, name, frag);
 				}
+
+			if (frag != NULL && !frag->failed && !frag->exonic)
+				frag->exonic = overlaps_exon (argf, argf->align);
 		}
 
 	// Catch if it ocurred an error
@@ -631,6 +682,10 @@ parse_unsorted_sam (AbnormalFilter *argf)
 						frag->buffer = list_new ((DestroyNotify) bam_destroy1);
 
 					list_append (frag->buffer, align_copy);
+
+					if (!frag->exonic)
+						frag->exonic = overlaps_exon (argf, align_copy);
+
 					continue;
 				}
 
@@ -641,7 +696,8 @@ parse_unsorted_sam (AbnormalFilter *argf)
 					for (cur = list_head (frag->buffer); cur != NULL;
 							cur = list_next (cur))
 						{
-							dump_alignment (argf, list_data (cur), frag->type);
+							if (frag->exonic)
+								dump_alignment (argf, list_data (cur), frag->type);
 							argf->abnormal_acm++;
 						}
 
@@ -652,7 +708,8 @@ parse_unsorted_sam (AbnormalFilter *argf)
 			// From the first abnormal alignment on, all
 			// alignments passed the classifier - otherwise
 			// the fragment would be marked as failed
-			dump_alignment (argf, argf->align, frag->type);
+			if (frag->exonic)
+				dump_alignment (argf, argf->align, frag->type);
 			argf->abnormal_acm++;
 		}
 
@@ -698,9 +755,11 @@ abnormal_filter (AbnormalArg *arg)
 	// Just print the amount of abnormal alignments
 	if (argf.abnormal_acm > 0)
 		log_info ("Found %li abnormal alignments out of %li in '%s': "
-			"%li (%.2f%%) overlap exons",
+			"%li (%.2f%%) overlap exons. Stored %li: The fragments with "
+			"an alignment overlapping an exon",
 			argf.abnormal_acm, argf.alignment_acm, argf.sam_file, argf.exonic_acm,
-			(float) (argf.exonic_acm * 100) / argf.abnormal_acm);
+			(float) (argf.exonic_acm * 100) / argf.abnormal_acm,
+			argf.stored_acm);
 	else
 		log_warn ("No abnormal alignment found out of %li in '%s'",
 				argf.alignment_acm, argf.sam_file);
@@ -711,6 +770,7 @@ abnormal_filter (AbnormalArg *arg)
 			.alignments = argf.alignment_acm,
 			.abnormal   = argf.abnormal_acm,
 			.exonic     = argf.exonic_acm,
+			.stored     = argf.stored_acm,
 			.sorted     = argf.queryname_sorted
 		};
 

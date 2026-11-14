@@ -73,13 +73,16 @@ static const char *sam_sorted =
 	"F5\t147\tchr1\t320\t60\t5M5S\t=\t300\t-30\tGGGCCCCCCC\t~~~~~~~~~~\n"
 	"F5\t2195\tchr2\t300\t60\t5H5M\tchr1\t300\t0\tCCCCC\t~~~~~\n"
 	"G6\t97\tchr2\t500\t60\t10M\t=\t30000\t29510\tAAAAGGGCCC\t~~~~~~~~~~\n"
-	"G6\t1169\tchr2\t30000\t60\t10M\t=\t500\t-29510\tCCCCCTTTAG\t~~~~~~~~~~\n";
+	"G6\t1169\tchr2\t30000\t60\t10M\t=\t500\t-29510\tCCCCCTTTAG\t~~~~~~~~~~\n"
+	"X7\t97\tchr1\t200\t60\t10M\tchr2\t200\t0\tAAATTTCCGA\t~~~~~~~~~~\n"
+	"X7\t145\tchr2\t200\t60\t10M\tchr1\t200\t0\tTTTTTGGGGA\t~~~~~~~~~~\n";
 
 static const char *sam_unsorted =
 	"@SQ\tSN:chr1\tLN:248956422\n"
 	"@SQ\tSN:chr2\tLN:242193529\n"
 	"@PG\tID:bwa\tPN:bwa\tVN:0.7.17-r1188	CL:bwa mem -t 1 ponga/ponga.fa ponga.fastq\n"
 	"F5\t1123\tchr1\t300\t60\t10M\t=\t320\t30\tAAACCCGGGG\t~~~~~~~~~~\n"
+	"X7\t97\tchr1\t200\t60\t10M\tchr2\t200\t0\tAAATTTCCGA\t~~~~~~~~~~\n"
 	"G6\t97\tchr2\t500\t60\t10M\t=\t30000\t29510\tAAAAGGGCCC\t~~~~~~~~~~\n"
 	"E1\t109\tchr1\t1\t60\t10M\t=\t20\t29\tATCGATCGAT\t~~~~~~~~~~\n"
 	"E1\t157\tchr1\t1\t60\t10M\t=\t20\t29\tATCGATCGAT\t~~~~~~~~~~\n"
@@ -94,15 +97,25 @@ static const char *sam_unsorted =
 	"S4\t2195\tchr2\t100\t60\t5H5M\tchr1\t100\t0\tCCCCC\t~~~~~\n"
 	"F5\t147\tchr1\t320\t60\t5M5S\t=\t300\t-30\tGGGCCCCCCC\t~~~~~~~~~~\n"
 	"F5\t2195\tchr2\t300\t60\t5H5M\tchr1\t300\t0\tCCCCC\t~~~~~\n"
-	"G6\t1169\tchr2\t30000\t60\t10M\t=\t500\t-29510\tCCCCCTTTAG\t~~~~~~~~~~\n";
+	"G6\t1169\tchr2\t30000\t60\t10M\t=\t500\t-29510\tCCCCCTTTAG\t~~~~~~~~~~\n"
+	"X7\t145\tchr2\t200\t60\t10M\tchr1\t200\t0\tTTTTTGGGGA\t~~~~~~~~~~\n";
 
+/*
+ * Exons: e1 (C2), e2 (D3, D7 and D8) and e3 - S4 is exonic by
+ * its first read, before its first abnormal alignment (the
+ * supplementary). X7 is abnormal, but it does not overlap any
+ * exon: It is not stored
+ */
 static const char *gtf =
 	"chr1\t.\texon\t45\t65\t.\t+\t.\t"
 	"gene_name \"e1\"; gene_id \"ENG1\"; transcript_id \"t1\"; transcript_type \"protein_coding\"; "
 	"exon_id \"ENSE1\";\n"
 	"chr2\t.\texon\t19990\t20050\t.\t-\t.\t"
 	"gene_name \"e2\"; gene_id \"ENG2\"; transcript_id \"t2\"; transcript_type \"protein_coding\"; "
-	"exon_id \"ENSE2\";\n";
+	"exon_id \"ENSE2\";\n"
+	"chr1\t.\texon\t95\t110\t.\t+\t.\t"
+	"gene_name \"e3\"; gene_id \"ENG3\"; transcript_id \"t3\"; transcript_type \"protein_coding\"; "
+	"exon_id \"ENSE3\";\n";
 
 static sqlite3 *
 create_db (char *db_path)
@@ -203,7 +216,7 @@ static sqlite3_stmt *
 prepare_alignment_search (sqlite3 *db)
 {
 	const char sql[] =
-		"SELECT qname, chr, type FROM alignment ORDER BY qname ASC, chr ASC";
+		"SELECT qname, chr, type FROM alignment ORDER BY qname ASC, chr ASC, pos ASC";
 	return db_prepare (db, sql);
 }
 
@@ -238,7 +251,7 @@ START_TEST (test_abnormal_filter_sorted)
 		ABNORMAL_CHROMOSOME,
 		ABNORMAL_DISTANCE,
 		ABNORMAL_DISTANCE|ABNORMAL_EXONIC,
-		ABNORMAL_SUPPLEMENTARY|ABNORMAL_CHROMOSOME,
+		ABNORMAL_SUPPLEMENTARY|ABNORMAL_CHROMOSOME|ABNORMAL_EXONIC,
 		ABNORMAL_SUPPLEMENTARY|ABNORMAL_CHROMOSOME,
 		ABNORMAL_SUPPLEMENTARY|ABNORMAL_CHROMOSOME
 	};
@@ -301,7 +314,7 @@ START_TEST (test_abnormal_filter_unsorted)
 		ABNORMAL_CHROMOSOME,
 		ABNORMAL_DISTANCE,
 		ABNORMAL_DISTANCE|ABNORMAL_EXONIC,
-		ABNORMAL_SUPPLEMENTARY|ABNORMAL_CHROMOSOME,
+		ABNORMAL_SUPPLEMENTARY|ABNORMAL_CHROMOSOME|ABNORMAL_EXONIC,
 		ABNORMAL_SUPPLEMENTARY|ABNORMAL_CHROMOSOME,
 		ABNORMAL_SUPPLEMENTARY|ABNORMAL_CHROMOSOME
 	};
@@ -383,8 +396,8 @@ static const char *sam_edge =
 	"@SQ\tSN:chr2\tLN:242193529\n"
 	"D7\t97\tchr2\t20\t60\t290M10S\t=\t20000\t20280\tACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGT\t*\n"
 	"D7\t145\tchr2\t20000\t60\t10M\t=\t20\t-20280\tCCCCCTTTAG\t~~~~~~~~~~\n"
-	"D8\t97\tchr2\t30\t60\t5M5S\t=\t30000\t29980\t*\t*\n"
-	"D8\t145\tchr2\t30000\t60\t10M\t=\t30\t-29980\tCCCCCTTTAG\t~~~~~~~~~~\n"
+	"D8\t97\tchr2\t30\t60\t5M5S\t=\t20010\t19990\t*\t*\n"
+	"D8\t145\tchr2\t20010\t60\t10M\t=\t30\t-19990\tCCCCCTTTAG\t~~~~~~~~~~\n"
 	"L9\t97\tchr2\t40\t60\t10M\t=\t40000\t39970\tAAAAAAAAAA\t~~~~~~~~~~\n"
 	"L9\t145\tchr2\t40000\t60\t10M\t=\t40\t-39970\tCCCCCTTTAG\t~~~~~~~~~~\n";
 
@@ -415,6 +428,7 @@ START_TEST (test_abnormal_filter_edge)
 
 	ck_assert_int_eq (stat.alignments, 6);
 	ck_assert_int_eq (stat.abnormal, 4);
+	ck_assert_int_eq (stat.stored, 4);
 	ck_assert_int_eq (stat.sorted, 1);
 
 	stmt = db_prepare (a.db,
@@ -468,12 +482,13 @@ START_TEST (test_abnormal_filter_no_chr)
 	/*
 	* Mate mapped (no flag 0x8), but without a mate chromosome
 	* (RNEXT '*'): Abnormal by chromosome, and the mate
-	* chromosome is reported as '*'
+	* chromosome is reported as '*'. The first read is at the
+	* exon e1, so the fragment is stored
 	*/
 	const char *sam_no_chr =
 		"@HD\tVN:1.0\tSO:queryname\n"
 		"@SQ\tSN:chr1\tLN:248956422\n"
-		"S1\t97\tchr1\t1\t60\t10M\t*\t0\t0\tATCGATCGAT\t~~~~~~~~~~\n"
+		"S1\t97\tchr1\t50\t60\t10M\t*\t0\t0\tATCGATCGAT\t~~~~~~~~~~\n"
 		"S1\t145\tchr1\t9000\t60\t10M\t*\t0\t0\tAAAGGGCCCT\t~~~~~~~~~~\n";
 
 	test_abnormal_init (&a, sam_no_chr);
@@ -483,6 +498,7 @@ START_TEST (test_abnormal_filter_no_chr)
 
 	ck_assert_int_eq (stat.alignments, 2);
 	ck_assert_int_eq (stat.abnormal, 2);
+	ck_assert_int_eq (stat.stored, 2);
 
 	test_abnormal_destroy (&a);
 }
