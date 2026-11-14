@@ -58,6 +58,44 @@ Please, see :ref:`A Practical Workflow <pract_wf>` and :ref:`Running with Docker
 Now, to get more familiar with **sideRETRO** main commands and results, let's
 try some basic examples for each command.
 
+Each command ends with a **summary** of what it did - at the terminal and at the
+log file (``-l``), unless ``-q`` is passed - and the command to run next. For
+example, ``merge-call`` reports how many retrocopies were found and how many of
+them have each hallmark::
+
+  ======================== merge-call summary ========================
+
+   Input
+     Databases                1
+     Samples                  1
+     Abnormal alignments      98
+     Clusters                 1 (after all filters)
+
+   Retrocopies
+     Total                    1
+     Single parental gene     1 (100.0%)
+     Precise                  1 (100.0%)
+     Both breakpoints         1 (100.0%)
+     Target site duplication  1 (100.0%)
+     Poly-A tail              1 (100.0%)
+     Exon-exon junctions      1 (100.0%)
+     Predicted sequence       1 (100.0%)
+
+   Retrocopies by sample (with alternate reads)
+     sim                      1
+
+   Output
+     Database                 out/merged.db
+     Next step                sider make-vcf -r ref.fa out/merged.db
+
+     Elapsed time             1s
+  ====================================================================
+
+``process-sample`` reports the exons indexed and, for each alignment file, the
+alignments read, the abnormal ones and how many of them overlap exons; and
+``make-vcf`` reports the records written, how many of them ``PASS``, and the
+output files.
+
 
 Command ``process-sample``
 ==========================

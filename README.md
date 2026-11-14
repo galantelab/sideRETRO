@@ -51,8 +51,14 @@ When detecting retrocopies, **sideRETRO** can annotate several other features re
 
 * **Supporting reads**
 
-   The names of the reads used to detect each event, by sample, so the evidence can be checked back
-   at the alignment files.
+   The names of the reads used to detect each event, by sample, and their role in the evidence (split read
+   at a breakpoint, poly-A, exon-exon junction or discordant pair), so the evidence can be checked back at
+   the alignment files.
+
+* **Quality and filters**
+
+   A quality score for each event and filters that check the hallmarks of a canonical retrocopy - TSD,
+   poly-A and exon-exon junctions - so the high confidence events are just the ones that `PASS`.
 
 * **Strandness**
 
