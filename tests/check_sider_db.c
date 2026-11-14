@@ -21,6 +21,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <time.h>
+#include <pthread.h>
 #include <check.h>
 #include "check_sider.h"
 
@@ -272,6 +274,106 @@ START_TEST (test_db_schema)
 }
 END_TEST
 
+START_TEST (test_db_busy_timeout_env)
+{
+	unsetenv (DB_BUSY_TIMEOUT_ENV);
+	ck_assert_int_eq (db_busy_timeout (), DB_DEFAULT_BUSY_TIMEOUT);
+
+	setenv (DB_BUSY_TIMEOUT_ENV, "500", 1);
+	ck_assert_int_eq (db_busy_timeout (), 500);
+
+	setenv (DB_BUSY_TIMEOUT_ENV, "0", 1);
+	ck_assert_int_eq (db_busy_timeout (), 0);
+
+	// Invalid values fall back to the default
+	setenv (DB_BUSY_TIMEOUT_ENV, "ponga", 1);
+	ck_assert_int_eq (db_busy_timeout (), DB_DEFAULT_BUSY_TIMEOUT);
+
+	setenv (DB_BUSY_TIMEOUT_ENV, "-1", 1);
+	ck_assert_int_eq (db_busy_timeout (), DB_DEFAULT_BUSY_TIMEOUT);
+
+	setenv (DB_BUSY_TIMEOUT_ENV, "10s", 1);
+	ck_assert_int_eq (db_busy_timeout (), DB_DEFAULT_BUSY_TIMEOUT);
+
+	unsetenv (DB_BUSY_TIMEOUT_ENV);
+}
+END_TEST
+
+static void *
+release_lock (void *db)
+{
+	// Hold the lock for a while, then release it
+	struct timespec t = {.tv_sec = 0, .tv_nsec = 300000000};
+	nanosleep (&t, NULL);
+
+	db_end_transaction (db);
+	return NULL;
+}
+
+static double
+elapsed_ms (const struct timespec *start)
+{
+	struct timespec end = {};
+	clock_gettime (CLOCK_MONOTONIC, &end);
+	return (end.tv_sec - start->tv_sec) * 1000.0
+		+ (end.tv_nsec - start->tv_nsec) / 1e6;
+}
+
+START_TEST (test_db_busy_wait)
+{
+	char db_path[] = "/tmp/ponga.db.XXXXXX";
+	sqlite3 *db1 = NULL;
+	sqlite3 *db2 = NULL;
+	pthread_t thread;
+	struct timespec start = {};
+
+	// A writer holds the lock: The second one must wait
+	// until it is released, instead of failing at once
+	setenv (DB_BUSY_TIMEOUT_ENV, "10000", 1);
+
+	db1 = create_db (db_path);
+	db2 = db_open (db_path, SQLITE_OPEN_READWRITE);
+
+	db_exec (db1, "CREATE TABLE ponga (id INTEGER)");
+
+	db_begin_transaction (db1);
+	db_exec (db1, "INSERT INTO ponga VALUES (1)");
+
+	pthread_create (&thread, NULL, release_lock, db1);
+
+	clock_gettime (CLOCK_MONOTONIC, &start);
+	db_begin_transaction (db2);
+	ck_assert (elapsed_ms (&start) >= 200);
+
+	db_exec (db2, "INSERT INTO ponga VALUES (2)");
+	db_end_transaction (db2);
+
+	pthread_join (thread, NULL);
+
+	db_close (db1);
+	db_close (db2);
+	xunlink (db_path);
+	unsetenv (DB_BUSY_TIMEOUT_ENV);
+}
+END_TEST
+
+START_TEST (test_db_busy_abort)
+{
+	char db_path[] = "/tmp/ponga.db.XXXXXX";
+	sqlite3 *db1 = NULL;
+	sqlite3 *db2 = NULL;
+
+	// The lock is never released: Give up after the timeout
+	setenv (DB_BUSY_TIMEOUT_ENV, "100", 1);
+
+	db1 = create_db (db_path);
+	db2 = db_open (db_path, SQLITE_OPEN_READWRITE);
+
+	db_begin_transaction (db1);
+	db_begin_transaction (db2);
+}
+END_TEST
+
 Suite *
 make_db_suite (void)
 {
@@ -292,6 +394,8 @@ make_db_suite (void)
 	tcase_add_test (tc_core, test_db_exec);
 	tcase_add_test (tc_core, test_db_prepare);
 	tcase_add_test (tc_core, test_db_schema);
+	tcase_add_test (tc_core, test_db_busy_timeout_env);
+	tcase_add_test (tc_core, test_db_busy_wait);
 
 	tcase_add_exit_test (tc_abort, test_db_open_abort,          EXIT_FAILURE);
 	tcase_add_exit_test (tc_abort, test_db_close_abort,         EXIT_FAILURE);
@@ -307,6 +411,7 @@ make_db_suite (void)
 	tcase_add_exit_test (tc_abort, test_db_column_int64_abort,  EXIT_FAILURE);
 	tcase_add_exit_test (tc_abort, test_db_column_double_abort, EXIT_FAILURE);
 	tcase_add_exit_test (tc_abort, test_db_column_text_abort,   EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_db_busy_abort,          EXIT_FAILURE);
 
 	suite_add_tcase (s, tc_core);
 	suite_add_tcase (s, tc_abort);

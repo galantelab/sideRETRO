@@ -29,9 +29,18 @@
 
 #define DB_DEFAULT_CACHE_SIZE 2000
 
+/*
+ * How long to wait for a locked database before giving
+ * up, in milliseconds. It can be changed by the
+ * environment variable SIDER_BUSY_TIMEOUT
+ */
+#define DB_DEFAULT_BUSY_TIMEOUT 60000
+#define DB_BUSY_TIMEOUT_ENV     "SIDER_BUSY_TIMEOUT"
+
 /* Low-level functions */
 
 sqlite3 *      db_open (const char *path, int flags);
+int            db_busy_timeout (void);
 void           db_close (sqlite3 *db);
 
 void           db_exec (sqlite3 *db, const char *sql);

@@ -544,6 +544,39 @@ VCF with them. Run ``tests/sim/retrocopy_sim.py --help`` for the simulation
 parameters: TSD length, poly-A length, number of discordant and split reads
 etc. The resulting VCF line is dissected at :ref:`Output <chap_output>`.
 
+.. _sqlite:
+
+The SQLite3 databases
+=====================
+
+The results of each step are kept at a `SQLite3 <https://www.sqlite.org>`_
+database. A few practical notes:
+
+Locks
+  SQLite3 locks the database while writing. If another process holds the lock -
+  another **sideRETRO** on the same database, a backup, a ``sqlite3`` session -
+  **sideRETRO** waits and tries again for up to **60 seconds** before giving up.
+  The waiting time, in milliseconds, can be changed with the environment variable
+  ``SIDER_BUSY_TIMEOUT``::
+
+    $ SIDER_BUSY_TIMEOUT=600000 sider merge-call -I out.db
+
+Storage
+  Prefer a **local disk** for the databases. Network filesystems (NFS, Lustre,
+  GPFS) have unreliable locks and may fail to write. Input/output errors are
+  **not** retried: SQLite3 has already rolled back the work in progress, and
+  going on could leave an incomplete database. **sideRETRO** stops and says why,
+  so the step can be run again.
+
+Errors
+  When something goes wrong, the message names the operation, the database, the
+  SQLite3 error and what to do about it::
+
+    FATAL db.c:77: Preparing failed at database 'out.db': database is locked (SQLite error 5)
+    SELECT major_version,minor_version FROM schema LIMIT 1
+    The database is in use by another process. Wait for it to finish, or raise
+    the waiting time with the environment variable SIDER_BUSY_TIMEOUT (in milliseconds)
+
 .. _cram:
 
 Dealing with CRAM format

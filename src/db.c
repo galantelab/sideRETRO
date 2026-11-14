@@ -18,12 +18,90 @@
 
 #include "config.h"
 
+#include <stdlib.h>
 #include <assert.h>
 #include "wrapper.h"
 #include "log.h"
 #include "db.h"
 
 /* Low-level wrapper for sqlite3 interface */
+
+static const char *
+db_error_hint (int rc)
+{
+	// The primary result code is at the lower 8 bits
+	switch (rc & 0xff)
+		{
+		case SQLITE_BUSY:
+		case SQLITE_LOCKED:
+			return "The database is in use by another process. Wait for it to "
+				"finish, or raise the waiting time with the environment variable "
+				DB_BUSY_TIMEOUT_ENV " (in milliseconds)";
+		case SQLITE_IOERR:
+			return "Input/output error: Check the storage. Network filesystems "
+				"(NFS, Lustre, GPFS) are prone to it - prefer a local disk for "
+				"the database";
+		case SQLITE_FULL:
+			return "The disk is full: Free some space or use another "
+				"output directory";
+		case SQLITE_CORRUPT:
+		case SQLITE_NOTADB:
+			return "The database is damaged or it is not a sideRETRO database: "
+				"Generate it again";
+		case SQLITE_CANTOPEN:
+		case SQLITE_PERM:
+		case SQLITE_READONLY:
+			return "Check the path and its permissions";
+		default:
+			return NULL;
+		}
+}
+
+static void
+db_fatal (sqlite3 *db, const char *path, int rc, const char *what,
+		const char *detail)
+{
+	const char *hint = NULL;
+	int ext_rc = rc;
+
+	if (db != NULL)
+		{
+			ext_rc = sqlite3_extended_errcode (db);
+
+			if (path == NULL)
+				path = sqlite3_db_filename (db, "main");
+		}
+
+	hint = db_error_hint (ext_rc);
+
+	log_fatal ("%s failed at database '%s': %s (SQLite error %d)%s%s%s%s",
+			what, path != NULL ? path : "?",
+			db != NULL ? sqlite3_errmsg (db) : sqlite3_errstr (rc), ext_rc,
+			detail != NULL ? "\n" : "", detail != NULL ? detail : "",
+			hint != NULL ? "\n" : "", hint != NULL ? hint : "");
+}
+
+int
+db_busy_timeout (void)
+{
+	const char *env = getenv (DB_BUSY_TIMEOUT_ENV);
+	char *end = NULL;
+	long ms = 0;
+
+	if (env == NULL || *env == '\0')
+		return DB_DEFAULT_BUSY_TIMEOUT;
+
+	ms = strtol (env, &end, 10);
+
+	if (*end != '\0' || ms < 0 || ms > 86400000)
+		{
+			log_warn ("Invalid %s='%s': Use the default of %d ms",
+					DB_BUSY_TIMEOUT_ENV, env, DB_DEFAULT_BUSY_TIMEOUT);
+			return DB_DEFAULT_BUSY_TIMEOUT;
+		}
+
+	return (int) ms;
+}
 
 sqlite3 *
 db_open (const char *path, int flags)
@@ -36,8 +114,14 @@ db_open (const char *path, int flags)
 	rc = sqlite3_open_v2 (path, &db, flags, NULL);
 
 	if (rc != SQLITE_OK)
-		log_fatal ("Failed sqlite3_open_v2 '%s': %s",
-				path, sqlite3_errmsg (db));
+		db_fatal (db, path, rc, "Opening", NULL);
+
+	/*
+	* A locked database makes SQLite return BUSY at once.
+	* Instead, let it wait and retry for a while: Locks
+	* are usually brief
+	*/
+	sqlite3_busy_timeout (db, db_busy_timeout ());
 
 	return db;
 }
@@ -50,8 +134,7 @@ db_close (sqlite3 *db)
 	int rc = sqlite3_close (db);
 
 	if (rc != SQLITE_OK)
-		log_fatal ("Failed sqlite3_close: %s",
-				sqlite3_errmsg (db));
+		db_fatal (db, NULL, rc, "Closing", NULL);
 }
 
 void
@@ -60,14 +143,11 @@ db_exec (sqlite3 *db, const char *sql)
 	assert (db != NULL && sql != NULL);
 
 	int rc = 0;
-	char *err_msg = NULL;
 
-	rc = sqlite3_exec (db, sql, NULL, NULL,
-			&err_msg);
+	rc = sqlite3_exec (db, sql, NULL, NULL, NULL);
 
 	if (rc != SQLITE_OK)
-		log_fatal ("Failed sqlite3_exec for '%s'\n%s",
-				sql, err_msg);
+		db_fatal (db, NULL, rc, "Executing", sql);
 }
 
 sqlite3_stmt *
@@ -81,8 +161,7 @@ db_prepare (sqlite3 *db, const char *sql)
 	rc = sqlite3_prepare_v2 (db, sql, -1, &stmt, NULL);
 
 	if (rc != SQLITE_OK)
-		log_fatal ("Failed sqlite3_prepare_v2 for '%s'\n%s",
-				sql, sqlite3_errmsg (db));
+		db_fatal (db, NULL, rc, "Preparing", sql);
 
 	return stmt;
 }
@@ -97,8 +176,7 @@ db_step (sqlite3_stmt *stmt)
 	rc = sqlite3_step (stmt);
 
 	if (rc != SQLITE_DONE && rc != SQLITE_ROW)
-		log_fatal ("Failed sqlite3_step: %s",
-				sqlite3_errmsg (sqlite3_db_handle (stmt)));
+		db_fatal (sqlite3_db_handle (stmt), NULL, rc, "Running", sqlite3_sql (stmt));
 
 	return rc;
 }
@@ -108,11 +186,11 @@ db_finalize (sqlite3_stmt *stmt)
 {
 	assert (stmt != NULL);
 
+	sqlite3 *db = sqlite3_db_handle (stmt);
 	int rc = sqlite3_finalize (stmt);
 
 	if (rc != SQLITE_OK)
-		log_fatal ("Failed sqlite3_finalize stmt: %s",
-				sqlite3_errmsg (sqlite3_db_handle (stmt)));
+		db_fatal (db, NULL, rc, "Finalizing a statement", NULL);
 }
 
 void
@@ -517,7 +595,9 @@ db_begin_transaction (sqlite3 *db)
 	log_trace ("Inside %s", __func__);
 	assert (db != NULL);
 
-	db_exec (db, "BEGIN TRANSACTION");
+	// Take the write lock at once: A deferred transaction that
+	// becomes a write one may get BUSY without waiting
+	db_exec (db, "BEGIN IMMEDIATE TRANSACTION");
 }
 
 void
