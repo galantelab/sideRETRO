@@ -18,6 +18,7 @@
 
 #include "config.h"
 
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -55,10 +56,11 @@ gz_close (GzFile *gz)
 
 	int rc;
 
+	// gz->fp is freed by gzclose, even on error: No gzerror
 	rc = gzclose (gz->fp);
 	if (rc != Z_OK)
 		log_fatal ("Could not close file '%s': %s", gz->filename,
-				gzerror (gz->fp, &rc));
+				rc == Z_ERRNO ? strerror (errno) : zError (rc));
 
 	xfree (gz->buf);
 	xfree ((void *) gz->filename);
