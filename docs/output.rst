@@ -54,9 +54,11 @@ Then, each line describes one retrocopy insertion:
 | ALT        | ``<INS:ME:RTC>``: A **symbolic** allele for the insertion   |
 |            | of a retrocopy. See the note below                          |
 +------------+-------------------------------------------------------------+
-| QUAL       | Not calculated (``.``)                                      |
+| QUAL       | Phred scaled probability that the insertion is not real,    |
+|            | from the genotype likelihoods, see :ref:`QUAL <qual>`       |
 +------------+-------------------------------------------------------------+
-| FILTER     | ``PASS``                                                    |
+| FILTER     | The checks of a canonical retrocopy that failed, separated  |
+|            | by ``;``, or ``PASS``, see :ref:`FILTER <filter>`           |
 +------------+-------------------------------------------------------------+
 | INFO       | The annotation, see :ref:`INFO fields <info_fields>`        |
 +------------+-------------------------------------------------------------+
@@ -73,6 +75,76 @@ Then, each line describes one retrocopy insertion:
    cannot claim for the body of the insertion. The **observed** ends
    are at ``LEFT_SVINSSEQ`` and ``RIGHT_SVINSSEQ``, and the predicted
    sequence is at :ref:`the insertions file <insertions_file>`.
+
+.. _qual:
+
+QUAL
+----
+
+``QUAL`` is the Phred scaled probability that the site is **not**
+variant: :math:`QUAL = -10 \log_{10} P(\text{all samples are } 0/0)`.
+With a flat prior, each sample is homozygous reference with probability
+:math:`L(0/0) / (L(0/0) + L(0/1) + L(1/1))`, from its genotype likelihoods
+(``GL``). Samples without reads are not informative and are skipped; with
+no informative sample, ``QUAL`` is ``.``. It is capped at 999.
+
+.. note::
+   ``QUAL`` inherits the :ref:`genotype model <method_genotype>`, which
+   counts reads weighted by their mapping quality. It is a model based
+   score, useful to **rank** the insertions, not a calibrated probability.
+
+.. _filter:
+
+FILTER
+------
+
+The ``FILTER`` column checks whether the insertion has the features of a
+**canonical** retrocopy. It lists the checks that failed, separated by
+``;``, or ``PASS`` when all of them passed. A check that **cannot be
+evaluated** does not fail: Without both breakpoints, for instance, there is
+no way to tell whether there is a TSD, so ``NoTSD`` is not raised. That is
+what lets exome data or alignments without split reads (``bwa aln``) pass.
+
++-------------------+-------------------------------------------------------+
+| LowQual           | ``QUAL`` below the threshold (``make-vcf -L``,        |
+|                   | default 20)                                           |
++-------------------+-------------------------------------------------------+
+| LowMAPQ           | Mean mapping quality of the supporting reads below    |
+|                   | the threshold (``make-vcf -Q``, default 20). Typical  |
+|                   | of reads in repeats or paralogs                       |
++-------------------+-------------------------------------------------------+
+| AmbiguousParental | The parental gene is ambiguous: ``PGTYPE`` is not 1   |
++-------------------+-------------------------------------------------------+
+| NoTSD             | Both breakpoints were found, but there is no target   |
+|                   | site duplication (``TSDLEN <= 0``)                    |
++-------------------+-------------------------------------------------------+
+| TSDOutlier        | ``TSDLEN`` out of the expected range: Greater than 50 |
+|                   | or less than -20 - probably wrong breakpoints         |
++-------------------+-------------------------------------------------------+
+| NoPolyA           | Both breakpoints were found, but there is no poly-A   |
+|                   | tail at any of them                                   |
++-------------------+-------------------------------------------------------+
+| NoJunction        | The parental gene has more than one exon and the      |
+|                   | retrocopy should span a junction - its 5' end is not  |
+|                   | known or not at the last exon - but no read spans it  |
++-------------------+-------------------------------------------------------+
+| PolarityConflict  | The strand given by the poly-A disagrees with the one |
+|                   | given by ``ORHO``                                     |
++-------------------+-------------------------------------------------------+
+
+Any filter can be turned off with ``make-vcf -x`` (it may be passed more than
+once), and the filters are applied by ``make-vcf``, so trying other thresholds
+takes seconds - there is no need to run ``merge-call`` again. The high
+confidence set is then::
+
+   $ bcftools view -f PASS out.vcf
+
+.. note::
+   Failing a filter does not make an insertion false: It makes it **non
+   canonical**. Some genuine retrocopies are inserted without a TSD, have lost
+   the poly-A or come from a single exon parental gene. The filters point out
+   what is missing, and ``HALLMARKS`` tells what was observed - the choice is
+   up to you.
 
 Precise and imprecise insertions
 --------------------------------
@@ -181,6 +253,17 @@ is a duplication.
 |            | is significant (``make-vcf -e``)                             |
 +------------+--------------------------------------------------------------+
 
+**Hallmarks**
+
++------------+--------------------------------------------------------------+
+| HALLMARKS  | The retrocopy hallmarks observed, separated by comma: ``TSD``|
+|            | (target site duplication), ``POLYA`` (poly-A tail) and       |
+|            | ``EEJ`` (reads spanning exon-exon junctions). With the       |
+|            | filters, it tells a hallmark that was looked for and is      |
+|            | missing (e.g. ``NoTSD``) from one that could not be looked   |
+|            | for (neither ``TSD`` here nor ``NoTSD`` at ``FILTER``)       |
++------------+--------------------------------------------------------------+
+
 **Parental gene**
 
 +------------+--------------------------------------------------------------+
@@ -264,9 +347,9 @@ shipped with **sideRETRO**: A retrocopy of the gene *PARENT*,
 inserted at *chr1* with a 12 bases TSD and a 25 bases poly-A tail.
 The INFO column was wrapped for reading::
 
-   chr1  9999  RTC000001  A  <INS:ME:RTC>  .  PASS
+   chr1  9999  RTC000001  A  <INS:ME:RTC>  999.0  PASS
      SVTYPE=INS;ORHO=0.514382;POLARITY=+;PG=PARENT;PGTYPE=1;PGEXONS=PARENT:3;
-     EEJ=6;EEJLIST=ENSEP0-ENSEP1;PG5P=ENSEP0:1001:8;PG3P=ENSEP2:3398:3;SVLEN=1225;
+     HALLMARKS=TSD,POLYA,EEJ;EEJ=6;EEJLIST=ENSEP0-ENSEP1;PG5P=ENSEP0:1001:8;PG3P=ENSEP2:3398:3;SVLEN=1225;
      LEFT_SVINSSEQ=CACTGATACAGCAGACTCATTCCCCTATAAGCGAATCGTA;
      RIGHT_SVINSSEQ=ACTCAGCAGGACTCGGTTTAAAAAAAAAAAAAAAAAAAAAAAAAAA;
      DP=42;SR=16;LBKP=10011;LSR=8;RBKP=10000;RSR=8;TSDLEN=12;TSD=GAACGCCCCGTG;
@@ -281,7 +364,9 @@ two A at the end of the last exon - and puts the retrocopy at the
 (``EEJ``, ``EEJLIST``), the retrocopy is **full length** (``PG5P`` at
 the first base of exon *ENSEP0*) and its predicted length is 1225
 bases: Three exons of 400 bases plus the poly-A. The single sample is
-homozygous for the insertion.
+homozygous for the insertion, hence the maximum ``QUAL``, and the insertion
+has all the hallmarks of a retrocopy (``HALLMARKS``), so it passes all the
+filters (``PASS``).
 
 .. _rnames_file:
 

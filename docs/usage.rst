@@ -445,6 +445,17 @@ others::
      -r, --reference-file       FASTA file of the reference genome, for the REF
                                 column, the contigs and the TSD sequence
 
+  Filter Options:
+     The FILTER column lists the checks of a canonical retrocopy that
+     failed, or PASS. A check that cannot be evaluated does not fail
+     -L, --min-qual             LowQual: Minimum QUAL [default:"20"]
+     -Q, --min-mapq             LowMAPQ: Minimum mean mapping quality of the
+                                supporting reads [default:"20"]
+     -x, --no-filter            Disable a filter. It may be passed multiple
+                                times: LowQual, LowMAPQ, AmbiguousParental,
+                                NoTSD, TSDOutlier, NoPolyA, NoJunction and
+                                PolarityConflict
+
 
 So, in order to produce the results from a database input file like
 *my_database.db*, just type::

@@ -251,6 +251,8 @@ START_TEST (test_vcf)
 	populate_db (db);
 
 	VCFOption opt = {
+		.min_qual = VCF_DEFAULT_MIN_QUAL,
+		.min_mapq = VCF_DEFAULT_MIN_MAPQ,
 		.fasta_file = fasta_file,
 		.rnames_file = rnames_file,
 		.insertion_file = insertion_file
@@ -268,14 +270,27 @@ START_TEST (test_vcf)
 	// in each retrocopy line, in VCF order
 	// (chr10, chr11, chr12, chr13, chr13, chr14, chr14, chrY)
 	const char *present[][2] = {
-		{";ORHO=-1.000000;POLARITY=+;PG=gene1;PGTYPE=1;PGEXONS=gene1:2;EEJ=5;EEJLIST=ee1-ee13;PG5P=ee1:1050:7;PG3P=ee13:3000:2;SVLEN=2000;LEFT_SVINSSEQ=GGTTAACC;RIGHT_SVINSSEQ=TTGGCC;", ";SR=2;LBKP=100;LSR=2;POLYA=25;POLYASR=6"},
+		{";ORHO=-1.000000;POLARITY=+;PG=gene1;PGTYPE=1;PGEXONS=gene1:2;HALLMARKS=POLYA,EEJ;EEJ=5;EEJLIST=ee1-ee13;PG5P=ee1:1050:7;PG3P=ee13:3000:2;SVLEN=2000;LEFT_SVINSSEQ=GGTTAACC;RIGHT_SVINSSEQ=TTGGCC;", ";SR=2;LBKP=100;LSR=2;POLYA=25;POLYASR=6"},
 		{";PGEXONS=gene2_1:1/gene2_2:1;",   ";DP="},
 		{";SR=7;LBKP=259;LSR=3;RBKP=250;RSR=4;TSDLEN=10;TSD=CCCCCCCCCC", NULL},
 		{";DP=",                            NULL},
 		{";DP=",                            NULL},
 		{";DP=",                            NULL},
 		{";DP=",                            NULL},
-		{";ORHO=1.000000;POLARITY=-;PG=gene1;PGTYPE=1;PGEXONS=gene1:2;PG3P=ee1:150:3;DP=", ";SR=2;LBKP=100;LSR=1;RBKP=102;RSR=1;TSDLEN=-1;POLYA=30;POLYAMIN;POLYASR=2"}
+		{";ORHO=1.000000;POLARITY=-;PG=gene1;PGTYPE=1;PGEXONS=gene1:2;HALLMARKS=POLYA;PG3P=ee1:150:3;DP=", ";SR=2;LBKP=100;LSR=1;RBKP=102;RSR=1;TSDLEN=-1;POLYA=30;POLYAMIN;POLYASR=2"}
+	};
+
+	// QUAL and FILTER. Samples without reads give no QUAL. The
+	// others: -10 * log10 P(0/0) with GL (-33, -0.1, -5) = 329.0
+	const char *qual_filter[] = {
+		"\t.\tPolarityConflict\tSVTYPE=INS;",
+		"\t.\tAmbiguousParental\tSVTYPE=INS;",
+		"\t.\tAmbiguousParental;NoPolyA\tSVTYPE=INS;",
+		"\t329.0\tAmbiguousParental\tSVTYPE=INS;",
+		"\t329.0\tAmbiguousParental\tSVTYPE=INS;",
+		"\t329.0\tAmbiguousParental\tSVTYPE=INS;",
+		"\t329.0\tAmbiguousParental\tSVTYPE=INS;",
+		"\t329.0\tNoTSD;NoJunction;PolarityConflict\tSVTYPE=INS;"
 	};
 
 	const char *absent[] = {
@@ -296,6 +311,8 @@ START_TEST (test_vcf)
 					"'%s' not found at line %d: %s", present[i][1], i, line);
 			ck_assert_msg (strstr (line, absent[i]) == NULL,
 					"'%s' found at line %d: %s", absent[i], i, line);
+			ck_assert_msg (strstr (line, qual_filter[i]) != NULL,
+					"'%s' not found at line %d: %s", qual_filter[i], i, line);
 			i++;
 		}
 
@@ -372,6 +389,58 @@ START_TEST (test_vcf)
 
 	ck_assert_int_eq (i, 2);
 	xfclose (fp);
+
+	// Thresholds and disabled filters: The disabled ones are
+	// neither checked nor declared at the header
+	VCFOption opt2 = {
+		.fasta_file       = fasta_file,
+		.min_qual         = 400,
+		.min_mapq         = 30,
+		.disabled_filters = VCF_FILTER_AMBIGUOUS_PARENTAL
+			| VCF_FILTER_POLARITY_CONFLICT
+	};
+
+	vcf (db, vcf_file, &opt2);
+
+	const char *filters2[] = {
+		"\tLowMAPQ\tSVTYPE=INS;",
+		"\tLowMAPQ\tSVTYPE=INS;",
+		"\tLowMAPQ;NoPolyA\tSVTYPE=INS;",
+		"\tLowQual;LowMAPQ\tSVTYPE=INS;",
+		"\tLowQual;LowMAPQ\tSVTYPE=INS;",
+		"\tLowQual;LowMAPQ\tSVTYPE=INS;",
+		"\tLowQual;LowMAPQ\tSVTYPE=INS;",
+		"\tLowQual;LowMAPQ;NoTSD;NoJunction\tSVTYPE=INS;"
+	};
+
+	fp = xfopen (vcf_file, "r");
+
+	for (i = 0; getline (&line, &len, fp) != EOF;)
+		{
+			if (line[0] == '#')
+				{
+					ck_assert_msg (strstr (line, "ID=AmbiguousParental") == NULL
+							&& strstr (line, "ID=PolarityConflict") == NULL,
+							"Disabled filter declared: %s", line);
+					continue;
+				}
+
+			ck_assert_int_lt (i, 8);
+			ck_assert_msg (strstr (line, filters2[i]) != NULL,
+					"'%s' not found at line %d: %s", filters2[i], i, line);
+			i++;
+		}
+
+	ck_assert_int_eq (i, 8);
+	ck_assert_int_eq (opt2.num_records, 8);
+	ck_assert_int_eq (opt2.num_pass, 0);
+	xfclose (fp);
+
+	// Filter names
+	ck_assert_int_eq (vcf_filter_lookup ("NoTSD"), VCF_FILTER_NO_TSD);
+	ck_assert_int_eq (vcf_filter_lookup ("PolarityConflict"),
+			VCF_FILTER_POLARITY_CONFLICT);
+	ck_assert_int_eq (vcf_filter_lookup ("Ponga"), 0);
 
 	xfree (line);
 

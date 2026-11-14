@@ -368,10 +368,36 @@ class Sim:
             ('INSSEQ', insseq),
             ('RNAMES', ','.join(sorted(set(r.split('\t')[0] for r in self.recs)))),
             ('ROLES', self.roles(left, right, run, all_clips, polya)),
+            ('FILTER', self.filters(both, polya)),
+            ('HALLMARKS', ','.join(h for h, ok in (
+                ('TSD', both and a.tsd_len > 0),
+                ('POLYA', polya),
+                ('EEJ', a.n_junction_reads > 0)) if ok) or 'NA'),
             ('EEJ', a.n_junction_reads if a.n_junction_reads else 'NA'),
             ('EEJLIST', 'ENSEP0-ENSEP1' if a.n_junction_reads else 'NA'),
             ('INS', self.ins),
         ]
+
+    def filters(self, both, polya):
+        """
+        Expected FILTER: The simulated retrocopy has a single,
+        multi-exon parental gene, reads with MAPQ 60, the poly-A
+        at '+' and a 5' end at the first exon. A check that cannot
+        be evaluated (no breakpoints) does not fail
+        """
+        a = self.args
+        f = []
+
+        if both and a.tsd_len <= 0:
+            f.append('NoTSD')
+        if both and (a.tsd_len > 50 or a.tsd_len < -20):
+            f.append('TSDOutlier')
+        if both and not polya:
+            f.append('NoPolyA')
+        if a.n_junction_reads == 0:
+            f.append('NoJunction')
+
+        return ';'.join(f) if f else 'PASS'
 
     def roles(self, left, right, run, all_clips, polya):
         """
@@ -472,6 +498,12 @@ def check(vcf_file, truth_file, no_ref=False):
 
     expect('CHROM', fields[0], truth['CHROM'])
     expect('ID', fields[2], truth['ID'])
+    expect('FILTER', fields[6], truth['FILTER'])
+
+    # The single sample carries the insertion: High QUAL
+    if fields[5] == '.' or float(fields[5]) < 20:
+        print('FAIL: QUAL = %s, expected >= 20' % fields[5])
+        errors += 1
 
     if truth['POS'] != 'NA':
         expect('POS', fields[1], truth['POS'])
@@ -479,7 +511,7 @@ def check(vcf_file, truth_file, no_ref=False):
     for key in ('IMPRECISE', 'LBKP', 'LSR', 'RBKP', 'RSR', 'TSDLEN', 'TSD',
                 'POLYA', 'POLYAMIN', 'POLYASR', 'POLARITY', 'PG',
                 'PGEXONS', 'EEJ', 'EEJLIST', 'PG5P', 'PG3P', 'SVLEN',
-                'LEFT_SVINSSEQ', 'RIGHT_SVINSSEQ'):
+                'LEFT_SVINSSEQ', 'RIGHT_SVINSSEQ', 'HALLMARKS'):
         if truth[key] == 'SKIP':
             continue
         if truth[key] == 'NA':

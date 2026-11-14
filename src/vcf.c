@@ -33,6 +33,56 @@
 #include "fasta.h"
 #include "vcf.h"
 
+#include <math.h>
+
+// QUAL is capped, as the genotype likelihoods
+// may be very low
+#define VCF_MAX_QUAL 999.0
+
+struct _VCFFilterDef
+{
+	VCFFilter   flag;
+	const char *id;
+	const char *description;
+};
+
+typedef struct _VCFFilterDef VCFFilterDef;
+
+static const VCFFilterDef filter_defs[] =
+{
+	{VCF_FILTER_LOW_QUAL,           "LowQual",
+		"QUAL below the threshold (make-vcf --min-qual)"},
+	{VCF_FILTER_LOW_MAPQ,           "LowMAPQ",
+		"Mean mapping quality of the supporting reads below the threshold (make-vcf --min-mapq)"},
+	{VCF_FILTER_AMBIGUOUS_PARENTAL, "AmbiguousParental",
+		"The parental gene is ambiguous: Overlapped or near parental genes, or hotspot (PGTYPE != 1)"},
+	{VCF_FILTER_NO_TSD,             "NoTSD",
+		"Both breakpoints found, but no target site duplication (TSDLEN <= 0)"},
+	{VCF_FILTER_TSD_OUTLIER,        "TSDOutlier",
+		"Target site duplication length out of the expected range: TSDLEN > 50 or TSDLEN < -20"},
+	{VCF_FILTER_NO_POLYA,           "NoPolyA",
+		"Both breakpoints found, but no poly-A tail"},
+	{VCF_FILTER_NO_JUNCTION,        "NoJunction",
+		"Multi-exon parental gene and the retrocopy should span an exon-exon junction, but no read spans it"},
+	{VCF_FILTER_POLARITY_CONFLICT,  "PolarityConflict",
+		"The strand given by the poly-A disagrees with the strand given by ORHO"},
+	{0, NULL, NULL}
+};
+
+int
+vcf_filter_lookup (const char *id)
+{
+	assert (id != NULL);
+
+	int i = 0;
+
+	for (i = 0; filter_defs[i].id != NULL; i++)
+		if (!strcmp (filter_defs[i].id, id))
+			return filter_defs[i].flag;
+
+	return 0;
+}
+
 #define VCF_VERSION "VCFv4.2"
 
 // Do not print the TSD sequence if its length is
@@ -114,6 +164,11 @@ struct _VCFBody
 	const char *ins_seq;
 	const char *left_seq;
 	const char *right_seq;
+
+	// Filters
+	double      mapq_mean;
+	int         pg_max_exons;
+	int         five_prime_last_exon;
 
 	// Host and Near genes
 	const char *exonic;
@@ -254,6 +309,8 @@ vcf_print_header (const List *hl, Hash *contig_len,
 		" Evidence of a processed transcript\">\n"
 		"##INFO=<ID=EEJLIST,Number=1,Type=String,Description=\"Exon-exon junctions spanned by reads as 'exon_id1-exon_id2' separated by '/'\">\n"
 		"##INFO=<ID=EXONIC,Number=1,Type=String,Description=\"Exon IDs separated by '/' for intragenic retrocopy\">\n"
+		"##INFO=<ID=HALLMARKS,Number=.,Type=String,Description=\"Retrocopy hallmarks observed: TSD (target site duplication),"
+		" POLYA (poly-A tail) and EEJ (reads spanning exon-exon junctions)\">\n"
 		"##INFO=<ID=IMPRECISE,Number=0,Type=Flag,Description=\"Imprecise structural variation\">\n"
 		"##INFO=<ID=INTRONIC,Number=1,Type=String,Description=\"Intron IDs separated by '/' for intragenic retrocopy\">\n"
 		"##INFO=<ID=LEFT_SVINSSEQ,Number=1,Type=String,Description=\"Observed sequence of the insertion at the left junction:"
@@ -288,6 +345,14 @@ vcf_print_header (const List *hl, Hash *contig_len,
 		"##INFO=<ID=TSD,Number=1,Type=String,Description=\"Target site duplication sequence: Reference bases from RBKP to LBKP\">\n"
 		"##INFO=<ID=TSDLEN,Number=1,Type=Integer,Description=\"Target site duplication length (LBKP - RBKP + 1):"
 		" Positive for duplication, zero for a clean insertion and negative for target site deletion\">\n"
+		"##FILTER=<ID=PASS,Description=\"All filters passed\">\n");
+
+	for (i = 0; filter_defs[i].id != NULL; i++)
+		if (!(opt->disabled_filters & filter_defs[i].flag))
+			xfprintf (fp, "##FILTER=<ID=%s,Description=\"%s\">\n",
+					filter_defs[i].id, filter_defs[i].description);
+
+	xfprintf (fp,
 		"##ALT=<ID=INS:ME:RTC,Description=\"Insertion of a Retrocopy\">\n"
 		"##FORMAT=<ID=DP2,Number=2,Type=Integer,Description=\"Read depth at this position for this sample separated by comma:"
 		" The former is reference depth and the last is alternate depth\">\n"
@@ -364,8 +429,8 @@ prepare_retrocopy_query_stmt (sqlite3 *db, const long near_gene_dist)
 		"		FROM exon\n"
 		"		GROUP BY gene_name\n"
 		"	),\n"
-		"	pg_exons (rid, txt) AS (\n"
-		"		SELECT rid, GROUP_CONCAT(gene_name || ':' || n, '/')\n"
+		"	pg_exons (rid, txt, n) AS (\n"
+		"		SELECT rid, GROUP_CONCAT(gene_name || ':' || n, '/'), MAX(n)\n"
 		"		FROM (\n"
 		"			SELECT DISTINCT cm.retrocopy_id AS rid, cl.gene_name\n"
 		"			FROM cluster_merging AS cm\n"
@@ -389,6 +454,16 @@ prepare_retrocopy_query_stmt (sqlite3 *db, const long near_gene_dist)
 		"			ORDER BY j.retrocopy_id, e1.start, e2.start\n"
 		"		)\n"
 		"		GROUP BY rid\n"
+		"	),\n"
+		"	mapq (rid, mean) AS (\n"
+		"		SELECT cm.retrocopy_id, AVG(a.mapq)\n"
+		"		FROM cluster_merging AS cm\n"
+		"		INNER JOIN clustering AS c\n"
+		"			ON c.cluster_id = cm.cluster_id\n"
+		"				AND c.cluster_sid = cm.cluster_sid\n"
+		"		INNER JOIN alignment AS a\n"
+		"			ON a.id = c.alignment_id\n"
+		"		GROUP BY cm.retrocopy_id\n"
 		"	),\n"
 		"	genotype (retrocopy_id, acm) AS (\n"
 		"		SELECT retrocopy_id, COUNT(*)\n"
@@ -446,7 +521,15 @@ prepare_retrocopy_query_stmt (sqlite3 *db, const long near_gene_dist)
 		"	COALESCE(ins.three_prime_pos, 0), COALESCE(e3.ense, '?'),\n"
 		"	COALESCE(ins.three_prime_sr, 0), COALESCE(ins.len, 0),\n"
 		"	COALESCE(ins.seq, '?'), COALESCE(ins.left_seq, '?'),\n"
-		"	COALESCE(ins.right_seq, '?')\n"
+		"	COALESCE(ins.right_seq, '?'),\n"
+		"	COALESCE(m.mean, 0), COALESCE(p.n, 0),\n"
+		"	CASE\n"
+		"		WHEN ins.five_prime_sr > 0\n"
+		"			AND ((g5.strand = '+' AND e5.end = g5.end)\n"
+		"				OR (g5.strand = '-' AND e5.start = g5.start))\n"
+		"			THEN 1\n"
+		"		ELSE 0\n"
+		"	END\n"
 		"FROM retrocopy AS r\n"
 		"LEFT JOIN pg_exons AS p\n"
 		"	ON r.id = p.rid\n"
@@ -458,6 +541,10 @@ prepare_retrocopy_query_stmt (sqlite3 *db, const long near_gene_dist)
 		"	ON e5.id = ins.five_prime_exon_id\n"
 		"LEFT JOIN exon AS e3\n"
 		"	ON e3.id = ins.three_prime_exon_id\n"
+		"LEFT JOIN gene AS g5\n"
+		"	ON g5.gene_name = e5.gene_name\n"
+		"LEFT JOIN mapq AS m\n"
+		"	ON r.id = m.rid\n"
 		"LEFT JOIN gene AS g\n"
 		"	ON r.parental_gene_name = g.gene_name\n"
 		"INNER JOIN genotype AS gn\n"
@@ -589,6 +676,54 @@ vcf_get_body_line (sqlite3_stmt *stmt, VCFBody *b)
 	b->ins_seq              = db_column_text   (stmt, 34);
 	b->left_seq             = db_column_text   (stmt, 35);
 	b->right_seq            = db_column_text   (stmt, 36);
+	b->mapq_mean            = db_column_double (stmt, 37);
+	b->pg_max_exons         = db_column_int    (stmt, 38);
+	b->five_prime_last_exon = db_column_int    (stmt, 39);
+}
+
+static double
+vcf_qual (Hash *gi, const List *hl)
+{
+	const ListElmt *cur = NULL;
+	const VCFHeader *h = NULL;
+	const VCFGenotype *g = NULL;
+	double max = 0.0;
+	double sum = 0.0;
+	double qual = 0.0;
+	int informative = 0;
+
+	/*
+	* QUAL = -10 log10 P(site is not variant). With a flat
+	* prior, a sample is homozygous reference with probability
+	* L(0/0) / (L(0/0) + L(0/1) + L(1/1)) and the site is not
+	* variant if all samples are 0/0. The likelihoods are log10,
+	* so normalize them in log space. Samples without reads are
+	* not informative
+	*/
+	for (cur = list_head (hl); cur != NULL; cur = list_next (cur))
+		{
+			h = list_data (cur);
+			g = hash_lookup (gi, &h->id);
+
+			if (g == NULL || (g->reference_depth + g->alternate_depth) == 0)
+				continue;
+
+			max = fmax (g->ho_ref_likelihood,
+					fmax (g->he_likelihood, g->ho_alt_likelihood));
+
+			sum = pow (10.0, g->ho_ref_likelihood - max)
+				+ pow (10.0, g->he_likelihood - max)
+				+ pow (10.0, g->ho_alt_likelihood - max);
+
+			// -10 log10 P(0/0)
+			qual += -10.0 * (g->ho_ref_likelihood - max - log10 (sum));
+			informative++;
+		}
+
+	if (!informative)
+		return -1.0;
+
+	return qual > VCF_MAX_QUAL ? VCF_MAX_QUAL : qual;
 }
 
 static const char *
@@ -816,6 +951,12 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 
 	long tsd_len = 0;
 	char polarity = 0;
+	char orho_polarity = 0;
+	double qual = 0.0;
+	int both_breakpoints = 0;
+	int failed = 0;
+	int i = 0;
+	String *filter = string_sized_new (128);
 
 	sqlite3_stmt *rnames_stmt = NULL;
 	const char *ref = NULL;
@@ -853,9 +994,73 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 						base = ref[0];
 				}
 
-			xfprintf (fp,
-				"%s\t%li\t" VCF_ID_FMT "\t%c\t<INS:ME:RTC>\t.\tPASS\tSVTYPE=INS",
-				b.chr, pos, b.id, base);
+			/*
+			* Filters: The checks of a canonical retrocopy. A check
+			* that cannot be evaluated does not fail
+			*/
+			qual = vcf_qual (gi, hl);
+			both_breakpoints = b.breakpoint_left_sr > 0 && b.breakpoint_right_sr > 0;
+			tsd_len = b.breakpoint_left - b.breakpoint_right + 1;
+
+			orho_polarity = '?';
+			if (b.level == RETROCOPY_PASS
+					&& b.orientation_p_value <= opt->orientation_error)
+				orho_polarity = b.orientation_rho >= 0.0
+					? !strcmp (b.parental_strand, "+") ? '+' : '-'
+					: !strcmp (b.parental_strand, "+") ? '-' : '+';
+
+			failed = 0;
+
+			if (qual >= 0.0 && qual < opt->min_qual)
+				failed |= VCF_FILTER_LOW_QUAL;
+
+			if (b.mapq_mean < opt->min_mapq)
+				failed |= VCF_FILTER_LOW_MAPQ;
+
+			if (b.level != RETROCOPY_PASS)
+				failed |= VCF_FILTER_AMBIGUOUS_PARENTAL;
+
+			if (both_breakpoints && tsd_len <= 0)
+				failed |= VCF_FILTER_NO_TSD;
+
+			if (both_breakpoints
+					&& (tsd_len > VCF_TSD_MAX_LEN || tsd_len < VCF_TSD_MIN_LEN))
+				failed |= VCF_FILTER_TSD_OUTLIER;
+
+			if (both_breakpoints && b.polya_sr == 0)
+				failed |= VCF_FILTER_NO_POLYA;
+
+			// A retrocopy truncated into the last exon has no junction
+			if (b.pg_max_exons > 1 && b.eej == 0 && !b.five_prime_last_exon)
+				failed |= VCF_FILTER_NO_JUNCTION;
+
+			if (b.polya_sr > 0 && orho_polarity != '?'
+					&& orho_polarity != b.polya_strand[0])
+				failed |= VCF_FILTER_POLARITY_CONFLICT;
+
+			failed &= ~opt->disabled_filters;
+
+			string_clear (filter);
+			for (i = 0; filter_defs[i].id != NULL; i++)
+				if (failed & filter_defs[i].flag)
+					string_concat_printf (filter, "%s%s",
+							filter->len ? ";" : "", filter_defs[i].id);
+
+			if (!failed)
+				{
+					string_set (filter, "PASS");
+					opt->num_pass++;
+				}
+
+			xfprintf (fp, "%s\t%li\t" VCF_ID_FMT "\t%c\t<INS:ME:RTC>\t",
+					b.chr, pos, b.id, base);
+
+			if (qual >= 0.0)
+				xfprintf (fp, "%.1f", qual);
+			else
+				xfprintf (fp, ".");
+
+			xfprintf (fp, "\t%s\tSVTYPE=INS", filter->str);
 
 			// Imprecise retrocopies
 			if (b.insertion_point_type == RETROCOPY_INSERTION_POINT_WINDOW_MEAN)
@@ -868,21 +1073,10 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 
 			// Polarity: The poly-A junction is direct evidence.
 			// Otherwise use the orientation correlation
-			polarity = '?';
+			polarity = orho_polarity;
 
-			if (b.level == RETROCOPY_PASS
-					&& b.orientation_p_value <= opt->orientation_error)
-				{
-					xfprintf (fp, ";ORHO=%f", b.orientation_rho);
-
-					polarity = b.orientation_rho >= 0.0
-						? !strcmp (b.parental_strand, "+")
-							? '+'
-							: '-'
-						: !strcmp (b.parental_strand, "+")
-							? '-'
-							: '+';
-				}
+			if (orho_polarity != '?')
+				xfprintf (fp, ";ORHO=%f", b.orientation_rho);
 
 			if (b.polya_sr > 0)
 				polarity = b.polya_strand[0];
@@ -897,6 +1091,15 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 
 			if (strcmp (b.pg_exons, "?"))
 				xfprintf (fp, ";PGEXONS=%s", b.pg_exons);
+
+			// Hallmarks observed
+			if ((both_breakpoints && tsd_len > 0) || b.polya_sr > 0 || b.eej > 0)
+				xfprintf (fp, ";HALLMARKS=%s%s%s%s%s",
+						both_breakpoints && tsd_len > 0 ? "TSD" : "",
+						both_breakpoints && tsd_len > 0 && (b.polya_sr > 0 || b.eej > 0) ? "," : "",
+						b.polya_sr > 0 ? "POLYA" : "",
+						b.polya_sr > 0 && b.eej > 0 ? "," : "",
+						b.eej > 0 ? "EEJ" : "");
 
 			// Exon-exon junctions
 			if (b.eej > 0)
@@ -1031,6 +1234,7 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 	db_finalize (retrocopy_stmt);
 	db_finalize (genotype_stmt);
 	db_finalize (rnames_stmt);
+	string_free (filter, 1);
 }
 
 void

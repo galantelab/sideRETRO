@@ -56,6 +56,10 @@ struct _MakeVcf
 	// Filter
 	long         near_gene_dist;
 	float        orientation_error;
+	double       min_qual;
+	int          min_mapq;
+	int          disabled_filters;
+	String      *disabled_ids;
 
 	// Annotation
 	const char  *fasta_file;
@@ -76,6 +80,7 @@ run (MakeVcf *v)
 	time_t start = time (NULL);
 	Summary *s = NULL;
 	char b1[SUMMARY_NUM_LEN] = {};
+	char b2[SUMMARY_NUM_LEN] = {};
 
 	// Assemble VCF, read names and
 	// predicted insertions files
@@ -98,6 +103,9 @@ run (MakeVcf *v)
 	VCFOption opt = {
 		.near_gene_dist    = v->near_gene_dist,
 		.orientation_error = v->orientation_error,
+		.min_qual          = v->min_qual,
+		.min_mapq          = v->min_mapq,
+		.disabled_filters  = v->disabled_filters,
 		.fasta_file        = v->fasta_file,
 		.rnames_file       = rnames_file,
 		.insertion_file    = insertion_file
@@ -109,6 +117,8 @@ run (MakeVcf *v)
 
 	summary_section (s, "Retrocopies");
 	summary_line (s, "VCF records", "%s", summary_count (opt.num_records, b1));
+	summary_line (s, "PASS", "%s (%s)", summary_count (opt.num_pass, b1),
+			summary_percent (opt.num_pass, opt.num_records, b2));
 	summary_line (s, "Predicted sequences", "%s%s",
 			summary_count (opt.num_insertions, b1),
 			opt.num_insertions == 0 && opt.num_records > 0
@@ -139,7 +149,8 @@ print_usage (FILE *fp)
 		"%s\n"
 		"\n"
 		"Usage: %s make-vcf [-h] [-q] [-d] [-l FILE] [-o DIR] [-p STR]\n"
-		"       %*c          [-n INT] [-e FLOAT] [-r FILE] <FILE>\n"
+		"       %*c          [-n INT] [-e FLOAT] [-r FILE] [-L FLOAT]\n"
+		"       %*c          [-Q INT] [-x STR] <FILE>\n"
 		"\n"
 		"Write the annotated retrocopies to a VCF and to their companion files\n"
 		"\n"
@@ -175,10 +186,21 @@ print_usage (FILE *fp)
 		"                              the orientation (ORHO) [default:\"%.2f\"]\n"
 		"   -r, --reference-file       FASTA file of the reference genome, for the REF\n"
 		"                              column, the contigs and the TSD sequence\n"
+		"\n"
+		"Filter Options:\n"
+		"   The FILTER column lists the checks of a canonical retrocopy that\n"
+		"   failed, or PASS. A check that cannot be evaluated does not fail\n"
+		"   -L, --min-qual             LowQual: Minimum QUAL [default:\"%g\"]\n"
+		"   -Q, --min-mapq             LowMAPQ: Minimum mean mapping quality of the\n"
+		"                              supporting reads [default:\"%d\"]\n"
+		"   -x, --no-filter            Disable a filter. It may be passed multiple\n"
+		"                              times: LowQual, LowMAPQ, AmbiguousParental,\n"
+		"                              NoTSD, TSDOutlier, NoPolyA, NoJunction and\n"
+		"                              PolarityConflict\n"
 		"\n",
-		PACKAGE_STRING, PACKAGE, pkg_len, ' ',
+		PACKAGE_STRING, PACKAGE, pkg_len, ' ', pkg_len, ' ',
 		DEFAULT_OUTPUT_DIR, DEFAULT_PREFIX, DEFAULT_NEAR_GENE_DIST,
-		DEFAULT_ORIENTATION_ERROR);
+		DEFAULT_ORIENTATION_ERROR, VCF_DEFAULT_MIN_QUAL, VCF_DEFAULT_MIN_MAPQ);
 }
 
 static void
@@ -201,6 +223,10 @@ make_vcf_init (MakeVcf *vcf)
 		.silent             = DEFAULT_LOG_SILENT,
 		.near_gene_dist     = DEFAULT_NEAR_GENE_DIST,
 		.orientation_error  = DEFAULT_ORIENTATION_ERROR,
+		.min_qual           = VCF_DEFAULT_MIN_QUAL,
+		.min_mapq           = VCF_DEFAULT_MIN_MAPQ,
+		.disabled_filters   = 0,
+		.disabled_ids       = string_new (""),
 		.fasta_file         = NULL
 	};
 }
@@ -212,6 +238,7 @@ make_vcf_destroy (MakeVcf *vcf)
 		return;
 
 	logger_free (vcf->logger);
+	string_free (vcf->disabled_ids, 1);
 
 	memset (vcf, 0, sizeof (MakeVcf));
 }
@@ -256,6 +283,18 @@ make_vcf_validate (MakeVcf *vcf)
 	if (vcf->orientation_error < 0.0)
 		{
 			fprintf (stderr, "%s: --orientation-error must be greater or equal to 0\n", PACKAGE);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
+	if (vcf->min_qual < 0.0)
+		{
+			fprintf (stderr, "%s: --min-qual must be greater or equal to 0\n", PACKAGE);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
+	if (vcf->min_mapq < 0)
+		{
+			fprintf (stderr, "%s: --min-mapq must be greater or equal to 0\n", PACKAGE);
 			rc = EXIT_FAILURE; goto Exit;
 		}
 
@@ -319,10 +358,16 @@ make_vcf_print (MakeVcf *vcf)
 				vcf->fasta_file);
 		}
 
+	if (vcf->disabled_ids->len > 0)
+		string_concat_printf (msg, "%s", vcf->disabled_ids->str);
+
 	string_concat_printf (msg,
 		"  --near-gene-dist=%li \\\n"
-		"  --orientation-error=%.2f\n",
-		vcf->near_gene_dist, vcf->orientation_error);
+		"  --orientation-error=%.2f \\\n"
+		"  --min-qual=%g \\\n"
+		"  --min-mapq=%d\n",
+		vcf->near_gene_dist, vcf->orientation_error,
+		vcf->min_qual, vcf->min_mapq);
 
 	log_info ("%s", msg->str);
 	string_free (msg, 1);
@@ -353,6 +398,9 @@ parse_make_vcf_command_opt (int argc, char **argv)
 		{"near-gene-dist",    required_argument, 0, 'n'},
 		{"orientation-error", required_argument, 0, 'e'},
 		{"reference-file",    required_argument, 0, 'r'},
+		{"min-qual",          required_argument, 0, 'L'},
+		{"min-mapq",          required_argument, 0, 'Q'},
+		{"no-filter",         required_argument, 0, 'x'},
 		{0,                   0,                 0,  0 }
 	};
 
@@ -364,7 +412,7 @@ parse_make_vcf_command_opt (int argc, char **argv)
 	int option_index = 0;
 	int c = 0;
 
-	while ((c = getopt_long (argc, argv, "hqdl:o:p:n:e:r:", opt, &option_index)) >= 0)
+	while ((c = getopt_long (argc, argv, "hqdl:o:p:n:e:r:L:Q:x:", opt, &option_index)) >= 0)
 		{
 			switch (c)
 				{
@@ -412,6 +460,35 @@ parse_make_vcf_command_opt (int argc, char **argv)
 				case 'r':
 					{
 						vcf.fasta_file = optarg;
+						break;
+					}
+				case 'L':
+					{
+						vcf.min_qual = atof (optarg);
+						break;
+					}
+				case 'Q':
+					{
+						vcf.min_mapq = atoi (optarg);
+						break;
+					}
+				case 'x':
+					{
+						int flag = vcf_filter_lookup (optarg);
+
+						if (!flag)
+							{
+								fprintf (stderr, "%s: --no-filter '%s': Unknown filter. "
+										"Choose from: LowQual, LowMAPQ, AmbiguousParental, NoTSD, "
+										"TSDOutlier, NoPolyA, NoJunction, PolarityConflict\n",
+										PACKAGE, optarg);
+								print_try_help (stderr);
+								rc = EXIT_FAILURE; goto Exit;
+							}
+
+						vcf.disabled_filters |= flag;
+						string_concat_printf (vcf.disabled_ids,
+								"  --no-filter=%s \\\n", optarg);
 						break;
 					}
 				case '?':

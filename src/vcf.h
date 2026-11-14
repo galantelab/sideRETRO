@@ -31,13 +31,47 @@ struct _VCFOption
 	const char *rnames_file;
 	const char *insertion_file;
 
+	// Filters: Thresholds and the disabled ones
+	// (VCFFilter flags)
+	double      min_qual;
+	int         min_mapq;
+	int         disabled_filters;
+
 	// Output: Number of retrocopies written to
 	// the VCF and to the insertions file
 	int         num_records;
 	int         num_insertions;
+	int         num_pass;
 };
 
 typedef struct _VCFOption VCFOption;
+
+/*
+ * FILTER column: Each flag is a check a canonical
+ * retrocopy should pass. A check that cannot be
+ * evaluated (e.g. TSD without both breakpoints)
+ * does not fail
+ */
+enum _VCFFilter
+{
+	VCF_FILTER_LOW_QUAL           = 1,
+	VCF_FILTER_LOW_MAPQ           = 2,
+	VCF_FILTER_AMBIGUOUS_PARENTAL = 4,
+	VCF_FILTER_NO_TSD             = 8,
+	VCF_FILTER_TSD_OUTLIER        = 16,
+	VCF_FILTER_NO_POLYA           = 32,
+	VCF_FILTER_NO_JUNCTION        = 64,
+	VCF_FILTER_POLARITY_CONFLICT  = 128
+};
+
+typedef enum _VCFFilter VCFFilter;
+
+#define VCF_DEFAULT_MIN_QUAL      20.0
+#define VCF_DEFAULT_MIN_MAPQ      20
+#define VCF_TSD_MAX_LEN           50
+#define VCF_TSD_MIN_LEN           -20
+
+int vcf_filter_lookup (const char *id);
 
 void vcf (sqlite3 *db, const char *output_file, VCFOption *opt);
 
