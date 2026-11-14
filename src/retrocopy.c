@@ -1861,17 +1861,20 @@ insertion_set_entry (sqlite3_stmt *insertion_stmt, const int rid,
 	// the end of the last exon
 	if (five->sr > 0)
 		{
+			/*
+			* The exons are sorted by start: At '-', the last exon
+			* of the mRNA is the first one. At '+', look for the
+			* greatest end, as an alternative exon may end after
+			* the last one
+			*/
 			three_pos = strand == '+'
 				? exons[0].end
 				: exons[0].start;
 
-			for (i = 0; i < (size_t) n_exons; i++)
-				{
-					if (strand == '+' && exons[i].end > three_pos)
+			if (strand == '+')
+				for (i = 1; i < (size_t) n_exons; i++)
+					if (exons[i].end > three_pos)
 						three_pos = exons[i].end;
-					else if (strand == '-' && exons[i].start < three_pos)
-						three_pos = exons[i].start;
-				}
 
 			if (three->sr > 0)
 				three_pos = three->pos;

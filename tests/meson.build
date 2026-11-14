@@ -75,6 +75,19 @@ if python3.found()
       suite : 'simulation',
     timeout : 600
   )
+
+  test(
+    'cli',
+    python3,
+       args : [
+         files('cli/run_cli_test.py'),
+         sider_exec.full_path(),
+         files('sim/retrocopy_sim.py')
+       ],
+    depends : sider_exec,
+      suite : 'cli',
+    timeout : 600
+  )
 else
-  warning('Simulation test is disabled without \'python3\'')
+  warning('Simulation and CLI tests are disabled without \'python3\'')
 endif

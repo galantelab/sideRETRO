@@ -371,6 +371,85 @@ START_TEST (test_abnormal_filter_seq_qual)
 }
 END_TEST
 
+static const char *sam_edge =
+	"@HD\tVN:1.0\tSO:queryname\n"
+	"@SQ\tSN:chr1\tLN:248956422\n"
+	"@SQ\tSN:chr2\tLN:242193529\n"
+	"D7\t97\tchr2\t20\t60\t300M\t=\t20000\t20280\tACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGT\t*\n"
+	"D7\t145\tchr2\t20000\t60\t10M\t=\t20\t-20280\tCCCCCTTTAG\t~~~~~~~~~~\n"
+	"D8\t97\tchr2\t30\t60\t10M\t=\t30000\t29980\t*\t*\n"
+	"D8\t145\tchr2\t30000\t60\t10M\t=\t30\t-29980\tCCCCCTTTAG\t~~~~~~~~~~\n"
+	"L9\t97\tchr2\t40\t60\t10M\t=\t40000\t39970\tAAAAAAAAAA\t~~~~~~~~~~\n"
+	"L9\t145\tchr2\t40000\t60\t10M\t=\t40\t-39970\tCCCCCTTTAG\t~~~~~~~~~~\n";
+
+static const char *sam_normal =
+	"@HD\tVN:1.0\tSO:queryname\n"
+	"@SQ\tSN:chr1\tLN:248956422\n"
+	"N1\t99\tchr1\t1\t60\t10M\t=\t20\t29\tATCGATCGAT\t~~~~~~~~~~\n"
+	"N1\t147\tchr1\t20\t60\t10M\t=\t1\t-29\tAAAGGGCCCT\t~~~~~~~~~~\n";
+
+START_TEST (test_abnormal_filter_edge)
+{
+	TestAbnormal a;
+	AbnormalStat stat = {};
+	sqlite3_stmt *stmt = NULL;
+	int i = 0;
+
+	/*
+	* D7: A 300 bases read without quality ('*')
+	* D8: A read without sequence ('*')
+	* L9: A low complexity read (poly-A): Discarded
+	*/
+	test_abnormal_init (&a, sam_edge);
+	a.arg->max_base_freq = 0.75;
+	a.arg->hts_threads = 1;
+	a.arg->stat = &stat;
+
+	abnormal_filter (a.arg);
+
+	ck_assert_int_eq (stat.alignments, 6);
+	ck_assert_int_eq (stat.abnormal, 4);
+	ck_assert_int_eq (stat.sorted, 1);
+
+	stmt = db_prepare (a.db,
+			"SELECT qname, flag, length (seq), qual FROM alignment\n"
+			"ORDER BY qname ASC, flag ASC");
+
+	const struct {const char *qname; int flag; int len; const char *qual;} rows[] = {
+		{"D7", 97,  300, "*"},
+		{"D7", 145, 10,  "~~~~~~~~~~"},
+		{"D8", 97,  1,   "*"},
+		{"D8", 145, 10,  "~~~~~~~~~~"}
+	};
+
+	for (i = 0; db_step (stmt) == SQLITE_ROW; i++)
+		{
+			ck_assert_int_lt (i, 4);
+			ck_assert_str_eq (db_column_text (stmt, 0), rows[i].qname);
+			ck_assert_int_eq (db_column_int (stmt, 1), rows[i].flag);
+			ck_assert_int_eq (db_column_int (stmt, 2), rows[i].len);
+			ck_assert_str_eq (db_column_text (stmt, 3), rows[i].qual);
+		}
+
+	ck_assert_int_eq (i, 4);
+
+	db_finalize (stmt);
+	test_abnormal_destroy (&a);
+
+	// Only a normal pair: No abnormal alignment
+	stat = (AbnormalStat) {};
+	test_abnormal_init (&a, sam_normal);
+	a.arg->stat = &stat;
+
+	abnormal_filter (a.arg);
+
+	ck_assert_int_eq (stat.alignments, 2);
+	ck_assert_int_eq (stat.abnormal, 0);
+
+	test_abnormal_destroy (&a);
+}
+END_TEST
+
 Suite *
 make_abnormal_suite (void)
 {
@@ -385,6 +464,7 @@ make_abnormal_suite (void)
 	tcase_add_test (tc_core, test_abnormal_filter_sorted);
 	tcase_add_test (tc_core, test_abnormal_filter_unsorted);
 	tcase_add_test (tc_core, test_abnormal_filter_seq_qual);
+	tcase_add_test (tc_core, test_abnormal_filter_edge);
 	suite_add_tcase (s, tc_core);
 
 	return s;
