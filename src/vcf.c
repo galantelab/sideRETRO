@@ -708,13 +708,17 @@ vcf_print_rnames (sqlite3_stmt *stmt, const List *hl, FILE *fp,
 	db_clear_bindings (stmt);
 	db_bind_int (stmt, 1, retrocopy_id);
 
-	xfprintf (fp, VCF_ID_FMT "\t", retrocopy_id);
-
+	/*
+	* One read per line: retrocopy id, sample and read name,
+	* separated by tab. A read name (QNAME) never has tab,
+	* so it can be written as it is - e.g. Illumina names
+	* with colons
+	*/
 	while (db_step (stmt) == SQLITE_ROW)
 		{
 			source_id = db_column_int (stmt, 0);
 
-			// New source: 'sample:'
+			// Look for the sample name only when it changes
 			if (source_id != source_id_prev)
 				{
 					for (cur = list_head (hl); cur != NULL; cur = list_next (cur))
@@ -725,17 +729,12 @@ vcf_print_rnames (sqlite3_stmt *stmt, const List *hl, FILE *fp,
 						}
 
 					assert (cur != NULL);
-
-					xfprintf (fp, "%s%s:", source_id_prev ? ";" : "", h->name);
 					source_id_prev = source_id;
 				}
-			else
-				xfprintf (fp, ",");
 
-			xfprintf (fp, "%s", db_column_text (stmt, 1));
+			xfprintf (fp, VCF_ID_FMT "\t%s\t%s\n", retrocopy_id,
+					h->name, db_column_text (stmt, 1));
 		}
-
-	xfprintf (fp, "\n");
 }
 
 static void
@@ -1010,6 +1009,7 @@ vcf (sqlite3 *db, const char *output_file, VCFOption *opt)
 		{
 			log_debug ("Create the read names file '%s'", opt->rnames_file);
 			rnames_fp = xfopen (opt->rnames_file, "w");
+			xfprintf (rnames_fp, "#retrocopy_id\tsample\tread_name\n");
 		}
 
 	if (opt->insertion_file != NULL)

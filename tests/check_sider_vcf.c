@@ -162,7 +162,7 @@ populate_db (sqlite3 *db)
 		"INSERT INTO exon VALUES (12,'gene6','chr10',1,300,'+','eg12','ee12');\n"
 		"INSERT INTO alignment VALUES (1,'q1',0x800,'chr10',1,20,'100M10S',100,100,'chr10',1,1,1,'*','*');\n"
 		"INSERT INTO alignment VALUES (12,'q1',0x800,'chr10',1,20,'100M10S',100,100,'chr10',1,8,1,'*','*');\n"
-		"INSERT INTO alignment VALUES (2,'q4',97,'chr11',1,20,'110M',100,50,'chr11',1,8,1,'*','*');\n"
+		"INSERT INTO alignment VALUES (2,'A00123:45:HV7KJDSXY:1:1101:12345:6789',97,'chr11',1,20,'110M',100,50,'chr11',1,8,1,'*','*');\n"
 		"INSERT INTO alignment VALUES (3,'q5',97,'chr11',200,20,'110M',100,50,'chr11',1,8,1,'*','*');\n"
 		"INSERT INTO alignment VALUES (4,'q2',0x800,'chr12',250,20,'10H100M',100,100,'chr12',1,8,1,'*','*');\n"
 		"INSERT INTO alignment VALUES (5,'q3',0x800,'chr12',200,20,'100M10S',100,50,'chr1',1,8,1,'*','*');\n"
@@ -319,26 +319,35 @@ START_TEST (test_vcf)
 	xfclose (fp);
 
 	// Read names by retrocopy: 'sample:read,read'
+	// One read per line, sorted by read name for each sample.
+	// Read names may have colons (Illumina)
 	const char *rnames[] = {
-		"RTC000001\tPONGA:q1\n",
-		"RTC000002\tPONGA:q4,q5\n",
-		"RTC000003\tPONGA:q2,q3\n",
-		"RTC000004\tPONGA:q6\n",
-		"RTC000005\tPONGA:q7\n",
-		"RTC000006\tPONGA:q8,q9\n",
-		"RTC000007\tPONGA:q10,q11\n",
-		"RTC000008\tPONGA:q1\n"
+		"#retrocopy_id\tsample\tread_name\n",
+		"RTC000001\tPONGA\tq1\n",
+		"RTC000002\tPONGA\tA00123:45:HV7KJDSXY:1:1101:12345:6789\n",
+		"RTC000002\tPONGA\tq5\n",
+		"RTC000003\tPONGA\tq2\n",
+		"RTC000003\tPONGA\tq3\n",
+		"RTC000004\tPONGA\tq6\n",
+		"RTC000005\tPONGA\tq7\n",
+		"RTC000006\tPONGA\tq8\n",
+		"RTC000006\tPONGA\tq9\n",
+		"RTC000007\tPONGA\tq10\n",
+		"RTC000007\tPONGA\tq11\n",
+		"RTC000008\tPONGA\tq1\n"
 	};
+
+	const int rnames_size = sizeof (rnames) / sizeof (char *);
 
 	fp = xfopen (rnames_file, "r");
 
 	for (i = 0; getline (&line, &len, fp) != EOF; i++)
 		{
-			ck_assert_int_lt (i, 8);
+			ck_assert_int_lt (i, rnames_size);
 			ck_assert_str_eq (line, rnames[i]);
 		}
 
-	ck_assert_int_eq (i, 8);
+	ck_assert_int_eq (i, rnames_size);
 	xfclose (fp);
 
 	// Predicted insertions: Only RTC000001 has one

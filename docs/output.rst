@@ -288,22 +288,36 @@ homozygous for the insertion.
 The read names file
 ===================
 
-A tab separated file with one line per retrocopy: The retrocopy ID
-and the reads used to detect it, by sample::
+A tab separated file with **one read per line**: The retrocopy ID, the
+sample and the read name, after a header line::
 
-   RTC000001	sample1:r1,r2,r3;sample2:r99,r100,r200
-   RTC000002	sample1:r4,r5
+   #retrocopy_id	sample	read_name
+   RTC000001	NA12878	A00123:45:HV7KJDSXY:1:1101:12345:6789
+   RTC000001	NA12878	A00123:45:HV7KJDSXY:1:1102:2210:1003
+   RTC000001	NA12778	A00456:12:HT2LMDSXY:2:2201:8812:4410
+   RTC000002	NA12878	A00123:45:HV7KJDSXY:3:1203:7781:2004
 
-Samples are named as in the VCF header and separated by ``;``, the
-reads of each sample are sorted and separated by ``,``. These are
-the **abnormal reads** clustered at the insertion site - discordant
-mates and clipped reads - exactly the evidence that called the
-retrocopy. The names can be used straight away to inspect the
-alignments::
+Samples are named as in the VCF header. The file follows the VCF order and,
+for each retrocopy and sample, the reads are sorted by name. These are the
+**abnormal reads** clustered at the insertion site - discordant mates and
+clipped reads - exactly the evidence that called the retrocopy.
 
-   $ grep RTC000001 out.rnames.tsv | cut -f2 | tr ';,' '\n\n' \
-       | grep -v ':' > reads.txt
-   $ samtools view -N reads.txt sample1.bam
+A read name never has a tab (see the `SAM specification
+<https://samtools.github.io/hts-specs/SAMv1.pdf>`_), so the names are written
+as they are - with the colons of Illumina, for instance - and the file can be
+read by any tool, with no escaping. To inspect the alignments of a retrocopy
+in a sample::
+
+   $ awk -F'\t' '$1 == "RTC000001" && $2 == "NA12878" {print $3}' \
+       out.rnames.tsv > reads.txt
+   $ samtools view -N reads.txt NA12878.bam
+
+In R or Python, read it as any table and group it by ``retrocopy_id`` and
+``sample``::
+
+   >>> import pandas as pd
+   >>> rnames = pd.read_csv('out.rnames.tsv', sep='\t')
+   >>> rnames.groupby(['#retrocopy_id', 'sample']).size()
 
 .. _insertions_file:
 

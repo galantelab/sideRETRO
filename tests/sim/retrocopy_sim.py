@@ -77,6 +77,10 @@ import sys
 READ_LEN = 100
 QUAL = 'I'
 
+# Illumina like read names, with colons, as
+# 'A00123:8:HSIMFLOWX:1:<qname>'
+READ_PREFIX = 'A00123:8:HSIMFLOWX:1:'
+
 # Must mirror RETROCOPY_MIN_CLIP, RETROCOPY_MIN_POLYA and
 # RETROCOPY_MIN_SEED at src/retrocopy.h
 MIN_CLIP = 10
@@ -129,7 +133,7 @@ class Sim:
 
     def rec(self, qname, flag, chr_, pos, cigar, rnext, pnext, seq, mapq=60):
         self.recs.append('\t'.join(map(str, [
-            qname, flag, chr_, pos, mapq, cigar, rnext, pnext, 0,
+            READ_PREFIX + qname, flag, chr_, pos, mapq, cigar, rnext, pnext, 0,
             seq, QUAL * len(seq)
         ])))
 
@@ -461,14 +465,17 @@ def check(vcf_file, truth_file, no_ref=False):
 
     if os.path.exists(rnames_file):
         lines = open(rnames_file).read().splitlines()
-        if len(lines) != 1 or not lines[0].startswith(truth['ID'] + '\t'):
-            print('FAIL: rnames file must have one line for %s' % truth['ID'])
+        rows = [l.split('\t') for l in lines[1:]]
+        if not lines or lines[0] != '#retrocopy_id\tsample\tread_name':
+            print('FAIL: rnames file header: %s' % (lines[0] if lines else '<empty>'))
+            errors += 1
+        elif any(len(r) != 3 or r[0] != truth['ID'] or r[1] != 'sim' for r in rows):
+            print('FAIL: rnames rows must be <%s, sim, read_name>' % truth['ID'])
             errors += 1
         else:
-            sample, reads = lines[0].split('\t')[1].split(':', 1)
-            names = reads.split(',')
-            if sample != 'sim' or names != sorted(names):
-                print('FAIL: rnames sample or order: %s' % lines[0][:80])
+            names = [r[2] for r in rows]
+            if names != sorted(names):
+                print('FAIL: rnames read names are not sorted')
                 errors += 1
             missing = set(truth['RNAMES'].split(',')) - set(names)
             if missing:
