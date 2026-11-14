@@ -189,7 +189,7 @@ prepare_query_stmt (sqlite3 *db)
 		"	AND aoe2.type & $EXONIC\n"
 		"	AND ((NOT aoe1.type & $EXONIC)\n"
 		"		OR (aoe1.type & $EXONIC AND aoe1.gene_name IS NOT aoe2.gene_name))\n"
-		"ORDER BY aoe1.chr ASC, aoe2.gene_name ASC";
+		"ORDER BY aoe1.chr ASC, aoe2.gene_name ASC, aoe1.pos ASC, aoe1.rlen ASC";
 
 	log_debug ("Query schema:\n%s", sql);
 	stmt = db_prepare (db, sql);

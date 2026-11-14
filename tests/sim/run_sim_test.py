@@ -26,9 +26,17 @@ Each scenario runs retrocopy_sim.py, process-sample, merge-call
 (with and without the reference) and make-vcf into a temporary
 directory, and checks the VCF, the read names and the predicted
 insertions files.
+
+A last scenario checks that the calls depend only on the reads: The
+same database, with its alignment ids shuffled - as the merge of
+other databases does - must give the same results.
 """
 
+import hashlib
 import os
+import random
+import shutil
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -83,6 +91,76 @@ def scenario(sider, sim, name, args, with_ref, log):
         return run(check, log) == 0
 
 
+def shuffle_ids(db_file, seed):
+    """Renumber the alignments at random, keeping the reads."""
+    rnd = random.Random(seed)
+    db = sqlite3.connect(db_file)
+    ids = [r[0] for r in db.execute('SELECT id FROM alignment')]
+    new = list(range(100000, 100000 + 7 * len(ids), 7))
+    rnd.shuffle(new)
+    m = dict(zip(ids, new))
+    # Negative first: Avoid colliding with the ids not renumbered yet
+    for old, n in m.items():
+        db.execute('UPDATE alignment SET id = ? WHERE id = ?', (-n, old))
+        db.execute('UPDATE overlapping SET alignment_id = ? WHERE alignment_id = ?',
+                   (-n, old))
+    db.execute('UPDATE alignment SET id = -id')
+    db.execute('UPDATE overlapping SET alignment_id = -alignment_id')
+    db.commit()
+    db.close()
+
+
+def results(d, prefix):
+    """The VCF records and the retrocopy results stored."""
+    h = hashlib.md5()
+    with open(os.path.join(d, prefix + '.vcf')) as fp:
+        h.update(''.join(l for l in fp if not l.startswith('##')).encode())
+    db = sqlite3.connect(os.path.join(d, prefix + '.db'))
+    for t in ('retrocopy', 'insertion', 'cluster', 'genotype'):
+        for row in db.execute('SELECT * FROM %s ORDER BY 1, 2' % t):
+            h.update(repr(row).encode())
+    db.close()
+    return h.hexdigest()
+
+
+def order_scenario(sider, sim, log):
+    """The calls depend only on the reads, not on the alignment ids.
+
+    The ids change with the databases merged, so the same
+    database with its alignments renumbered must give the
+    same results
+    """
+    with tempfile.TemporaryDirectory(prefix='sider_sim_') as d:
+        steps = [
+            [sim, '-o', d, '-s', '4', '--n-discordant', '12', '--n-split-left', '2',
+             '--n-split-right', '2', '--n-noise-clips', '30'],
+            [sider, 'process-sample', '-q', '-s', '-a', os.path.join(d, 'genes.gtf'),
+             '-o', d, '-p', 'ps', os.path.join(d, 'sim.sam')],
+        ]
+        for cmd in steps:
+            if run(cmd, log) != 0:
+                return False
+
+        digests = set()
+        for k in range(4):
+            prefix = 'run%d' % k
+            db = os.path.join(d, prefix + '.db')
+            shutil.copy(os.path.join(d, 'ps.db'), db)
+            if k:
+                shuffle_ids(db, k)
+            for cmd in [
+                [sider, 'merge-call', '-q', '-I', '-r', os.path.join(d, 'ref.fa'), db],
+                [sider, 'make-vcf', '-q', '-r', os.path.join(d, 'ref.fa'), '-o', d,
+                 '-p', prefix, db],
+            ]:
+                if run(cmd, log) != 0:
+                    return False
+            digests.add(results(d, prefix))
+
+        log.write('Distinct results with shuffled ids: %d\n' % len(digests))
+        return len(digests) == 1
+
+
 def main():
     if len(sys.argv) != 3:
         print(__doc__)
@@ -102,12 +180,19 @@ def main():
                 if not ok:
                     failed.append(full)
 
+        name = 'alignment ids shuffled'
+        log.write('==== %s\n' % name)
+        ok = order_scenario(sider, sim, log)
+        print('%-32s %s' % (name, 'ok' if ok else 'FAIL'))
+        if not ok:
+            failed.append(name)
+
     if failed:
         print('\n%d scenario(s) failed. See %s' % (len(failed), log.name))
         return 1
 
     os.unlink(log.name)
-    print('\nAll %d scenarios passed' % (2 * len(SCENARIOS)))
+    print('\nAll %d scenarios passed' % (2 * len(SCENARIOS) + 1))
     return 0
 
 

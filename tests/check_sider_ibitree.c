@@ -49,6 +49,54 @@ START_TEST (test_ibitree_free_empty)
 }
 END_TEST
 
+static void
+count_node (IBiTreeLookupData *ldata, void *user_data)
+{
+	(* (int *) user_data)++;
+}
+
+START_TEST (test_ibitree_rotations)
+{
+	/*
+	* The four unbalanced cases of the AVL tree: Left left,
+	* right right, left right and right left. Three intervals
+	* are always balanced into the middle one as the root
+	*/
+	const long orders[4][3] = {
+		{30, 20, 10},
+		{10, 20, 30},
+		{30, 10, 20},
+		{10, 30, 20}
+	};
+
+	IBiTree *t = NULL;
+	IBiTreeNode *root = NULL;
+	int found = 0;
+	int i = 0;
+	int j = 0;
+
+	for (i = 0; i < 4; i++)
+		{
+			t = ibitree_new (NULL);
+
+			for (j = 0; j < 3; j++)
+				ibitree_insert (t, orders[i][j], orders[i][j] + 5, NULL);
+
+			root = bitree_data (bitree_root (t));
+			ck_assert_int_eq (root->low, 20);
+			ck_assert_int_eq (root->height, 2);
+			ck_assert_int_eq (root->max, 35);
+
+			// All intervals are still found
+			found = 0;
+			ck_assert_int_eq (ibitree_lookup (t, 1, 100, 0, 0, 1, count_node, &found), 3);
+			ck_assert_int_eq (found, 3);
+
+			ibitree_free (t);
+		}
+}
+END_TEST
+
 START_TEST (test_ibitree_insert)
 {
 	int i = 0;
@@ -151,6 +199,7 @@ make_ibitree_suite (void)
 
 	tcase_add_test (tc_core, test_ibitree_free_empty);
 	tcase_add_test (tc_core, test_ibitree_insert);
+	tcase_add_test (tc_core, test_ibitree_rotations);
 	tcase_add_test (tc_core, test_ibitree_lookup);
 	tcase_add_test (tc_core, test_ibitree_lookup_frac);
 	tcase_add_test (tc_core, test_ibitree_lookup_either);

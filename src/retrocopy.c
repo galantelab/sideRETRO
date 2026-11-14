@@ -475,7 +475,8 @@ prepare_orientation_stmt (sqlite3 *db)
 		"	ON c.cluster_id = a.id\n"
 		"		AND c.cluster_sid = a.sid\n"
 		"INNER JOIN gene_flag AS g\n"
-		"	USING (id, sid, aid, srcid)";
+		"	USING (id, sid, aid, srcid)\n"
+		"ORDER BY retrocopy_id ASC, a.pos ASC, g.pos ASC";
 
 	log_debug ("Query schema:\n%s", sql);
 	stmt = db_prepare (db, sql);
@@ -540,7 +541,10 @@ calculate_orientation (sqlite3 *db, Hash *rtc_h)
 					// spearman test!
 					orientation_rho = spearman (apos_a, gpos_a, size_a, work1);
 
-					// Calculate p-value
+					// Calculate p-value. The same seed for each
+					// retrocopy: Its p-value depends only on its
+					// own points
+					seed = SEED;
 					orientation_p_value = spearman_permutation_test (apos_a, gpos_a,
 							size_a, work1, work2, &seed, orientation_rho);
 
@@ -581,6 +585,7 @@ calculate_orientation (sqlite3 *db, Hash *rtc_h)
 			orientation_rho = spearman (apos_a, gpos_a, size_a, work1);
 
 			// Calculate p-value
+			seed = SEED;
 			orientation_p_value = spearman_permutation_test (apos_a, gpos_a,
 					size_a, work1, work2, &seed, orientation_rho);
 
@@ -622,7 +627,7 @@ prepare_breakpoint_stmt (sqlite3 *db)
 		"INNER JOIN alignment AS a\n"
 		"	ON a.id = c.alignment_id\n"
 		"WHERE a.cigar LIKE '%S%' OR a.cigar LIKE '%H%'\n"
-		"ORDER BY retrocopy_id ASC";
+		"ORDER BY retrocopy_id ASC, a.pos ASC, a.rlen ASC, a.cigar ASC";
 
 	log_debug ("Query schema:\n%s", sql);
 	stmt = db_prepare (db, sql);
@@ -870,9 +875,14 @@ prepare_polya_stmt (sqlite3 *db)
 
 	sqlite3_stmt *stmt = NULL;
 
-	// Get all soft clipped alignments with sequence
-	// clustered into the retrocopies. Hard clipped
-	// bases are not present at the sequence
+	/*
+	* Get all soft clipped alignments with sequence
+	* clustered into the retrocopies. Hard clipped
+	* bases are not present at the sequence. The order
+	* is given by the reads - not by their ids, which
+	* change with the databases merged: The consensus
+	* of the clips keeps the first read in case of tie
+	*/
 	const char sql[] =
 		"SELECT DISTINCT retrocopy_id, a.id, a.pos, a.rlen, a.cigar, a.seq\n"
 		"FROM cluster_merging AS cm\n"
@@ -882,7 +892,7 @@ prepare_polya_stmt (sqlite3 *db)
 		"	ON a.id = c.alignment_id\n"
 		"WHERE a.cigar LIKE '%S%'\n"
 		"	AND a.seq != '*'\n"
-		"ORDER BY retrocopy_id ASC";
+		"ORDER BY retrocopy_id ASC, a.pos ASC, a.cigar ASC, a.seq ASC";
 
 	log_debug ("Query schema:\n%s", sql);
 	stmt = db_prepare (db, sql);
