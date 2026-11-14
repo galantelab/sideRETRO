@@ -122,18 +122,27 @@ subdir('tests')
 subdir('docs')
 
 # The ChangeLog is generated from the git history
-# at 'meson dist' and with 'ninja changelog'
+# in GNU style, at 'meson dist' and with 'ninja changelog'
 git = find_program('git', required : false)
-gen_changelog = files('scripts/gen-changelog.sh')
+sh = find_program('sh', required : false)
+
+changelog_args = [
+  '-C', meson.project_source_root(), 'log', '--date=short',
+  '--pretty=format:%ad  %an  <%ae>%n%n%w(76,8,8)%B'
+]
 
 if git.found()
-  meson.add_dist_script(gen_changelog)
-
   run_target('changelog',
-    command : [
-      gen_changelog,
-      meson.project_source_root(),
-      join_paths(meson.project_build_root(), 'ChangeLog')
-    ]
+    command : [git, changelog_args,
+      '--output=' + join_paths(meson.project_build_root(), 'ChangeLog')]
   )
+
+  # The dist directory is known only when 'meson dist' runs
+  # ($MESON_DIST_ROOT): Let the shell expand it. git and its
+  # arguments are passed as "$0" "$@", untouched by the shell
+  if sh.found()
+    meson.add_dist_script(sh, '-c',
+      '"$0" "$@" --output="$MESON_DIST_ROOT/ChangeLog"',
+      git.full_path(), changelog_args)
+  endif
 endif
