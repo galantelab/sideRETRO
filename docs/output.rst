@@ -128,8 +128,9 @@ what lets exome data or alignments without split reads (``bwa aln``) pass.
 |                   | retrocopy should span a junction - its 5' end is not  |
 |                   | known or not at the last exon - but no read spans it  |
 +-------------------+-------------------------------------------------------+
-| PolarityConflict  | The strand given by the poly-A disagrees with the one |
-|                   | given by ``ORHO``                                     |
+| PolarityConflict  | The strand given by the poly-A (``POLYASTRAND``)      |
+|                   | disagrees with the orientation (``POLARITY``, from    |
+|                   | ``ORHO``)                                             |
 +-------------------+-------------------------------------------------------+
 
 Any filter can be turned off with ``make-vcf -x`` (it may be passed more than

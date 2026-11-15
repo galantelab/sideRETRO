@@ -47,7 +47,8 @@ When detecting retrocopies, **sideRETRO** can annotate several other features re
 
 * **Poly-A tail**
 
-   The length of the poly-A tail observed in the reads, which also tells the strand of the insertion.
+   The length of the poly-A tail observed in the reads, and the strand of the insertion it gives - an
+   independent check of the orientation.
 
 * **Exon-exon junctions**
 
@@ -72,8 +73,9 @@ When detecting retrocopies, **sideRETRO** can annotate several other features re
 
 * **Strandness**
 
-   Detects the orientation of the insertion (+/-). It takes into account the orientation of insertion,
-   whether in the leading (+) or lagging (-) DNA strand.
+   Detects the orientation of the insertion (+/-), whether at the forward (+) or reverse (-) strand of the
+   reference, from the positions of the discordant reads at the parental gene and at the insertion site.
+   When it disagrees with the strand given by the poly-A tail, the event is flagged.
 
 * **Genomic context**
 

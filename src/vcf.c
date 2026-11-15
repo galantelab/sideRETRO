@@ -65,7 +65,7 @@ static const VCFFilterDef filter_defs[] =
 	{VCF_FILTER_NO_JUNCTION,        "NoJunction",
 		"Multi-exon parental gene and the retrocopy should span an exon-exon junction, but no read spans it"},
 	{VCF_FILTER_POLARITY_CONFLICT,  "PolarityConflict",
-		"The strand given by the poly-A disagrees with the strand given by ORHO"},
+		"The strand given by the poly-A (POLYASTRAND) disagrees with the orientation (POLARITY, from ORHO)"},
 	{0, NULL, NULL}
 };
 
