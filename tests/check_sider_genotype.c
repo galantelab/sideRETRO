@@ -19,6 +19,7 @@
 #include "config.h"
 
 #include <stdio.h>
+#include <math.h>
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -193,6 +194,68 @@ START_TEST (test_genotype)
 }
 END_TEST
 
+START_TEST (test_genotype_deep)
+{
+	char db_file[] = "/tmp/ponga.db.XXXXXX";
+	char sam_file[] = "/tmp/ponga.sam.XXXXXX";
+	const int depth = 1200;
+	const int depth_mapq0 = 5;
+
+	sqlite3 *db = NULL;
+	sqlite3_stmt *stmt = NULL;
+	FILE *fp = NULL;
+	int i = 0;
+
+	db = create_db (db_file);
+	create_file (sam_file);
+
+	/*
+	* A deep site: (1/2)^depth underflows to zero, and so
+	* would log10 of it. The reads with MAPQ 0 (no phred
+	* quality filter) must not give log10 (0) either
+	*/
+	fp = xfopen (sam_file, "w");
+	xfprintf (fp,
+			"@HD\tVN:1.0\tSO:queryname\n"
+			"@SQ\tSN:chr1\tLN:248956422\n");
+
+	for (i = 0; i < depth + depth_mapq0; i++)
+		xfprintf (fp, "N%d\t99\tchr1\t95\t%d\t10M\t=\t150\t65\tATCGATCGAT\t~~~~~~~~~~\n",
+				i, i < depth ? 60 : 0);
+
+	xfclose (fp);
+
+	populate_db (db, sam_file, sam_file);
+	stmt = db_prepare_genotype_stmt (db);
+
+	genotype (stmt, 1, 0);
+
+	sqlite3_stmt *search_stmt = db_prepare (db,
+			"SELECT reference_depth, alternate_depth, ho_ref_likelihood,\n"
+			"	he_likelihood, ho_alt_likelihood\n"
+			"FROM genotype\n"
+			"WHERE retrocopy_id = 1 AND source_id = 1");
+
+	ck_assert_int_eq (db_step (search_stmt), SQLITE_ROW);
+	ck_assert_int_eq (db_column_int (search_stmt, 0), depth + depth_mapq0);
+	ck_assert_int_eq (db_column_int (search_stmt, 1), 1);
+
+	for (i = 2; i <= 4; i++)
+		ck_assert (isfinite (db_column_double (search_stmt, i)));
+
+	// Homozygous reference is the most likely
+	ck_assert (db_column_double (search_stmt, 2) > db_column_double (search_stmt, 3));
+	ck_assert (db_column_double (search_stmt, 3) > db_column_double (search_stmt, 4));
+	db_finalize (search_stmt);
+
+	db_finalize (stmt);
+	db_close (db);
+
+	xunlink (db_file);
+	xunlink (sam_file);
+}
+END_TEST
+
 static void
 run_genotype_on (const char *path)
 {
@@ -323,6 +386,7 @@ make_genotype_suite (void)
 	tc_core = tcase_create ("Core");
 
 	tcase_add_test (tc_core, test_genotype);
+	tcase_add_test (tc_core, test_genotype_deep);
 	suite_add_tcase (s, tc_core);
 
 	/* Abort test case */

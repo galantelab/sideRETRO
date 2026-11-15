@@ -226,6 +226,11 @@ where:
    **mapping** quality (fifth column of SAM file), instead of the
    **sequencing** quality.
 
+The likelihoods are computed as :math:`\log_{10}`, summing the terms of
+the products: At a deep site, :math:`1/2^k` itself would underflow to zero.
+A read with mapping quality 0 is taken as mapping quality 1, otherwise
+:math:`1-\epsilon_{j}` would be zero.
+
 So we can summarize the formula for homozygous reference (HOR), heterozygous
 (HET) and homozygous alternate (HOA):
 

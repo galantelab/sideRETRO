@@ -247,13 +247,20 @@ prepare_alignment_score_query_stmt (sqlite3 *db)
 static inline double
 dephred_score (const int mapq)
 {
-	return pow (10.0, -1.0 * mapq / 10);
+	/*
+	* MAPQ 0 would give an error probability of 1 and
+	* log10 (0) for the reads supporting the genotype:
+	* Take it as the least informative score
+	*/
+	return pow (10.0, -1.0 * (mapq > 0 ? mapq : 1) / 10);
 }
 
 static double
 likelihood_HE (const int len, const int ploidy)
 {
-	return log10 (pow (1.0 / ploidy, len));
+	// log10 ((1 / ploidy) ^ len), without the power: It
+	// underflows to zero (log10 => -inf) at a deep site
+	return len * log10 (1.0 / ploidy);
 }
 
 static double
