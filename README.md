@@ -10,11 +10,11 @@
 <h2 align="center">A pipeline for detecting Somatic Insertion of DE novo RETROcopies</h2>
 
 <p align="center">
-  <a href="https://github.com/galantelab/sideRETRO/actions/workflows/ci.yml"><img alt="" src="https://github.com/galantelab/sideRETRO/actions/workflows/ci.yml/badge.svg?branch=master" align="center"></a>
-  <a href="https://coveralls.io/github/galantelab/sideRETRO?branch=master"><img alt="" src="https://coveralls.io/repos/github/galantelab/sideRETRO/badge.svg?branch=master&kill_cache=1" align="center"></a>
-  <a href="https://sideretro.readthedocs.io/en/latest/?badge=latest"><img alt="" src="https://readthedocs.org/projects/sideretro/badge/?version=latest" align="center"></a>
-  <a href="https://github.com/galantelab/sideRETRO/tags/"><img src="https://img.shields.io/github/tag/galantelab/sideRETRO?include_prereleases=&sort=semver&color=blue" alt="GitHub tag" align="center"></a>
-  <a href="https://hub.docker.com/r/galantelab/sider/tags"><img alt="" src="https://img.shields.io/badge/docker-%230db7ed.svg?style=flat&logo=docker&logoColor=white" align="center"></a>
+  <a href="https://github.com/galantelab/sideRETRO/actions/workflows/ci.yml"><img alt="Build" src="https://github.com/galantelab/sideRETRO/actions/workflows/ci.yml/badge.svg?branch=master"></a>
+  <a href='https://coveralls.io/github/galantelab/sideRETRO?branch=master'><img alt='Coverage Status' src='https://coveralls.io/repos/github/galantelab/sideRETRO/badge.svg?branch=master'></a>
+  <a href="https://sideretro.readthedocs.io/en/latest/?badge=latest"><img alt="Readthedocs docs" src="https://readthedocs.org/projects/sideretro/badge/?version=latest"></a>
+  <a href="https://github.com/galantelab/sideRETRO/tags/"><img alt="GitHub tag" src="https://img.shields.io/github/tag/galantelab/sideRETRO?include_prereleases=&sort=semver&color=blue"></a>
+  <a href="https://hub.docker.com/r/galantelab/sider/tags"><img alt="Dockerhub tag" src="https://img.shields.io/badge/docker-%230db7ed.svg?style=flat&logo=docker&logoColor=white"></a>
 </p>
 
 **sideRETRO** is a bioinformatic tool devoted for the detection of somatic and polymorphic **retrocopy** insertions,
