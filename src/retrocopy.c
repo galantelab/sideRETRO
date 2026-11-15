@@ -917,14 +917,15 @@ struct _PolyA
 typedef struct _PolyA PolyA;
 
 static inline int
-polya_run (const char *seq, const int len, const char base, const int reverse)
+polya_run_at (const char *seq, const int len, const char base,
+		const int reverse, const int offset)
 {
 	int run = 0;
 	int i = 0;
 
-	// Count the run of 'base' from the end
-	// (reverse) or from the beginning of seq
-	for (i = 0; i < len; i++)
+	// Count the run of 'base' from the end (reverse)
+	// or from the beginning of seq, after offset bases
+	for (i = offset; i < len; i++)
 		{
 			char c = reverse ? seq[len - 1 - i] : seq[i];
 
@@ -935,6 +936,33 @@ polya_run (const char *seq, const int len, const char base, const int reverse)
 		}
 
 	return run;
+}
+
+static inline int
+polya_run (const char *seq, const int len, const char base,
+		const int reverse, int *offset)
+{
+	int run = 0;
+	int i = 0;
+
+	/*
+	* The tail may not begin right at the flank: Allow
+	* a few bases before it, but only for a run long
+	* enough to be called as the poly-A
+	*/
+	for (i = 0; i <= RETROCOPY_MAX_POLYA_OFFSET && i < len; i++)
+		{
+			run = polya_run_at (seq, len, base, reverse, i);
+			if (run >= RETROCOPY_MIN_POLYA)
+				{
+					*offset = i;
+					return run;
+				}
+		}
+
+	// No tail: The run at the flank, if any
+	*offset = 0;
+	return polya_run_at (seq, len, base, reverse, 0);
 }
 
 static inline void
@@ -1081,6 +1109,8 @@ calculate_polya (sqlite3 *db, sqlite3_stmt *evidence_stmt, Hash *rtc_h)
 	int has_left = 0;
 	int has_right = 0;
 	char *clip = NULL;
+	int run = 0;
+	int offset = 0;
 
 	int rid = 0;
 	int aid = 0;
@@ -1155,8 +1185,10 @@ calculate_polya (sqlite3 *db, sqlite3_stmt *evidence_stmt, Hash *rtc_h)
 				{
 					clip = cigar_op_seq (&left_op, seq);
 					if (clip != NULL)
-						polya_add (&plus, polya_run (clip, left_op.qlen, 'A', 1),
-								left_op.qlen, aid);
+						{
+							run = polya_run (clip, left_op.qlen, 'A', 1, &offset);
+							polya_add (&plus, run, left_op.qlen - offset, aid);
+						}
 					xfree (clip);
 				}
 
@@ -1165,8 +1197,10 @@ calculate_polya (sqlite3 *db, sqlite3_stmt *evidence_stmt, Hash *rtc_h)
 				{
 					clip = cigar_op_seq (&right_op, seq);
 					if (clip != NULL)
-						polya_add (&minus, polya_run (clip, right_op.qlen, 'T', 0),
-								right_op.qlen, aid);
+						{
+							run = polya_run (clip, right_op.qlen, 'T', 0, &offset);
+							polya_add (&minus, run, right_op.qlen - offset, aid);
+						}
 					xfree (clip);
 				}
 		}
@@ -1974,6 +2008,7 @@ calculate_insertion (sqlite3 *db, sqlite3_stmt *insertion_stmt,
 	int has_right = 0;
 	char *clip = NULL;
 	int run = 0;
+	int offset = 0;
 	int seed_len = 0;
 	int n_hits = 0;
 	Hit hit = {};
@@ -2090,9 +2125,9 @@ calculate_insertion (sqlite3 *db, sqlite3_stmt *insertion_stmt,
 					clip = cigar_op_seq (&right_op, seq);
 					if (clip != NULL && n_exons > 0)
 						{
-							run = polya_run (clip, right_op.qlen, 'T', 0);
-							if (run < RETROCOPY_MIN_POLYA)
-								run = 0;
+							// Skip the bases before the tail too
+							run = polya_run (clip, right_op.qlen, 'T', 0, &offset);
+							run = run < RETROCOPY_MIN_POLYA ? 0 : run + offset;
 
 							seed_len = right_op.qlen - run;
 							if (seed_len > RETROCOPY_SEED_LEN)
@@ -2126,9 +2161,8 @@ calculate_insertion (sqlite3 *db, sqlite3_stmt *insertion_stmt,
 					clip = cigar_op_seq (&left_op, seq);
 					if (clip != NULL && n_exons > 0)
 						{
-							run = polya_run (clip, left_op.qlen, 'A', 1);
-							if (run < RETROCOPY_MIN_POLYA)
-								run = 0;
+							run = polya_run (clip, left_op.qlen, 'A', 1, &offset);
+							run = run < RETROCOPY_MIN_POLYA ? 0 : run + offset;
 
 							seed_len = left_op.qlen - run;
 							if (seed_len > RETROCOPY_SEED_LEN)

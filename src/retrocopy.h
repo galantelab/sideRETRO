@@ -92,6 +92,13 @@ typedef enum _RetrocopyInsertionPoint RetrocopyInsertionPoint;
 #define RETROCOPY_MIN_POLYA 6
 
 /*
+ * Maximum number of bases between the flank and the
+ * poly-A tail: The breakpoint may be shifted by the
+ * aligner, or untemplated bases added at the junction
+ */
+#define RETROCOPY_MAX_POLYA_OFFSET 3
+
+/*
  * Seed used to search the clipped sequence at the
  * junction into the parental exons: Its maximum
  * length and the minimum length allowed

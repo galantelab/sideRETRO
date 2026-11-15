@@ -397,7 +397,14 @@ the **strand** of the insertion:
   the tail comes right after the left flank as a run of **T**. The clips
   at ``LBKP`` **begin** with it.
 
-A run of at least 6 bases is called as the tail. A read with other
+The clipped bases are read at the forward strand of the reference, as the
+SAM format stores the read sequence - soft clips included - whatever the
+strand of the read. So the run of A or T, and its side, do not depend on
+the strand of the reads.
+
+A run of at least 6 bases is called as the tail. It may begin up to 3
+bases away from the flank: The aligner may shift the breakpoint, or
+bases may be added at the junction. A read with other
 bases **before** the run gives its **exact** length, while a clip made
 only of A (or T) gives just a **lower bound** - the tail extends beyond the
 read (``POLYAMIN``). Exact lengths win over lower bounds, and the strand
