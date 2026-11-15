@@ -357,6 +357,9 @@ class Sim:
             ('POLYA', polya_len),
             ('POLYAMIN', polya_min),
             ('POLYASR', polya_sr),
+            # The insertion is at the '+' strand: Both the orientation
+            # (POLARITY) and the poly-A junction (POLYASTRAND) say so
+            ('POLYASTRAND', 'NA' if polya_sr == 'NA' else '+'),
             ('POLARITY', '+'),
             ('PG', 'PARENT'),
             ('PGEXONS', 'PARENT:%d' % len(self.exons)),
@@ -509,7 +512,7 @@ def check(vcf_file, truth_file, no_ref=False):
         expect('POS', fields[1], truth['POS'])
 
     for key in ('IMPRECISE', 'LBKP', 'LSR', 'RBKP', 'RSR', 'TSDLEN', 'TSD',
-                'POLYA', 'POLYAMIN', 'POLYASR', 'POLARITY', 'PG',
+                'POLYA', 'POLYAMIN', 'POLYASR', 'POLYASTRAND', 'POLARITY', 'PG',
                 'PGEXONS', 'EEJ', 'EEJLIST', 'PG5P', 'PG3P', 'SVLEN',
                 'LEFT_SVINSSEQ', 'RIGHT_SVINSSEQ', 'HALLMARKS'):
         if truth[key] == 'SKIP':

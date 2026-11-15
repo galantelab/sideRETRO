@@ -234,26 +234,30 @@ is a duplication.
 
 **Poly-A tail and polarity**
 
-+------------+--------------------------------------------------------------+
-| POLYA      | Length of the poly-A tail observed in the reads crossing     |
-|            | its junction. Genomic A bases adjacent to the tail cannot    |
-|            | be told apart from it, so the run is reported as seen        |
-+------------+--------------------------------------------------------------+
-| POLYAMIN   | Flag. POLYA is a **lower bound**: The tail extends beyond    |
-|            | the longest clipped read                                     |
-+------------+--------------------------------------------------------------+
-| POLYASR    | Number of reads supporting the poly-A                        |
-+------------+--------------------------------------------------------------+
-| POLARITY   | Strand of the retrocopy at the reference (``+``/``-``). From |
-|            | the **poly-A junction** when POLYA is present - the tail is  |
-|            | at the right junction for ``+`` and, reverse complemented,   |
-|            | at the left junction for ``-`` - otherwise from ORHO         |
-+------------+--------------------------------------------------------------+
-| ORHO       | Spearman's rho between the positions of the reads at the     |
-|            | parental gene and of their mates at the insertion site, see  |
-|            | :ref:`Orientation <method_orientation>`. Only when the test  |
-|            | is significant (``make-vcf -e``)                             |
-+------------+--------------------------------------------------------------+
++-------------+--------------------------------------------------------------+
+| POLYA       | Length of the poly-A tail observed in the reads crossing     |
+|             | its junction. Genomic A bases adjacent to the tail cannot    |
+|             | be told apart from it, so the run is reported as seen        |
++-------------+--------------------------------------------------------------+
+| POLYAMIN    | Flag. POLYA is a **lower bound**: The tail extends beyond    |
+|             | the longest clipped read                                     |
++-------------+--------------------------------------------------------------+
+| POLYASR     | Number of reads supporting the poly-A                        |
++-------------+--------------------------------------------------------------+
+| POLYASTRAND | Strand of the retrocopy given by the poly-A junction         |
+|             | (``+``/``-``): The tail is at the right junction for ``+``   |
+|             | and, reverse complemented, at the left junction for ``-``.   |
+|             | Independent of POLARITY: If they disagree, the FILTER says   |
+|             | ``PolarityConflict``                                         |
++-------------+--------------------------------------------------------------+
+| POLARITY    | Orientation of the event at the reference (``+``/``-``),     |
+|             | from ORHO                                                    |
++-------------+--------------------------------------------------------------+
+| ORHO        | Spearman's rho between the positions of the reads at the     |
+|             | parental gene and of their mates at the insertion site, see  |
+|             | :ref:`Orientation <method_orientation>`. Only when the test  |
+|             | is significant (``make-vcf -e``)                             |
++-------------+--------------------------------------------------------------+
 
 **Hallmarks**
 
@@ -355,7 +359,7 @@ The INFO column was wrapped for reading::
      LEFT_SVINSSEQ=CACTGATACAGCAGACTCATTCCCCTATAAGCGAATCGTA;
      RIGHT_SVINSSEQ=ACTCAGCAGGACTCGGTTTAAAAAAAAAAAAAAAAAAAAAAAAAAA;
      DP=42;SR=16;LBKP=10011;LSR=8;RBKP=10000;RSR=8;TSDLEN=12;TSD=GAACGCCCCGTG;
-     POLYA=27;POLYASR=8
+     POLYA=27;POLYASR=8;POLYASTRAND=+
      GT:DP2:GL  1/1:0,42:-253,-12.6,-1.8e-05
 
 Reading it: The insertion is **precise** (no ``IMPRECISE``), with 8

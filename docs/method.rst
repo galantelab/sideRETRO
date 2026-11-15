@@ -269,10 +269,9 @@ Orientation
 ===========
 
 Other important information that can be obtained from the data is the
-retrocopy **orientation** in relation to its parental gene. When the
-poly-A tail is observed in the reads, its side gives the orientation
-**directly** - see :ref:`Poly-A tail and polarity <method_polya>`. Otherwise,
-the abnormal alignment *reads* give us the clue to solve this issue. We catch *reads*
+retrocopy **orientation** in relation to its parental gene - the
+``POLARITY`` of the event. The abnormal alignment *reads* give us the
+clue to solve this issue. We catch *reads*
 when one pair aligns against an exon and its mate aligns to some genomic
 region, so we can **sort** the *reads* from the exonic site and analyze
 if their mates will be sorted in **ascending** or **descending** order as
@@ -401,9 +400,10 @@ with more reads wins. Genomic A bases adjacent to the tail - at the end
 of the last exon - cannot be told apart from it, so the length is
 reported as observed.
 
-When the tail is found, the ``POLARITY`` comes from it: It is **direct**
-evidence. Otherwise, the polarity comes from the
-:ref:`orientation <method_orientation>` correlation.
+When the tail is found, its strand is reported apart (``POLYASTRAND``),
+while the ``POLARITY`` comes from the :ref:`orientation <method_orientation>`
+correlation: Two independent signals. If they disagree, the event is
+flagged with the filter ``PolarityConflict``.
 
 Exon-exon junctions
 ===================

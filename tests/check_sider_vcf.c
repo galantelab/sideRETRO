@@ -267,17 +267,19 @@ START_TEST (test_vcf)
 	int i = 0;
 
 	// INFO fields that must be present (or absent)
-	// in each retrocopy line, in VCF order
+	// in each retrocopy line, in VCF order. POLARITY
+	// comes from ORHO; chr10 and chrY have the poly-A
+	// at the other strand (POLYASTRAND): PolarityConflict
 	// (chr10, chr11, chr12, chr13, chr13, chr14, chr14, chrY)
 	const char *present[][2] = {
-		{";ORHO=-1.000000;POLARITY=+;PG=gene1;PGTYPE=1;PGEXONS=gene1:2;HALLMARKS=POLYA,EEJ;EEJ=5;EEJLIST=ee1-ee13;PG5P=ee1:1050:7;PG3P=ee13:3000:2;SVLEN=2000;LEFT_SVINSSEQ=GGTTAACC;RIGHT_SVINSSEQ=TTGGCC;", ";SR=2;LBKP=100;LSR=2;POLYA=25;POLYASR=6"},
+		{";ORHO=-1.000000;POLARITY=-;PG=gene1;PGTYPE=1;PGEXONS=gene1:2;HALLMARKS=POLYA,EEJ;EEJ=5;EEJLIST=ee1-ee13;PG5P=ee1:1050:7;PG3P=ee13:3000:2;SVLEN=2000;LEFT_SVINSSEQ=GGTTAACC;RIGHT_SVINSSEQ=TTGGCC;", ";SR=2;LBKP=100;LSR=2;POLYA=25;POLYASR=6;POLYASTRAND=+"},
 		{";PGEXONS=gene2_1:1/gene2_2:1;",   ";DP="},
 		{";SR=7;LBKP=259;LSR=3;RBKP=250;RSR=4;TSDLEN=10;TSD=CCCCCCCCCC", NULL},
 		{";DP=",                            NULL},
 		{";DP=",                            NULL},
 		{";DP=",                            NULL},
 		{";DP=",                            NULL},
-		{";ORHO=1.000000;POLARITY=-;PG=gene1;PGTYPE=1;PGEXONS=gene1:2;HALLMARKS=POLYA;PG3P=ee1:150:3;DP=", ";SR=2;LBKP=100;LSR=1;RBKP=102;RSR=1;TSDLEN=-1;POLYA=30;POLYAMIN;POLYASR=2"}
+		{";ORHO=1.000000;POLARITY=+;PG=gene1;PGTYPE=1;PGEXONS=gene1:2;HALLMARKS=POLYA;PG3P=ee1:150:3;DP=", ";SR=2;LBKP=100;LSR=1;RBKP=102;RSR=1;TSDLEN=-1;POLYA=30;POLYAMIN;POLYASR=2;POLYASTRAND=-"}
 	};
 
 	// QUAL and FILTER. Samples without reads give no QUAL. The

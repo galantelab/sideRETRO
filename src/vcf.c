@@ -330,10 +330,12 @@ vcf_print_header (const List *hl, Hash *contig_len,
 		" 1 = Single parental gene; 2 = Overlapped parental genes; 4 = Near parental genes;"
 		" 8 = Hotspot - Multiple parental genes with retrocopy at the same segment\">\n"
 		"##INFO=<ID=POLARITY,Number=1,Type=Character,Description=\"Mobile element polarity (+/-):"
-		" From the poly-A junction when POLYA is present, otherwise from ORHO\">\n"
+		" The orientation of the event, from ORHO\">\n"
 		"##INFO=<ID=POLYA,Number=1,Type=Integer,Description=\"Poly-A tail length observed in the reads crossing its junction\">\n"
 		"##INFO=<ID=POLYAMIN,Number=0,Type=Flag,Description=\"POLYA is a lower bound: The poly-A extends beyond the longest clipped read\">\n"
 		"##INFO=<ID=POLYASR,Number=1,Type=Integer,Description=\"Number of reads supporting POLYA\">\n"
+		"##INFO=<ID=POLYASTRAND,Number=1,Type=Character,Description=\"Strand of the retrocopy given by the poly-A junction (+/-):"
+		" The tail is at the right junction for '+' and, reverse complemented, at the left junction for '-'\">\n"
 		"##INFO=<ID=RBKP,Number=1,Type=Integer,Description=\"Right breakpoint: First reference base of the right flank, from split reads clipped at the left\">\n"
 		"##INFO=<ID=RIGHT_SVINSSEQ,Number=1,Type=String,Description=\"Observed sequence of the insertion at the right junction:"
 		" Consensus of the reads clipped at RBKP (N where the reads tie)\">\n"
@@ -950,7 +952,6 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 	char base = 0;
 
 	long tsd_len = 0;
-	char polarity = 0;
 	char orho_polarity = 0;
 	double qual = 0.0;
 	int both_breakpoints = 0;
@@ -1071,18 +1072,15 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 						b.window_end - b.insertion_point);
 				}
 
-			// Polarity: The poly-A junction is direct evidence.
-			// Otherwise use the orientation correlation
-			polarity = orho_polarity;
-
+			/*
+			* Polarity: The orientation of the event, from the
+			* orientation correlation. The strand given by the
+			* poly-A junction is reported apart (POLYASTRAND):
+			* If they disagree, the FILTER says PolarityConflict
+			*/
 			if (orho_polarity != '?')
-				xfprintf (fp, ";ORHO=%f", b.orientation_rho);
-
-			if (b.polya_sr > 0)
-				polarity = b.polya_strand[0];
-
-			if (polarity != '?')
-				xfprintf (fp, ";POLARITY=%c", polarity);
+				xfprintf (fp, ";ORHO=%f;POLARITY=%c",
+						b.orientation_rho, orho_polarity);
 
 			// Parental gene
 			xfprintf (fp,
@@ -1186,7 +1184,8 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 					if (b.polya_lower_bound)
 						xfprintf (fp, ";POLYAMIN");
 
-					xfprintf (fp, ";POLYASR=%d", b.polya_sr);
+					xfprintf (fp, ";POLYASR=%d;POLYASTRAND=%c",
+							b.polya_sr, b.polya_strand[0]);
 				}
 
 			// FORMAT
