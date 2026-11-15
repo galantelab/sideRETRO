@@ -7,4 +7,4 @@ source_hash = 629380c90a77b964d896ed37163f5c3a34f6e6d897311f1df2a7016355c45eff
 
 patch_url = https://github.com/galantelab/zlib/archive/1.2.11.tar.gz
 patch_filename = zlib-1.2.11-wrap.tar.gz
-patch_hash = 9a3b65dddc455cbb05e79bf04b946971b167701a47d97fb43373ec9241150412
+patch_hash = ecad2da15bb2fcd3fb917606d71c81c97f834438bca2c4bdcf8c1d0ceb8f2489

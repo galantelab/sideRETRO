@@ -7,4 +7,4 @@ source_hash = d2e3cde77b8f874b37453c63390cd992901266336e9f70e871ef42402510467f
 
 patch_url = https://github.com/galantelab/htslib/archive/1.9.tar.gz
 patch_filename = htslib-1.9-wrap.tar.gz
-patch_hash = 3eae0b7d1b819e76f494d4d57b8a8b369ebb1c08414fff7ed9e1470a4b6185dc
+patch_hash = 28a155d8f7d018805799796881c2a9b9d2e41943bba45616bff6d665c6f9eb78
