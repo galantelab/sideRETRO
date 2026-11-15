@@ -11,6 +11,7 @@
 
 <p align="center">
   <a href="https://github.com/galantelab/sideRETRO/actions/workflows/ci.yml"><img alt="Build" src="https://github.com/galantelab/sideRETRO/actions/workflows/ci.yml/badge.svg?branch=master"></a>
+  <a href="https://github.com/galantelab/sideRETRO/actions/workflows/github-code-scanning/codeql"><img alt="CodeQL" src="https://github.com/galantelab/sideRETRO/actions/workflows/github-code-scanning/codeql/badge.svg?branch=master"></a>
   <a href='https://coveralls.io/github/galantelab/sideRETRO?branch=master'><img alt='Coverage Status' src='https://coveralls.io/repos/github/galantelab/sideRETRO/badge.svg?branch=master'></a>
   <a href="https://sideretro.readthedocs.io/en/latest/?badge=latest"><img alt="Readthedocs docs" src="https://readthedocs.org/projects/sideretro/badge/?version=latest"></a>
   <a href="https://github.com/galantelab/sideRETRO/tags/"><img alt="GitHub tag" src="https://img.shields.io/github/tag/galantelab/sideRETRO?include_prereleases=&sort=semver&color=blue"></a>
