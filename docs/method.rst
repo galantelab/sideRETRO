@@ -491,7 +491,10 @@ the gene and whether the insertion follows the **mRNA sense** at the
 reference: A forward match in a + gene, or a reverse complement match
 in a - gene. If so, the left junction is the **5' end** of the
 retrocopy and the right junction is the **3' end**; otherwise they are
-swapped. Again, the ends are the modes over the reads (``PG5P``,
+swapped. When there is a **poly-A**, it tells the sense by itself: Its
+junction is the 3' end. The matches decide - by majority - only without
+it, as an inverted piece at the 5' end of the retrocopy matches at the
+other sense. Again, the ends are the modes over the reads (``PG5P``,
 ``PG3P``). A 5' end inside the transcript means a **5' truncated**
 retrocopy, which is common: The reverse transcription often stops
 before reaching the 5' end of the mRNA.

@@ -800,6 +800,106 @@ END_TEST
 
 
 /*
+ * As test_retrocopy_edge, after changing some reads of RTC 1
+ * (chrR): Its retrocopy ends and predicted length
+ */
+static void
+run_edge_with (const char *sql, long *five_pos, int *five_sr,
+		int *three_sr, int *len)
+{
+	char db_file[] = "/tmp/ponga.db.XXXXXX";
+	char fasta_file[] = "/tmp/ponga.fa.XXXXXX";
+	sqlite3 *db = NULL;
+	sqlite3_stmt *cluster_merging_stmt = NULL;
+	sqlite3_stmt *retrocopy_stmt = NULL;
+	sqlite3_stmt *junction_stmt = NULL;
+	sqlite3_stmt *insertion_stmt = NULL;
+	sqlite3_stmt *evidence_stmt = NULL;
+	sqlite3_stmt *search_stmt = NULL;
+
+	db = create_db (db_file);
+	create_fasta_edge (fasta_file);
+	populate_db_edge (db);
+	db_exec (db, sql);
+
+	cluster_merging_stmt = db_prepare_cluster_merging_stmt (db);
+	retrocopy_stmt = db_prepare_retrocopy_stmt (db);
+	junction_stmt = db_prepare_junction_stmt (db);
+	insertion_stmt = db_prepare_insertion_stmt (db);
+	evidence_stmt = db_prepare_evidence_stmt (db);
+
+	retrocopy (retrocopy_stmt, cluster_merging_stmt, junction_stmt,
+			insertion_stmt, evidence_stmt, fasta_file, 1);
+
+	search_stmt = db_prepare (db,
+			"SELECT five_prime_pos, five_prime_sr, three_prime_sr, len\n"
+			"FROM insertion\n"
+			"WHERE retrocopy_id = 1");
+
+	ck_assert_int_eq (db_step (search_stmt), SQLITE_ROW);
+
+	*five_pos = db_column_int64 (search_stmt, 0);
+	*five_sr = db_column_int (search_stmt, 1);
+	*three_sr = db_column_int (search_stmt, 2);
+	*len = db_column_int (search_stmt, 3);
+
+	db_finalize (search_stmt);
+	db_finalize (cluster_merging_stmt);
+	db_finalize (retrocopy_stmt);
+	db_finalize (junction_stmt);
+	db_finalize (insertion_stmt);
+	db_finalize (evidence_stmt);
+	db_close (db);
+
+	xunlink (db_file);
+	xunlink (fasta_file);
+}
+
+START_TEST (test_retrocopy_inverted_end)
+{
+	long five_pos = 0;
+	int five_sr = 0;
+	int three_sr = 0;
+	int len = 0;
+
+	/*
+	* The reads at the left junction carry the reverse complement
+	* of their clip: An inverted piece at the 5' end of the
+	* retrocopy. All the hits are at the other sense, but the
+	* poly-A at the right junction tells the 3' end - so the left
+	* one is still the 5'. It is where the inverted piece hits
+	* (471, not 500): The predicted sequence is shorter by its
+	* length
+	*/
+	run_edge_with (
+			"UPDATE alignment\n"
+			"SET seq = SUBSTR(seq, 1, 70) || 'CGTTTGAACAGGACTGGACAACGCTCCGAT'\n"
+			"WHERE qname IN ('L1', 'L2', 'L5')",
+			&five_pos, &five_sr, &three_sr, &len);
+
+	ck_assert_int_eq (five_pos, 471);
+	ck_assert_int_eq (five_sr, 3);
+	ck_assert_int_eq (three_sr, 0);
+	ck_assert_int_eq (len, 261);
+
+	/*
+	* No poly-A: The reads at the right junction carry the
+	* sequence of the 5' end too, so the majority of the hits
+	* - at both junctions - tells the sense
+	*/
+	run_edge_with (
+			"UPDATE alignment\n"
+			"SET seq = 'ATCGGAGCGTTGTCCAGTCCTGTTCAAACG' || SUBSTR(seq, 31)\n"
+			"WHERE qname IN ('R1', 'R2')",
+			&five_pos, &five_sr, &three_sr, &len);
+
+	ck_assert_int_eq (five_pos, 500);
+	ck_assert_int_gt (five_sr, 0);
+	ck_assert_int_gt (three_sr, 0);
+}
+END_TEST
+
+/*
  * Overlapped parental genes: geneA at '+' (chr2:1000-3000) and
  * geneB at '-' (chr2:2000-4000). The retrocopy is at chr1, with
  * a cluster for each gene. A fragment has its mate only at the
@@ -962,6 +1062,7 @@ make_retrocopy_suite (void)
 
 	tcase_add_test (tc_core, test_retrocopy);
 	tcase_add_test (tc_core, test_retrocopy_edge);
+	tcase_add_test (tc_core, test_retrocopy_inverted_end);
 	tcase_add_test (tc_core, test_retrocopy_choose_parental);
 	suite_add_tcase (s, tc_core);
 

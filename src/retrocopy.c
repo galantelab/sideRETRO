@@ -1889,6 +1889,7 @@ insertion_set_entry (sqlite3_stmt *insertion_stmt, const int rid,
 	char *right_seq = NULL;
 	long three_pos = 0;
 	int sense_acm = 0;
+	int sense = 0;
 	int len = 0;
 	size_t i = 0;
 
@@ -1899,20 +1900,34 @@ insertion_set_entry (sqlite3_stmt *insertion_stmt, const int rid,
 	left_seq = clip_consensus (left_clips, n_left_clips, 0);
 	right_seq = clip_consensus (right_clips, n_right_clips, 1);
 
-	// Is the insertion read 5' => 3' at the forward
-	// strand of the reference? Majority of the hits
-	for (i = 0; i < left_size; i++)
-		sense_acm += left_a[i].sense;
+	/*
+	* Is the insertion read 5' => 3' at the forward strand
+	* of the reference? The poly-A tells it: Its junction is
+	* the 3' end. Without a poly-A, the majority of the hits.
+	* They may be misled by an inverted piece at the 5' end
+	* of the retrocopy, whose reads hit at the other sense
+	*/
+	if (e->polya_sr > 0)
+		{
+			sense = e->polya_strand == '+';
+		}
+	else
+		{
+			for (i = 0; i < left_size; i++)
+				sense_acm += left_a[i].sense;
 
-	for (i = 0; i < right_size; i++)
-		sense_acm += right_a[i].sense;
+			for (i = 0; i < right_size; i++)
+				sense_acm += right_a[i].sense;
+
+			sense = 2 * sense_acm >= (int) (left_size + right_size);
+		}
 
 	hit_mode (left_a, left_size, &left);
 	hit_mode (right_a, right_size, &right);
 
 	// If the insertion is at the sense, the left
 	// junction is the 5' end of the retrocopy
-	if (2 * sense_acm >= (int) (left_size + right_size))
+	if (sense)
 		{
 			five = &left;
 			three = &right;
