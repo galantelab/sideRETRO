@@ -41,7 +41,11 @@ INFO and FORMAT field, and finally the column names - with **one
 column per sample**, named after the alignment file without its
 extension.
 
-Then, each line describes one retrocopy insertion:
+Then, each line describes one retrocopy insertion. The fields with
+more than one value - gene names, exons and junctions - are lists
+separated by **comma**, as usual for VCF: ``PG``, ``PGALT``,
+``PGEXONS``, ``EEJLIST``, ``EXONIC``, ``INTRONIC``, ``NEAR`` and
+``HALLMARKS``.
 
 +------------+-------------------------------------------------------------+
 | Column     | Content                                                     |
@@ -292,7 +296,7 @@ is a duplication.
 **Parental gene**
 
 +------------+--------------------------------------------------------------+
-| PG         | Parental gene name(s), separated by ``/``                    |
+| PG         | Parental gene name(s)                                        |
 +------------+--------------------------------------------------------------+
 | PGALT      | Gene name(s) overlapping the parental gene. When it is       |
 |            | present, ``PG`` was **chosen** among overlapped genes, see   |
@@ -311,9 +315,8 @@ is a duplication.
 | EEJ        | Number of reads spanning **exon-exon junctions** of the      |
 |            | parental gene: Direct evidence of a processed transcript     |
 +------------+--------------------------------------------------------------+
-| EEJLIST    | The junctions spanned, as ``exon_id1-exon_id2`` separated by |
-|            | ``/``. With alternative exons, it tells which isoform was    |
-|            | retrocopied                                                  |
+| EEJLIST    | The junctions spanned, as ``exon_id1-exon_id2``. With        |
+|            | alternative exons, it tells which isoform was retrocopied    |
 +------------+--------------------------------------------------------------+
 
 .. note::

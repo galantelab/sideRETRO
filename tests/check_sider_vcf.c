@@ -277,7 +277,7 @@ START_TEST (test_vcf)
 	// (chr10, chr11, chr12, chr13, chr13, chr14, chr14, chrY)
 	const char *present[][2] = {
 		{";ORHO=-1.000000;POLARITY=-;PG=gene1;PGTYPE=1;PGEXONS=gene1:2;HALLMARKS=POLYA,EEJ;EEJ=5;EEJLIST=ee1-ee13;PG5P=ee1:1050:7;PG3P=ee13:3000:2;SVLEN=2000;LEFT_SVINSSEQ=GGTTAACC;RIGHT_SVINSSEQ=TTGGCC;", ";SR=2;LBKP=100;LSR=2;POLYA=25;POLYASR=6;POLYASTRAND=+"},
-		{";PGEXONS=gene2_1:1/gene2_2:1;",   ";DP="},
+		{";PGEXONS=gene2_1:1,gene2_2:1;",   ";DP="},
 		{";SR=7;LBKP=259;LSR=3;RBKP=250;RSR=4;TSDLEN=10;TSD=CCCCCCCCCC", NULL},
 		{";DP=",                            NULL},
 		{";DP=",                            NULL},
@@ -626,7 +626,7 @@ START_TEST (test_vcf_parental_chosen)
 			found++;
 			ck_assert_msg (strstr (line,
 						";ORHO=-1.000000;POLARITY=-;PG=gene1;PGTYPE=2;"
-						"PGALT=geneX/geneY;PGEXONS=") != NULL, "%s", line);
+						"PGALT=geneX,geneY;PGEXONS=") != NULL, "%s", line);
 			ck_assert_msg (strstr (line, "\tLowSR;NoTSD\t") != NULL, "%s", line);
 		}
 
