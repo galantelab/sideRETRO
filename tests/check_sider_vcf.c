@@ -578,6 +578,75 @@ START_TEST (test_vcf_edge)
 }
 END_TEST
 
+START_TEST (test_vcf_parental_chosen)
+{
+	char db_file[] = "/tmp/ponga.db.XXXXXX";
+	char vcf_file[] = "/tmp/ponga.vcf.XXXXXX";
+	char insertion_file[] = "/tmp/ponga.ins.XXXXXX";
+	sqlite3 *db = NULL;
+	FILE *fp = NULL;
+	char *line = NULL;
+	size_t len = 0;
+	int found = 0;
+
+	db = create_db (db_file);
+	create_vcf (vcf_file);
+	create_vcf (insertion_file);
+	populate_db (db);
+
+	// The first retrocopy (chr10, gene1): As if gene1 had
+	// been chosen over the overlapped geneX and geneY
+	db_exec (db,
+			"UPDATE retrocopy\n"
+			"SET parental_gene_name = 'gene1/geneX/geneY', level = 34\n"
+			"WHERE id = 1");
+
+	VCFOption opt = {
+		.min_qual = VCF_DEFAULT_MIN_QUAL,
+		.min_mapq = VCF_DEFAULT_MIN_MAPQ,
+		.min_sr = VCF_DEFAULT_MIN_SR,
+		.min_breakpoints = VCF_DEFAULT_MIN_BKP,
+		.min_tsd = VCF_DEFAULT_MIN_TSD,
+		.max_tsd = VCF_DEFAULT_MAX_TSD,
+		.insertion_file = insertion_file
+	};
+
+	vcf (db, vcf_file, &opt);
+
+	// PG is the chosen gene, the others go to PGALT and the
+	// type is still 'overlapped'. It is not ambiguous, and
+	// the polarity comes from the strand of the chosen gene
+	fp = xfopen (vcf_file, "r");
+
+	while (getline (&line, &len, fp) != EOF)
+		{
+			if (strncmp (line, "chr10\t", 6))
+				continue;
+
+			found++;
+			ck_assert_msg (strstr (line,
+						";ORHO=-1.000000;POLARITY=-;PG=gene1;PGTYPE=2;"
+						"PGALT=geneX/geneY;PGEXONS=") != NULL, "%s", line);
+			ck_assert_msg (strstr (line, "\tLowSR;NoTSD\t") != NULL, "%s", line);
+		}
+
+	ck_assert_int_eq (found, 1);
+	xfclose (fp);
+
+	// The predicted insertion is named after the chosen gene
+	fp = xfopen (insertion_file, "r");
+	ck_assert_int_ne (getline (&line, &len, fp), EOF);
+	ck_assert_str_eq (line, ">RTC000001 chr10:100 PG=gene1 SVLEN=2000 predicted\n");
+	xfclose (fp);
+
+	xfree (line);
+	db_close (db);
+	xunlink (db_file);
+	xunlink (vcf_file);
+	xunlink (insertion_file);
+}
+END_TEST
+
 START_TEST (test_vcf_no_genotype_fail)
 {
 	char db_file[] = "/tmp/ponga.db.XXXXXX";
@@ -618,6 +687,7 @@ make_vcf_suite (void)
 
 	tcase_add_test (tc_core, test_vcf);
 	tcase_add_test (tc_core, test_vcf_edge);
+	tcase_add_test (tc_core, test_vcf_parental_chosen);
 	suite_add_tcase (s, tc_core);
 
 	/* Abort test case */

@@ -118,7 +118,9 @@ side: A retrocopy may have many of them at a single breakpoint, passing
 |                   | the threshold (``make-vcf -Q``, default 20). Typical  |
 |                   | of reads in repeats or paralogs                       |
 +-------------------+-------------------------------------------------------+
-| AmbiguousParental | The parental gene is ambiguous: ``PGTYPE`` is not 1   |
+| AmbiguousParental | The parental gene is ambiguous: ``PGTYPE`` is not 1,  |
+|                   | and no gene was chosen among overlapped ones          |
+|                   | (no ``PGALT``)                                        |
 +-------------------+-------------------------------------------------------+
 | LowSR             | Fewer split reads at the breakpoints (``SR``) than    |
 |                   | the threshold (``make-vcf -S``, default 3), whatever  |
@@ -287,10 +289,15 @@ is a duplication.
 +------------+--------------------------------------------------------------+
 | PG         | Parental gene name(s), separated by ``/``                    |
 +------------+--------------------------------------------------------------+
+| PGALT      | Gene name(s) overlapping the parental gene. When it is       |
+|            | present, ``PG`` was **chosen** among overlapped genes, see   |
+|            | :ref:`Overlapped parental genes <method_overlapped>`         |
++------------+--------------------------------------------------------------+
 | PGTYPE     | How the parental gene was resolved: ``1`` single parental    |
-|            | gene; ``2`` overlapped parental genes; ``4`` near parental   |
-|            | genes; ``8`` hotspot - multiple parental genes with          |
-|            | retrocopies at the same segment. Values may be summed        |
+|            | gene; ``2`` overlapped parental genes (one of them chosen if |
+|            | there is ``PGALT``); ``4`` near parental genes; ``8``        |
+|            | hotspot - multiple parental genes with retrocopies at the    |
+|            | same segment. Values may be summed                           |
 +------------+--------------------------------------------------------------+
 | PGEXONS    | Number of exons of each parental gene, as ``gene:n``. A      |
 |            | **single exon** gene has no exon-exon junction, so a missing |

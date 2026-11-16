@@ -27,6 +27,7 @@
 
 #include "../src/wrapper.h"
 #include "../src/utils.h"
+#include "../src/str.h"
 #include "../src/db.h"
 #include "../src/retrocopy.h"
 
@@ -798,6 +799,156 @@ START_TEST (test_retrocopy_edge)
 END_TEST
 
 
+/*
+ * Overlapped parental genes: geneA at '+' (chr2:1000-3000) and
+ * geneB at '-' (chr2:2000-4000). The retrocopy is at chr1, with
+ * a cluster for each gene. A fragment has its mate only at the
+ * exon of geneA (chr2:1000), only at geneB (chr2:3500) or at
+ * both (chr2:2000 ...)
+ */
+static void
+add_fragment (String *sql, int *aid, const long apos, const int clipped,
+		const long gpos, const int in_a, const int in_b)
+{
+	int flank = ++(*aid);
+	int mate = ++(*aid);
+
+	// With 'clipped', a poly-T after the left flank: Poly-A at '-'
+	string_concat_printf (sql,
+			"INSERT INTO alignment VALUES (%d,'f%d',97,'chr1',%li,60,'%s',100,%d,"
+			"'chr2',%li,2,1,'%s','*');\n"
+			"INSERT INTO alignment VALUES (%d,'f%d',145,'chr2',%li,60,'100M',100,100,"
+			"'chr1',%li,8,1,'*','*');\n",
+			flank, flank, apos, clipped ? "70M30S" : "100M", clipped ? 70 : 100, gpos,
+			clipped
+				? "GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG"
+					"TTTTTTTTTTTTCAGGCATCAGGCATCAGG"
+				: "*",
+			mate, flank, gpos, apos);
+
+	if (in_a)
+		string_concat_printf (sql,
+				"INSERT INTO overlapping VALUES (1,%d,%li,100);\n"
+				"INSERT INTO clustering VALUES (1,1,%d,3,100);\n",
+				mate, gpos, flank);
+
+	if (in_b)
+		string_concat_printf (sql,
+				"INSERT INTO overlapping VALUES (2,%d,%li,100);\n"
+				"INSERT INTO clustering VALUES (2,1,%d,3,100);\n",
+				mate, gpos, flank);
+}
+
+static void
+check_parental (const int only_a, const int only_b, const int polya,
+		const int direct, const char *genes, const int level,
+		const int num_clusters)
+{
+	char db_file[] = "/tmp/ponga.db.XXXXXX";
+	sqlite3 *db = create_db (db_file);
+	sqlite3_stmt *cluster_merging_stmt = db_prepare_cluster_merging_stmt (db);
+	sqlite3_stmt *retrocopy_stmt = db_prepare_retrocopy_stmt (db);
+	sqlite3_stmt *junction_stmt = db_prepare_junction_stmt (db);
+	sqlite3_stmt *insertion_stmt = db_prepare_insertion_stmt (db);
+	sqlite3_stmt *evidence_stmt = db_prepare_evidence_stmt (db);
+	sqlite3_stmt *search_stmt = NULL;
+
+	String *sql = string_new (
+			"BEGIN TRANSACTION;\n"
+			"INSERT INTO batch VALUES (1,'1552578609');\n"
+			"INSERT INTO source VALUES (1,1,'ponga.bam');\n"
+			"INSERT INTO exon VALUES (1,'geneA','chr2',1000,3000,'+','ega','eea');\n"
+			"INSERT INTO exon VALUES (2,'geneB','chr2',2000,4000,'-','egb','eeb');\n"
+			"INSERT INTO cluster VALUES (1,1,'chr1',700,1030,'geneA',31);\n"
+			"INSERT INTO cluster VALUES (2,1,'chr1',700,1030,'geneB',31);\n");
+
+	int aid = 0;
+	int i = 0;
+
+	// Fragments at both genes. The mates follow the reads
+	// (direct) or go the other way: The sign of the orientation
+	for (i = 0; i < 8; i++)
+		add_fragment (sql, &aid, 700 + 20 * i, 0,
+				direct ? 2000 + 100 * i : 2700 - 100 * i, 1, 1);
+
+	// Two reads clipped at the left breakpoint, with
+	// the poly-A at '-'
+	for (i = 0; polya && i < 2; i++)
+		add_fragment (sql, &aid, 931, 1, direct ? 2900 : 1900 + 100 * i, 1, 1);
+
+	for (i = 0; i < only_a; i++)
+		add_fragment (sql, &aid, 710 + 20 * i, 0, 1000, 1, 0);
+
+	for (i = 0; i < only_b; i++)
+		add_fragment (sql, &aid, 715 + 20 * i, 0, 3500, 0, 1);
+
+	string_concat_printf (sql, "COMMIT;");
+	db_exec (db, sql->str);
+
+	retrocopy (retrocopy_stmt, cluster_merging_stmt, junction_stmt,
+			insertion_stmt, evidence_stmt, NULL, 3);
+
+	search_stmt = db_prepare (db,
+			"SELECT parental_gene_name, level,\n"
+			"	(SELECT COUNT(*) FROM cluster_merging)\n"
+			"FROM retrocopy");
+
+	ck_assert_int_eq (db_step (search_stmt), SQLITE_ROW);
+	ck_assert_str_eq (db_column_text (search_stmt, 0), genes);
+	ck_assert_int_eq (db_column_int (search_stmt, 1), level);
+	ck_assert_int_eq (db_column_int (search_stmt, 2), num_clusters);
+	ck_assert_int_eq (db_step (search_stmt), SQLITE_DONE);
+
+	db_finalize (search_stmt);
+	db_finalize (retrocopy_stmt);
+	db_finalize (cluster_merging_stmt);
+	db_finalize (junction_stmt);
+	db_finalize (insertion_stmt);
+	db_finalize (evidence_stmt);
+	db_close (db);
+
+	string_free (sql, 1);
+	xunlink (db_file);
+}
+
+START_TEST (test_retrocopy_choose_parental)
+{
+	const int ambiguous = RETROCOPY_OVERLAPPED_PARENTALS;
+	const int chosen = RETROCOPY_OVERLAPPED_PARENTALS
+		| RETROCOPY_PARENTAL_CHOSEN;
+
+	// No signal: All fragments fit both genes, no poly-A
+	check_parental (0, 0, 0, 1, "geneA/geneB", ambiguous, 2);
+
+	// Fragments explained by geneA alone
+	check_parental (5, 0, 0, 1, "geneA/geneB", chosen, 1);
+
+	// By geneB alone: It comes first
+	check_parental (0, 5, 0, 1, "geneB/geneA", chosen, 1);
+
+	// Too few of them
+	check_parental (RETROCOPY_MIN_EXCLUSIVE - 1, 0, 0, 1,
+			"geneA/geneB", ambiguous, 2);
+
+	// Both genes have their own fragments
+	check_parental (5, 5, 0, 1, "geneA/geneB", ambiguous, 2);
+
+	// Strand: Poly-A at '-' and a direct orientation agree
+	// only for the gene at '-' (geneB)
+	check_parental (0, 0, 1, 1, "geneB/geneA", chosen, 1);
+
+	// An inverse orientation: Only for the gene at '+'
+	check_parental (0, 0, 1, 0, "geneA/geneB", chosen, 1);
+
+	// Both signals for geneB
+	check_parental (0, 5, 1, 1, "geneB/geneA", chosen, 1);
+
+	// The signals disagree: Fragments of geneA alone,
+	// but the strand of geneB
+	check_parental (5, 0, 1, 1, "geneA/geneB", ambiguous, 2);
+}
+END_TEST
+
 Suite *
 make_retrocopy_suite (void)
 {
@@ -811,6 +962,7 @@ make_retrocopy_suite (void)
 
 	tcase_add_test (tc_core, test_retrocopy);
 	tcase_add_test (tc_core, test_retrocopy_edge);
+	tcase_add_test (tc_core, test_retrocopy_choose_parental);
 	suite_add_tcase (s, tc_core);
 
 	return s;

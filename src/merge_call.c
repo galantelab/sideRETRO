@@ -164,7 +164,7 @@ print_summary (const MergeCall *mc, sqlite3 *db, const char *db_file,
 	} while (0)
 
 	SUMMARY_RTC ("Single parental gene",
-			"SELECT COUNT(*) FROM retrocopy WHERE level = 1");
+			"SELECT COUNT(*) FROM retrocopy WHERE level = 1 OR level & 32");
 	SUMMARY_RTC ("Precise",
 			"SELECT COUNT(*) FROM retrocopy WHERE insertion_point_type = 2");
 	SUMMARY_RTC ("Both breakpoints",

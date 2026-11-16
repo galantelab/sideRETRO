@@ -55,7 +55,7 @@ static const VCFFilterDef filter_defs[] =
 	{VCF_FILTER_LOW_MAPQ,           "LowMAPQ",
 		"Mean mapping quality of the supporting reads below the threshold (make-vcf --min-mapq)"},
 	{VCF_FILTER_AMBIGUOUS_PARENTAL, "AmbiguousParental",
-		"The parental gene is ambiguous: Overlapped or near parental genes, or hotspot (PGTYPE != 1)"},
+		"The parental gene is ambiguous: Overlapped (none chosen, no PGALT) or near parental genes, or hotspot"},
 	{VCF_FILTER_LOW_SR,             "LowSR",
 		"Number of split reads at the breakpoints (SR) below the threshold (make-vcf --min-sr)"},
 	{VCF_FILTER_NO_TSD,             "NoTSD",
@@ -115,6 +115,7 @@ struct _VCFBody
 
 	// Parental gene
 	const char *parental_gene_name;
+	const char *parental_others;
 	const char *parental_strand;
 	int         level;
 
@@ -314,6 +315,8 @@ vcf_print_header (const List *hl, Hash *contig_len,
 		"##INFO=<ID=NEAR,Number=1,Type=String,Description=\"Near Gene IDs separated by '/' for intergenic retrocopy\">\n"
 		"##INFO=<ID=ORHO,Number=1,Type=Float,Description=\"Spearman's rho to detect the polarity\">\n"
 		"##INFO=<ID=PG,Number=1,Type=String,Description=\"Parental Gene IDs separated by '/'\">\n"
+		"##INFO=<ID=PGALT,Number=1,Type=String,Description=\"Gene IDs separated by '/' overlapping the parental gene:"
+		" PG was chosen among them by the fragments explained by it alone and by the strand given by the poly-A\">\n"
 		"##INFO=<ID=PGEXONS,Number=1,Type=String,Description=\"Number of exons of each parental gene as 'gene:n' separated by '/'."
 		" A single exon gene has no exon-exon junction\">\n"
 		"##INFO=<ID=PG5P,Number=1,Type=String,Description=\"5' end of the retrocopy into the parental gene as 'exon_id:position:reads',"
@@ -321,7 +324,7 @@ vcf_print_header (const List *hl, Hash *contig_len,
 		"##INFO=<ID=PG3P,Number=1,Type=String,Description=\"3' end of the retrocopy into the parental gene, before the poly-A,"
 		" as 'exon_id:position:reads'\">\n"
 		"##INFO=<ID=PGTYPE,Number=1,Type=String,Description=\"Provides information about parental gene:"
-		" 1 = Single parental gene; 2 = Overlapped parental genes; 4 = Near parental genes;"
+		" 1 = Single parental gene; 2 = Overlapped parental genes (see PGALT); 4 = Near parental genes;"
 		" 8 = Hotspot - Multiple parental genes with retrocopy at the same segment\">\n"
 		"##INFO=<ID=POLARITY,Number=1,Type=Character,Description=\"Mobile element polarity (+/-):"
 		" The orientation of the event, from ORHO\">\n"
@@ -476,7 +479,7 @@ prepare_retrocopy_query_stmt (sqlite3 *db, const long near_gene_dist)
 		"		GROUP BY retrocopy_id\n"
 		"	)\n"
 		"SELECT r.id, r.chr, window_start, window_end,\n"
-		"	parental_gene_name,\n"
+		"	r.pg,\n"
 		"	CASE\n"
 		"		WHEN g.strand IS NOT NULL\n"
 		"			THEN g.strand\n"
@@ -518,8 +521,24 @@ prepare_retrocopy_query_stmt (sqlite3 *db, const long near_gene_dist)
 		"	COALESCE(ins.three_prime_sr, 0), COALESCE(ins.len, 0),\n"
 		"	COALESCE(ins.seq, '?'), COALESCE(ins.left_seq, '?'),\n"
 		"	COALESCE(ins.right_seq, '?'),\n"
-		"	COALESCE(m.mean, 0)\n"
-		"FROM retrocopy AS r\n"
+		"	COALESCE(m.mean, 0), r.pgalt\n"
+		"FROM (\n"
+		"	SELECT *,\n"
+		"		CASE\n"
+		"			WHEN level & $CHOSEN\n"
+		"				THEN SUBSTR(parental_gene_name, 1,\n"
+		"					INSTR(parental_gene_name, '/') - 1)\n"
+		"			ELSE parental_gene_name\n"
+		"		END AS pg,\n"
+		"		CASE\n"
+		"			WHEN level & $CHOSEN\n"
+		"				THEN SUBSTR(parental_gene_name,\n"
+		"					INSTR(parental_gene_name, '/') + 1)\n"
+		"			ELSE '?'\n"
+		"		END AS pgalt\n"
+		"	FROM retrocopy\n"
+		"	) AS r\n"
+
 		"LEFT JOIN pg_exons AS p\n"
 		"	ON r.id = p.rid\n"
 		"LEFT JOIN junction_g AS j\n"
@@ -533,7 +552,7 @@ prepare_retrocopy_query_stmt (sqlite3 *db, const long near_gene_dist)
 		"LEFT JOIN mapq AS m\n"
 		"	ON r.id = m.rid\n"
 		"LEFT JOIN gene AS g\n"
-		"	ON r.parental_gene_name = g.gene_name\n"
+		"	ON r.pg = g.gene_name\n"
 		"INNER JOIN genotype AS gn\n"
 		"	ON r.id = gn.retrocopy_id\n"
 		"LEFT JOIN near_g AS n\n"
@@ -550,6 +569,10 @@ prepare_retrocopy_query_stmt (sqlite3 *db, const long near_gene_dist)
 	db_bind_int64 (stmt,
 			sqlite3_bind_parameter_index (stmt, "$DIST"),
 			near_gene_dist);
+
+	db_bind_int (stmt,
+			sqlite3_bind_parameter_index (stmt, "$CHOSEN"),
+			RETROCOPY_PARENTAL_CHOSEN);
 
 	return stmt;
 }
@@ -664,6 +687,7 @@ vcf_get_body_line (sqlite3_stmt *stmt, VCFBody *b)
 	b->left_seq             = db_column_text   (stmt, 35);
 	b->right_seq            = db_column_text   (stmt, 36);
 	b->mapq_mean            = db_column_double (stmt, 37);
+	b->parental_others      = db_column_text   (stmt, 38);
 }
 
 static double
@@ -938,6 +962,7 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 	char orho_polarity = 0;
 	double qual = 0.0;
 	int num_breakpoints = 0;
+	int single_parental = 0;
 	int both_breakpoints = 0;
 	int failed = 0;
 	int i = 0;
@@ -990,8 +1015,13 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 			both_breakpoints = num_breakpoints == 2;
 			tsd_len = b.breakpoint_left - b.breakpoint_right + 1;
 
+			// A single parental gene, or one chosen
+			// among overlapped parental genes
+			single_parental = b.level == RETROCOPY_PASS
+				|| (b.level & RETROCOPY_PARENTAL_CHOSEN);
+
 			orho_polarity = '?';
-			if (b.level == RETROCOPY_PASS
+			if (single_parental
 					&& b.orientation_p_value <= opt->orientation_error)
 				orho_polarity = b.orientation_rho >= 0.0
 					? !strcmp (b.parental_strand, "+") ? '+' : '-'
@@ -1005,7 +1035,7 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 			if (b.mapq_mean < opt->min_mapq)
 				failed |= VCF_FILTER_LOW_MAPQ;
 
-			if (b.level != RETROCOPY_PASS)
+			if (!single_parental)
 				failed |= VCF_FILTER_AMBIGUOUS_PARENTAL;
 
 			// All the split reads, whatever their side
@@ -1065,10 +1095,15 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 				xfprintf (fp, ";ORHO=%f;POLARITY=%c",
 						b.orientation_rho, orho_polarity);
 
-			// Parental gene
+			// Parental gene. PGTYPE has no flag for the choice:
+			// PGALT tells that PG was chosen among overlapped ones
 			xfprintf (fp,
 				";PG=%s;PGTYPE=%d",
-				b.parental_gene_name, b.level);
+				b.parental_gene_name,
+				b.level & ~RETROCOPY_PARENTAL_CHOSEN);
+
+			if (strcmp (b.parental_others, "?"))
+				xfprintf (fp, ";PGALT=%s", b.parental_others);
 
 			if (strcmp (b.pg_exons, "?"))
 				xfprintf (fp, ";PGEXONS=%s", b.pg_exons);

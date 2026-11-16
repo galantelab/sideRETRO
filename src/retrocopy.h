@@ -44,6 +44,12 @@
  *   like in RETROCOPY_HOTSPOT - but there is
  *   no evidence of presence of each cluster
  *   at least at one individual;
+ * - RETROCOPY_PARENTAL_CHOSEN => Overlapped
+ *   parental genes, but the evidence points
+ *   to one of them: It is the first name of
+ *   the parental genes, followed by the
+ *   others ('chosen/other'). Set together
+ *   with RETROCOPY_OVERLAPPED_PARENTALS;
  * P.S: Clusters are merged in
  *      RETROCOPY_OVERLAPPED_PARENTALS
  *      and RETROCOPY_NEAR_PARENTALS
@@ -54,7 +60,8 @@ enum _RetrocopyLevel
 	RETROCOPY_OVERLAPPED_PARENTALS = 2,
 	RETROCOPY_NEAR_PARENTALS       = 4,
 	RETROCOPY_HOTSPOT              = 8,
-	RETROCOPY_AMBIGUOUS            = 16
+	RETROCOPY_AMBIGUOUS            = 16,
+	RETROCOPY_PARENTAL_CHOSEN      = 32
 };
 
 typedef enum _RetrocopyLevel RetrocopyLevel;
@@ -97,6 +104,15 @@ typedef enum _RetrocopyInsertionPoint RetrocopyInsertionPoint;
  * aligner, or untemplated bases added at the junction
  */
 #define RETROCOPY_MAX_POLYA_OFFSET 3
+
+/*
+ * Choice among overlapped parental genes: Minimum
+ * number of fragments explained by one gene alone,
+ * and maximum p-value of the orientation to compare
+ * its strand with the poly-A strand
+ */
+#define RETROCOPY_MIN_EXCLUSIVE 3
+#define RETROCOPY_ORIENTATION_ALPHA 0.05
 
 /*
  * Seed used to search the clipped sequence at the

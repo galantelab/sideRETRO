@@ -422,6 +422,34 @@ while the ``POLARITY`` comes from the :ref:`orientation <method_orientation>`
 correlation: Two independent signals, which may disagree. None of them
 filters the event.
 
+.. _method_overlapped:
+
+Overlapped parental genes
+=========================
+
+Genes may **overlap** each other - often at opposite strands, tail to
+tail - and share exonic bases. The *reads* of a retrocopy from one of
+them fit both, so there is a cluster for each gene at the same site and
+the parental gene is ambiguous (``PGTYPE=2``). Two signals may point to
+**one** of the genes:
+
+* **Fragments explained by one gene alone**: The mate overlaps an exon of
+  this gene, but no exon of the others. A gene with at least 3 of them,
+  when no other gene has any, is favoured.
+* **Strand**: The poly-A gives the strand of the retrocopy at the reference
+  (``POLYASTRAND``), while the :ref:`orientation <method_orientation>` gives
+  it in relation to the parental gene. For genes at opposite strands, they
+  agree for only one of them. It needs a poly-A and a significant
+  orientation (p-value up to 0.05).
+
+A gene is **chosen** when at least one signal favours it and none favours
+another gene. It becomes the parental gene (``PG``), the others are listed
+at ``PGALT`` and the event is not flagged as ``AmbiguousParental``. The
+exon-exon junctions, the retrocopy ends and the predicted sequence come
+from the chosen gene. If the signals disagree, or none applies - e.g. a
+gene and its read-through transcript, with the same exons - the parental
+gene stays ambiguous.
+
 Exon-exon junctions
 ===================
 

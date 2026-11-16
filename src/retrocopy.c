@@ -78,9 +78,20 @@ struct _RetrocopyEntry
 	int            polya_lower_bound;
 	char           polya_strand;
 	int            polya_sr;
+
+	// Overlapped parental genes: The ones left
+	// out when one of them is chosen ('g1/g2')
+	char          *other_genes;
 };
 
 typedef struct _RetrocopyEntry RetrocopyEntry;
+
+static void
+rtc_entry_free (RetrocopyEntry *e)
+{
+	xfree (e->other_genes);
+	xfree (e);
+}
 
 static ClusterEntry *
 cluster_entry_new (int cid, int sid, const char *cchr, long cstart, long cend,
@@ -2212,6 +2223,249 @@ calculate_insertion (sqlite3 *db, sqlite3_stmt *insertion_stmt,
 		hash_free (fidx);
 }
 
+/*
+ * The candidate parental genes of a retrocopy: Their
+ * strand and the number of fragments explained by each
+ * one alone - the mate overlaps its exons, but no exon
+ * of the other candidates
+ */
+static sqlite3_stmt *
+prepare_candidate_stmt (sqlite3 *db)
+{
+	log_trace ("Inside %s", __func__);
+
+	const char sql[] =
+		"WITH\n"
+		"	candidate (gene_name) AS (\n"
+		"		SELECT DISTINCT cl.gene_name\n"
+		"		FROM cluster_merging AS cm\n"
+		"		INNER JOIN cluster AS cl\n"
+		"			ON cl.id = cm.cluster_id AND cl.sid = cm.cluster_sid\n"
+		"		WHERE cm.retrocopy_id = $RID\n"
+		"	),\n"
+		"	exclusive (gene_name, n) AS (\n"
+		"		SELECT gene_name, COUNT(*)\n"
+		"		FROM (\n"
+		"			SELECT MIN(e.gene_name) AS gene_name\n"
+		"			FROM cluster_merging AS cm\n"
+		"			INNER JOIN clustering AS c\n"
+		"				ON c.cluster_id = cm.cluster_id\n"
+		"					AND c.cluster_sid = cm.cluster_sid\n"
+		"			INNER JOIN alignment AS a\n"
+		"				ON a.id = c.alignment_id\n"
+		"			INNER JOIN alignment AS m\n"
+		"				ON m.qname = a.qname\n"
+		"					AND m.source_id = a.source_id\n"
+		"			INNER JOIN overlapping AS o\n"
+		"				ON o.alignment_id = m.id\n"
+		"			INNER JOIN exon AS e\n"
+		"				ON e.id = o.exon_id\n"
+		"			WHERE cm.retrocopy_id = $RID\n"
+		"				AND m.id != a.id\n"
+		"				AND e.gene_name IN (SELECT gene_name FROM candidate)\n"
+		"			GROUP BY a.qname, a.source_id\n"
+		"			HAVING COUNT(DISTINCT e.gene_name) = 1\n"
+		"		)\n"
+		"		GROUP BY gene_name\n"
+		"	)\n"
+		"SELECT c.gene_name,\n"
+		"	(SELECT strand FROM exon WHERE gene_name = c.gene_name LIMIT 1),\n"
+		"	COALESCE(x.n, 0)\n"
+		"FROM candidate AS c\n"
+		"LEFT JOIN exclusive AS x\n"
+		"	USING (gene_name)\n"
+		"ORDER BY c.gene_name ASC";
+
+	log_debug ("Query schema:\n%s", sql);
+	return db_prepare (db, sql);
+}
+
+/*
+ * A retrocopy whose clusters come from overlapped parental
+ * genes is ambiguous. But the evidence may point to one of
+ * the genes:
+ *
+ * 1) Fragments explained by one gene alone, when no other
+ *    gene has them
+ * 2) Strand: The poly-A gives the strand of the retrocopy
+ *    at the reference, and the orientation gives it in
+ *    relation to the parental gene. For genes at opposite
+ *    strands, they agree for only one of them
+ *
+ * The gene is chosen if at least one signal favours it and
+ * none favours another. Then the clusters of the other genes
+ * are left out of the retrocopy, so the junctions, the ends
+ * and the predicted sequence come from the chosen one
+ */
+static void
+choose_parental (sqlite3 *db, Hash *rtc_h)
+{
+	log_trace ("Inside %s", __func__);
+
+	sqlite3_stmt *rid_stmt = NULL;
+	sqlite3_stmt *candidate_stmt = NULL;
+	sqlite3_stmt *delete_stmt = NULL;
+
+	RetrocopyEntry *e = NULL;
+	String *others = NULL;
+
+	char **genes = NULL;
+	char *strands = NULL;
+	int *exclusive = NULL;
+	int alloc = 0;
+	int n = 0;
+
+	int rid = 0;
+	int by_exclusive = 0;
+	int by_strand = 0;
+	int chosen = 0;
+	int acm = 0;
+	int i = 0;
+	char implied = 0;
+
+	rid_stmt = db_prepare (db,
+			"SELECT DISTINCT retrocopy_id\n"
+			"FROM cluster_merging\n"
+			"ORDER BY retrocopy_id ASC");
+
+	candidate_stmt = prepare_candidate_stmt (db);
+
+	delete_stmt = db_prepare (db,
+			"DELETE FROM cluster_merging\n"
+			"WHERE retrocopy_id = ?1\n"
+			"	AND EXISTS (\n"
+			"		SELECT 1\n"
+			"		FROM cluster AS cl\n"
+			"		WHERE cl.id = cluster_id\n"
+			"			AND cl.sid = cluster_sid\n"
+			"			AND cl.gene_name != ?2)");
+
+	while (db_step (rid_stmt) == SQLITE_ROW)
+		{
+			rid = db_column_int (rid_stmt, 0);
+
+			e = hash_lookup (rtc_h, &rid);
+			assert (e != NULL);
+
+			// Only overlapped parental genes - not along
+			// with near genes or a hotspot
+			if (e->level != RETROCOPY_OVERLAPPED_PARENTALS)
+				continue;
+
+			db_reset (candidate_stmt);
+			db_clear_bindings (candidate_stmt);
+			db_bind_int (candidate_stmt,
+					sqlite3_bind_parameter_index (candidate_stmt, "$RID"),
+					rid);
+
+			n = 0;
+
+			while (db_step (candidate_stmt) == SQLITE_ROW)
+				{
+					if (n >= alloc)
+						{
+							alloc += BLOCK_SIZE;
+							genes = xrealloc (genes, sizeof (char *) * alloc);
+							strands = xrealloc (strands, sizeof (char) * alloc);
+							exclusive = xrealloc (exclusive, sizeof (int) * alloc);
+						}
+
+					genes[n] = xstrdup (db_column_text (candidate_stmt, 0));
+					strands[n] = db_column_text (candidate_stmt, 1)[0];
+					exclusive[n] = db_column_int (candidate_stmt, 2);
+					n++;
+				}
+
+			// 1) The only gene with exclusive fragments
+			by_exclusive = -1;
+			acm = 0;
+
+			for (i = 0; i < n; i++)
+				{
+					if (exclusive[i] > 0)
+						acm++;
+
+					if (exclusive[i] >= RETROCOPY_MIN_EXCLUSIVE)
+						by_exclusive = i;
+				}
+
+			if (acm != 1)
+				by_exclusive = -1;
+
+			// 2) The only gene whose strand makes the
+			// orientation agree with the poly-A
+			by_strand = -1;
+			acm = 0;
+
+			if (e->polya_sr > 0 && e->orientation_rho != 0.0
+					&& e->orientation_p_value <= RETROCOPY_ORIENTATION_ALPHA)
+				{
+					for (i = 0; i < n; i++)
+						{
+							implied = e->orientation_rho >= 0.0
+								? strands[i]
+								: strands[i] == '+' ? '-' : '+';
+
+							if (implied == e->polya_strand)
+								{
+									by_strand = i;
+									acm++;
+								}
+						}
+				}
+
+			if (acm != 1)
+				by_strand = -1;
+
+			// At least one signal, and no disagreement
+			if (by_exclusive < 0 && by_strand < 0)
+				chosen = -1;
+			else if (by_exclusive >= 0 && by_strand >= 0
+					&& by_exclusive != by_strand)
+				chosen = -1;
+			else
+				chosen = by_exclusive >= 0 ? by_exclusive : by_strand;
+
+			if (chosen >= 0)
+				{
+					others = string_new (NULL);
+
+					for (i = 0; i < n; i++)
+						if (i != chosen)
+							string_concat_printf (others, "%s%s",
+									others->len ? "/" : "", genes[i]);
+
+					log_debug ("Retrocopy %d: Parental gene '%s' chosen over '%s' "
+							"(exclusive fragments: %d, by strand: %s)",
+							rid, genes[chosen], others->str, exclusive[chosen],
+							by_strand >= 0 ? "yes" : "no");
+
+					e->level |= RETROCOPY_PARENTAL_CHOSEN;
+					e->other_genes = string_free (others, 0);
+
+					db_reset (delete_stmt);
+					db_clear_bindings (delete_stmt);
+					db_bind_int (delete_stmt, 1, rid);
+					db_bind_text (delete_stmt, 2, genes[chosen]);
+					db_step (delete_stmt);
+				}
+			else
+				log_debug ("Retrocopy %d: No parental gene chosen among %d "
+						"overlapped ones", rid, n);
+
+			for (i = 0; i < n; i++)
+				xfree (genes[i]);
+		}
+
+	xfree (genes);
+	xfree (strands);
+	xfree (exclusive);
+
+	db_finalize (rid_stmt);
+	db_finalize (candidate_stmt);
+	db_finalize (delete_stmt);
+}
+
 static sqlite3_stmt *
 prepare_cluster_merging_query_stmt (sqlite3 *db)
 {
@@ -2246,6 +2500,7 @@ annotate_retrocopy (sqlite3_stmt *retrocopy_stmt, Hash *rtc_h)
 	long start = 0;
 	long end = 0;
 	const char *gene = NULL;
+	char *genes = NULL;
 	long ip = 0;
 
 	RetrocopyEntry *e = NULL;
@@ -2264,6 +2519,14 @@ annotate_retrocopy (sqlite3_stmt *retrocopy_stmt, Hash *rtc_h)
 
 			e = hash_lookup (rtc_h, &rid);
 			assert (e != NULL);
+
+			// A parental gene chosen among overlapped
+			// ones: 'chosen/others'
+			if (e->other_genes != NULL)
+				{
+					xasprintf (&genes, "%s/%s", gene, e->other_genes);
+					gene = genes;
+				}
 
 			/*
 			* The insertion point is the first reference base
@@ -2299,6 +2562,9 @@ annotate_retrocopy (sqlite3_stmt *retrocopy_stmt, Hash *rtc_h)
 					e->polya_lower_bound,
 					e->polya_strand == '-' ? "-" : "+",
 					e->polya_sr);
+
+			xfree (genes);
+			genes = NULL;
 		}
 
 	db_finalize (cluster_merging_query_stmt);
@@ -2332,7 +2598,7 @@ retrocopy (sqlite3_stmt *retrocopy_stmt,
 		|CLUSTER_FILTER_SUPPORT;
 
 	rtc_h = hash_new_full (int_hash, int_equal,
-			xfree, xfree);
+			xfree, (DestroyNotify) rtc_entry_free);
 
 	log_debug ("Clean retrocopy tables");
 	clean_retrocopy_tables (
@@ -2355,6 +2621,11 @@ retrocopy (sqlite3_stmt *retrocopy_stmt,
 	calculate_polya (
 			sqlite3_db_handle (retrocopy_stmt),
 			evidence_stmt, rtc_h);
+
+	log_info ("Choose the parental gene among overlapped ones");
+	choose_parental (
+			sqlite3_db_handle (retrocopy_stmt),
+			rtc_h);
 
 	log_info ("Annotate the insertion points");
 	annotate_retrocopy (retrocopy_stmt, rtc_h);
