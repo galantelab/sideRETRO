@@ -890,7 +890,10 @@ START_TEST (test_retrocopy_inverted_end)
 	run_edge_with (
 			"UPDATE alignment\n"
 			"SET seq = 'ATCGGAGCGTTGTCCAGTCCTGTTCAAACG' || SUBSTR(seq, 31)\n"
-			"WHERE qname IN ('R1', 'R2')",
+			"WHERE qname IN ('R1', 'R2');\n"
+			"UPDATE alignment\n"
+			"SET seq = 'AGCGTTGTCCAGTCCTGTTCAAACG' || SUBSTR(seq, 26)\n"
+			"WHERE qname = 'R3'",
 			&five_pos, &five_sr, &three_sr, &len);
 
 	ck_assert_int_eq (five_pos, 500);
