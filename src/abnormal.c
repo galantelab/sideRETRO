@@ -164,10 +164,9 @@ is_base_overly_freq (const bam1_t *align, float freq)
 	return 0;
 }
 
-static inline int
-abnormal_classifier (const bam1_t *align, int max_distance,
-		int phred_quality, float max_base_freq,
-		AbnormalType *type)
+int
+abnormal_quality_control (const bam1_t *align, int phred_quality,
+		float max_base_freq)
 {
 	/*
 	* abnormal alignment must be:
@@ -178,15 +177,21 @@ abnormal_classifier (const bam1_t *align, int max_distance,
 	* - phred-quality
 	* - base frequency
 	*/
-	if (!(align->core.flag & 0x1)
-			|| (align->core.flag & 0x4)
-			|| (align->core.flag & 0x8)
-			|| (align->core.flag & 0x400)
-			|| (align->core.qual < phred_quality)
-			|| is_base_overly_freq (align, max_base_freq))
-		{
-			return 0;
-		}
+	return (align->core.flag & 0x1)
+		&& !(align->core.flag & 0x4)
+		&& !(align->core.flag & 0x8)
+		&& !(align->core.flag & 0x400)
+		&& (align->core.qual >= phred_quality)
+		&& !is_base_overly_freq (align, max_base_freq);
+}
+
+static inline int
+abnormal_classifier (const bam1_t *align, int max_distance,
+		int phred_quality, float max_base_freq,
+		AbnormalType *type)
+{
+	if (!abnormal_quality_control (align, phred_quality, max_base_freq))
+		return 0;
 
 	// Default value
 	*type = ABNORMAL_NONE;

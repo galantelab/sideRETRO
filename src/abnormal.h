@@ -19,6 +19,7 @@
 #ifndef ABNORMAL_H
 #define ABNORMAL_H
 
+#include <htslib/sam.h>
 #include "db.h"
 #include "chr.h"
 #include "exon.h"
@@ -70,5 +71,16 @@ struct _AbnormalArg
 typedef struct _AbnormalArg AbnormalArg;
 
 void abnormal_filter (AbnormalArg *arg);
+
+/*
+ * Quality control of an alignment to be taken as abnormal:
+ * Paired-end, mapped with its mate mapped, not a duplication,
+ * with the mapping quality and without a base overly frequent.
+ * The same test for every step looking for abnormal reads
+ */
+#define ABNORMAL_DEFAULT_MAX_BASE_FREQ 0.75
+
+int abnormal_quality_control (const bam1_t *align, int phred_quality,
+		float max_base_freq);
 
 #endif /* abnormal.h */
