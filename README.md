@@ -29,79 +29,74 @@ For full documentation, please visit <https://sideretro.readthedocs.io>.
 
 ### Features
 
-When detecting retrocopies, **sideRETRO** can annotate several other features related to each event:
+**sideRETRO** finds the retrocopy insertions and describes each event in detail:
 
 * **Parental gene**
 
-   The gene which underwent retrotransposition process.
+   The gene which underwent the retrotransposition process, even among genes overlapping each other.
 
 * **Genomic position**
 
-   The genome coordinate where occurred the retrocopy integration event (chromosome:start-end).
-   It includes the insertion point (the expected exact point of each retrocopy insertion).
+   The genome coordinate of the retrocopy integration event, with its insertion point.
 
 * **Breakpoints and target site duplication**
 
-   The exact junctions between the genome and the retrocopy, from the clipped reads, and the
-   TSD - the few bases duplicated at both sides of the insertion - with its sequence.
+   The exact junctions between the genome and the retrocopy, at base resolution, and the TSD - the bases
+   duplicated at both sides of the insertion - with its sequence.
 
 * **Poly-A tail**
 
-   The length of the poly-A tail observed in the reads, and the strand of the insertion it gives - an
-   independent check of the orientation.
+   The poly-A tail of the retrocopy: Its length and its strand.
 
 * **Exon-exon junctions**
 
-   The reads spanning the junctions between the exons of the parental gene: direct evidence of a
-   processed transcript, and of which isoform was retrocopied.
+   The reads spanning the junctions between the exons of the parental gene: Direct evidence of a
+   processed transcript.
+
+* **Intron retention**
+
+   The introns of the parental gene carried by the retrocopy, when the transcript was not fully spliced.
 
 * **Retrocopy extent and sequence**
 
    Where the retrocopy begins and ends into its parental gene (the 5' truncation) and its predicted
-   sequence, from the reference exons between the ends plus the poly-A.
-
-* **Supporting reads**
-
-   The names of the reads used to detect each event, by sample, and their role in the evidence (split read
-   at a breakpoint, poly-A, exon-exon junction or discordant pair), so the evidence can be checked back at
-   the alignment files.
-
-* **Quality and filters**
-
-   A quality score for each event and filters that check whether the insertion point is well defined -
-   split reads, both breakpoints and the target site duplication - so the events that `PASS` are good
-   targets for validation.
+   sequence.
 
 * **Strandness**
 
-   Detects the orientation of the insertion (+/-), whether at the forward (+) or reverse (-) strand of the
-   reference, from the positions of the discordant reads at the parental gene and at the insertion site.
-   When it disagrees with the strand given by the poly-A tail, the event is flagged.
+   The orientation of the insertion (+/-), whether at the forward or reverse strand of the reference.
 
 * **Genomic context**
 
-   The retrocopy integration site context: If the retrotransposition event occurred at an intergenic or
-   intragenic region - the latter can be splitted into exonic and intronic according to the host gene.
+   The retrocopy integration site context: Intergenic or intragenic - exonic or intronic, according to
+   the host gene - and the genes nearby.
 
 * **Genotype**
 
-   When multiple individuals (genomes) are analyzed, **sideRETRO** discriminates events found in each one.
-   That way, it is possible to distinguish whether an event is exclusive or shared among the cohort analyzed.
+   When multiple individuals are analyzed, **sideRETRO** discriminates the events found in each one, so it
+   is possible to tell whether an event is exclusive or shared among the cohort.
 
 * **Haplotype**
 
-   Our tool provides information about the ploidy of the event, i.e., whether it occurs in one or both homologous
-   chromosomes (homozygous or heterozygous).
+   The zygosity of the event at each individual: Homozygous or heterozygous.
+
+* **Quality and filters**
+
+   A quality score for each event and filters for the insertion point, so the events that `PASS` are good
+   targets for validation.
+
+* **Ready for validation**
+
+   The sequences around the insertion point and the exon-exon junctions, ready for primer design, and the
+   names of the reads supporting each event, by sample and by their role in the evidence.
 
 * **Any annotation**
 
-   GENCODE by default, but any **GTF/GFF3** annotation - choosing the feature, the attributes to filter, the gene
-   name and the exon id - or a **BED6** file of exons.
+   GENCODE by default, but any **GTF/GFF3** annotation or a **BED** file of exons.
 
 * **Large cohorts**
 
-   Each `process-sample` run writes its own database, so the samples can be processed apart and merged by
-   `merge-call`. The same sample is never merged twice, and the calls do not depend on how the samples were split.
+   The samples can be processed apart - even at different servers - and merged at the end.
 
 ## Getting Started
 
@@ -166,7 +161,8 @@ and `make-vcf`. The `process-sample` subcommand processes a list of **SAM/BAM/CR
 that must be related to an event of retrocopy. All those data is saved to a **SQLite3 database** and then we come
 to the second step `merge-call`, which processes the database and annotates all the retrocopies found. Finally we
 can run the subcommand `make-vcf` and generate a file (in **VCF** format) with retrocopies and further information
-about them, alongside the list of supporting reads (TSV) and the predicted retrocopy sequences (FASTA).
+about them, alongside the list of supporting reads (TSV), the predicted retrocopy sequences and the
+sequences for primer design (FASTA).
 
 ```sh
 # List of BAM files

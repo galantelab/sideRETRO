@@ -4,13 +4,14 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 1.9.x   | :white_check_mark: |
+| >= 1.9  | :white_check_mark: |
 | 1.1.x   | :white_check_mark: |
 | 1.0.x   | :x:                |
 | < 1.0   | :x:                |
 | dev     | :x:                |
 
-The versions 1.2 to 1.8 were development versions, not released.
+The versions 1.2 to 1.8 were development versions, not released. Please, use the
+latest version: The fixes are released only on it.
 
 ## Reporting a Vulnerability
 
