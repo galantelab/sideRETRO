@@ -123,6 +123,42 @@ clean_clustering_tables (sqlite3 *db)
 }
 
 static void
+create_cluster_gene_table (sqlite3 *db)
+{
+	/*
+	* The parental gene of each cluster: The gene whose
+	* exons were used to gather the alignments for the
+	* clustering. It cannot be found afterwards from the
+	* alignments, as their mates may overlap exons of more
+	* than one gene (overlapped genes)
+	*/
+	const char sql[] =
+		"DROP TABLE IF EXISTS temp.cluster_gene;\n"
+		"CREATE TEMP TABLE cluster_gene (\n"
+		"	cluster_id INTEGER PRIMARY KEY,\n"
+		"	gene_name TEXT NOT NULL)";
+
+	log_debug ("Create table:\n%s", sql);
+	db_exec (db, sql);
+}
+
+static void
+dump_cluster_gene (sqlite3_stmt *stmt, const int first_id,
+		const int num_clusters, const char *gene_name)
+{
+	int i = 0;
+
+	for (i = 0; i < num_clusters; i++)
+		{
+			db_reset (stmt);
+			db_clear_bindings (stmt);
+			db_bind_int (stmt, 1, first_id + i);
+			db_bind_text (stmt, 2, gene_name);
+			db_step (stmt);
+		}
+}
+
+static void
 index_alignment_qname (sqlite3 *db)
 {
 	// Index qname for speedup queries
@@ -239,6 +275,7 @@ clustering (sqlite3_stmt *clustering_stmt, const long eps,
 
 	DBSCAN *dbscan = NULL;
 	sqlite3_stmt *query_stmt = NULL;
+	sqlite3_stmt *gene_stmt = NULL;
 
 	char *chr_prev = NULL;
 	const char *chr = NULL;
@@ -256,6 +293,9 @@ clustering (sqlite3_stmt *clustering_stmt, const long eps,
 	// Prepare query stmt
 	query_stmt = prepare_query_stmt (
 			sqlite3_db_handle (clustering_stmt));
+
+	gene_stmt = db_prepare (sqlite3_db_handle (clustering_stmt),
+			"INSERT INTO temp.cluster_gene VALUES (?1,?2)");
 
 	// STEP 1
 	Clustering c = {
@@ -295,6 +335,10 @@ clustering (sqlite3_stmt *clustering_stmt, const long eps,
 
 					if (acm)
 						{
+							// The new clusters: c.id + 1 ... c.id + acm
+							dump_cluster_gene (gene_stmt, c.id + 1, acm,
+									gene_name_prev);
+
 							c.id += acm;
 							log_debug ("Found %d clusters at '%s' for '%s'",
 									acm, chr_prev, gene_name_prev);
@@ -331,6 +375,9 @@ clustering (sqlite3_stmt *clustering_stmt, const long eps,
 
 			if (acm)
 				{
+					dump_cluster_gene (gene_stmt, c.id + 1, acm,
+							gene_name_prev);
+
 					c.id += acm;
 					log_debug ("Found %d clusters at '%s' for '%s'",
 							acm, chr_prev, gene_name_prev);
@@ -341,6 +388,7 @@ clustering (sqlite3_stmt *clustering_stmt, const long eps,
 	xfree (gene_name_prev);
 	dbscan_free (dbscan);
 	db_finalize (query_stmt);
+	db_finalize (gene_stmt);
 
 	return c.id;
 }
@@ -520,25 +568,22 @@ prepare_filter_stmt (sqlite3 *db)
 		"		FROM exon\n"
 		"		GROUP BY gene_name\n"
 		"	),\n"
-		"	cluster (gene_name, id, sid, chr, start, end) AS (\n"
-		"		SELECT e.gene_name, cluster_id, cluster_sid,\n"
-		"			a1.chr, MIN(a1.pos), MAX(a1.pos + a1.rlen - 1)\n"
+		"	cluster (id, sid, chr, start, end) AS (\n"
+		"		SELECT cluster_id, cluster_sid,\n"
+		"			a.chr, MIN(a.pos), MAX(a.pos + a.rlen - 1)\n"
 		"		FROM clustering AS c\n"
-		"		INNER JOIN alignment AS a1\n"
-		"			ON c.alignment_id = a1.id\n"
-		"		INNER JOIN alignment AS a2\n"
-		"			USING (qname, source_id)\n"
-		"		INNER JOIN overlapping AS o\n"
-		"			ON a2.id = o.alignment_id\n"
-		"		INNER JOIN exon AS e\n"
-		"			ON o.exon_id = e.id\n"
+		"		INNER JOIN alignment AS a\n"
+		"			ON c.alignment_id = a.id\n"
 		"		GROUP BY cluster_id, cluster_sid\n"
 		"	)\n"
 		"SELECT c.id, c.sid, c.chr, c.start, c.end,\n"
 		"	g.gene_name, g.chr, g.start, g.end\n"
 		"FROM cluster AS c\n"
+		"INNER JOIN temp.cluster_gene AS cg\n"
+		"	ON cg.cluster_id = c.id\n"
 		"INNER JOIN gene AS g\n"
-		"	USING (gene_name)";
+		"	USING (gene_name)\n"
+		"ORDER BY c.id ASC, c.sid ASC";
 
 	log_debug ("Filter query schema:\n%s", sql);
 	return db_prepare (db, sql);
@@ -658,6 +703,9 @@ cluster (sqlite3_stmt *cluster_stmt, sqlite3_stmt *clustering_stmt,
 
 	log_debug ("Clean clustering tables");
 	clean_clustering_tables (
+			sqlite3_db_handle (cluster_stmt));
+
+	create_cluster_gene_table (
 			sqlite3_db_handle (cluster_stmt));
 
 	log_debug ("Index the read names of the abnormal alignments");

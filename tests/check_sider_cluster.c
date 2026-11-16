@@ -229,7 +229,8 @@ START_TEST (test_cluster_with_genotype_support)
 END_TEST
 
 static int
-run_cluster (int populate, const char *sql, int support, const char **black_chr)
+run_cluster_count (int populate, const char *sql, int support,
+		const char **black_chr, const char *count_sql, int *count)
 {
 	char db_file[] = "/tmp/ponga.db.XXXXXX";
 	sqlite3 *db = create_db (db_file);
@@ -256,6 +257,15 @@ run_cluster (int populate, const char *sql, int support, const char **black_chr)
 	num = cluster (cluster_stmt, clustering_stmt, 500, 3, 10000,
 			support, blacklist_chr, blacklist, 0);
 
+	// A count over the result
+	if (count_sql != NULL)
+		{
+			sqlite3_stmt *count_stmt = db_prepare (db, count_sql);
+			ck_assert_int_eq (db_step (count_stmt), SQLITE_ROW);
+			*count = db_column_int (count_stmt, 0);
+			db_finalize (count_stmt);
+		}
+
 	db_finalize (cluster_stmt);
 	db_finalize (clustering_stmt);
 	db_finalize (blacklist_stmt);
@@ -268,6 +278,48 @@ run_cluster (int populate, const char *sql, int support, const char **black_chr)
 
 	return num;
 }
+
+static int
+run_cluster (int populate, const char *sql, int support, const char **black_chr)
+{
+	return run_cluster_count (populate, sql, support, black_chr, NULL, NULL);
+}
+
+START_TEST (test_cluster_overlapped_genes)
+{
+	/*
+	* gene3 overlaps gene1, at the other strand, and every
+	* alignment at gene1 overlaps its exon too. Each gene is
+	* clustered apart, so the two clusters of gene1 at chr1
+	* have their twins for gene3 - and each cluster must keep
+	* the name of the gene it was clustered for
+	*/
+	const char sql[] =
+		"INSERT INTO exon VALUES (3,'gene3','chr11',500,4000,'-','eg3','ee3');\n"
+		"INSERT INTO overlapping\n"
+		"	SELECT 3, alignment_id, pos, len\n"
+		"	FROM overlapping\n"
+		"	WHERE exon_id = 1";
+
+	const char *genes[] = {"gene1", "gene2", "gene3"};
+	char *count_sql = NULL;
+	int count = 0;
+	int i = 0;
+
+	for (i = 0; i < 3; i++)
+		{
+			xasprintf (&count_sql,
+					"SELECT COUNT(*) FROM cluster WHERE gene_name = '%s'",
+					genes[i]);
+
+			ck_assert_int_eq (run_cluster_count (1, sql, 1, NULL,
+						count_sql, &count), 6);
+			ck_assert_int_eq (count, 2);
+
+			xfree (count_sql);
+		}
+}
+END_TEST
 
 START_TEST (test_cluster_none)
 {
@@ -304,6 +356,7 @@ make_cluster_suite (void)
 	tcase_add_test (tc_core, test_cluster_without_genotype_support);
 	tcase_add_test (tc_core, test_cluster_with_genotype_support);
 	tcase_add_test (tc_core, test_cluster_none);
+	tcase_add_test (tc_core, test_cluster_overlapped_genes);
 	suite_add_tcase (s, tc_core);
 
 	return s;
