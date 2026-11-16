@@ -66,6 +66,7 @@ main (void)
 	srunner_add_suite (sr, make_db_suite ());
 	srunner_add_suite (sr, make_chr_suite ());
 	srunner_add_suite (sr, make_exon_suite ());
+	srunner_add_suite (sr, make_intron_suite ());
 	srunner_add_suite (sr, make_abnormal_suite ());
 	srunner_add_suite (sr, make_gff_suite ());
 	srunner_add_suite (sr, make_io_suite ());

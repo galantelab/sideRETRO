@@ -471,6 +471,54 @@ exon-exon junction at all, so a missing ``EEJ`` is expected for them.
 The number of exons of each parental gene is reported at ``PGEXONS`` for
 this reason.
 
+.. _method_intron:
+
+Intron retention
+================
+
+Not every transcript is fully spliced. In tumor samples, mainly,
+**intron retention** is common, and a transcript that kept an intron
+can be retrocopied as any other. Such a retrocopy carries the intron
+sequence, so some reads at the insertion have their mates **inside an
+intron** of the parental gene, instead of at its exons.
+
+Those fragments are not stored by ``process-sample``, which keeps the
+abnormal fragments with an alignment at an exon. But ``merge-call``
+reads the alignment files again for the :ref:`genotype
+<method_genotype>`, and all the reads at the window of the retrocopy
+pass by. Each one carries the **position of its mate**, so we take the
+opportunity:
+
+1. The **introns** of the parental gene are the gaps into the **union**
+   of all its exons, so a region that is exon at any transcript is
+   never intron. Each intron is named after the exons at its left and
+   right.
+2. A read at the window of the retrocopy is tested with the same
+   quality control of the abnormal reads - paired, mapped with its mate
+   mapped, not a duplication, with the mapping quality (``merge-call
+   -Q``) and without a base overly frequent. Secondary and
+   supplementary alignments are skipped, for they repeat the mate of
+   the primary one.
+3. Its mate must be **entirely inside** an intron of the parental gene
+   of that retrocopy. A mate reaching an exon is not intronic.
+
+The mate itself is not read. Its mapping quality and its end come from
+the tags ``MQ`` and ``MC`` when the aligner wrote them; otherwise, the
+mate is taken with the quality and the length of the read at the
+window.
+
+The reads are counted by retrocopy, sample and intron. Then,
+``make-vcf`` reports an intron when **at least one sample** has enough
+reads at it (``--min-ir``, 2 by default): The introns at ``IRLIST`` and
+the sum of their reads at ``IR``.
+
+.. note::
+   The intron retention is an **annotation**, not a filter. It may be
+   the biology of the sample, as said, and it may also be a sign that
+   the event is not a retrocopy at all - a duplication of the gene
+   carries its introns too. The breakpoints and the target site
+   duplication tell them apart, so they do the filtering.
+
 Retrocopy ends and predicted sequence
 =====================================
 

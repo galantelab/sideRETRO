@@ -60,6 +60,10 @@ SCENARIOS = [
     # split reads at just one side (not LowSR, but NoTSD)
     ('long_tsd',         ['--seed', '8', '--tsd-len', '30']),
     ('left_many',        ['--seed', '7', '--n-split-left', '6', '--n-split-right', '0']),
+    # Intron retention: Mates inside an intron of the parental
+    # gene. A single one is not enough to report the intron
+    ('intron_retention', ['--seed', '4', '--n-intron-mates', '4']),
+    ('intron_single',    ['--seed', '4', '--n-intron-mates', '1']),
 ]
 
 

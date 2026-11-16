@@ -30,6 +30,7 @@ Suite * make_str_suite            (void);
 Suite * make_db_suite             (void);
 Suite * make_chr_suite            (void);
 Suite * make_exon_suite           (void);
+Suite * make_intron_suite         (void);
 Suite * make_abnormal_suite       (void);
 Suite * make_gff_suite            (void);
 Suite * make_io_suite             (void);

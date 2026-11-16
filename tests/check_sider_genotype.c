@@ -157,6 +157,7 @@ START_TEST (test_genotype)
 
 	sqlite3 *db = NULL;
 	sqlite3_stmt *stmt = NULL;
+	sqlite3_stmt *intron_stmt = NULL;
 
 	db = create_db (db_file);
 	create_file (bam_sorted_file);
@@ -168,8 +169,9 @@ START_TEST (test_genotype)
 
 	index_bam (bam_sorted_file);
 	stmt = db_prepare_genotype_stmt (db);
+	intron_stmt = db_prepare_intron_retention_stmt (db);
 
-	genotype (stmt, 2, 0);
+	genotype (stmt, intron_stmt, 2, 0);
 
 	// chr9 is not at the alignment headers, sorted (indexed)
 	// nor unsorted (linear search): Its retrocopy still gets a
@@ -186,6 +188,7 @@ START_TEST (test_genotype)
 	db_finalize (search_stmt);
 
 	db_finalize (stmt);
+	db_finalize (intron_stmt);
 	db_close (db);
 
 	xunlink (db_file);
@@ -203,6 +206,7 @@ START_TEST (test_genotype_deep)
 
 	sqlite3 *db = NULL;
 	sqlite3_stmt *stmt = NULL;
+	sqlite3_stmt *intron_stmt = NULL;
 	FILE *fp = NULL;
 	int i = 0;
 
@@ -227,8 +231,9 @@ START_TEST (test_genotype_deep)
 
 	populate_db (db, sam_file, sam_file);
 	stmt = db_prepare_genotype_stmt (db);
+	intron_stmt = db_prepare_intron_retention_stmt (db);
 
-	genotype (stmt, 1, 0);
+	genotype (stmt, intron_stmt, 1, 0);
 
 	sqlite3_stmt *search_stmt = db_prepare (db,
 			"SELECT reference_depth, alternate_depth, ho_ref_likelihood,\n"
@@ -249,6 +254,7 @@ START_TEST (test_genotype_deep)
 	db_finalize (search_stmt);
 
 	db_finalize (stmt);
+	db_finalize (intron_stmt);
 	db_close (db);
 
 	xunlink (db_file);
@@ -266,8 +272,160 @@ run_genotype_on (const char *path)
 	populate_db (db, path, path);
 	stmt = db_prepare_genotype_stmt (db);
 
-	genotype (stmt, 1, 0);
+	genotype (stmt, db_prepare_intron_retention_stmt (db), 1, 0);
 }
+
+START_TEST (test_genotype_intron)
+{
+	char db_file[] = "/tmp/ponga.db.XXXXXX";
+	char sam_file[] = "/tmp/ponga.sam.XXXXXX";
+	char bam_file[] = "/tmp/ponga.bam.XXXXXX";
+
+	sqlite3 *db = NULL;
+	sqlite3_stmt *stmt = NULL;
+	sqlite3_stmt *intron_stmt = NULL;
+	sqlite3_stmt *search_stmt = NULL;
+	FILE *fp = NULL;
+	char *sql = NULL;
+	int source_id = 0;
+
+	/*
+	* Retrocopy 1 at chr1:1-200, from GENE at chr2. The union
+	* of its exons is 1000-1200, 2000-2100 and 3000-3100, so
+	* its introns are 1201-1999 (exons 2 and 3) and 2101-2999
+	* (exons 3 and 4). Retrocopy 2 at chr1:300-400 comes from
+	* a single exon gene: No intron
+	*
+	* A1  mate inside the first intron
+	* A2  the same, with the mate quality and cigar tags
+	* A3  mate reaching the exon 2: Not intronic
+	* A4  mate reaching the exon 3 by the length of the read,
+	*     but not by its own cigar: Intronic
+	* A5  mate with low quality (MQ)
+	* A6  low quality alignment
+	* A7  supplementary alignment
+	* A8  mate inside the second intron
+	* A9  mate at another contig
+	* A10 duplication
+	* A11 mate cigar tag that is not a string: Fall back to
+	*     the length of the read
+	* B1  retrocopy 2, mate at the intron of the other gene
+	*/
+	const char sam[] =
+		"@HD\tVN:1.0\tSO:coordinate\n"
+		"@SQ\tSN:chr1\tLN:248956422\n"
+		"@SQ\tSN:chr2\tLN:248956422\n"
+		"@SQ\tSN:chr3\tLN:248956422\n"
+		"A1\t97\tchr1\t50\t60\t10M\tchr2\t1300\t0\tATCGATCGAT\t~~~~~~~~~~\n"
+		"A2\t97\tchr1\t51\t60\t10M\tchr2\t1500\t0\tATCGATCGAT\t~~~~~~~~~~\tMC:Z:10M\tMQ:i:60\n"
+		"A3\t97\tchr1\t52\t60\t10M\tchr2\t1195\t0\tATCGATCGAT\t~~~~~~~~~~\n"
+		"A4\t97\tchr1\t53\t60\t10M\tchr2\t1992\t0\tATCGATCGAT\t~~~~~~~~~~\tMC:Z:2=1X1D1N1M2I4S\n"
+		"A5\t97\tchr1\t54\t60\t10M\tchr2\t2500\t0\tATCGATCGAT\t~~~~~~~~~~\tMQ:i:0\n"
+		"A6\t97\tchr1\t55\t5\t10M\tchr2\t2500\t0\tATCGATCGAT\t~~~~~~~~~~\n"
+		"A7\t2145\tchr1\t56\t60\t10M\tchr2\t2500\t0\tATCGATCGAT\t~~~~~~~~~~\n"
+		"A8\t97\tchr1\t57\t60\t10M\tchr2\t2500\t0\tATCGATCGAT\t~~~~~~~~~~\n"
+		"A9\t97\tchr1\t58\t60\t10M\tchr3\t1300\t0\tATCGATCGAT\t~~~~~~~~~~\n"
+		"A10\t1121\tchr1\t59\t60\t10M\tchr2\t1300\t0\tATCGATCGAT\t~~~~~~~~~~\n"
+		"A11\t97\tchr1\t60\t60\t10M\tchr2\t1400\t0\tATCGATCGAT\t~~~~~~~~~~\tMC:i:5\n"
+		"B1\t97\tchr1\t350\t60\t10M\tchr2\t1300\t0\tATCGATCGAT\t~~~~~~~~~~\n";
+
+	db = create_db (db_file);
+	create_file (sam_file);
+	create_file (bam_file);
+
+	// Source 1: SAM, no index (linear search)
+	fp = xfopen (sam_file, "w");
+	xfprintf (fp, "%s", sam);
+	xfclose (fp);
+
+	// Source 2: Indexed BAM
+	fp = xfopen (bam_file, "w");
+	xfprintf (fp, "%s", sam);
+	xfclose (fp);
+
+	fp = xfopen (bam_file, "rb+");
+	sam_to_bam_fp (fp, bam_file);
+	index_bam (bam_file);
+
+	xasprintf (&sql,
+		"BEGIN TRANSACTION;\n"
+		"INSERT INTO source VALUES (1,1,'%s');\n"
+		"INSERT INTO source VALUES (2,1,'%s');\n"
+		"INSERT INTO exon VALUES (1,'GENE','chr2',1000,1100,'+','eg','ee1');\n"
+		"INSERT INTO exon VALUES (2,'GENE','chr2',1050,1200,'+','eg','ee2');\n"
+		"INSERT INTO exon VALUES (3,'GENE','chr2',2000,2100,'+','eg','ee3');\n"
+		"INSERT INTO exon VALUES (4,'GENE','chr2',3000,3100,'+','eg','ee4');\n"
+		"INSERT INTO exon VALUES (5,'SINGLE','chr2',5000,5100,'+','es','es1');\n"
+		"INSERT INTO alignment VALUES (1,'q1',97,'chr1',1,60,'100M',100,100,'chr2',1,1,1,'*','*');\n"
+		"INSERT INTO alignment VALUES (2,'q2',97,'chr1',300,60,'100M',100,100,'chr2',1,1,1,'*','*');\n"
+		"INSERT INTO cluster VALUES (1,1,'chr1',1,200,'GENE',31);\n"
+		"INSERT INTO cluster VALUES (2,1,'chr1',300,400,'SINGLE',31);\n"
+		"INSERT INTO clustering VALUES (1,1,1,3,100);\n"
+		"INSERT INTO clustering VALUES (2,1,2,3,100);\n"
+		"INSERT INTO cluster_merging VALUES (1,1,1);\n"
+		"INSERT INTO cluster_merging VALUES (2,2,1);\n"
+		"INSERT INTO retrocopy VALUES (1,'chr1',1,200,'GENE',1,100,2,1,0.0,NULL,0,NULL,0,NULL,0,NULL,0);\n"
+		"INSERT INTO retrocopy VALUES (2,'chr1',300,400,'SINGLE',1,350,2,1,0.0,NULL,0,NULL,0,NULL,0,NULL,0);\n"
+		"COMMIT;", sam_file, bam_file);
+
+	db_exec (db, sql);
+	xfree (sql);
+
+	stmt = db_prepare_genotype_stmt (db);
+	intron_stmt = db_prepare_intron_retention_stmt (db);
+
+	genotype (stmt, intron_stmt, 2, 20);
+
+	// The same counts with and without the index:
+	// A1, A2, A4 and A11 at the first intron, A8 at the second
+	search_stmt = db_prepare (db,
+			"SELECT source_id, retrocopy_id, gene_name, chr, start, end,\n"
+			"	exon_id_left, exon_id_right, reads\n"
+			"FROM intron_retention\n"
+			"ORDER BY source_id, start");
+
+	for (source_id = 1; source_id <= 2; source_id++)
+		{
+			ck_assert_int_eq (db_step (search_stmt), SQLITE_ROW);
+			ck_assert_int_eq (db_column_int (search_stmt, 0), source_id);
+			ck_assert_int_eq (db_column_int (search_stmt, 1), 1);
+			ck_assert_str_eq (db_column_text (search_stmt, 2), "GENE");
+			ck_assert_str_eq (db_column_text (search_stmt, 3), "chr2");
+			ck_assert_int_eq (db_column_int (search_stmt, 4), 1201);
+			ck_assert_int_eq (db_column_int (search_stmt, 5), 1999);
+			ck_assert_int_eq (db_column_int (search_stmt, 6), 2);
+			ck_assert_int_eq (db_column_int (search_stmt, 7), 3);
+			ck_assert_int_eq (db_column_int (search_stmt, 8), 4);
+
+			ck_assert_int_eq (db_step (search_stmt), SQLITE_ROW);
+			ck_assert_int_eq (db_column_int (search_stmt, 0), source_id);
+			ck_assert_int_eq (db_column_int (search_stmt, 4), 2101);
+			ck_assert_int_eq (db_column_int (search_stmt, 5), 2999);
+			ck_assert_int_eq (db_column_int (search_stmt, 6), 3);
+			ck_assert_int_eq (db_column_int (search_stmt, 7), 4);
+			ck_assert_int_eq (db_column_int (search_stmt, 8), 1);
+		}
+
+	ck_assert_int_eq (db_step (search_stmt), SQLITE_DONE);
+	db_finalize (search_stmt);
+
+	// Another run cleans the former counts
+	genotype (stmt, intron_stmt, 1, 20);
+
+	search_stmt = db_prepare (db, "SELECT COUNT(*) FROM intron_retention");
+	ck_assert_int_eq (db_step (search_stmt), SQLITE_ROW);
+	ck_assert_int_eq (db_column_int (search_stmt, 0), 4);
+	db_finalize (search_stmt);
+
+	db_finalize (stmt);
+	db_finalize (intron_stmt);
+	db_close (db);
+
+	xunlink (db_file);
+	xunlink (sam_file);
+	xunlink (bam_file);
+}
+END_TEST
 
 static void
 corrupt_second_block (const char *path)
@@ -387,6 +545,7 @@ make_genotype_suite (void)
 
 	tcase_add_test (tc_core, test_genotype);
 	tcase_add_test (tc_core, test_genotype_deep);
+	tcase_add_test (tc_core, test_genotype_intron);
 	suite_add_tcase (s, tc_core);
 
 	/* Abort test case */

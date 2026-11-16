@@ -814,6 +814,88 @@ START_TEST (test_vcf_primer)
 }
 END_TEST
 
+START_TEST (test_vcf_intron_retention)
+{
+	char db_file[] = "/tmp/ponga.db.XXXXXX";
+	char vcf_file[] = "/tmp/ponga.vcf.XXXXXX";
+	sqlite3 *db = NULL;
+	int fd = 0;
+
+	/*
+	* Reads with the mate inside the introns of 'gene1':
+	* - intron between ee1 and ee2: 1 read at each sample
+	* - intron between ee2 and ee3: 3 reads at the first
+	*   sample and 1 at the second one
+	* The second retrocopy has no intronic mates
+	*/
+	const char sql[] =
+		"BEGIN TRANSACTION;\n"
+		"INSERT INTO source VALUES (1,1,'PONGA1');\n"
+		"INSERT INTO source VALUES (2,1,'PONGA2');\n"
+		"INSERT INTO exon VALUES (1,'gene1','chr5',100,200,'+','eg1','ee1');\n"
+		"INSERT INTO exon VALUES (2,'gene1','chr5',400,500,'+','eg1','ee2');\n"
+		"INSERT INTO exon VALUES (3,'gene1','chr5',800,900,'+','eg1','ee3');\n"
+		"INSERT INTO alignment VALUES (1,'q1',97,'chr1',50,60,'100M',100,100,'chr5',100,2,1,'*','*');\n"
+		"INSERT INTO alignment VALUES (2,'q2',97,'chr2',50,60,'100M',100,100,'chr5',100,2,1,'*','*');\n"
+		"INSERT INTO cluster VALUES (1,1,'chr1',50,150,'gene1',31);\n"
+		"INSERT INTO cluster VALUES (2,1,'chr2',50,150,'gene1',31);\n"
+		"INSERT INTO clustering VALUES (1,1,1,3,100);\n"
+		"INSERT INTO clustering VALUES (2,1,2,3,100);\n"
+		"INSERT INTO cluster_merging VALUES (1,1,1);\n"
+		"INSERT INTO cluster_merging VALUES (2,2,1);\n"
+		"INSERT INTO retrocopy VALUES (1,'chr1',50,150,'gene1',1,100,1,0,1,NULL,0,NULL,0,NULL,0,NULL,0);\n"
+		"INSERT INTO retrocopy VALUES (2,'chr2',50,150,'gene1',1,100,1,0,1,NULL,0,NULL,0,NULL,0,NULL,0);\n"
+		"INSERT INTO genotype VALUES (1,1,0,5,-30.0,-1.5,-0.1);\n"
+		"INSERT INTO genotype VALUES (2,1,0,5,-30.0,-1.5,-0.1);\n"
+		"INSERT INTO genotype VALUES (1,2,0,5,-30.0,-1.5,-0.1);\n"
+		"INSERT INTO genotype VALUES (2,2,0,5,-30.0,-1.5,-0.1);\n"
+		"INSERT INTO intron_retention VALUES (1,1,'gene1','chr5',201,399,1,2,1);\n"
+		"INSERT INTO intron_retention VALUES (1,2,'gene1','chr5',201,399,1,2,1);\n"
+		"INSERT INTO intron_retention VALUES (1,1,'gene1','chr5',501,799,2,3,3);\n"
+		"INSERT INTO intron_retention VALUES (1,2,'gene1','chr5',501,799,2,3,1);\n"
+		"COMMIT;";
+
+	fd = xmkstemp (db_file);
+	close (fd);
+	db = db_create (db_file);
+	db_exec (db, sql);
+
+	create_vcf (vcf_file);
+
+	VCFOption opt = {
+		.min_qual = VCF_DEFAULT_MIN_QUAL,
+		.min_mapq = VCF_DEFAULT_MIN_MAPQ,
+		.min_ir = VCF_DEFAULT_MIN_IR
+	};
+
+	// An intron needs a sample with enough reads: Two reads
+	// from two samples do not report the first intron. IR sums
+	// the reads of all samples at the introns reported
+	vcf (db, vcf_file, &opt);
+
+	ck_assert (grep_vcf (vcf_file, "chr1\t99\tRTC000001\t"));
+	ck_assert (grep_vcf (vcf_file, ";IR=4;IRLIST=ee2-ee3:4;"));
+	ck_assert (!grep_vcf (vcf_file, "ee1-ee2:"));
+
+	// A single read is enough: Both introns, by their position
+	opt.min_ir = 1;
+	vcf (db, vcf_file, &opt);
+
+	ck_assert (grep_vcf (vcf_file, ";IR=6;IRLIST=ee1-ee2:2,ee2-ee3:4;"));
+
+	// No sample has 4 reads at any intron
+	opt.min_ir = 4;
+	vcf (db, vcf_file, &opt);
+
+	ck_assert (grep_vcf (vcf_file, "chr1\t99\tRTC000001\t"));
+	ck_assert (!grep_vcf (vcf_file, "IR="));
+
+	db_close (db);
+	xunlink (db_file);
+	xunlink (vcf_file);
+}
+END_TEST
+
 START_TEST (test_vcf_no_genotype_fail)
 {
 	char db_file[] = "/tmp/ponga.db.XXXXXX";
@@ -856,6 +938,7 @@ make_vcf_suite (void)
 	tcase_add_test (tc_core, test_vcf_edge);
 	tcase_add_test (tc_core, test_vcf_parental_chosen);
 	tcase_add_test (tc_core, test_vcf_primer);
+	tcase_add_test (tc_core, test_vcf_intron_retention);
 	suite_add_tcase (s, tc_core);
 
 	/* Abort test case */

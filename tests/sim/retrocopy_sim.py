@@ -87,6 +87,10 @@ MIN_CLIP = 10
 MIN_POLYA = 6
 MIN_SEED = 12
 
+# Minimum number of mates inside an intron, at a sample, to
+# report it as retained (make-vcf --min-ir)
+MIN_IR = 2
+
 # Each right junction read has this many more exon
 # bases at its clip than the previous one
 RIGHT_CLIP_STEP = 3
@@ -171,6 +175,30 @@ class Sim:
                 self.rec(qname, 81, 'chr1', pos, '%dM' % READ_LEN, 'chr2', mpos,
                          seq)
                 self.rec(qname, 161, 'chr2', mpos, '%dM' % READ_LEN, 'chr1', pos, mseq)
+
+    def intron_mates(self):
+        """
+        Intron retention: Reads at the left flank whose mates
+        are inside the first intron of the parental gene. No
+        alignment of them overlaps an exon, so process-sample
+        does not store them: merge-call finds them when it
+        reads the alignment file again for genotyping.
+        """
+        a = self.args
+        start = self.exons[0][1] + 1
+        end = self.exons[1][0] - 1
+
+        for i in range(a.n_intron_mates):
+            qname = 'intron%d' % i
+
+            pos = random.randint(self.tsd_start - a.fragment_len,
+                                 self.tsd_start - READ_LEN - 20)
+            seq = self.chr1[pos - 1:pos - 1 + READ_LEN]
+            mpos = random.randint(start + 20, end - READ_LEN - 20)
+            mseq = self.chr2[mpos - 1:mpos - 1 + READ_LEN]
+
+            self.rec(qname, 97, 'chr1', pos, '%dM' % READ_LEN, 'chr2', mpos, seq)
+            self.rec(qname, 145, 'chr2', mpos, '%dM' % READ_LEN, 'chr1', pos, mseq)
 
     def junction_reads(self):
         a = self.args
@@ -369,7 +397,9 @@ class Sim:
             ('LEFT_SVINSSEQ', left_seq),
             ('RIGHT_SVINSSEQ', right_seq),
             ('INSSEQ', insseq),
-            ('RNAMES', ','.join(sorted(set(r.split('\t')[0] for r in self.recs)))),
+            ('RNAMES', ','.join(sorted(set(
+                r.split('\t')[0] for r in self.recs
+                if not r.startswith(READ_PREFIX + 'intron'))))),
             ('ROLES', self.roles(left, right, run, all_clips, polya)),
             ('FILTER', self.filters(left, right, len(clips))),
             ('HALLMARKS', ','.join(h for h, ok in (
@@ -378,6 +408,10 @@ class Sim:
                 ('EEJ', a.n_junction_reads > 0)) if ok) or 'NA'),
             ('EEJ', a.n_junction_reads if a.n_junction_reads else 'NA'),
             ('EEJLIST', 'ENSEP0-ENSEP1' if a.n_junction_reads else 'NA'),
+            # An intron needs MIN_IR mates at the sample
+            ('IR', a.n_intron_mates if a.n_intron_mates >= MIN_IR else 'NA'),
+            ('IRLIST', 'ENSEP0-ENSEP1:%d' % a.n_intron_mates
+             if a.n_intron_mates >= MIN_IR else 'NA'),
             ('INS', self.ins),
         ]
 
@@ -439,6 +473,7 @@ class Sim:
 
         self.discordant()
         self.junction_reads()
+        self.intron_mates()
         self.noise_clips()
         self.split_left()
         self.split_right()
@@ -514,7 +549,7 @@ def check(vcf_file, truth_file, no_ref=False):
 
     for key in ('IMPRECISE', 'LBKP', 'LSR', 'RBKP', 'RSR', 'TSDLEN', 'TSD',
                 'POLYA', 'POLYAMIN', 'POLYASR', 'POLYASTRAND', 'POLARITY', 'PG',
-                'PGEXONS', 'EEJ', 'EEJLIST', 'PG5P', 'PG3P', 'SVLEN',
+                'PGEXONS', 'EEJ', 'EEJLIST', 'IR', 'IRLIST', 'PG5P', 'PG3P', 'SVLEN',
                 'LEFT_SVINSSEQ', 'RIGHT_SVINSSEQ', 'HALLMARKS'):
         if truth[key] == 'SKIP':
             continue
@@ -601,6 +636,8 @@ def main():
     p.add_argument('--n-split-right', type=int, default=8)
     p.add_argument('--n-junction-reads', type=int, default=6,
                    help='reads spanning the exon1-exon2 junction [6]')
+    p.add_argument('--n-intron-mates', type=int, default=0,
+                   help='reads with the mate inside the first intron [0]')
     p.add_argument('--n-noise-clips', type=int, default=0,
                    help='discordant reads with random soft clips [0]')
     args = p.parse_args()

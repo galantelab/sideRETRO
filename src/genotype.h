@@ -21,6 +21,7 @@
 
 #include "db.h"
 
-void genotype (sqlite3_stmt *genotype_stmt, int threads, int phred_quality);
+void genotype (sqlite3_stmt *genotype_stmt, sqlite3_stmt *intron_stmt,
+		int threads, int phred_quality);
 
 #endif /* genotype.h */

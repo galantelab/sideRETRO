@@ -44,8 +44,8 @@ extension.
 Then, each line describes one retrocopy insertion. The fields with
 more than one value - gene names, exons and junctions - are lists
 separated by **comma**, as usual for VCF: ``PG``, ``PGALT``,
-``PGEXONS``, ``EEJLIST``, ``EXONIC``, ``INTRONIC``, ``NEAR`` and
-``HALLMARKS``.
+``PGEXONS``, ``EEJLIST``, ``IRLIST``, ``EXONIC``, ``INTRONIC``,
+``NEAR`` and ``HALLMARKS``.
 
 +------------+-------------------------------------------------------------+
 | Column     | Content                                                     |
@@ -318,9 +318,20 @@ is a duplication.
 | EEJLIST    | The junctions spanned, as ``exon_id1-exon_id2``. With        |
 |            | alternative exons, it tells which isoform was retrocopied    |
 +------------+--------------------------------------------------------------+
+| IR         | **Intron retention**: Number of reads at the insertion whose |
+|            | mate is inside an intron of the parental gene, summed over   |
+|            | the introns at ``IRLIST``, see :ref:`Intron retention        |
+|            | <method_intron>`                                             |
++------------+--------------------------------------------------------------+
+| IRLIST     | The introns retained, as                                     |
+|            | ``exon_id_left-exon_id_right:reads`` - the exons at the left |
+|            | and right of the intron, by their coordinates, and its       |
+|            | reads. An intron needs a sample with ``make-vcf --min-ir``   |
+|            | reads                                                        |
++------------+--------------------------------------------------------------+
 
 .. note::
-   The exon ids at ``EEJLIST``, ``PG5P`` and ``PG3P`` come from the annotation.
+   The exon ids at ``EEJLIST``, ``IRLIST``, ``PG5P`` and ``PG3P`` come from the annotation.
    When the annotation has no exon ids - a BED6 file, for instance - they are the
    exon coordinates, ``chr:start_end`` - e.g.
    ``EEJLIST=chr2:1001_1400-chr2:2001_2400`` - see :ref:`Annotation formats <annotation>`.

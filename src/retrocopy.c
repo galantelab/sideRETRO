@@ -139,6 +139,7 @@ clean_retrocopy_tables (sqlite3 *db)
 	*/
 	const char sql[] =
 		"DELETE FROM genotype;\n"
+		"DELETE FROM intron_retention;\n"
 		"DELETE FROM cluster_merging;\n"
 		"DELETE FROM junction;\n"
 		"DELETE FROM insertion;\n"

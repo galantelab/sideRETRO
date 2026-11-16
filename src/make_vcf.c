@@ -68,6 +68,7 @@ struct _MakeVcf
 	// Annotation
 	const char  *fasta_file;
 	int          primer_flank;
+	int          min_ir;
 };
 
 typedef struct _MakeVcf MakeVcf;
@@ -123,7 +124,8 @@ run (MakeVcf *v)
 		.rnames_file       = rnames_file,
 		.insertion_file    = insertion_file,
 		.primer_file       = primer_file,
-		.primer_flank      = v->primer_flank
+		.primer_flank      = v->primer_flank,
+		.min_ir            = v->min_ir
 	};
 
 	vcf (db, vcf_file, &opt);
@@ -173,7 +175,7 @@ print_usage (FILE *fp)
 		"\n"
 		"Usage: %s make-vcf [-h] [-q] [-d] [-l FILE] [-o DIR] [-p STR]\n"
 		"       %*c          [-n INT] [-e FLOAT] [-r FILE] [-L FLOAT]\n"
-		"       %*c          [-Q INT] [-x STR] [-f INT] <FILE>\n"
+		"       %*c          [-Q INT] [-x STR] [-f INT] [-i INT] <FILE>\n"
 		"\n"
 		"Write the annotated retrocopies to a VCF and to their companion files\n"
 		"\n"
@@ -210,6 +212,10 @@ print_usage (FILE *fp)
 		"                              [default:\"%d\"]\n"
 		"   -e, --orientation-error    Maximum p-value of the Spearman's rho to report\n"
 		"                              the orientation (ORHO) [default:\"%.2f\"]\n"
+		"   -i, --min-ir               Minimum number of reads of a sample, with the\n"
+		"                              mate inside an intron of the parental gene,\n"
+		"                              to report the intron as retained (IR, IRLIST)\n"
+		"                              [default:\"%d\"]\n"
 		"   -r, --reference-file       FASTA file of the reference genome, for the REF\n"
 		"                              column, the contigs, the TSD sequence and\n"
 		"                              the primer file\n"
@@ -239,7 +245,8 @@ print_usage (FILE *fp)
 		"\n",
 		PACKAGE_STRING, PACKAGE, pkg_len, ' ', pkg_len, ' ',
 		DEFAULT_OUTPUT_DIR, DEFAULT_PREFIX, DEFAULT_NEAR_GENE_DIST,
-		DEFAULT_ORIENTATION_ERROR, VCF_DEFAULT_PRIMER_FLANK,
+		DEFAULT_ORIENTATION_ERROR, VCF_DEFAULT_MIN_IR,
+		VCF_DEFAULT_PRIMER_FLANK,
 		VCF_DEFAULT_MIN_QUAL, VCF_DEFAULT_MIN_MAPQ,
 		VCF_DEFAULT_MIN_SR, VCF_DEFAULT_MIN_BKP, VCF_DEFAULT_MIN_TSD,
 		VCF_DEFAULT_MAX_TSD);
@@ -274,7 +281,8 @@ make_vcf_init (MakeVcf *vcf)
 		.disabled_filters   = 0,
 		.disabled_ids       = string_new (""),
 		.fasta_file         = NULL,
-		.primer_flank       = VCF_DEFAULT_PRIMER_FLANK
+		.primer_flank       = VCF_DEFAULT_PRIMER_FLANK,
+		.min_ir             = VCF_DEFAULT_MIN_IR
 	};
 }
 
@@ -348,6 +356,12 @@ make_vcf_validate (MakeVcf *vcf)
 	if (vcf->min_sr < 0)
 		{
 			fprintf (stderr, "%s: --min-sr must be greater or equal to 0\n", PACKAGE);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
+	if (vcf->min_ir < 1)
+		{
+			fprintf (stderr, "%s: --min-ir must be greater or equal to 1\n", PACKAGE);
 			rc = EXIT_FAILURE; goto Exit;
 		}
 
@@ -447,11 +461,12 @@ make_vcf_print (MakeVcf *vcf)
 		"  --min-breakpoints=%d \\\n"
 		"  --min-tsd=%d \\\n"
 		"  --max-tsd=%d \\\n"
-		"  --primer-flank=%d\n",
+		"  --primer-flank=%d \\\n"
+		"  --min-ir=%d\n",
 		vcf->near_gene_dist, vcf->orientation_error,
 		vcf->min_qual, vcf->min_mapq, vcf->min_sr,
 		vcf->min_breakpoints, vcf->min_tsd, vcf->max_tsd,
-		vcf->primer_flank);
+		vcf->primer_flank, vcf->min_ir);
 
 	log_info ("%s", msg->str);
 	string_free (msg, 1);
@@ -490,6 +505,7 @@ parse_make_vcf_command_opt (int argc, char **argv)
 		{"max-tsd",           required_argument, 0, 'T'},
 		{"no-filter",         required_argument, 0, 'x'},
 		{"primer-flank",      required_argument, 0, 'f'},
+		{"min-ir",            required_argument, 0, 'i'},
 		{0,                   0,                 0,  0 }
 	};
 
@@ -501,7 +517,7 @@ parse_make_vcf_command_opt (int argc, char **argv)
 	int option_index = 0;
 	int c = 0;
 
-	while ((c = getopt_long (argc, argv, "hqdl:o:p:n:e:r:L:Q:S:B:t:T:x:f:", opt, &option_index)) >= 0)
+	while ((c = getopt_long (argc, argv, "hqdl:o:p:n:e:r:L:Q:S:B:t:T:x:f:i:", opt, &option_index)) >= 0)
 		{
 			switch (c)
 				{
@@ -584,6 +600,11 @@ parse_make_vcf_command_opt (int argc, char **argv)
 				case 'f':
 					{
 						vcf.primer_flank = atoi (optarg);
+						break;
+					}
+				case 'i':
+					{
+						vcf.min_ir = atoi (optarg);
 						break;
 					}
 				case 'x':

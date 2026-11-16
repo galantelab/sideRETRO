@@ -481,6 +481,10 @@ others::
                                 [default:"10000"]
      -e, --orientation-error    Maximum p-value of the Spearman's rho to report
                                 the orientation (ORHO) [default:"0.05"]
+     -i, --min-ir               Minimum number of reads of a sample, with the
+                                mate inside an intron of the parental gene,
+                                to report the intron as retained (IR, IRLIST)
+                                [default:"2"]
      -r, --reference-file       FASTA file of the reference genome, for the REF
                                 column, the contigs, the TSD sequence and
                                 the primer file

@@ -46,6 +46,10 @@ struct _VCFOption
 	int         max_tsd;
 	int         disabled_filters;
 
+	// Annotation: Minimum number of reads of a
+	// sample to report an intron as retained
+	int         min_ir;
+
 	// Output: Number of retrocopies written to
 	// the VCF and to the insertions file
 	int         num_records;
@@ -82,6 +86,7 @@ typedef enum _VCFFilter VCFFilter;
 #define VCF_DEFAULT_MIN_TSD       6
 #define VCF_DEFAULT_MAX_TSD       25
 #define VCF_DEFAULT_PRIMER_FLANK  200
+#define VCF_DEFAULT_MIN_IR        2
 
 int vcf_filter_lookup (const char *id);
 

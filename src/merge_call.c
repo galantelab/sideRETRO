@@ -238,6 +238,7 @@ run (MergeCall *mc)
 	sqlite3_stmt *evidence_stmt = NULL;
 	sqlite3_stmt *cluster_merging_stmt = NULL;
 	sqlite3_stmt *genotype_stmt = NULL;
+	sqlite3_stmt *intron_stmt = NULL;
 
 	Blacklist *blacklist = NULL;
 
@@ -305,6 +306,9 @@ run (MergeCall *mc)
 
 	// Create genotype statement
 	genotype_stmt = db_prepare_genotype_stmt (db);
+
+	// Create intron retention statement
+	intron_stmt = db_prepare_intron_retention_stmt (db);
 
 	// Index blacklisted regions
 	blacklist = blacklist_new (blacklist_stmt,
@@ -385,7 +389,8 @@ run (MergeCall *mc)
 
 			// Genotyping
 			log_info ("Run the genotyping step");
-			genotype (genotype_stmt, mc->threads, mc->phred_quality);
+			genotype (genotype_stmt, intron_stmt, mc->threads,
+					mc->phred_quality);
 
 			// Commit
 			db_end_transaction (db);
@@ -405,6 +410,7 @@ run (MergeCall *mc)
 	db_finalize (evidence_stmt);
 	db_finalize (cluster_merging_stmt);
 	db_finalize (genotype_stmt);
+	db_finalize (intron_stmt);
 	db_close (db);
 
 	blacklist_free (blacklist);

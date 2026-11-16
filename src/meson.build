@@ -39,6 +39,8 @@ sider_sources = files(
   'gz.h',
   'hash.c',
   'hash.h',
+  'intron.c',
+  'intron.h',
   'ibitree.c',
   'ibitree.h',
   'io.c',

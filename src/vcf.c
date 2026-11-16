@@ -149,6 +149,10 @@ struct _VCFBody
 	int         eej;
 	const char *eej_list;
 
+	// Intron retention
+	int         ir;
+	const char *ir_list;
+
 	// Retrocopy ends into the parental gene,
 	// predicted sequence and observed junctions
 	long        five_prime_pos;
@@ -308,6 +312,11 @@ vcf_print_header (const List *hl, Hash *contig_len,
 		" POLYA (poly-A tail) and EEJ (reads spanning exon-exon junctions)\">\n"
 		"##INFO=<ID=IMPRECISE,Number=0,Type=Flag,Description=\"Imprecise structural variation\">\n"
 		"##INFO=<ID=INTRONIC,Number=.,Type=String,Description=\"Host gene IDs for a retrocopy inserted into an intron\">\n"
+		"##INFO=<ID=IR,Number=1,Type=Integer,Description=\"Intron retention: Number of reads at the insertion whose mate is"
+		" inside an intron of the parental gene, summed over the introns at IRLIST\">\n"
+		"##INFO=<ID=IRLIST,Number=.,Type=String,Description=\"Introns of the parental gene retained as 'exon_id_left-exon_id_right:reads':"
+		" The exons at the left and right of the intron, and its reads. An intron needs"
+		" a sample with enough reads (make-vcf --min-ir)\">\n"
 		"##INFO=<ID=LEFT_SVINSSEQ,Number=1,Type=String,Description=\"Observed sequence of the insertion at the left junction:"
 		" Consensus of the reads clipped at LBKP (N where the reads tie)\">\n"
 		"##INFO=<ID=LBKP,Number=1,Type=Integer,Description=\"Left breakpoint: Last reference base of the left flank, from split reads clipped at the right\">\n"
@@ -371,7 +380,8 @@ vcf_print_header (const List *hl, Hash *contig_len,
 }
 
 static sqlite3_stmt *
-prepare_retrocopy_query_stmt (sqlite3 *db, const long near_gene_dist)
+prepare_retrocopy_query_stmt (sqlite3 *db, const long near_gene_dist,
+		const int min_ir)
 {
 	log_trace ("Inside %s", __func__);
 
@@ -454,6 +464,22 @@ prepare_retrocopy_query_stmt (sqlite3 *db, const long near_gene_dist)
 		"		)\n"
 		"		GROUP BY rid\n"
 		"	),\n"
+		"	intron_g (rid, ir, txt) AS (\n"
+		"		SELECT rid, SUM(reads), GROUP_CONCAT(ense1 || '-' || ense2 || ':' || reads, ',')\n"
+		"		FROM (\n"
+		"			SELECT i.retrocopy_id AS rid, SUM(i.reads) AS reads,\n"
+		"				e1.ense AS ense1, e2.ense AS ense2\n"
+		"			FROM intron_retention AS i\n"
+		"			INNER JOIN exon AS e1\n"
+		"				ON e1.id = i.exon_id_left\n"
+		"			INNER JOIN exon AS e2\n"
+		"				ON e2.id = i.exon_id_right\n"
+		"			GROUP BY i.retrocopy_id, i.exon_id_left, i.exon_id_right\n"
+		"			HAVING MAX(i.reads) >= $MINIR\n"
+		"			ORDER BY i.retrocopy_id, i.chr, i.start\n"
+		"		)\n"
+		"		GROUP BY rid\n"
+		"	),\n"
 		"	mapq (rid, mean) AS (\n"
 		"		SELECT cm.retrocopy_id, AVG(a.mapq)\n"
 		"		FROM cluster_merging AS cm\n"
@@ -521,7 +547,8 @@ prepare_retrocopy_query_stmt (sqlite3 *db, const long near_gene_dist)
 		"	COALESCE(ins.three_prime_sr, 0), COALESCE(ins.len, 0),\n"
 		"	COALESCE(ins.seq, '?'), COALESCE(ins.left_seq, '?'),\n"
 		"	COALESCE(ins.right_seq, '?'),\n"
-		"	COALESCE(m.mean, 0), REPLACE(r.pgalt, '/', ',')\n"
+		"	COALESCE(m.mean, 0), REPLACE(r.pgalt, '/', ','),\n"
+		"	COALESCE(ir.ir, 0), COALESCE(ir.txt, '?')\n"
 		"FROM (\n"
 		"	SELECT *,\n"
 		"		CASE\n"
@@ -543,6 +570,8 @@ prepare_retrocopy_query_stmt (sqlite3 *db, const long near_gene_dist)
 		"	ON r.id = p.rid\n"
 		"LEFT JOIN junction_g AS j\n"
 		"	ON r.id = j.rid\n"
+		"LEFT JOIN intron_g AS ir\n"
+		"	ON r.id = ir.rid\n"
 		"LEFT JOIN insertion AS ins\n"
 		"	ON r.id = ins.retrocopy_id\n"
 		"LEFT JOIN exon AS e5\n"
@@ -573,6 +602,10 @@ prepare_retrocopy_query_stmt (sqlite3 *db, const long near_gene_dist)
 	db_bind_int (stmt,
 			sqlite3_bind_parameter_index (stmt, "$CHOSEN"),
 			RETROCOPY_PARENTAL_CHOSEN);
+
+	db_bind_int (stmt,
+			sqlite3_bind_parameter_index (stmt, "$MINIR"),
+			min_ir);
 
 	return stmt;
 }
@@ -688,6 +721,8 @@ vcf_get_body_line (sqlite3_stmt *stmt, VCFBody *b)
 	b->right_seq            = db_column_text   (stmt, 36);
 	b->mapq_mean            = db_column_double (stmt, 37);
 	b->parental_others      = db_column_text   (stmt, 38);
+	b->ir                   = db_column_int    (stmt, 39);
+	b->ir_list              = db_column_text   (stmt, 40);
 }
 
 static double
@@ -1261,7 +1296,7 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 
 	// Prepare retrocopy query
 	retrocopy_stmt = prepare_retrocopy_query_stmt (db,
-			opt->near_gene_dist);
+			opt->near_gene_dist, opt->min_ir);
 
 	// Prepare genotype query
 	genotype_stmt = prepare_genotype_query_stmt (db);
@@ -1412,6 +1447,11 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 			// Exon-exon junctions
 			if (b.eej > 0)
 				xfprintf (fp, ";EEJ=%d;EEJLIST=%s", b.eej, b.eej_list);
+
+			// Intron retention: Mates inside the
+			// introns of the parental gene
+			if (b.ir > 0)
+				xfprintf (fp, ";IR=%d;IRLIST=%s", b.ir, b.ir_list);
 
 			// Retrocopy ends into the parental gene
 			if (b.five_prime_sr > 0)

@@ -525,7 +525,24 @@ db_create_tables (sqlite3 *db)
 		"	ho_alt_likelihood NOT NULL,\n"
 		"	FOREIGN KEY (source_id) REFERENCES source(id),\n"
 		"	FOREIGN KEY (retrocopy_id) REFERENCES retrocopy(id),\n"
-		"	PRIMARY KEY (source_id, retrocopy_id));";
+		"	PRIMARY KEY (source_id, retrocopy_id));\n"
+		"\n"
+		"DROP TABLE IF EXISTS intron_retention;\n"
+		"CREATE TABLE intron_retention (\n"
+		"	retrocopy_id INTEGER NOT NULL,\n"
+		"	source_id INTEGER NOT NULL,\n"
+		"	gene_name TEXT NOT NULL,\n"
+		"	chr TEXT NOT NULL,\n"
+		"	start INTEGER NOT NULL,\n"
+		"	end INTEGER NOT NULL,\n"
+		"	exon_id_left INTEGER NOT NULL,\n"
+		"	exon_id_right INTEGER NOT NULL,\n"
+		"	reads INTEGER NOT NULL,\n"
+		"	FOREIGN KEY (retrocopy_id) REFERENCES retrocopy(id),\n"
+		"	FOREIGN KEY (source_id) REFERENCES source(id),\n"
+		"	FOREIGN KEY (exon_id_left) REFERENCES exon(id),\n"
+		"	FOREIGN KEY (exon_id_right) REFERENCES exon(id),\n"
+		"	PRIMARY KEY (retrocopy_id, source_id, exon_id_left, exon_id_right));";
 
 	log_debug ("Database schema:\n%s", sql);
 	db_exec (db, sql);
@@ -1264,6 +1281,47 @@ db_insert_evidence (sqlite3_stmt *stmt, int retrocopy_id,
 	db_bind_int (stmt, 1, retrocopy_id);
 	db_bind_int (stmt, 2, alignment_id);
 	db_bind_int (stmt, 3, role);
+
+	db_step (stmt);
+
+	sqlite3_mutex_leave (sqlite3_db_mutex (sqlite3_db_handle (stmt)));
+}
+
+sqlite3_stmt *
+db_prepare_intron_retention_stmt (sqlite3 *db)
+{
+	log_trace ("Inside %s", __func__);
+	assert (db != NULL);
+
+	const char sql[] =
+		"INSERT INTO intron_retention (retrocopy_id,source_id,gene_name,chr,start,end,exon_id_left,exon_id_right,reads)\n"
+		"VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)";
+
+	return db_prepare (db, sql);
+}
+
+void
+db_insert_intron_retention (sqlite3_stmt *stmt, int retrocopy_id,
+		int source_id, const char *gene_name, const char *chr, long start,
+		long end, int exon_id_left, int exon_id_right, int reads)
+{
+	log_trace ("Inside %s", __func__);
+	assert (stmt != NULL && gene_name != NULL && chr != NULL);
+
+	sqlite3_mutex_enter (sqlite3_db_mutex (sqlite3_db_handle (stmt)));
+
+	db_reset (stmt);
+	db_clear_bindings (stmt);
+
+	db_bind_int (stmt, 1, retrocopy_id);
+	db_bind_int (stmt, 2, source_id);
+	db_bind_text (stmt, 3, gene_name);
+	db_bind_text (stmt, 4, chr);
+	db_bind_int64 (stmt, 5, start);
+	db_bind_int64 (stmt, 6, end);
+	db_bind_int (stmt, 7, exon_id_left);
+	db_bind_int (stmt, 8, exon_id_right);
+	db_bind_int (stmt, 9, reads);
 
 	db_step (stmt);
 

@@ -30,6 +30,8 @@
 #include "array.h"
 #include "list.h"
 #include "thpool.h"
+#include "abnormal.h"
+#include "intron.h"
 #include "genotype.h"
 
 struct _Region
@@ -55,6 +57,10 @@ struct _Genotype
 
 	Array      *abnormal_scores;
 	Array      *normal_scores;
+
+	// INTRON => number of reads with
+	// the mate inside it
+	Hash       *introns;
 };
 
 typedef struct _Genotype Genotype;
@@ -62,6 +68,15 @@ typedef struct _Genotype Genotype;
 struct _ZygosityData
 {
 	sqlite3_stmt *stmt;
+	sqlite3_stmt *intron_stmt;
+
+	// Introns of the parental genes. It is shared
+	// among the threads, only for reading
+	IntronTree   *intron_tree;
+
+	// TID => standardized contig name
+	const char  **tid_chr;
+	int           n_targets;
 
 	List         *genotype;
 	ChrStd       *cs;
@@ -76,6 +91,7 @@ typedef struct _ZygosityData ZygosityData;
 struct _CrossWindowLinear
 {
 	bam1_t       *align;
+	ZygosityData *zd;
 	int           phred_quality;
 };
 
@@ -119,7 +135,9 @@ genotype_new (const int retrocopy_id, const int source_id,
 		.retrocopy_id    = retrocopy_id,
 		.source_id       = source_id,
 		.abnormal_scores = array_new (xfree),
-		.normal_scores   = array_new (xfree)
+		.normal_scores   = array_new (xfree),
+		.introns         = hash_new_full (direct_hash, direct_equal,
+				NULL, xfree)
 	};
 
 	return g;
@@ -133,6 +151,7 @@ genotype_free (Genotype *g)
 
 	array_free (g->abnormal_scores, 1);
 	array_free (g->normal_scores, 1);
+	hash_free (g->introns);
 
 	xfree (g);
 }
@@ -163,7 +182,8 @@ clean_genotype_table (sqlite3 *db)
 	// Delete all values from
 	// previous runs
 	const char sql[] =
-		"DELETE FROM genotype";
+		"DELETE FROM genotype;\n"
+		"DELETE FROM intron_retention";
 
 	log_debug ("Clean tables:\n%s", sql);
 	db_exec (db, sql);
@@ -391,7 +411,7 @@ genotype_index_zygosity_data (sqlite3 *db, Hash *retrocopy_h)
 }
 
 static Hash *
-chr_std2tid (ChrStd *cs, const bam_hdr_t *hdr)
+chr_std2tid (ChrStd *cs, const bam_hdr_t *hdr, const char **tid_chr)
 {
 	log_trace ("Inside %s", __func__);
 
@@ -406,6 +426,7 @@ chr_std2tid (ChrStd *cs, const bam_hdr_t *hdr)
 	for (; tid < hdr->n_targets; tid++)
 		{
 			chr_std = chr_std_lookup (cs, hdr->target_name[tid]);
+			tid_chr[tid] = chr_std;
 
 			tid_copy = xcalloc (1, sizeof (int));
 			*tid_copy = tid;
@@ -533,6 +554,121 @@ dump_genotype (sqlite3_stmt *stmt, const Genotype *g)
 }
 
 static void
+dump_introns (sqlite3_stmt *stmt, const Genotype *g)
+{
+	HashIter iter = {};
+	const Intron *intron = NULL;
+	const int *reads = NULL;
+
+	hash_iter_init (&iter, g->introns);
+
+	while (hash_iter_next (&iter, (void **) &intron, (void **) &reads))
+		intron_dump (stmt, intron, g->retrocopy_id, g->source_id, *reads);
+}
+
+/*
+ * Length of the mate at the reference, from the SAM tag
+ * 'MC' (mate CIGAR). Return 0 if the tag is absent, or it
+ * cannot be read
+ */
+static long
+mate_rlen (const bam1_t *align)
+{
+	const uint8_t *aux = NULL;
+	const char *mc = NULL;
+	long rlen = 0;
+	long n = 0;
+
+	aux = bam_aux_get (align, "MC");
+	if (aux == NULL)
+		return 0;
+
+	mc = bam_aux2Z (aux);
+	if (mc == NULL)
+		return 0;
+
+	for (; *mc != '\0'; mc++)
+		{
+			if (*mc >= '0' && *mc <= '9')
+				{
+					n = n * 10 + (*mc - '0');
+					continue;
+				}
+
+			// Operations consuming the reference
+			if (*mc == 'M' || *mc == 'D' || *mc == 'N'
+					|| *mc == '=' || *mc == 'X')
+				rlen += n;
+
+			n = 0;
+		}
+
+	return rlen;
+}
+
+/*
+ * Intron retention: An abnormal read at the window of the
+ * retrocopy whose mate is inside an intron of the parental
+ * gene. The alignment carries the position of its mate, so
+ * the mate itself is not read. The mapping quality of the
+ * mate (tag 'MQ') and its end (tag 'MC') are used when the
+ * aligner wrote them: Otherwise, the mate is taken with the
+ * quality and the length of this alignment
+ */
+static void
+count_intron_mate (const ZygosityData *zd, Genotype *g, const bam1_t *align)
+{
+	const Intron *intron = NULL;
+	const uint8_t *aux = NULL;
+	const char *chr = NULL;
+	int *reads = NULL;
+	long start = 0;
+	long rlen = 0;
+
+	// The same quality control of the abnormal reads. The
+	// secondary and supplementary alignments have the same
+	// mate as the primary one: Do not count it twice
+	if ((align->core.flag & (0x100 | 0x800))
+			|| !abnormal_quality_control (align, zd->phred_quality,
+				ABNORMAL_DEFAULT_MAX_BASE_FREQ))
+		return;
+
+	if (align->core.mtid < 0 || align->core.mtid >= zd->n_targets)
+		return; // LCOV_EXCL_LINE: A mapped mate has its contig
+
+	aux = bam_aux_get (align, "MQ");
+	if (aux != NULL && bam_aux2i (aux) < zd->phred_quality)
+		return;
+
+	rlen = mate_rlen (align);
+
+	if (rlen < 1)
+		rlen = bam_cigar2rlen (align->core.n_cigar, bam_get_cigar (align));
+
+	if (rlen < 1)
+		rlen = 1; // LCOV_EXCL_LINE: A mapped read consumes the reference
+
+	chr = zd->tid_chr[align->core.mtid];
+	start = align->core.mpos + 1;
+
+	intron = intron_tree_lookup (zd->intron_tree, g->retrocopy_id,
+			chr, start, start + rlen - 1);
+
+	if (intron == NULL)
+		return;
+
+	reads = hash_lookup (g->introns, intron);
+
+	if (reads == NULL)
+		{
+			reads = xcalloc (1, sizeof (int));
+			hash_insert (g->introns, intron, reads);
+		}
+
+	(*reads)++;
+}
+
+static void
 cross_window (IBiTreeLookupData *ldata, void *user_data)
 {
 	const CrossWindowLinear *c = user_data;
@@ -545,6 +681,8 @@ cross_window (IBiTreeLookupData *ldata, void *user_data)
 			*q = c->align->core.qual;
 			array_add (g->normal_scores, q);
 		}
+
+	count_intron_mate (c->zd, g, c->align);
 }
 
 static void
@@ -560,7 +698,7 @@ zygosity_linear_search (samFile *fp, bam_hdr_t *hdr, bam1_t *align,
 	Genotype *g = NULL;
 	ListElmt *cur = NULL;
 
-	CrossWindowLinear c = {.phred_quality = zd->phred_quality};
+	CrossWindowLinear c = {.zd = zd, .phred_quality = zd->phred_quality};
 
 	long start = 0;
 	long end = 0;
@@ -591,6 +729,7 @@ zygosity_linear_search (samFile *fp, bam_hdr_t *hdr, bam1_t *align,
 		{
 			g = list_data (cur);
 			dump_genotype (zd->stmt, g);
+			dump_introns (zd->intron_stmt, g);
 		}
 
 	hash_free (ir);
@@ -650,12 +789,15 @@ zygosity_indexed_search (samFile *fp, bam_hdr_t *hdr, bam1_t *align,
 							*q = align->core.qual;
 							array_add (g->normal_scores, q);
 						}
+
+					count_intron_mate (zd, g, align);
 				}
 
 			if (rc < -1)
 				log_fatal ("Failed to read sam alignment");
 
 			dump_genotype (zd->stmt, g);
+			dump_introns (zd->intron_stmt, g);
 
 			sam_itr_destroy (itr);
 		}
@@ -689,8 +831,13 @@ zygosity (ZygosityData *zd)
 	if (align == NULL)
 		log_errno_fatal ("Failed to create bam_init1");
 
-	// Get standardized tid
-	chr_tid = chr_std2tid (zd->cs, hdr);
+	// Get standardized tid, and the
+	// standardized contig of each tid
+	zd->n_targets = hdr->n_targets;
+	zd->tid_chr = xcalloc (hdr->n_targets > 0 ? hdr->n_targets : 1,
+			sizeof (char *));
+
+	chr_tid = chr_std2tid (zd->cs, hdr, zd->tid_chr);
 
 	// Look for the index
 	idx = sam_index_load (fp, zd->path);
@@ -710,16 +857,19 @@ zygosity (ZygosityData *zd)
 		log_errno_fatal ("Failed to close '%s'", zd->path);
 
 	hash_free (chr_tid);
+	xfree (zd->tid_chr);
 	hts_idx_destroy (idx);
 	bam_hdr_destroy (hdr);
 	bam_destroy1 (align);
 }
 
 void
-genotype (sqlite3_stmt *genotype_stmt, int threads, int phred_quality)
+genotype (sqlite3_stmt *genotype_stmt, sqlite3_stmt *intron_stmt,
+		int threads, int phred_quality)
 {
 	log_trace ("Inside %s", __func__);
 	assert (genotype_stmt != NULL
+			&& intron_stmt != NULL
 			&& threads > 0
 			&& phred_quality >= 0);
 
@@ -727,6 +877,7 @@ genotype (sqlite3_stmt *genotype_stmt, int threads, int phred_quality)
 	threadpool thpool = NULL;
 
 	ChrStd *cs = NULL;
+	IntronTree *intron_tree = NULL;
 	Hash *retrocopy_h, *zygosity_h;
 	retrocopy_h = zygosity_h = NULL;
 
@@ -744,6 +895,9 @@ genotype (sqlite3_stmt *genotype_stmt, int threads, int phred_quality)
 
 	log_debug ("Clean genotype table");
 	clean_genotype_table (db);
+
+	log_debug ("Index the introns of the parental genes");
+	intron_tree = intron_tree_new (db);
 
 	log_info ("Genotype the retrocopies in each sample");
 
@@ -766,6 +920,8 @@ genotype (sqlite3_stmt *genotype_stmt, int threads, int phred_quality)
 			// genotype statement
 			zd->cs = cs;
 			zd->stmt = genotype_stmt;
+			zd->intron_stmt = intron_stmt;
+			zd->intron_tree = intron_tree;
 			zd->phred_quality = phred_quality;
 
 			// Let's rock!
@@ -778,6 +934,7 @@ genotype (sqlite3_stmt *genotype_stmt, int threads, int phred_quality)
 	// Clean up
 	thpool_destroy (thpool);
 	chr_std_free (cs);
+	intron_tree_free (intron_tree);
 	hash_free (retrocopy_h);
 	hash_free (zygosity_h);
 }
