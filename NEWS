@@ -1,3 +1,63 @@
+Version 1.10.0
+
+* The FILTER of 'make-vcf' follows the evidence at the
+  insertion point, so that a PASS retrocopy is a good target
+  for validation: LowQual, LowMAPQ, AmbiguousParental,
+  LowSR, NoTSD and TSDOutlier. NoPolyA, NoJunction and
+  PolarityConflict were removed - the poly-A tail and the
+  exon-exon junctions are still reported (HALLMARKS, POLYA,
+  EEJ).
+
+* New options of 'make-vcf': --min-sr (-S, 3 by default)
+  for LowSR, the minimum number of split reads at the
+  insertion point; --min-breakpoints (-B, 1 or 2, 2 by
+  default), the breakpoints required - a retrocopy with
+  less fails NoTSD; --min-tsd (-t, 6) and --max-tsd (-T,
+  25), the range of the target site duplication length for
+  TSDOutlier. The former upper limit was 50.
+
+* POLARITY comes from the orientation of the reads (ORHO)
+  and the strand of the parental gene. The strand of the
+  poly-A tail is an independent check at the new INFO
+  POLYASTRAND.
+
+* For overlapped parental genes, 'merge-call' chooses the
+  gene pointed by the evidence: Fragments explained by one
+  gene alone, and the strand agreeing with the orientation
+  and the poly-A tail. The chosen gene is at PG, the others
+  at the new INFO PGALT, and the retrocopy does not fail
+  AmbiguousParental. Without enough evidence, PG lists all
+  the genes and the retrocopy fails it.
+
+* Fix the parental gene of a cluster, which was an
+  arbitrary one among the genes overlapped by its reads:
+  A retrocopy could be assigned to a neighbor gene at the
+  opposite strand, and overlapped parental genes (PGTYPE=2)
+  were never reported.
+
+* Fix the genotype likelihood at deep sites (about a
+  thousand reads or more), which underflowed: The genotype
+  was './.' and QUAL was missing. A normal read with MAPQ 0
+  does not break the likelihood anymore.
+
+* The poly-A tail is found up to 3 bases away from the
+  breakpoint: The aligner may shift the breakpoint, and
+  there may be untemplated bases at the junction.
+
+* The junction with the poly-A tail is the 3' end of the
+  retrocopy at PG5P, PG3P and the predicted sequence. The
+  sense of the clipped reads decides only when there is no
+  poly-A tail: An inverted piece at the 5' end used to swap
+  the ends.
+
+* ORHO pairs each read only with its mate. The split reads
+  of the same fragment diluted the correlation.
+
+* 'merge-call' removes the genotypes together with the
+  retrocopies when it runs again, and 'make-vcf' explains
+  when the database comes from a 'merge-call' that did not
+  finish, instead of an assertion failure.
+
 Version 1.9.0
 
 * 'make-vcf' gives each retrocopy a QUAL (from the genotype
