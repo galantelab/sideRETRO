@@ -484,15 +484,22 @@ others::
                                 column, the contigs and the TSD sequence
 
   Filter Options:
-     The FILTER column lists the checks of a canonical retrocopy that
-     failed, or PASS. A check that cannot be evaluated does not fail
+     The FILTER column lists the checks that failed, or PASS: A
+     retrocopy with its insertion point well defined
      -L, --min-qual             LowQual: Minimum QUAL [default:"20"]
      -Q, --min-mapq             LowMAPQ: Minimum mean mapping quality of the
                                 supporting reads [default:"20"]
+     -S, --min-sr               LowSR: Minimum number of split reads at the
+                                breakpoints, whatever their side
+                                [default:"3"]
+     -B, --min-breakpoints      NoTSD: Minimum number of breakpoints, 1 or 2.
+                                The target site duplication needs both
+                                [default:"2"]
+     -T, --max-tsd              TSDOutlier: Maximum length of the target site
+                                duplication [default:"25"]
      -x, --no-filter            Disable a filter. It may be passed multiple
                                 times: LowQual, LowMAPQ, AmbiguousParental,
-                                NoTSD, TSDOutlier, NoPolyA, NoJunction and
-                                PolarityConflict
+                                LowSR, NoTSD and TSDOutlier
 
 
 So, in order to produce the results from a database input file like

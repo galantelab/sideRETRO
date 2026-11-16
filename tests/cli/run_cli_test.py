@@ -275,14 +275,24 @@ def cases(t, sim):
           expect=['--min-qual must be'])
     t.run('vcf: min-mapq', vcf + ['-Q', '-1'] + mdb, rc=FAIL,
           expect=['--min-mapq must be'])
+    t.run('vcf: min-sr', vcf + ['-S', '-1'] + mdb, rc=FAIL,
+          expect=['--min-sr must be'])
+    t.run('vcf: min-breakpoints 0', vcf + ['-B', '0'] + mdb, rc=FAIL,
+          expect=['--min-breakpoints must be 1 or 2'])
+    t.run('vcf: min-breakpoints 3', vcf + ['-B', '3'] + mdb, rc=FAIL,
+          expect=['--min-breakpoints must be 1 or 2'])
+    t.run('vcf: max-tsd', vcf + ['-T', '0'] + mdb, rc=FAIL,
+          expect=['--max-tsd must be'])
     t.run('vcf: unknown filter', vcf + ['-x', 'Ponga'] + mdb, rc=FAIL,
           expect=["--no-filter 'Ponga': Unknown filter"])
 
     t.run('vcf: run with options',
           vcf + ['-o', P('vcf'), '-p', 'sim', '-l', P('vcf.log'), '-d',
                  '-r', P('ref.fa'), '-n', '5000', '-e', '0.1', '-L', '10',
-                 '-Q', '10', '-x', 'NoJunction', '-x', 'LowQual'] + mdb,
-          expect=['make-vcf summary', 'PASS', '--no-filter=NoJunction',
+                 '-Q', '10', '-S', '2', '-B', '1', '-T', '30',
+                 '-x', 'TSDOutlier', '-x', 'LowQual'] + mdb,
+          expect=['make-vcf summary', 'PASS', '--no-filter=TSDOutlier',
+                  '--min-sr=2', '--min-breakpoints=1', '--max-tsd=30',
                   '--reference-file='])
     t.run('vcf: run without reference, quiet',
           vcf + ['-o', P('vcf2'), '-q', '-l', P('vcf2.log')] + mdb,

@@ -56,16 +56,12 @@ static const VCFFilterDef filter_defs[] =
 		"Mean mapping quality of the supporting reads below the threshold (make-vcf --min-mapq)"},
 	{VCF_FILTER_AMBIGUOUS_PARENTAL, "AmbiguousParental",
 		"The parental gene is ambiguous: Overlapped or near parental genes, or hotspot (PGTYPE != 1)"},
+	{VCF_FILTER_LOW_SR,             "LowSR",
+		"Number of split reads at the breakpoints (SR) below the threshold (make-vcf --min-sr)"},
 	{VCF_FILTER_NO_TSD,             "NoTSD",
-		"Both breakpoints found, but no target site duplication (TSDLEN <= 0)"},
+		"No target site duplication: Fewer breakpoints found than required (make-vcf --min-breakpoints), or both found and TSDLEN <= 0"},
 	{VCF_FILTER_TSD_OUTLIER,        "TSDOutlier",
-		"Target site duplication length out of the expected range: TSDLEN > 50 or TSDLEN < -20"},
-	{VCF_FILTER_NO_POLYA,           "NoPolyA",
-		"Both breakpoints found, but no poly-A tail"},
-	{VCF_FILTER_NO_JUNCTION,        "NoJunction",
-		"Multi-exon parental gene and the retrocopy should span an exon-exon junction, but no read spans it"},
-	{VCF_FILTER_POLARITY_CONFLICT,  "PolarityConflict",
-		"The strand given by the poly-A (POLYASTRAND) disagrees with the orientation (POLARITY, from ORHO)"},
+		"Target site duplication length out of the expected range: TSDLEN above the threshold (make-vcf --max-tsd) or TSDLEN < -20"},
 	{0, NULL, NULL}
 };
 
@@ -167,8 +163,6 @@ struct _VCFBody
 
 	// Filters
 	double      mapq_mean;
-	int         pg_max_exons;
-	int         five_prime_last_exon;
 
 	// Host and Near genes
 	const char *exonic;
@@ -431,8 +425,8 @@ prepare_retrocopy_query_stmt (sqlite3 *db, const long near_gene_dist)
 		"		FROM exon\n"
 		"		GROUP BY gene_name\n"
 		"	),\n"
-		"	pg_exons (rid, txt, n) AS (\n"
-		"		SELECT rid, GROUP_CONCAT(gene_name || ':' || n, '/'), MAX(n)\n"
+		"	pg_exons (rid, txt) AS (\n"
+		"		SELECT rid, GROUP_CONCAT(gene_name || ':' || n, '/')\n"
 		"		FROM (\n"
 		"			SELECT DISTINCT cm.retrocopy_id AS rid, cl.gene_name\n"
 		"			FROM cluster_merging AS cm\n"
@@ -524,14 +518,7 @@ prepare_retrocopy_query_stmt (sqlite3 *db, const long near_gene_dist)
 		"	COALESCE(ins.three_prime_sr, 0), COALESCE(ins.len, 0),\n"
 		"	COALESCE(ins.seq, '?'), COALESCE(ins.left_seq, '?'),\n"
 		"	COALESCE(ins.right_seq, '?'),\n"
-		"	COALESCE(m.mean, 0), COALESCE(p.n, 0),\n"
-		"	CASE\n"
-		"		WHEN ins.five_prime_sr > 0\n"
-		"			AND ((g5.strand = '+' AND e5.end = g5.end)\n"
-		"				OR (g5.strand = '-' AND e5.start = g5.start))\n"
-		"			THEN 1\n"
-		"		ELSE 0\n"
-		"	END\n"
+		"	COALESCE(m.mean, 0)\n"
 		"FROM retrocopy AS r\n"
 		"LEFT JOIN pg_exons AS p\n"
 		"	ON r.id = p.rid\n"
@@ -543,8 +530,6 @@ prepare_retrocopy_query_stmt (sqlite3 *db, const long near_gene_dist)
 		"	ON e5.id = ins.five_prime_exon_id\n"
 		"LEFT JOIN exon AS e3\n"
 		"	ON e3.id = ins.three_prime_exon_id\n"
-		"LEFT JOIN gene AS g5\n"
-		"	ON g5.gene_name = e5.gene_name\n"
 		"LEFT JOIN mapq AS m\n"
 		"	ON r.id = m.rid\n"
 		"LEFT JOIN gene AS g\n"
@@ -679,8 +664,6 @@ vcf_get_body_line (sqlite3_stmt *stmt, VCFBody *b)
 	b->left_seq             = db_column_text   (stmt, 35);
 	b->right_seq            = db_column_text   (stmt, 36);
 	b->mapq_mean            = db_column_double (stmt, 37);
-	b->pg_max_exons         = db_column_int    (stmt, 38);
-	b->five_prime_last_exon = db_column_int    (stmt, 39);
 }
 
 static double
@@ -954,6 +937,7 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 	long tsd_len = 0;
 	char orho_polarity = 0;
 	double qual = 0.0;
+	int num_breakpoints = 0;
 	int both_breakpoints = 0;
 	int failed = 0;
 	int i = 0;
@@ -996,11 +980,14 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 				}
 
 			/*
-			* Filters: The checks of a canonical retrocopy. A check
-			* that cannot be evaluated does not fail
+			* Filters: A PASS retrocopy has its insertion point
+			* well defined - a target for validation. The poly-A
+			* and the exon-exon junctions are reported, but they
+			* do not filter
 			*/
 			qual = vcf_qual (gi, hl);
-			both_breakpoints = b.breakpoint_left_sr > 0 && b.breakpoint_right_sr > 0;
+			num_breakpoints = (b.breakpoint_left_sr > 0) + (b.breakpoint_right_sr > 0);
+			both_breakpoints = num_breakpoints == 2;
 			tsd_len = b.breakpoint_left - b.breakpoint_right + 1;
 
 			orho_polarity = '?';
@@ -1021,23 +1008,19 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 			if (b.level != RETROCOPY_PASS)
 				failed |= VCF_FILTER_AMBIGUOUS_PARENTAL;
 
-			if (both_breakpoints && tsd_len <= 0)
+			// All the split reads, whatever their side
+			if (b.sr_acm < opt->min_sr)
+				failed |= VCF_FILTER_LOW_SR;
+
+			// The TSD needs the left and the right breakpoints.
+			// With fewer breakpoints than required, it is missing
+			if (num_breakpoints < opt->min_breakpoints
+					|| (both_breakpoints && tsd_len <= 0))
 				failed |= VCF_FILTER_NO_TSD;
 
 			if (both_breakpoints
-					&& (tsd_len > VCF_TSD_MAX_LEN || tsd_len < VCF_TSD_MIN_LEN))
+					&& (tsd_len > opt->max_tsd || tsd_len < VCF_TSD_MIN_LEN))
 				failed |= VCF_FILTER_TSD_OUTLIER;
-
-			if (both_breakpoints && b.polya_sr == 0)
-				failed |= VCF_FILTER_NO_POLYA;
-
-			// A retrocopy truncated into the last exon has no junction
-			if (b.pg_max_exons > 1 && b.eej == 0 && !b.five_prime_last_exon)
-				failed |= VCF_FILTER_NO_JUNCTION;
-
-			if (b.polya_sr > 0 && orho_polarity != '?'
-					&& orho_polarity != b.polya_strand[0])
-				failed |= VCF_FILTER_POLARITY_CONFLICT;
 
 			failed &= ~opt->disabled_filters;
 
@@ -1075,8 +1058,7 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 			/*
 			* Polarity: The orientation of the event, from the
 			* orientation correlation. The strand given by the
-			* poly-A junction is reported apart (POLYASTRAND):
-			* If they disagree, the FILTER says PolarityConflict
+			* poly-A junction is reported apart (POLYASTRAND)
 			*/
 			if (orho_polarity != '?')
 				xfprintf (fp, ";ORHO=%f;POLARITY=%c",

@@ -57,8 +57,9 @@ Then, each line describes one retrocopy insertion:
 | QUAL       | Phred scaled probability that the insertion is not real,    |
 |            | from the genotype likelihoods, see :ref:`QUAL <qual>`       |
 +------------+-------------------------------------------------------------+
-| FILTER     | The checks of a canonical retrocopy that failed, separated  |
-|            | by ``;``, or ``PASS``, see :ref:`FILTER <filter>`           |
+| FILTER     | The checks that failed, separated by ``;``, or ``PASS``     |
+|            | for a well defined insertion point, see                     |
+|            | :ref:`FILTER <filter>`                                      |
 +------------+-------------------------------------------------------------+
 | INFO       | The annotation, see :ref:`INFO fields <info_fields>`        |
 +------------+-------------------------------------------------------------+
@@ -98,12 +99,16 @@ no informative sample, ``QUAL`` is ``.``. It is capped at 999.
 FILTER
 ------
 
-The ``FILTER`` column checks whether the insertion has the features of a
-**canonical** retrocopy. It lists the checks that failed, separated by
-``;``, or ``PASS`` when all of them passed. A check that **cannot be
-evaluated** does not fail: Without both breakpoints, for instance, there is
-no way to tell whether there is a TSD, so ``NoTSD`` is not raised. That is
-what lets exome data or alignments without split reads (``bwa aln``) pass.
+The ``FILTER`` column tells whether the insertion point is **well defined**:
+A ``PASS`` retrocopy is a good target for **validation** (e.g. by PCR). It
+lists the checks that failed, separated by ``;``, or ``PASS`` when all of
+them passed.
+
+The **target site duplication** is the reference here. It needs the **left**
+and the **right** breakpoints, so by default a retrocopy with fewer than two
+breakpoints fails ``NoTSD``. ``LowSR`` counts all the split reads, at any
+side: A retrocopy may have many of them at a single breakpoint, passing
+``LowSR`` and failing ``NoTSD``.
 
 +-------------------+-------------------------------------------------------+
 | LowQual           | ``QUAL`` below the threshold (``make-vcf -L``,        |
@@ -115,23 +120,29 @@ what lets exome data or alignments without split reads (``bwa aln``) pass.
 +-------------------+-------------------------------------------------------+
 | AmbiguousParental | The parental gene is ambiguous: ``PGTYPE`` is not 1   |
 +-------------------+-------------------------------------------------------+
-| NoTSD             | Both breakpoints were found, but there is no target   |
-|                   | site duplication (``TSDLEN <= 0``)                    |
+| LowSR             | Fewer split reads at the breakpoints (``SR``) than    |
+|                   | the threshold (``make-vcf -S``, default 3), whatever  |
+|                   | their side                                            |
 +-------------------+-------------------------------------------------------+
-| TSDOutlier        | ``TSDLEN`` out of the expected range: Greater than 50 |
-|                   | or less than -20 - probably wrong breakpoints         |
+| NoTSD             | No target site duplication: Fewer breakpoints found   |
+|                   | than required (``make-vcf -B``, default 2), or both   |
+|                   | found and ``TSDLEN <= 0``                             |
 +-------------------+-------------------------------------------------------+
-| NoPolyA           | Both breakpoints were found, but there is no poly-A   |
-|                   | tail at any of them                                   |
+| TSDOutlier        | ``TSDLEN`` out of the expected range: Greater than    |
+|                   | the maximum (``make-vcf -T``, default 25) or less     |
+|                   | than -20 - probably wrong breakpoints or a repeat     |
 +-------------------+-------------------------------------------------------+
-| NoJunction        | The parental gene has more than one exon and the      |
-|                   | retrocopy should span a junction - its 5' end is not  |
-|                   | known or not at the last exon - but no read spans it  |
-+-------------------+-------------------------------------------------------+
-| PolarityConflict  | The strand given by the poly-A (``POLYASTRAND``)      |
-|                   | disagrees with the orientation (``POLARITY``, from    |
-|                   | ``ORHO``)                                             |
-+-------------------+-------------------------------------------------------+
+
+The poly-A tail, the exon-exon junctions and the orientation are **reported**
+(``HALLMARKS``, ``POLYA``, ``POLYASTRAND``, ``EEJ``, ``POLARITY``), but they
+do not filter: In short reads, their absence is weak evidence against a
+retrocopy.
+
+.. note::
+   Alignments without soft clipping (e.g. ``bwa aln``, or an aligner at
+   end-to-end mode) have no split reads, so no breakpoint is found. For
+   them, turn off ``NoTSD`` and ``LowSR`` (``make-vcf -x``), or accept a
+   single breakpoint (``make-vcf -B 1``) if there are some clipped reads.
 
 Any filter can be turned off with ``make-vcf -x`` (it may be passed more than
 once), and the filters are applied by ``make-vcf``, so trying other thresholds
@@ -141,11 +152,11 @@ confidence set is then::
    $ bcftools view -f PASS out.vcf
 
 .. note::
-   Failing a filter does not make an insertion false: It makes it **non
-   canonical**. Some genuine retrocopies are inserted without a TSD, have lost
-   the poly-A or come from a single exon parental gene. The filters point out
-   what is missing, and ``HALLMARKS`` tells what was observed - the choice is
-   up to you.
+   Failing a filter does not make an insertion false: Its insertion point
+   is just not as well defined. Some genuine retrocopies are inserted without
+   a TSD, or have too few reads at the junctions. The filters point out what
+   is missing, and ``HALLMARKS`` tells what was observed - the choice is up
+   to you.
 
 Precise and imprecise insertions
 --------------------------------
@@ -248,8 +259,7 @@ is a duplication.
 | POLYASTRAND | Strand of the retrocopy given by the poly-A junction         |
 |             | (``+``/``-``): The tail is at the right junction for ``+``   |
 |             | and, reverse complemented, at the left junction for ``-``.   |
-|             | Independent of POLARITY: If they disagree, the FILTER says   |
-|             | ``PolarityConflict``                                         |
+|             | Independent of POLARITY: They may disagree                   |
 +-------------+--------------------------------------------------------------+
 | POLARITY    | Orientation of the event at the reference (``+``/``-``),     |
 |             | from ORHO                                                    |
@@ -265,10 +275,9 @@ is a duplication.
 +------------+--------------------------------------------------------------+
 | HALLMARKS  | The retrocopy hallmarks observed, separated by comma: ``TSD``|
 |            | (target site duplication), ``POLYA`` (poly-A tail) and       |
-|            | ``EEJ`` (reads spanning exon-exon junctions). With the       |
-|            | filters, it tells a hallmark that was looked for and is      |
-|            | missing (e.g. ``NoTSD``) from one that could not be looked   |
-|            | for (neither ``TSD`` here nor ``NoTSD`` at ``FILTER``)       |
+|            | ``EEJ`` (reads spanning exon-exon junctions). Only the TSD   |
+|            | filters (``NoTSD``): The poly-A and the junctions are        |
+|            | reported for you to judge                                    |
 +------------+--------------------------------------------------------------+
 
 **Parental gene**

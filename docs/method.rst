@@ -414,8 +414,8 @@ reported as observed.
 
 When the tail is found, its strand is reported apart (``POLYASTRAND``),
 while the ``POLARITY`` comes from the :ref:`orientation <method_orientation>`
-correlation: Two independent signals. If they disagree, the event is
-flagged with the filter ``PolarityConflict``.
+correlation: Two independent signals, which may disagree. None of them
+filters the event.
 
 Exon-exon junctions
 ===================

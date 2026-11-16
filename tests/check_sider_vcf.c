@@ -253,6 +253,9 @@ START_TEST (test_vcf)
 	VCFOption opt = {
 		.min_qual = VCF_DEFAULT_MIN_QUAL,
 		.min_mapq = VCF_DEFAULT_MIN_MAPQ,
+		.min_sr = VCF_DEFAULT_MIN_SR,
+		.min_breakpoints = VCF_DEFAULT_MIN_BKP,
+		.max_tsd = VCF_DEFAULT_MAX_TSD,
 		.fasta_file = fasta_file,
 		.rnames_file = rnames_file,
 		.insertion_file = insertion_file
@@ -269,7 +272,7 @@ START_TEST (test_vcf)
 	// INFO fields that must be present (or absent)
 	// in each retrocopy line, in VCF order. POLARITY
 	// comes from ORHO; chr10 and chrY have the poly-A
-	// at the other strand (POLYASTRAND): PolarityConflict
+	// at the other strand (POLYASTRAND): It does not filter
 	// (chr10, chr11, chr12, chr13, chr13, chr14, chr14, chrY)
 	const char *present[][2] = {
 		{";ORHO=-1.000000;POLARITY=-;PG=gene1;PGTYPE=1;PGEXONS=gene1:2;HALLMARKS=POLYA,EEJ;EEJ=5;EEJLIST=ee1-ee13;PG5P=ee1:1050:7;PG3P=ee13:3000:2;SVLEN=2000;LEFT_SVINSSEQ=GGTTAACC;RIGHT_SVINSSEQ=TTGGCC;", ";SR=2;LBKP=100;LSR=2;POLYA=25;POLYASR=6;POLYASTRAND=+"},
@@ -285,14 +288,14 @@ START_TEST (test_vcf)
 	// QUAL and FILTER. Samples without reads give no QUAL. The
 	// others: -10 * log10 P(0/0) with GL (-33, -0.1, -5) = 329.0
 	const char *qual_filter[] = {
-		"\t.\tPolarityConflict\tSVTYPE=INS;",
+		"\t.\tLowSR;NoTSD\tSVTYPE=INS;",
+		"\t.\tAmbiguousParental;LowSR;NoTSD\tSVTYPE=INS;",
 		"\t.\tAmbiguousParental\tSVTYPE=INS;",
-		"\t.\tAmbiguousParental;NoPolyA\tSVTYPE=INS;",
-		"\t329.0\tAmbiguousParental\tSVTYPE=INS;",
-		"\t329.0\tAmbiguousParental\tSVTYPE=INS;",
-		"\t329.0\tAmbiguousParental\tSVTYPE=INS;",
-		"\t329.0\tAmbiguousParental\tSVTYPE=INS;",
-		"\t329.0\tNoTSD;NoJunction;PolarityConflict\tSVTYPE=INS;"
+		"\t329.0\tAmbiguousParental;LowSR;NoTSD\tSVTYPE=INS;",
+		"\t329.0\tAmbiguousParental;LowSR;NoTSD\tSVTYPE=INS;",
+		"\t329.0\tAmbiguousParental;LowSR;NoTSD\tSVTYPE=INS;",
+		"\t329.0\tAmbiguousParental;LowSR;NoTSD\tSVTYPE=INS;",
+		"\t329.0\tLowSR;NoTSD\tSVTYPE=INS;"
 	};
 
 	const char *absent[] = {
@@ -393,26 +396,31 @@ START_TEST (test_vcf)
 	xfclose (fp);
 
 	// Thresholds and disabled filters: The disabled ones are
-	// neither checked nor declared at the header
+	// neither checked nor declared at the header. One breakpoint
+	// is enough (chr10), none is not (chr11); the TSD of 10 bases
+	// (chr12) is longer than the maximum of 5
 	VCFOption opt2 = {
 		.fasta_file       = fasta_file,
 		.min_qual         = 400,
 		.min_mapq         = 30,
+		.min_sr           = 2,
+		.min_breakpoints  = 1,
+		.max_tsd          = 5,
 		.disabled_filters = VCF_FILTER_AMBIGUOUS_PARENTAL
-			| VCF_FILTER_POLARITY_CONFLICT
+			| VCF_FILTER_LOW_SR
 	};
 
 	vcf (db, vcf_file, &opt2);
 
 	const char *filters2[] = {
 		"\tLowMAPQ\tSVTYPE=INS;",
-		"\tLowMAPQ\tSVTYPE=INS;",
-		"\tLowMAPQ;NoPolyA\tSVTYPE=INS;",
-		"\tLowQual;LowMAPQ\tSVTYPE=INS;",
-		"\tLowQual;LowMAPQ\tSVTYPE=INS;",
-		"\tLowQual;LowMAPQ\tSVTYPE=INS;",
-		"\tLowQual;LowMAPQ\tSVTYPE=INS;",
-		"\tLowQual;LowMAPQ;NoTSD;NoJunction\tSVTYPE=INS;"
+		"\tLowMAPQ;NoTSD\tSVTYPE=INS;",
+		"\tLowMAPQ;TSDOutlier\tSVTYPE=INS;",
+		"\tLowQual;LowMAPQ;NoTSD\tSVTYPE=INS;",
+		"\tLowQual;LowMAPQ;NoTSD\tSVTYPE=INS;",
+		"\tLowQual;LowMAPQ;NoTSD\tSVTYPE=INS;",
+		"\tLowQual;LowMAPQ;NoTSD\tSVTYPE=INS;",
+		"\tLowQual;LowMAPQ;NoTSD\tSVTYPE=INS;"
 	};
 
 	fp = xfopen (vcf_file, "r");
@@ -422,7 +430,7 @@ START_TEST (test_vcf)
 			if (line[0] == '#')
 				{
 					ck_assert_msg (strstr (line, "ID=AmbiguousParental") == NULL
-							&& strstr (line, "ID=PolarityConflict") == NULL,
+							&& strstr (line, "ID=LowSR") == NULL,
 							"Disabled filter declared: %s", line);
 					continue;
 				}
@@ -440,8 +448,8 @@ START_TEST (test_vcf)
 
 	// Filter names
 	ck_assert_int_eq (vcf_filter_lookup ("NoTSD"), VCF_FILTER_NO_TSD);
-	ck_assert_int_eq (vcf_filter_lookup ("PolarityConflict"),
-			VCF_FILTER_POLARITY_CONFLICT);
+	ck_assert_int_eq (vcf_filter_lookup ("LowSR"), VCF_FILTER_LOW_SR);
+	ck_assert_int_eq (vcf_filter_lookup ("PolarityConflict"), 0);
 	ck_assert_int_eq (vcf_filter_lookup ("Ponga"), 0);
 
 	xfree (line);

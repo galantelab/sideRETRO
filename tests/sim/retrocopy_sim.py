@@ -371,7 +371,7 @@ class Sim:
             ('INSSEQ', insseq),
             ('RNAMES', ','.join(sorted(set(r.split('\t')[0] for r in self.recs)))),
             ('ROLES', self.roles(left, right, run, all_clips, polya)),
-            ('FILTER', self.filters(both, polya)),
+            ('FILTER', self.filters(left, right, len(clips))),
             ('HALLMARKS', ','.join(h for h, ok in (
                 ('TSD', both and a.tsd_len > 0),
                 ('POLYA', polya),
@@ -381,24 +381,25 @@ class Sim:
             ('INS', self.ins),
         ]
 
-    def filters(self, both, polya):
+    def filters(self, left, right, n_right):
         """
-        Expected FILTER: The simulated retrocopy has a single,
-        multi-exon parental gene, reads with MAPQ 60, the poly-A
-        at '+' and a 5' end at the first exon. A check that cannot
-        be evaluated (no breakpoints) does not fail
+        Expected FILTER with the make-vcf defaults: The simulated
+        retrocopy has a single parental gene and reads with MAPQ
+        60. It passes with at least 3 split reads (whatever their
+        side), both breakpoints and a TSD of 1 to 25 bases. The
+        poly-A and the exon-exon junctions do not filter
         """
         a = self.args
+        both = left and right
+        sr = (a.n_split_left if left else 0) + (n_right if right else 0)
         f = []
 
-        if both and a.tsd_len <= 0:
+        if sr < 3:
+            f.append('LowSR')
+        if not both or a.tsd_len <= 0:
             f.append('NoTSD')
-        if both and (a.tsd_len > 50 or a.tsd_len < -20):
+        if both and (a.tsd_len > 25 or a.tsd_len < -20):
             f.append('TSDOutlier')
-        if both and not polya:
-            f.append('NoPolyA')
-        if a.n_junction_reads == 0:
-            f.append('NoJunction')
 
         return ';'.join(f) if f else 'PASS'
 

@@ -58,6 +58,9 @@ struct _MakeVcf
 	float        orientation_error;
 	double       min_qual;
 	int          min_mapq;
+	int          min_sr;
+	int          min_breakpoints;
+	int          max_tsd;
 	int          disabled_filters;
 	String      *disabled_ids;
 
@@ -105,6 +108,9 @@ run (MakeVcf *v)
 		.orientation_error = v->orientation_error,
 		.min_qual          = v->min_qual,
 		.min_mapq          = v->min_mapq,
+		.min_sr            = v->min_sr,
+		.min_breakpoints   = v->min_breakpoints,
+		.max_tsd           = v->max_tsd,
 		.disabled_filters  = v->disabled_filters,
 		.fasta_file        = v->fasta_file,
 		.rnames_file       = rnames_file,
@@ -188,19 +194,27 @@ print_usage (FILE *fp)
 		"                              column, the contigs and the TSD sequence\n"
 		"\n"
 		"Filter Options:\n"
-		"   The FILTER column lists the checks of a canonical retrocopy that\n"
-		"   failed, or PASS. A check that cannot be evaluated does not fail\n"
+		"   The FILTER column lists the checks that failed, or PASS: A\n"
+		"   retrocopy with its insertion point well defined\n"
 		"   -L, --min-qual             LowQual: Minimum QUAL [default:\"%g\"]\n"
 		"   -Q, --min-mapq             LowMAPQ: Minimum mean mapping quality of the\n"
 		"                              supporting reads [default:\"%d\"]\n"
+		"   -S, --min-sr               LowSR: Minimum number of split reads at the\n"
+		"                              breakpoints, whatever their side\n"
+		"                              [default:\"%d\"]\n"
+		"   -B, --min-breakpoints      NoTSD: Minimum number of breakpoints, 1 or 2.\n"
+		"                              The target site duplication needs both\n"
+		"                              [default:\"%d\"]\n"
+		"   -T, --max-tsd              TSDOutlier: Maximum length of the target site\n"
+		"                              duplication [default:\"%d\"]\n"
 		"   -x, --no-filter            Disable a filter. It may be passed multiple\n"
 		"                              times: LowQual, LowMAPQ, AmbiguousParental,\n"
-		"                              NoTSD, TSDOutlier, NoPolyA, NoJunction and\n"
-		"                              PolarityConflict\n"
+		"                              LowSR, NoTSD and TSDOutlier\n"
 		"\n",
 		PACKAGE_STRING, PACKAGE, pkg_len, ' ', pkg_len, ' ',
 		DEFAULT_OUTPUT_DIR, DEFAULT_PREFIX, DEFAULT_NEAR_GENE_DIST,
-		DEFAULT_ORIENTATION_ERROR, VCF_DEFAULT_MIN_QUAL, VCF_DEFAULT_MIN_MAPQ);
+		DEFAULT_ORIENTATION_ERROR, VCF_DEFAULT_MIN_QUAL, VCF_DEFAULT_MIN_MAPQ,
+		VCF_DEFAULT_MIN_SR, VCF_DEFAULT_MIN_BKP, VCF_DEFAULT_MAX_TSD);
 }
 
 static void
@@ -225,6 +239,9 @@ make_vcf_init (MakeVcf *vcf)
 		.orientation_error  = DEFAULT_ORIENTATION_ERROR,
 		.min_qual           = VCF_DEFAULT_MIN_QUAL,
 		.min_mapq           = VCF_DEFAULT_MIN_MAPQ,
+		.min_sr             = VCF_DEFAULT_MIN_SR,
+		.min_breakpoints    = VCF_DEFAULT_MIN_BKP,
+		.max_tsd            = VCF_DEFAULT_MAX_TSD,
 		.disabled_filters   = 0,
 		.disabled_ids       = string_new (""),
 		.fasta_file         = NULL
@@ -298,6 +315,24 @@ make_vcf_validate (MakeVcf *vcf)
 			rc = EXIT_FAILURE; goto Exit;
 		}
 
+	if (vcf->min_sr < 0)
+		{
+			fprintf (stderr, "%s: --min-sr must be greater or equal to 0\n", PACKAGE);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
+	if (vcf->min_breakpoints < 1 || vcf->min_breakpoints > 2)
+		{
+			fprintf (stderr, "%s: --min-breakpoints must be 1 or 2\n", PACKAGE);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
+	if (vcf->max_tsd < 1)
+		{
+			fprintf (stderr, "%s: --max-tsd must be greater or equal to 1\n", PACKAGE);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
 	/*
 	* Final settings
 	*/
@@ -365,9 +400,13 @@ make_vcf_print (MakeVcf *vcf)
 		"  --near-gene-dist=%li \\\n"
 		"  --orientation-error=%.2f \\\n"
 		"  --min-qual=%g \\\n"
-		"  --min-mapq=%d\n",
+		"  --min-mapq=%d \\\n"
+		"  --min-sr=%d \\\n"
+		"  --min-breakpoints=%d \\\n"
+		"  --max-tsd=%d\n",
 		vcf->near_gene_dist, vcf->orientation_error,
-		vcf->min_qual, vcf->min_mapq);
+		vcf->min_qual, vcf->min_mapq, vcf->min_sr,
+		vcf->min_breakpoints, vcf->max_tsd);
 
 	log_info ("%s", msg->str);
 	string_free (msg, 1);
@@ -400,6 +439,9 @@ parse_make_vcf_command_opt (int argc, char **argv)
 		{"reference-file",    required_argument, 0, 'r'},
 		{"min-qual",          required_argument, 0, 'L'},
 		{"min-mapq",          required_argument, 0, 'Q'},
+		{"min-sr",            required_argument, 0, 'S'},
+		{"min-breakpoints",   required_argument, 0, 'B'},
+		{"max-tsd",           required_argument, 0, 'T'},
 		{"no-filter",         required_argument, 0, 'x'},
 		{0,                   0,                 0,  0 }
 	};
@@ -412,7 +454,7 @@ parse_make_vcf_command_opt (int argc, char **argv)
 	int option_index = 0;
 	int c = 0;
 
-	while ((c = getopt_long (argc, argv, "hqdl:o:p:n:e:r:L:Q:x:", opt, &option_index)) >= 0)
+	while ((c = getopt_long (argc, argv, "hqdl:o:p:n:e:r:L:Q:S:B:T:x:", opt, &option_index)) >= 0)
 		{
 			switch (c)
 				{
@@ -472,6 +514,21 @@ parse_make_vcf_command_opt (int argc, char **argv)
 						vcf.min_mapq = atoi (optarg);
 						break;
 					}
+				case 'S':
+					{
+						vcf.min_sr = atoi (optarg);
+						break;
+					}
+				case 'B':
+					{
+						vcf.min_breakpoints = atoi (optarg);
+						break;
+					}
+				case 'T':
+					{
+						vcf.max_tsd = atoi (optarg);
+						break;
+					}
 				case 'x':
 					{
 						int flag = vcf_filter_lookup (optarg);
@@ -479,8 +536,8 @@ parse_make_vcf_command_opt (int argc, char **argv)
 						if (!flag)
 							{
 								fprintf (stderr, "%s: --no-filter '%s': Unknown filter. "
-										"Choose from: LowQual, LowMAPQ, AmbiguousParental, NoTSD, "
-										"TSDOutlier, NoPolyA, NoJunction, PolarityConflict\n",
+										"Choose from: LowQual, LowMAPQ, AmbiguousParental, LowSR, "
+										"NoTSD, TSDOutlier\n",
 										PACKAGE, optarg);
 								print_try_help (stderr);
 								rc = EXIT_FAILURE; goto Exit;

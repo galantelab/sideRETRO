@@ -68,8 +68,9 @@ When detecting retrocopies, **sideRETRO** can annotate several other features re
 
 * **Quality and filters**
 
-   A quality score for each event and filters that check the hallmarks of a canonical retrocopy - TSD,
-   poly-A and exon-exon junctions - so the high confidence events are just the ones that `PASS`.
+   A quality score for each event and filters that check whether the insertion point is well defined -
+   split reads, both breakpoints and the target site duplication - so the events that `PASS` are good
+   targets for validation.
 
 * **Strandness**
 
