@@ -284,6 +284,9 @@ START_TEST (test_retrocopy)
 	// Populate database
 	populate_db (db);
 
+	// A genotype left by a previous run
+	db_exec (db, "INSERT INTO genotype VALUES (1,1,5,5,-1.0,-0.5,-2.0)");
+
 	retrocopy (retrocopy_stmt,
 			cluster_merging_stmt,
 			junction_stmt,
@@ -291,6 +294,12 @@ START_TEST (test_retrocopy)
 			evidence_stmt,
 			fasta_file,
 			near_dist);
+
+	// The genotypes of the previous retrocopies are gone
+	sqlite3_stmt *genotype_stmt = db_prepare (db, "SELECT COUNT(*) FROM genotype");
+	ck_assert_int_eq (db_step (genotype_stmt), SQLITE_ROW);
+	ck_assert_int_eq (db_column_int (genotype_stmt, 0), 0);
+	db_finalize (genotype_stmt);
 
 	/* TIME TO TEST */
 	sqlite3_stmt *search_stmt = NULL;

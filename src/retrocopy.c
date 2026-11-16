@@ -120,9 +120,14 @@ cluster_entry_free (ClusterEntry *c)
 static void
 clean_retrocopy_tables (sqlite3 *db)
 {
-	// Delete all values from
-	// previous runs
+	/*
+	* Delete all values from previous runs. The genotypes
+	* too: They belong to the retrocopies deleted here. If
+	* the genotype step fails afterwards, the old ones must
+	* not be left for the new retrocopies
+	*/
 	const char sql[] =
+		"DELETE FROM genotype;\n"
 		"DELETE FROM cluster_merging;\n"
 		"DELETE FROM junction;\n"
 		"DELETE FROM insertion;\n"

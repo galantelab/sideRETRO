@@ -1180,7 +1180,12 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 					h = list_data (cur);
 
 					g = hash_lookup (gi, &h->id);
-					assert (g != NULL);
+
+					// The genotypes are the last step of merge-call
+					if (g == NULL)
+						log_fatal ("Retrocopy " VCF_ID_FMT " has no genotype for "
+								"the sample '%s': 'merge-call' did not finish at "
+								"this database. Run it again", b.id, h->name);
 
 					// Print diploid chromosomes
 					xfprintf (fp,

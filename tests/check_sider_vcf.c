@@ -578,11 +578,38 @@ START_TEST (test_vcf_edge)
 }
 END_TEST
 
+START_TEST (test_vcf_no_genotype_fail)
+{
+	char db_file[] = "/tmp/ponga.db.XXXXXX";
+	char vcf_file[] = "/tmp/ponga.vcf.XXXXXX";
+	sqlite3 *db = NULL;
+
+	db = create_db (db_file);
+	create_vcf (vcf_file);
+	populate_db (db);
+
+	// As a merge-call that stopped before the genotypes
+	db_exec (db, "DELETE FROM genotype");
+
+	VCFOption opt = {
+		.min_qual = VCF_DEFAULT_MIN_QUAL,
+		.min_mapq = VCF_DEFAULT_MIN_MAPQ,
+		.min_sr = VCF_DEFAULT_MIN_SR,
+		.min_breakpoints = VCF_DEFAULT_MIN_BKP,
+		.min_tsd = VCF_DEFAULT_MIN_TSD,
+		.max_tsd = VCF_DEFAULT_MAX_TSD
+	};
+
+	vcf (db, vcf_file, &opt);
+}
+END_TEST
+
 Suite *
 make_vcf_suite (void)
 {
 	Suite *s;
 	TCase *tc_core;
+	TCase *tc_abort;
 
 	s = suite_create ("VCF");
 
@@ -592,6 +619,12 @@ make_vcf_suite (void)
 	tcase_add_test (tc_core, test_vcf);
 	tcase_add_test (tc_core, test_vcf_edge);
 	suite_add_tcase (s, tc_core);
+
+	/* Abort test case */
+	tc_abort = tcase_create ("Abort");
+
+	tcase_add_exit_test (tc_abort, test_vcf_no_genotype_fail, EXIT_FAILURE);
+	suite_add_tcase (s, tc_abort);
 
 	return s;
 }
