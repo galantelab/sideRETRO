@@ -59,7 +59,7 @@ SCENARIOS = [
     # Filters: A TSD longer than the maximum (TSDOutlier), and many
     # split reads at just one side (not LowSR, but NoTSD)
     ('long_tsd',         ['--seed', '8', '--tsd-len', '30']),
-    ('left_many',        ['--seed', '7', '--n-split-left', '3', '--n-split-right', '0']),
+    ('left_many',        ['--seed', '7', '--n-split-left', '6', '--n-split-right', '0']),
 ]
 
 

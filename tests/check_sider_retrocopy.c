@@ -185,7 +185,7 @@ populate_db (sqlite3 *db)
 		"INSERT INTO exon VALUES (16,'gene10','chr22',1000,1200,'+','eg16','ee16');\n"
 		"INSERT INTO exon VALUES (17,'gene10','chr22',2000,2200,'+','eg16','ee17');\n"
 		"INSERT INTO alignment VALUES (1,'q1',0x800,'chr10',1,20,'100M10S',100,100,'chr10',1,1,1,'*','*');\n"
-		"INSERT INTO alignment VALUES (12,'q1',0x800,'chr10',1,20,'100M10S',100,100,'chr10',1,8,1,'*','*');\n"
+		"INSERT INTO alignment VALUES (12,'q1',0x880,'chr10',1,20,'100M10S',100,100,'chr10',1,8,1,'*','*');\n"
 		"INSERT INTO alignment VALUES (2,'q4',97,'chr11',1,20,'110M',100,50,'chr11',1,8,1,'*','*');\n"
 		"INSERT INTO alignment VALUES (3,'q5',97,'chr11',200,20,'110M',100,50,'chr11',1,8,1,'*','*');\n"
 		"INSERT INTO alignment VALUES (4,'q2',0x800,'chr12',250,20,'10H100M',100,100,'chr12',1,8,1,'*','*');\n"

@@ -445,38 +445,30 @@ prepare_orientation_stmt (sqlite3 *db)
 
 	sqlite3_stmt *stmt = NULL;
 
-	// Get all alignment position for read and its
-	// mate - side by side
+	/*
+	* The position of each read at the insertion site and
+	* the position of its mate at the parental gene, side
+	* by side. Only the mate: The other piece of a split
+	* read (primary and supplementary alignments of the same
+	* read, 0x40|0x80) lies at the end of the retrocopy next
+	* to the junction, whatever the distance from the read
+	* to it - a point against the correlation
+	*/
 	const char sql[] =
-		"WITH\n"
-		"	alignment_flag (id, sid, aid, srcid, pos) AS (\n"
-		"		SELECT c.cluster_id, c.cluster_sid, a.qname, a.source_id, a.pos\n"
-		"		FROM clustering AS c\n"
-		"		INNER JOIN alignment AS a\n"
-		"			ON c.alignment_id = a.id\n"
-		"	),\n"
-		"	alignment_overlaps_exon (id, qname, source_id, pos) AS (\n"
-		"		SELECT id, qname, source_id, pos\n"
-		"		FROM alignment\n"
-		"		WHERE type & $EXONIC\n"
-		"	),\n"
-		"	gene_flag (id, sid, aid, srcid, pos) AS (\n"
-		"		SELECT c.cluster_id, c.cluster_sid, a.qname, a.source_id, aoe.pos\n"
-		"		FROM clustering AS c\n"
-		"		INNER JOIN alignment AS a\n"
-		"			ON c.alignment_id = a.id\n"
-		"		INNER JOIN alignment_overlaps_exon AS aoe\n"
-		"			USING (qname, source_id)\n"
-		"		WHERE a.id != aoe.id\n"
-		"	)\n"
-		"SELECT DISTINCT retrocopy_id, a.pos, g.pos\n"
-		"FROM cluster_merging AS c\n"
-		"INNER JOIN alignment_flag AS a\n"
-		"	ON c.cluster_id = a.id\n"
-		"		AND c.cluster_sid = a.sid\n"
-		"INNER JOIN gene_flag AS g\n"
-		"	USING (id, sid, aid, srcid)\n"
-		"ORDER BY retrocopy_id ASC, a.pos ASC, g.pos ASC";
+		"SELECT DISTINCT cm.retrocopy_id, a.pos, m.pos\n"
+		"FROM cluster_merging AS cm\n"
+		"INNER JOIN clustering AS c\n"
+		"	ON c.cluster_id = cm.cluster_id\n"
+		"		AND c.cluster_sid = cm.cluster_sid\n"
+		"INNER JOIN alignment AS a\n"
+		"	ON a.id = c.alignment_id\n"
+		"INNER JOIN alignment AS m\n"
+		"	ON m.qname = a.qname\n"
+		"		AND m.source_id = a.source_id\n"
+		"WHERE m.id != a.id\n"
+		"	AND m.type & $EXONIC\n"
+		"	AND (m.flag & 0xC0) != (a.flag & 0xC0)\n"
+		"ORDER BY cm.retrocopy_id ASC, a.pos ASC, m.pos ASC";
 
 	log_debug ("Query schema:\n%s", sql);
 	stmt = db_prepare (db, sql);

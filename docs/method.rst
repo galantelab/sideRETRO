@@ -284,6 +284,11 @@ result. If we observe that they are **directly** proportional, then we can
 assume that the retrocopy is at the **same** parental gene strand, else they
 are at **opposite** strands.
 
+Only the **mate** of each *read* is used. A split *read* also has a piece
+aligned to the parental gene, but it lies at the end of the retrocopy,
+next to the junction, whatever the distance from the *read* to it: It
+would count against the correlation.
+
 .. warning::
    This approach disregards the fact that there may have been structural variations,
    such as chromosomal inversions, which may invalidate these results.
