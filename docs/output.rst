@@ -4,8 +4,8 @@
 Output
 ******
 
-The last step, ``make-vcf``, writes **three files** sharing the same
-prefix (option ``-p``, *out* by default):
+The last step, ``make-vcf``, writes up to **four files** sharing the
+same prefix (option ``-p``, *out* by default):
 
 ``<prefix>.vcf``
   One line per retrocopy insertion, in the `VCF
@@ -21,7 +21,12 @@ prefix (option ``-p``, *out* by default):
 ``<prefix>.insertions.fa``
   The **predicted sequence** of each retrocopy, in FASTA format.
 
-The three files are tied together by the **retrocopy ID**
+``<prefix>.primer.fa``
+  The **sequences for primer design**: Around the insertion point and
+  the exon-exon junctions of each retrocopy, in FASTA format. It is
+  written only with the reference genome (``make-vcf -r``).
+
+The files are tied together by the **retrocopy ID**
 (``RTC000001``, ``RTC000002`` ...), which is the ``ID`` column of
 the VCF, the first column of the read names file and the header of
 each FASTA record. The IDs are assigned by ``merge-call``, so they
@@ -480,3 +485,88 @@ copied the annotated exons faithfully, and it says nothing about
 variants carried from the parental allele, mutations acquired since
 the insertion or unannotated isoforms. Use it as a template, not as
 an assembly.
+
+.. _primer_file:
+
+The primer file
+===============
+
+A retrocopy is usually validated by **PCR**, with two kinds of
+amplicon: One across the **insertion site**, which proves the
+insertion and tells the alleles apart, and another across an
+**exon-exon junction**, which proves that the copy came from a
+processed transcript - the parental gene has an intron there. The
+primer file gives the template sequences for both, ready for a
+primer design tool. It needs the reference genome (``make-vcf -r``),
+and the observed sequences at the junctions need ``merge-call -r``
+too.
+
+There are up to four kinds of record for each retrocopy with **at
+least one breakpoint**, named after the retrocopy ID::
+
+   >RTC000001_empty chr1:9800-10211 PG=PARENT FILTER=PASS junction=200
+   GATCGTTATGTTACGGACGGACGGCGGCGCATAACGCTCCTTCTGACGCTCTGTACCGAG
+   ...
+   >RTC000001_left chr1:9812-10011 PG=PARENT FILTER=PASS junction=200
+   ...
+   >RTC000001_right chr1:10000-10199 PG=PARENT FILTER=PASS junction=46
+   ...
+   >RTC000001_eej1 chr2:1201-1400,2001-2200 PG=PARENT FILTER=PASS junction=200 strand=+ reads=6
+   ...
+
++------------+--------------------------------------------------------------+
+| Record     | Sequence                                                     |
++============+==============================================================+
+| ``_empty`` | The allele **without** the insertion, from the reference:    |
+|            | The left flank, the target site duplication and the right    |
+|            | flank. Without TSD, the bases between the breakpoints (if    |
+|            | any) take its place. It is not written when the breakpoints  |
+|            | are inconsistent                                             |
++------------+--------------------------------------------------------------+
+| ``_left``  | The left flank, up to ``LBKP``, followed by the observed     |
+|            | start of the insertion (``LEFT_SVINSSEQ``)                   |
++------------+--------------------------------------------------------------+
+| ``_right`` | The observed end of the insertion (``RIGHT_SVINSSEQ``)       |
+|            | followed by the right flank, from ``RBKP``                   |
++------------+--------------------------------------------------------------+
+| ``_eejN``  | An exon-exon junction spanned by the reads: The end of one   |
+|            | exon followed by the start of the next one, from the         |
+|            | reference                                                    |
++------------+--------------------------------------------------------------+
+
+The header carries the reference range of the record (two ranges for
+an exon-exon junction), the parental gene, the ``FILTER`` of the
+retrocopy and:
+
+``junction``
+  The number of bases **before** the junction: Where the flank meets
+  the insertion, where the target site duplication begins or where
+  the two exons meet. A primer design tool can take it as the target
+  to be amplified.
+
+``strand`` and ``reads``
+  Only for the exon-exon junctions: The strand of the parental gene
+  and the number of reads spanning the junction.
+
+Some notes:
+
+- Each flank has 200 bases by default (option ``-f``,
+  ``--primer-flank``). The flank of an exon-exon junction never goes
+  beyond its exon, so it may be shorter.
+- The ``_empty``, ``_left`` and ``_right`` records are at the
+  **forward strand of the reference**. The exon-exon junctions are at
+  the **strand of the parental gene** (mRNA sense).
+- The sequences are in upper case: The junction is given at the
+  header, not by the case of the bases, which some tools read as
+  masked sequence.
+- ``EEJLIST`` names the same junction many times when exons of
+  different transcripts share the same boundaries. Here, each
+  **distinct** junction - the end of the first exon and the start of
+  the second one - is written once.
+- A retrocopy with one breakpoint has only the records of that side,
+  and many retrocopies have no exon-exon junction observed.
+- The observed sequences may have ``N`` where the reads disagree, and
+  the exon-exon junctions come from the annotation: They are as good
+  as the exons annotated.
+- All the retrocopies are written, not only the ``PASS`` ones: Filter
+  them by the ``FILTER`` at the header.

@@ -451,8 +451,9 @@ The third and last step to the **sideRETRO**'s *"crusade to retrocopies"* is the
 ``make-vcf`` command or ``vcf`` for short. This command takes the already
 clustered tables in the database files populated at the ``merge-call`` step and
 writes the results: A **VCF** file with all retrocopy insertions annotated, a
-**TSV** file with the reads supporting each one, and a **FASTA** file with the
-predicted sequences. All of them are described at :ref:`Output <chap_output>`.
+**TSV** file with the reads supporting each one, a **FASTA** file with the
+predicted sequences and, with the reference genome, another **FASTA** file with
+the sequences for primer design. All of them are described at :ref:`Output <chap_output>`.
 
 This command has no mandatory options, but it is worth try to discover the
 others::
@@ -481,7 +482,11 @@ others::
      -e, --orientation-error    Maximum p-value of the Spearman's rho to report
                                 the orientation (ORHO) [default:"0.05"]
      -r, --reference-file       FASTA file of the reference genome, for the REF
-                                column, the contigs and the TSD sequence
+                                column, the contigs, the TSD sequence and
+                                the primer file
+     -f, --primer-flank         Number of bases of the reference at each side
+                                of a junction at the primer file
+                                [default:"200"]
 
   Filter Options:
      The FILTER column lists the checks that failed, or PASS: A
@@ -510,7 +515,7 @@ So, in order to produce the results from a database input file like
   $ sider make-vcf my_database.db
 
 This will produce the *out.vcf*, *out.rnames.tsv* and *out.insertions.fa*
-files.
+files - and *out.primer.fa*, when the reference genome is passed (``-r``).
 
 Let's add more options to customize it to our needs (with the short version of
 the command only for symmetry)::
@@ -772,8 +777,8 @@ Tip 2: If you are running line by line in your terminal don't paste the "$" char
 
   # Third sideRETRO step: make-vcf
   # Input file: 1000_genomes.db
-  # Output files: 1000_genomes.vcf, 1000_genomes.rnames.tsv
-  #               and 1000_genomes.insertions.fa
+  # Output files: 1000_genomes.vcf, 1000_genomes.rnames.tsv,
+  #               1000_genomes.insertions.fa and 1000_genomes.primer.fa
   # Average time: 62m34.541
   $ sider make-vcf 1000_genomes.db \
       -p 1000_genomes \

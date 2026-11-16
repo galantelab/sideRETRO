@@ -1384,32 +1384,6 @@ struct _InsertionEnd
 
 typedef struct _InsertionEnd InsertionEnd;
 
-static void
-revcomp (char *seq, const int len)
-{
-	char c = 0;
-	int i = 0;
-	int j = 0;
-
-	for (i = 0, j = len - 1; i <= j; i++, j--)
-		{
-			c = seq[i];
-			seq[i] = seq[j];
-			seq[j] = c;
-		}
-
-	for (i = 0; i < len; i++)
-		{
-			switch (seq[i])
-				{
-				case 'A': {seq[i] = 'T'; break;}
-				case 'C': {seq[i] = 'G'; break;}
-				case 'G': {seq[i] = 'C'; break;}
-				case 'T': {seq[i] = 'A'; break;}
-				}
-		}
-}
-
 static sqlite3_stmt *
 prepare_gene_query_stmt (sqlite3 *db)
 {

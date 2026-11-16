@@ -285,6 +285,8 @@ def cases(t, sim):
           expect=['--min-tsd must be'])
     t.run('vcf: max-tsd', vcf + ['-t', '8', '-T', '7'] + mdb, rc=FAIL,
           expect=['--max-tsd must be greater or equal to --min-tsd'])
+    t.run('vcf: primer-flank', vcf + ['-f', '0'] + mdb, rc=FAIL,
+          expect=['--primer-flank must be'])
     t.run('vcf: unknown filter', vcf + ['-x', 'Ponga'] + mdb, rc=FAIL,
           expect=["--no-filter 'Ponga': Unknown filter"])
 
@@ -292,16 +294,16 @@ def cases(t, sim):
           vcf + ['-o', P('vcf'), '-p', 'sim', '-l', P('vcf.log'), '-d',
                  '-r', P('ref.fa'), '-n', '5000', '-e', '0.1', '-L', '10',
                  '-Q', '10', '-S', '2', '-B', '1', '-t', '4', '-T', '30',
-                 '-x', 'TSDOutlier', '-x', 'LowQual'] + mdb,
+                 '-x', 'TSDOutlier', '-x', 'LowQual', '-f', '50'] + mdb,
           expect=['make-vcf summary', 'PASS', '--no-filter=TSDOutlier',
                   '--min-sr=2', '--min-breakpoints=1', '--min-tsd=4', '--max-tsd=30',
-                  '--reference-file='])
+                  '--primer-flank=50', '--reference-file=', 'sim.primer.fa'])
     t.run('vcf: run without reference, quiet',
           vcf + ['-o', P('vcf2'), '-q', '-l', P('vcf2.log')] + mdb,
           absent=['summary'])
     t.run('vcf: run without reference',
           vcf + ['-o', P('vcf3')] + mdb,
-          expect=["REF is 'N'"])
+          expect=["REF is 'N'", 'the primer file is not written'])
 
     with open(P('normal.sam'), 'w') as fp:
         fp.write('@SQ\tSN:chr1\tLN:20000\n'

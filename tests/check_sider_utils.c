@@ -142,6 +142,18 @@ START_TEST (test_trim)
 }
 END_TEST
 
+START_TEST (test_revcomp)
+{
+	char seq[] = "AACGTN";
+	char odd[] = "ACG";
+	char empty[] = "";
+
+	ck_assert_str_eq (revcomp (seq, 6), "NACGTT");
+	ck_assert_str_eq (revcomp (odd, 3), "CGT");
+	ck_assert_str_eq (revcomp (empty, 0), "");
+}
+END_TEST
+
 START_TEST (test_upper)
 {
 	char str[] = "ponga";
@@ -411,6 +423,7 @@ make_utils_suite (void)
 	tcase_add_test (tc_core, test_trimc);
 	tcase_add_test (tc_core, test_trim);
 	tcase_add_test (tc_core, test_upper);
+	tcase_add_test (tc_core, test_revcomp);
 	tcase_add_test (tc_core, test_lower);
 	tcase_add_test (tc_core, test_path_dir);
 	tcase_add_test (tc_core, test_path_file);

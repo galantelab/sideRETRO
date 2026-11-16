@@ -143,6 +143,7 @@ the list of supporting reads and the predicted sequences.
    $ ls -1 out.*
    out.db
    out.insertions.fa
+   out.primer.fa
    out.rnames.tsv
    out.vcf
 

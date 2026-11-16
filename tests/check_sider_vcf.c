@@ -647,6 +647,173 @@ START_TEST (test_vcf_parental_chosen)
 }
 END_TEST
 
+START_TEST (test_vcf_primer)
+{
+	char db_file[] = "/tmp/ponga.db.XXXXXX";
+	char vcf_file[] = "/tmp/ponga.vcf.XXXXXX";
+	char fasta_file[] = "/tmp/ponga.fa.XXXXXX";
+	char primer_file[] = "/tmp/ponga.primer.XXXXXX";
+	sqlite3 *db = NULL;
+	FILE *fp = NULL;
+	char buf[BUFSIZ] = {};
+	size_t n = 0;
+	int fd = 0;
+
+	/*
+	* Sequences for primer design, with 10 bases of flank:
+	* RTC000001: Both breakpoints (TSD of 8 bases) and both
+	* observed sequences. Its parental gene is at '-', and two
+	* exons share the same end: Only one exon-exon junction
+	* RTC000002: Only the left breakpoint, at the start of the
+	* contig, and no observed sequence. Exons shorter than the
+	* flank at its junction
+	* RTC000003: Only the right breakpoint, at the end of the
+	* contig: The flank is outside it
+	* RTC000004: No breakpoints - nothing to write
+	* RTC000005: Inconsistent breakpoints - no empty allele
+	* RTC000006: Breakpoints with 2 bases between them
+	* RTC000007: Contig and exons absent from the reference
+	*/
+	const char sql[] =
+		"BEGIN TRANSACTION;\n"
+		"INSERT INTO source VALUES (1,1,'PONGA');\n"
+		"INSERT INTO exon VALUES (1,'geneM','chr2',11,30,'-','egm','eem1');\n"
+		"INSERT INTO exon VALUES (2,'geneM','chr2',21,30,'-','egm','eem2');\n"
+		"INSERT INTO exon VALUES (3,'geneM','chr2',51,70,'-','egm','eem3');\n"
+		"INSERT INTO exon VALUES (4,'geneP','chr2',81,85,'+','egp','eep1');\n"
+		"INSERT INTO exon VALUES (5,'geneP','chr2',91,94,'+','egp','eep2');\n"
+		"INSERT INTO exon VALUES (6,'geneZ','chrZ',11,30,'+','egz','eez1');\n"
+		"INSERT INTO exon VALUES (7,'geneZ','chrZ',51,70,'+','egz','eez2');\n"
+		"INSERT INTO junction VALUES (1,1,3,4);\n"
+		"INSERT INTO junction VALUES (1,2,3,6);\n"
+		"INSERT INTO junction VALUES (2,4,5,2);\n"
+		"INSERT INTO junction VALUES (7,6,7,3);\n"
+		"INSERT INTO insertion VALUES (1,NULL,NULL,0,NULL,NULL,0,NULL,NULL,'ACGTACGT','TTTTGGGG');\n"
+		"INSERT INTO insertion VALUES (3,NULL,NULL,0,NULL,NULL,0,NULL,NULL,NULL,'CC');\n"
+		"INSERT INTO insertion VALUES (5,NULL,NULL,0,NULL,NULL,0,NULL,NULL,'AA',NULL);\n"
+		"INSERT INTO insertion VALUES (7,NULL,NULL,0,NULL,NULL,0,NULL,NULL,'GG','TT');\n"
+		"INSERT INTO alignment VALUES (1,'q1',97,'chr1',54,60,'100M',100,100,'chr2',1,2,1,'*','*');\n"
+		"INSERT INTO cluster VALUES (1,1,'chr1',54,154,'geneM',31);\n"
+		"INSERT INTO clustering VALUES (1,1,1,3,100);\n"
+		"INSERT INTO cluster_merging VALUES (1,1,1);\n"
+		"INSERT INTO retrocopy VALUES (1,'chr1',54,154,'geneM',1,54,2,0,1,60,3,53,3,NULL,0,NULL,0);\n"
+		"INSERT INTO genotype VALUES (1,1,0,5,-30.0,-1.5,-0.1);\n"
+		"INSERT INTO alignment VALUES (2,'q2',97,'chr1',6,60,'100M',100,100,'chr2',1,2,1,'*','*');\n"
+		"INSERT INTO cluster VALUES (2,1,'chr1',6,106,'geneP',31);\n"
+		"INSERT INTO clustering VALUES (2,1,2,3,100);\n"
+		"INSERT INTO cluster_merging VALUES (2,2,1);\n"
+		"INSERT INTO retrocopy VALUES (2,'chr1',6,106,'geneP',1,6,2,0,1,5,2,NULL,0,NULL,0,NULL,0);\n"
+		"INSERT INTO genotype VALUES (1,2,0,5,-30.0,-1.5,-0.1);\n"
+		"INSERT INTO alignment VALUES (3,'q3',97,'chr1',195,60,'100M',100,100,'chr2',1,2,1,'*','*');\n"
+		"INSERT INTO cluster VALUES (3,1,'chr1',195,295,'geneP',31);\n"
+		"INSERT INTO clustering VALUES (3,1,3,3,100);\n"
+		"INSERT INTO cluster_merging VALUES (3,3,1);\n"
+		"INSERT INTO retrocopy VALUES (3,'chr1',195,295,'geneP',1,195,2,0,1,NULL,0,195,2,NULL,0,NULL,0);\n"
+		"INSERT INTO genotype VALUES (1,3,0,5,-30.0,-1.5,-0.1);\n"
+		"INSERT INTO alignment VALUES (4,'q4',97,'chr1',120,60,'100M',100,100,'chr2',1,2,1,'*','*');\n"
+		"INSERT INTO cluster VALUES (4,1,'chr1',120,220,'geneP',31);\n"
+		"INSERT INTO clustering VALUES (4,1,4,3,100);\n"
+		"INSERT INTO cluster_merging VALUES (4,4,1);\n"
+		"INSERT INTO retrocopy VALUES (4,'chr1',120,220,'geneP',1,120,2,0,1,NULL,0,NULL,0,NULL,0,NULL,0);\n"
+		"INSERT INTO genotype VALUES (1,4,0,5,-30.0,-1.5,-0.1);\n"
+		"INSERT INTO alignment VALUES (5,'q5',97,'chr1',140,60,'100M',100,100,'chr2',1,2,1,'*','*');\n"
+		"INSERT INTO cluster VALUES (5,1,'chr1',140,240,'geneP',31);\n"
+		"INSERT INTO clustering VALUES (5,1,5,3,100);\n"
+		"INSERT INTO cluster_merging VALUES (5,5,1);\n"
+		"INSERT INTO retrocopy VALUES (5,'chr1',140,240,'geneP',1,140,2,0,1,150,3,20,3,NULL,0,NULL,0);\n"
+		"INSERT INTO genotype VALUES (1,5,0,5,-30.0,-1.5,-0.1);\n"
+		"INSERT INTO alignment VALUES (6,'q6',97,'chr1',103,60,'100M',100,100,'chr2',1,2,1,'*','*');\n"
+		"INSERT INTO cluster VALUES (6,1,'chr1',103,203,'geneP',31);\n"
+		"INSERT INTO clustering VALUES (6,1,6,3,100);\n"
+		"INSERT INTO cluster_merging VALUES (6,6,1);\n"
+		"INSERT INTO retrocopy VALUES (6,'chr1',103,203,'geneP',1,103,2,0,1,100,3,103,3,NULL,0,NULL,0);\n"
+		"INSERT INTO genotype VALUES (1,6,0,5,-30.0,-1.5,-0.1);\n"
+		"INSERT INTO alignment VALUES (7,'q7',97,'chrZ',46,60,'100M',100,100,'chr2',1,2,1,'*','*');\n"
+		"INSERT INTO cluster VALUES (7,1,'chrZ',46,146,'geneZ',31);\n"
+		"INSERT INTO clustering VALUES (7,1,7,3,100);\n"
+		"INSERT INTO cluster_merging VALUES (7,7,1);\n"
+		"INSERT INTO retrocopy VALUES (7,'chrZ',46,146,'geneZ',1,46,2,0,1,50,3,45,3,NULL,0,NULL,0);\n"
+		"INSERT INTO genotype VALUES (1,7,0,5,-30.0,-1.5,-0.1);\n"
+		"COMMIT;";
+
+	const char expected[] =
+		">RTC000002_empty chr1:1-15 PG=geneP FILTER=LowSR;NoTSD junction=5\n"
+		"TTTCCTCATGCAATT\n"
+		">RTC000002_eej1 chr2:81-85,91-94 PG=geneP FILTER=LowSR;NoTSD junction=5 strand=+ reads=2\n"
+		"CCTGCGGCT\n"
+		">RTC000001_empty chr1:43-70 PG=geneM FILTER=PASS junction=10\n"
+		"ATAGTAAACCATTTTACGGAGGATACCA\n"
+		">RTC000001_left chr1:51-60 PG=geneM FILTER=PASS junction=10\n"
+		"CCATTTTACGACGTACGT\n"
+		">RTC000001_right chr1:53-62 PG=geneM FILTER=PASS junction=8\n"
+		"TTTTGGGGATTTTACGGA\n"
+		">RTC000001_eej1 chr2:21-30,51-60 PG=geneM FILTER=PASS junction=10 strand=- reads=6\n"
+		"TTCACAAAGCACGAACGGGC\n"
+		">RTC000006_empty chr1:91-112 PG=geneP FILTER=NoTSD junction=10\n"
+		"CTAACCTGAGGTAAACCAGGTC\n"
+		">RTC000005_left chr1:141-150 PG=geneP FILTER=TSDOutlier junction=10\n"
+		"CCTAGCCAAGAA\n";
+
+	fd = xmkstemp (db_file);
+	close (fd);
+	db = db_create (db_file);
+	db_exec (db, sql);
+
+	fd = xmkstemp (fasta_file);
+	fp = xfdopen (fd, "w");
+	xfprintf (fp, "%s",
+		">chr1\n"
+		"TTTCCTCATGCAATTCAAAACCATGTCCGTAATGTAGGCGAAATAGTAAACCATTTTACG\n"
+		"GAGGATACCAAATTCCTCCTTATTCAGGACCTAACCTGAGGTAAACCAGGTCTCTCCGCC\n"
+		"CCCTTATAAAAGCTGTTGCACCTAGCCAAGTTCAACGGCAGCTGCAATGGAAATAGGCAA\n"
+		"TGACGGATATATATTAAAAA\n"
+		">chr2\n"
+		"GTGTTTTAAGATACATTGAGGCCCGTTCGTGCTCCTCGCCCTGAAGCATTGCTTTGTGAA\n"
+		"GAGGGACTTCAGCCAATAGACCTGCATACCGGCTCATTCTTCATGTGCAACCTAGGGAGA\n");
+	xfclose (fp);
+
+	create_vcf (vcf_file);
+	create_vcf (primer_file);
+
+	VCFOption opt = {
+		.fasta_file = fasta_file,
+		.orientation_error = 0.05,
+		.min_qual = VCF_DEFAULT_MIN_QUAL,
+		.min_mapq = VCF_DEFAULT_MIN_MAPQ,
+		.min_sr = VCF_DEFAULT_MIN_SR,
+		.min_breakpoints = VCF_DEFAULT_MIN_BKP,
+		.min_tsd = VCF_DEFAULT_MIN_TSD,
+		.max_tsd = VCF_DEFAULT_MAX_TSD,
+		.primer_file = primer_file,
+		.primer_flank = 10
+	};
+
+	vcf (db, vcf_file, &opt);
+
+	fp = xfopen (primer_file, "r");
+	n = fread (buf, 1, sizeof (buf) - 1, fp);
+	buf[n] = '\0';
+	xfclose (fp);
+
+	ck_assert_str_eq (buf, expected);
+	ck_assert_int_eq (opt.num_primers, 8);
+
+	// Without the reference, the primer file is not written
+	xunlink (primer_file);
+	opt.fasta_file = NULL;
+	opt.num_primers = 0;
+	vcf (db, vcf_file, &opt);
+
+	ck_assert_int_eq (opt.num_primers, 0);
+	ck_assert (!exists (primer_file));
+
+	db_close (db);
+	xunlink (db_file);
+	xunlink (vcf_file);
+	xunlink (fasta_file);
+}
+END_TEST
+
 START_TEST (test_vcf_no_genotype_fail)
 {
 	char db_file[] = "/tmp/ponga.db.XXXXXX";
@@ -688,6 +855,7 @@ make_vcf_suite (void)
 	tcase_add_test (tc_core, test_vcf);
 	tcase_add_test (tc_core, test_vcf_edge);
 	tcase_add_test (tc_core, test_vcf_parental_chosen);
+	tcase_add_test (tc_core, test_vcf_primer);
 	suite_add_tcase (s, tc_core);
 
 	/* Abort test case */

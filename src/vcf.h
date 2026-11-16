@@ -31,6 +31,11 @@ struct _VCFOption
 	const char *rnames_file;
 	const char *insertion_file;
 
+	// Sequences for primer design: It needs the
+	// reference genome. Bases of each flank
+	const char *primer_file;
+	int         primer_flank;
+
 	// Filters: Thresholds and the disabled ones
 	// (VCFFilter flags)
 	double      min_qual;
@@ -45,6 +50,7 @@ struct _VCFOption
 	// the VCF and to the insertions file
 	int         num_records;
 	int         num_insertions;
+	int         num_primers;
 	int         num_pass;
 };
 
@@ -75,6 +81,7 @@ typedef enum _VCFFilter VCFFilter;
 #define VCF_DEFAULT_MIN_BKP       2
 #define VCF_DEFAULT_MIN_TSD       6
 #define VCF_DEFAULT_MAX_TSD       25
+#define VCF_DEFAULT_PRIMER_FLANK  200
 
 int vcf_filter_lookup (const char *id);
 

@@ -67,6 +67,7 @@ struct _MakeVcf
 
 	// Annotation
 	const char  *fasta_file;
+	int          primer_flank;
 };
 
 typedef struct _MakeVcf MakeVcf;
@@ -80,14 +81,15 @@ run (MakeVcf *v)
 	char *vcf_file = NULL;
 	char *rnames_file = NULL;
 	char *insertion_file = NULL;
+	char *primer_file = NULL;
 
 	time_t start = time (NULL);
 	Summary *s = NULL;
 	char b1[SUMMARY_NUM_LEN] = {};
 	char b2[SUMMARY_NUM_LEN] = {};
 
-	// Assemble VCF, read names and
-	// predicted insertions files
+	// Assemble VCF, read names, predicted
+	// insertions and primer files
 	xasprintf_concat (&vcf_file, "%s/%s.vcf",
 			v->output_dir, v->prefix);
 
@@ -95,6 +97,9 @@ run (MakeVcf *v)
 			v->output_dir, v->prefix);
 
 	xasprintf_concat (&insertion_file, "%s/%s.insertions.fa",
+			v->output_dir, v->prefix);
+
+	xasprintf_concat (&primer_file, "%s/%s.primer.fa",
 			v->output_dir, v->prefix);
 
 	log_debug ("Create output dir '%s'", v->output_dir);
@@ -116,7 +121,9 @@ run (MakeVcf *v)
 		.disabled_filters  = v->disabled_filters,
 		.fasta_file        = v->fasta_file,
 		.rnames_file       = rnames_file,
-		.insertion_file    = insertion_file
+		.insertion_file    = insertion_file,
+		.primer_file       = primer_file,
+		.primer_flank      = v->primer_flank
 	};
 
 	vcf (db, vcf_file, &opt);
@@ -132,20 +139,28 @@ run (MakeVcf *v)
 			opt.num_insertions == 0 && opt.num_records > 0
 				? " (run merge-call with --reference-file)"
 				: "");
+	summary_line (s, "Primer sequences", "%s%s",
+			summary_count (opt.num_primers, b1),
+			v->fasta_file == NULL ? " (needs --reference-file)" : "");
 
 	summary_section (s, "Output");
 	summary_line (s, "VCF", "%s", vcf_file);
 	summary_line (s, "Read names", "%s", rnames_file);
 	summary_line (s, "Predicted insertions", "%s", insertion_file);
 
+	if (v->fasta_file != NULL)
+		summary_line (s, "Primer sequences", "%s", primer_file);
+
 	if (v->fasta_file == NULL)
-		summary_text (s, "Without --reference-file, REF is 'N' and TSD is not reported");
+		summary_text (s, "Without --reference-file, REF is 'N', TSD is not reported "
+				"and the primer file is not written");
 
 	summary_log (s);
 	summary_free (s);
 	xfree (vcf_file);
 	xfree (rnames_file);
 	xfree (insertion_file);
+	xfree (primer_file);
 	db_close (db);
 }
 
@@ -158,7 +173,7 @@ print_usage (FILE *fp)
 		"\n"
 		"Usage: %s make-vcf [-h] [-q] [-d] [-l FILE] [-o DIR] [-p STR]\n"
 		"       %*c          [-n INT] [-e FLOAT] [-r FILE] [-L FLOAT]\n"
-		"       %*c          [-Q INT] [-x STR] <FILE>\n"
+		"       %*c          [-Q INT] [-x STR] [-f INT] <FILE>\n"
 		"\n"
 		"Write the annotated retrocopies to a VCF and to their companion files\n"
 		"\n"
@@ -170,6 +185,9 @@ print_usage (FILE *fp)
 		"   <prefix>.vcf             The retrocopy insertions and their genotypes\n"
 		"   <prefix>.rnames.tsv      The reads supporting each retrocopy, by sample\n"
 		"   <prefix>.insertions.fa   The predicted retrocopy sequences\n"
+		"   <prefix>.primer.fa       The sequences around the insertion point and\n"
+		"                            the exon-exon junctions, for primer design\n"
+		"                            (with --reference-file)\n"
 		"\n"
 		"Arguments:\n"
 		"   SQLite3 database processed by 'merge-call'\n"
@@ -193,7 +211,11 @@ print_usage (FILE *fp)
 		"   -e, --orientation-error    Maximum p-value of the Spearman's rho to report\n"
 		"                              the orientation (ORHO) [default:\"%.2f\"]\n"
 		"   -r, --reference-file       FASTA file of the reference genome, for the REF\n"
-		"                              column, the contigs and the TSD sequence\n"
+		"                              column, the contigs, the TSD sequence and\n"
+		"                              the primer file\n"
+		"   -f, --primer-flank         Number of bases of the reference at each side\n"
+		"                              of a junction at the primer file\n"
+		"                              [default:\"%d\"]\n"
 		"\n"
 		"Filter Options:\n"
 		"   The FILTER column lists the checks that failed, or PASS: A\n"
@@ -217,7 +239,8 @@ print_usage (FILE *fp)
 		"\n",
 		PACKAGE_STRING, PACKAGE, pkg_len, ' ', pkg_len, ' ',
 		DEFAULT_OUTPUT_DIR, DEFAULT_PREFIX, DEFAULT_NEAR_GENE_DIST,
-		DEFAULT_ORIENTATION_ERROR, VCF_DEFAULT_MIN_QUAL, VCF_DEFAULT_MIN_MAPQ,
+		DEFAULT_ORIENTATION_ERROR, VCF_DEFAULT_PRIMER_FLANK,
+		VCF_DEFAULT_MIN_QUAL, VCF_DEFAULT_MIN_MAPQ,
 		VCF_DEFAULT_MIN_SR, VCF_DEFAULT_MIN_BKP, VCF_DEFAULT_MIN_TSD,
 		VCF_DEFAULT_MAX_TSD);
 }
@@ -250,7 +273,8 @@ make_vcf_init (MakeVcf *vcf)
 		.max_tsd            = VCF_DEFAULT_MAX_TSD,
 		.disabled_filters   = 0,
 		.disabled_ids       = string_new (""),
-		.fasta_file         = NULL
+		.fasta_file         = NULL,
+		.primer_flank       = VCF_DEFAULT_PRIMER_FLANK
 	};
 }
 
@@ -324,6 +348,12 @@ make_vcf_validate (MakeVcf *vcf)
 	if (vcf->min_sr < 0)
 		{
 			fprintf (stderr, "%s: --min-sr must be greater or equal to 0\n", PACKAGE);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
+	if (vcf->primer_flank < 1)
+		{
+			fprintf (stderr, "%s: --primer-flank must be greater or equal to 1\n", PACKAGE);
 			rc = EXIT_FAILURE; goto Exit;
 		}
 
@@ -416,10 +446,12 @@ make_vcf_print (MakeVcf *vcf)
 		"  --min-sr=%d \\\n"
 		"  --min-breakpoints=%d \\\n"
 		"  --min-tsd=%d \\\n"
-		"  --max-tsd=%d\n",
+		"  --max-tsd=%d \\\n"
+		"  --primer-flank=%d\n",
 		vcf->near_gene_dist, vcf->orientation_error,
 		vcf->min_qual, vcf->min_mapq, vcf->min_sr,
-		vcf->min_breakpoints, vcf->min_tsd, vcf->max_tsd);
+		vcf->min_breakpoints, vcf->min_tsd, vcf->max_tsd,
+		vcf->primer_flank);
 
 	log_info ("%s", msg->str);
 	string_free (msg, 1);
@@ -457,6 +489,7 @@ parse_make_vcf_command_opt (int argc, char **argv)
 		{"min-tsd",           required_argument, 0, 't'},
 		{"max-tsd",           required_argument, 0, 'T'},
 		{"no-filter",         required_argument, 0, 'x'},
+		{"primer-flank",      required_argument, 0, 'f'},
 		{0,                   0,                 0,  0 }
 	};
 
@@ -468,7 +501,7 @@ parse_make_vcf_command_opt (int argc, char **argv)
 	int option_index = 0;
 	int c = 0;
 
-	while ((c = getopt_long (argc, argv, "hqdl:o:p:n:e:r:L:Q:S:B:t:T:x:", opt, &option_index)) >= 0)
+	while ((c = getopt_long (argc, argv, "hqdl:o:p:n:e:r:L:Q:S:B:t:T:x:f:", opt, &option_index)) >= 0)
 		{
 			switch (c)
 				{
@@ -546,6 +579,11 @@ parse_make_vcf_command_opt (int argc, char **argv)
 				case 'T':
 					{
 						vcf.max_tsd = atoi (optarg);
+						break;
+					}
+				case 'f':
+					{
+						vcf.primer_flank = atoi (optarg);
 						break;
 					}
 				case 'x':

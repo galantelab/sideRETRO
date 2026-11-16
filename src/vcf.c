@@ -750,8 +750,110 @@ genotype_likelihood (const double ho_ref, const double he, const double ho_alt)
 				: "./.";
 }
 
+/*
+ * Sequences for primer design. Ranges of the reference,
+ * with 'flank' bases at each side:
+ * - left: The flank ending at the left breakpoint;
+ * - right: The flank starting at the right breakpoint;
+ * - empty: The allele without the insertion - the flanks
+ *   and, between them, the target site duplication (or
+ *   the bases between the breakpoints). 'junction' is the
+ *   number of bases before it. Return 0 when there is no
+ *   breakpoint, or they are inconsistent;
+ * - junction: The end of the first exon and the start of
+ *   the second one, never beyond the exon
+ */
+static void
+vcf_primer_left_range (const long left, const int flank,
+		long *start, long *end)
+{
+	*start = left > flank ? left - flank + 1 : 1;
+	*end = left;
+}
+
+static void
+vcf_primer_right_range (const long right, const int flank,
+		long *start, long *end)
+{
+	*start = right;
+	*end = right + flank - 1;
+}
+
+static int
+vcf_primer_empty_range (const long left, const int left_sr,
+		const long right, const int right_sr, const int flank,
+		long *start, long *end, long *junction)
+{
+	long lo = 0;
+	long hi = 0;
+
+	if (left_sr > 0 && right_sr > 0)
+		{
+			if (labs (left - right + 1) > VCF_MAX_TSD_LEN)
+				return 0;
+
+			lo = left >= right ? right : left + 1;
+			hi = left >= right ? left : right - 1;
+		}
+	else if (left_sr > 0)
+		{
+			lo = left + 1;
+			hi = left;
+		}
+	else if (right_sr > 0)
+		{
+			lo = right;
+			hi = right - 1;
+		}
+	else
+		return 0;
+
+	*start = lo > flank ? lo - flank : 1;
+	*end = hi + flank;
+	*junction = lo - *start;
+
+	return 1;
+}
+
+static void
+vcf_primer_junction_range (const long start1, const long end1,
+		const long start2, const long end2, const int flank,
+		long *start, long *end)
+{
+	*start = end1 - flank + 1 > start1 ? end1 - flank + 1 : start1;
+	*end = start2 + flank - 1 < end2 ? start2 + flank - 1 : end2;
+}
+
+static sqlite3_stmt *
+prepare_primer_junction_stmt (sqlite3 *db)
+{
+	log_trace ("Inside %s", __func__);
+
+	/*
+	* The exon-exon junctions of a retrocopy - or of all of
+	* them for ?1 = 0. Exons of different transcripts share
+	* the same boundaries, so the same junction comes under
+	* many exon pairs: Take each distinct junction once, with
+	* the longest exons
+	*/
+	const char sql[] =
+		"SELECT MIN(e1.chr), MIN(e1.start), e1.end,\n"
+		"	e2.start, MAX(e2.end), MIN(e1.strand), MAX(j.reads)\n"
+		"FROM junction AS j\n"
+		"INNER JOIN exon AS e1\n"
+		"	ON e1.id = j.exon_id1\n"
+		"INNER JOIN exon AS e2\n"
+		"	ON e2.id = j.exon_id2\n"
+		"WHERE ?1 = 0 OR j.retrocopy_id = ?1\n"
+		"GROUP BY j.retrocopy_id, e1.end, e2.start\n"
+		"ORDER BY j.retrocopy_id ASC, e1.end ASC, e2.start ASC";
+
+	log_debug ("Query schema:\n%s", sql);
+	return db_prepare (db, sql);
+}
+
 static Hash *
-vcf_index_regions (sqlite3 *db, const char *fasta_file, Hash **contig_len)
+vcf_index_regions (sqlite3 *db, const VCFOption *opt, Hash **contig_len)
 {
 	log_trace ("Inside %s", __func__);
 
@@ -759,11 +861,18 @@ vcf_index_regions (sqlite3 *db, const char *fasta_file, Hash **contig_len)
 	List *regions = NULL;
 	Hash *fidx = NULL;
 
+	const char *fasta_file = opt->fasta_file;
+	const int flank = opt->primer_flank;
 	const char *chr = NULL;
 	long ip = 0;
 	long left = 0;
 	long right = 0;
 	long pos = 0;
+	long start = 0;
+	long end = 0;
+	long junction = 0;
+	int left_sr = 0;
+	int right_sr = 0;
 
 	// The only regions needed: The base before the
 	// insertion (REF) and the TSD
@@ -780,17 +889,62 @@ vcf_index_regions (sqlite3 *db, const char *fasta_file, Hash **contig_len)
 
 	while (db_step (stmt) == SQLITE_ROW)
 		{
-			chr   = db_column_text  (stmt, 0);
-			ip    = db_column_int64 (stmt, 1);
-			left  = db_column_int64 (stmt, 2);
-			right = db_column_int64 (stmt, 4);
+			chr      = db_column_text  (stmt, 0);
+			ip       = db_column_int64 (stmt, 1);
+			left     = db_column_int64 (stmt, 2);
+			left_sr  = db_column_int   (stmt, 3);
+			right    = db_column_int64 (stmt, 4);
+			right_sr = db_column_int   (stmt, 5);
 
 			pos = ip == 1 ? ip : ip - 1;
 			list_append (regions, fasta_region_new (chr, pos, pos));
 
-			if (db_column_int (stmt, 3) > 0 && db_column_int (stmt, 5) > 0
+			if (left_sr > 0 && right_sr > 0
 					&& left >= right && (left - right + 1) <= VCF_MAX_TSD_LEN)
 				list_append (regions, fasta_region_new (chr, right, left));
+
+			if (opt->primer_file == NULL)
+				continue;
+
+			// The flanks of the breakpoints and the
+			// allele without the insertion
+			if (left_sr > 0)
+				{
+					vcf_primer_left_range (left, flank, &start, &end);
+					list_append (regions, fasta_region_new (chr, start, end));
+				}
+
+			if (right_sr > 0)
+				{
+					vcf_primer_right_range (right, flank, &start, &end);
+					list_append (regions, fasta_region_new (chr, start, end));
+				}
+
+			if (vcf_primer_empty_range (left, left_sr, right, right_sr,
+						flank, &start, &end, &junction))
+				list_append (regions, fasta_region_new (chr, start, end));
+		}
+
+	// The exons at each side of the junctions
+	if (opt->primer_file != NULL)
+		{
+			db_finalize (stmt);
+			stmt = prepare_primer_junction_stmt (db);
+			db_bind_int (stmt, 1, 0);
+
+			while (db_step (stmt) == SQLITE_ROW)
+				{
+					chr = db_column_text (stmt, 0);
+
+					vcf_primer_junction_range (db_column_int64 (stmt, 1),
+							db_column_int64 (stmt, 2), db_column_int64 (stmt, 3),
+							db_column_int64 (stmt, 4), flank, &start, &end);
+
+					list_append (regions, fasta_region_new (chr, start,
+								db_column_int64 (stmt, 2)));
+					list_append (regions, fasta_region_new (chr,
+								db_column_int64 (stmt, 3), end));
+				}
 		}
 
 	log_info ("Extract %zu regions from '%s'", list_size (regions), fasta_file);
@@ -926,22 +1080,155 @@ vcf_print_rnames (sqlite3_stmt *stmt, const List *hl, FILE *fp,
 }
 
 static void
-vcf_print_insertion (FILE *fp, const VCFBody *b, const long pos)
+vcf_print_seq (FILE *fp, const char *seq)
 {
-	const char *seq = b->ins_seq;
 	size_t len = strlen (seq);
 	size_t i = 0;
-
-	xfprintf (fp, ">" VCF_ID_FMT " %s:%li PG=%s SVLEN=%d predicted\n",
-			b->id, b->chr, pos, b->parental_gene_name, b->ins_len);
 
 	for (i = 0; i < len; i += VCF_FASTA_WIDTH)
 		xfprintf (fp, "%.*s\n", VCF_FASTA_WIDTH, seq + i);
 }
 
 static void
+vcf_print_insertion (FILE *fp, const VCFBody *b, const long pos)
+{
+	xfprintf (fp, ">" VCF_ID_FMT " %s:%li PG=%s SVLEN=%d predicted\n",
+			b->id, b->chr, pos, b->parental_gene_name, b->ins_len);
+
+	vcf_print_seq (fp, b->ins_seq);
+}
+
+static int
+vcf_print_primer (FILE *fp, sqlite3_stmt *stmt, Hash *fidx,
+		const VCFBody *b, const char *filter, const int flank)
+{
+	const char *seq = NULL;
+	const char *seq2 = NULL;
+	const char *chr = NULL;
+	String *s = NULL;
+	long start = 0;
+	long end = 0;
+	long start2 = 0;
+	long end2 = 0;
+	long junction = 0;
+	int minus = 0;
+	int n = 0;
+	int i = 0;
+
+	// At least one breakpoint
+	if (b->breakpoint_left_sr == 0 && b->breakpoint_right_sr == 0)
+		return 0;
+
+	s = string_sized_new (BUFSIZ);
+
+	/*
+	* All the sequences are at the forward strand of the
+	* reference, but the exon-exon junctions: They are at
+	* the strand of the parental gene. 'junction' is the
+	* number of bases before the junction
+	*/
+
+	// Allele without the insertion
+	if (vcf_primer_empty_range (b->breakpoint_left, b->breakpoint_left_sr,
+				b->breakpoint_right, b->breakpoint_right_sr, flank,
+				&start, &end, &junction))
+		{
+			seq = vcf_region_lookup (fidx, b->chr, start, end);
+
+			if (seq != NULL)
+				{
+					xfprintf (fp, ">" VCF_ID_FMT "_empty %s:%li-%li PG=%s "
+							"FILTER=%s junction=%li\n",
+							b->id, b->chr, start, end,
+							b->parental_gene_name, filter, junction);
+
+					vcf_print_seq (fp, seq);
+					n++;
+				}
+		}
+
+	// Left flank and the observed start of the insertion
+	if (b->breakpoint_left_sr > 0 && strcmp (b->left_seq, "?"))
+		{
+			vcf_primer_left_range (b->breakpoint_left, flank, &start, &end);
+			seq = vcf_region_lookup (fidx, b->chr, start, end);
+
+			if (seq != NULL)
+				{
+					xfprintf (fp, ">" VCF_ID_FMT "_left %s:%li-%li PG=%s "
+							"FILTER=%s junction=%li\n",
+							b->id, b->chr, start, end,
+							b->parental_gene_name, filter, end - start + 1);
+
+					string_printf (s, "%s%s", seq, b->left_seq);
+					vcf_print_seq (fp, s->str);
+					n++;
+				}
+		}
+
+	// Observed end of the insertion and the right flank
+	if (b->breakpoint_right_sr > 0 && strcmp (b->right_seq, "?"))
+		{
+			vcf_primer_right_range (b->breakpoint_right, flank, &start, &end);
+			seq = vcf_region_lookup (fidx, b->chr, start, end);
+
+			if (seq != NULL)
+				{
+					xfprintf (fp, ">" VCF_ID_FMT "_right %s:%li-%li PG=%s "
+							"FILTER=%s junction=%zu\n",
+							b->id, b->chr, start, end,
+							b->parental_gene_name, filter, strlen (b->right_seq));
+
+					string_printf (s, "%s%s", b->right_seq, seq);
+					vcf_print_seq (fp, s->str);
+					n++;
+				}
+		}
+
+	// Exon-exon junctions
+	db_reset (stmt);
+	db_clear_bindings (stmt);
+	db_bind_int (stmt, 1, b->id);
+
+	while (db_step (stmt) == SQLITE_ROW)
+		{
+			chr    = db_column_text  (stmt, 0);
+			end    = db_column_int64 (stmt, 2);
+			start2 = db_column_int64 (stmt, 3);
+			minus  = !strcmp (db_column_text (stmt, 5), "-");
+
+			vcf_primer_junction_range (db_column_int64 (stmt, 1), end,
+					start2, db_column_int64 (stmt, 4), flank, &start, &end2);
+
+			seq  = vcf_region_lookup (fidx, chr, start, end);
+			seq2 = vcf_region_lookup (fidx, chr, start2, end2);
+
+			if (seq == NULL || seq2 == NULL)
+				continue;
+
+			string_printf (s, "%s%s", seq, seq2);
+
+			if (minus)
+				revcomp (s->str, s->len);
+
+			xfprintf (fp, ">" VCF_ID_FMT "_eej%d %s:%li-%li,%li-%li PG=%s "
+					"FILTER=%s junction=%li strand=%c reads=%d\n",
+					b->id, ++i, chr, start, end, start2, end2,
+					b->parental_gene_name, filter,
+					minus ? end2 - start2 + 1 : end - start + 1,
+					minus ? '-' : '+', db_column_int (stmt, 6));
+
+			vcf_print_seq (fp, s->str);
+			n++;
+		}
+
+	string_free (s, 1);
+	return n;
+}
+
+static void
 vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
-		FILE *rnames_fp, FILE *ins_fp, VCFOption *opt)
+		FILE *rnames_fp, FILE *ins_fp, FILE *primer_fp, VCFOption *opt)
 {
 	log_trace ("Inside %s", __func__);
 
@@ -969,6 +1256,7 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 	String *filter = string_sized_new (128);
 
 	sqlite3_stmt *rnames_stmt = NULL;
+	sqlite3_stmt *primer_stmt = NULL;
 	const char *ref = NULL;
 
 	// Prepare retrocopy query
@@ -980,6 +1268,10 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 
 	// Prepare read names query
 	rnames_stmt = prepare_rnames_query_stmt (db);
+
+	// Prepare exon-exon junctions query
+	if (primer_fp != NULL)
+		primer_stmt = prepare_primer_junction_stmt (db);
 
 	while (db_step (retrocopy_stmt) == SQLITE_ROW)
 		{
@@ -1247,6 +1539,11 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 					opt->num_insertions++;
 				}
 
+			// Sequences for primer design
+			if (primer_fp != NULL)
+				opt->num_primers += vcf_print_primer (primer_fp, primer_stmt,
+						fidx, &b, filter->str, opt->primer_flank);
+
 			opt->num_records++;
 
 			hash_free (gi);
@@ -1256,6 +1553,10 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 	db_finalize (retrocopy_stmt);
 	db_finalize (genotype_stmt);
 	db_finalize (rnames_stmt);
+
+	if (primer_stmt != NULL)
+		db_finalize (primer_stmt);
+
 	string_free (filter, 1);
 }
 
@@ -1268,6 +1569,7 @@ vcf (sqlite3 *db, const char *output_file, VCFOption *opt)
 	FILE *fp = NULL;
 	FILE *rnames_fp = NULL;
 	FILE *ins_fp = NULL;
+	FILE *primer_fp = NULL;
 	List *hl = NULL;
 	Hash *fidx = NULL;
 	Hash *contig_len = NULL;
@@ -1288,8 +1590,18 @@ vcf (sqlite3 *db, const char *output_file, VCFOption *opt)
 			ins_fp = xfopen (opt->insertion_file, "w");
 		}
 
+	// The primer file needs the reference genome
+	if (opt->fasta_file == NULL)
+		opt->primer_file = NULL;
+
+	if (opt->primer_file != NULL)
+		{
+			log_debug ("Create the primer file '%s'", opt->primer_file);
+			primer_fp = xfopen (opt->primer_file, "w");
+		}
+
 	if (opt->fasta_file != NULL)
-		fidx = vcf_index_regions (db, opt->fasta_file, &contig_len);
+		fidx = vcf_index_regions (db, opt, &contig_len);
 	else
 		log_warn ("No reference genome (--reference-file): REF is 'N' and TSD is not reported");
 
@@ -1300,7 +1612,7 @@ vcf (sqlite3 *db, const char *output_file, VCFOption *opt)
 	vcf_print_header (hl, contig_len, fp, opt);
 
 	log_debug ("Write the VCF body");
-	vcf_print_body (db, hl, fidx, fp, rnames_fp, ins_fp, opt);
+	vcf_print_body (db, hl, fidx, fp, rnames_fp, ins_fp, primer_fp, opt);
 
 	xfclose (fp);
 
@@ -1309,6 +1621,9 @@ vcf (sqlite3 *db, const char *output_file, VCFOption *opt)
 
 	if (ins_fp != NULL)
 		xfclose (ins_fp);
+
+	if (primer_fp != NULL)
+		xfclose (primer_fp);
 
 	list_free (hl);
 

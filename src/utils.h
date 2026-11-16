@@ -30,6 +30,7 @@ char * trim        (char *str);
 char * trimc       (char *str, int c);
 
 char * upper       (char *s);
+char * revcomp     (char *seq, const int len);
 char * lower       (char *s);
 
 char * path_dir    (const char *path);
