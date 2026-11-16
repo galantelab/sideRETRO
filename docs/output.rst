@@ -128,9 +128,11 @@ side: A retrocopy may have many of them at a single breakpoint, passing
 |                   | than required (``make-vcf -B``, default 2), or both   |
 |                   | found and ``TSDLEN <= 0``                             |
 +-------------------+-------------------------------------------------------+
-| TSDOutlier        | ``TSDLEN`` out of the expected range: Greater than    |
-|                   | the maximum (``make-vcf -T``, default 25) or less     |
-|                   | than -20 - probably wrong breakpoints or a repeat     |
+| TSDOutlier        | There is a TSD, but its length is out of the expected |
+|                   | range: Shorter than the minimum (``make-vcf -t``,     |
+|                   | default 6) or longer than the maximum                 |
+|                   | (``make-vcf -T``, default 25) - probably wrong        |
+|                   | breakpoints or a repeat                               |
 +-------------------+-------------------------------------------------------+
 
 The poly-A tail, the exon-exon junctions and the orientation are **reported**

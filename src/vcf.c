@@ -61,7 +61,7 @@ static const VCFFilterDef filter_defs[] =
 	{VCF_FILTER_NO_TSD,             "NoTSD",
 		"No target site duplication: Fewer breakpoints found than required (make-vcf --min-breakpoints), or both found and TSDLEN <= 0"},
 	{VCF_FILTER_TSD_OUTLIER,        "TSDOutlier",
-		"Target site duplication length out of the expected range: TSDLEN above the threshold (make-vcf --max-tsd) or TSDLEN < -20"},
+		"Target site duplication length out of the expected range (make-vcf --min-tsd and --max-tsd)"},
 	{0, NULL, NULL}
 };
 
@@ -1018,8 +1018,9 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 					|| (both_breakpoints && tsd_len <= 0))
 				failed |= VCF_FILTER_NO_TSD;
 
-			if (both_breakpoints
-					&& (tsd_len > opt->max_tsd || tsd_len < VCF_TSD_MIN_LEN))
+			// There is a TSD, but too short or too long
+			if (both_breakpoints && tsd_len > 0
+					&& (tsd_len < opt->min_tsd || tsd_len > opt->max_tsd))
 				failed |= VCF_FILTER_TSD_OUTLIER;
 
 			failed &= ~opt->disabled_filters;

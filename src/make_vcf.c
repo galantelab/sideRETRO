@@ -60,6 +60,7 @@ struct _MakeVcf
 	int          min_mapq;
 	int          min_sr;
 	int          min_breakpoints;
+	int          min_tsd;
 	int          max_tsd;
 	int          disabled_filters;
 	String      *disabled_ids;
@@ -110,6 +111,7 @@ run (MakeVcf *v)
 		.min_mapq          = v->min_mapq,
 		.min_sr            = v->min_sr,
 		.min_breakpoints   = v->min_breakpoints,
+		.min_tsd           = v->min_tsd,
 		.max_tsd           = v->max_tsd,
 		.disabled_filters  = v->disabled_filters,
 		.fasta_file        = v->fasta_file,
@@ -205,6 +207,8 @@ print_usage (FILE *fp)
 		"   -B, --min-breakpoints      NoTSD: Minimum number of breakpoints, 1 or 2.\n"
 		"                              The target site duplication needs both\n"
 		"                              [default:\"%d\"]\n"
+		"   -t, --min-tsd              TSDOutlier: Minimum length of the target site\n"
+		"                              duplication [default:\"%d\"]\n"
 		"   -T, --max-tsd              TSDOutlier: Maximum length of the target site\n"
 		"                              duplication [default:\"%d\"]\n"
 		"   -x, --no-filter            Disable a filter. It may be passed multiple\n"
@@ -214,7 +218,8 @@ print_usage (FILE *fp)
 		PACKAGE_STRING, PACKAGE, pkg_len, ' ', pkg_len, ' ',
 		DEFAULT_OUTPUT_DIR, DEFAULT_PREFIX, DEFAULT_NEAR_GENE_DIST,
 		DEFAULT_ORIENTATION_ERROR, VCF_DEFAULT_MIN_QUAL, VCF_DEFAULT_MIN_MAPQ,
-		VCF_DEFAULT_MIN_SR, VCF_DEFAULT_MIN_BKP, VCF_DEFAULT_MAX_TSD);
+		VCF_DEFAULT_MIN_SR, VCF_DEFAULT_MIN_BKP, VCF_DEFAULT_MIN_TSD,
+		VCF_DEFAULT_MAX_TSD);
 }
 
 static void
@@ -241,6 +246,7 @@ make_vcf_init (MakeVcf *vcf)
 		.min_mapq           = VCF_DEFAULT_MIN_MAPQ,
 		.min_sr             = VCF_DEFAULT_MIN_SR,
 		.min_breakpoints    = VCF_DEFAULT_MIN_BKP,
+		.min_tsd            = VCF_DEFAULT_MIN_TSD,
 		.max_tsd            = VCF_DEFAULT_MAX_TSD,
 		.disabled_filters   = 0,
 		.disabled_ids       = string_new (""),
@@ -327,9 +333,15 @@ make_vcf_validate (MakeVcf *vcf)
 			rc = EXIT_FAILURE; goto Exit;
 		}
 
-	if (vcf->max_tsd < 1)
+	if (vcf->min_tsd < 1)
 		{
-			fprintf (stderr, "%s: --max-tsd must be greater or equal to 1\n", PACKAGE);
+			fprintf (stderr, "%s: --min-tsd must be greater or equal to 1\n", PACKAGE);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
+	if (vcf->max_tsd < vcf->min_tsd)
+		{
+			fprintf (stderr, "%s: --max-tsd must be greater or equal to --min-tsd\n", PACKAGE);
 			rc = EXIT_FAILURE; goto Exit;
 		}
 
@@ -403,10 +415,11 @@ make_vcf_print (MakeVcf *vcf)
 		"  --min-mapq=%d \\\n"
 		"  --min-sr=%d \\\n"
 		"  --min-breakpoints=%d \\\n"
+		"  --min-tsd=%d \\\n"
 		"  --max-tsd=%d\n",
 		vcf->near_gene_dist, vcf->orientation_error,
 		vcf->min_qual, vcf->min_mapq, vcf->min_sr,
-		vcf->min_breakpoints, vcf->max_tsd);
+		vcf->min_breakpoints, vcf->min_tsd, vcf->max_tsd);
 
 	log_info ("%s", msg->str);
 	string_free (msg, 1);
@@ -441,6 +454,7 @@ parse_make_vcf_command_opt (int argc, char **argv)
 		{"min-mapq",          required_argument, 0, 'Q'},
 		{"min-sr",            required_argument, 0, 'S'},
 		{"min-breakpoints",   required_argument, 0, 'B'},
+		{"min-tsd",           required_argument, 0, 't'},
 		{"max-tsd",           required_argument, 0, 'T'},
 		{"no-filter",         required_argument, 0, 'x'},
 		{0,                   0,                 0,  0 }
@@ -454,7 +468,7 @@ parse_make_vcf_command_opt (int argc, char **argv)
 	int option_index = 0;
 	int c = 0;
 
-	while ((c = getopt_long (argc, argv, "hqdl:o:p:n:e:r:L:Q:S:B:T:x:", opt, &option_index)) >= 0)
+	while ((c = getopt_long (argc, argv, "hqdl:o:p:n:e:r:L:Q:S:B:t:T:x:", opt, &option_index)) >= 0)
 		{
 			switch (c)
 				{
@@ -522,6 +536,11 @@ parse_make_vcf_command_opt (int argc, char **argv)
 				case 'B':
 					{
 						vcf.min_breakpoints = atoi (optarg);
+						break;
+					}
+				case 't':
+					{
+						vcf.min_tsd = atoi (optarg);
 						break;
 					}
 				case 'T':

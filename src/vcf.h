@@ -37,6 +37,7 @@ struct _VCFOption
 	int         min_mapq;
 	int         min_sr;
 	int         min_breakpoints;
+	int         min_tsd;
 	int         max_tsd;
 	int         disabled_filters;
 
@@ -53,8 +54,8 @@ typedef struct _VCFOption VCFOption;
  * FILTER column: Each flag is a check that failed.
  * A PASS retrocopy has enough split reads, the breakpoints
  * required and a target site duplication of the expected
- * length. The check of the TSD length cannot be evaluated
- * without both breakpoints: It does not fail
+ * length. The length is checked only when there is a TSD
+ * (TSDLEN > 0): Otherwise it is NoTSD
  */
 enum _VCFFilter
 {
@@ -72,8 +73,8 @@ typedef enum _VCFFilter VCFFilter;
 #define VCF_DEFAULT_MIN_MAPQ      20
 #define VCF_DEFAULT_MIN_SR        3
 #define VCF_DEFAULT_MIN_BKP       2
+#define VCF_DEFAULT_MIN_TSD       6
 #define VCF_DEFAULT_MAX_TSD       25
-#define VCF_TSD_MIN_LEN           -20
 
 int vcf_filter_lookup (const char *id);
 

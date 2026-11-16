@@ -386,7 +386,7 @@ class Sim:
         Expected FILTER with the make-vcf defaults: The simulated
         retrocopy has a single parental gene and reads with MAPQ
         60. It passes with at least 3 split reads (whatever their
-        side), both breakpoints and a TSD of 1 to 25 bases. The
+        side), both breakpoints and a TSD of 6 to 25 bases. The
         poly-A and the exon-exon junctions do not filter
         """
         a = self.args
@@ -398,7 +398,7 @@ class Sim:
             f.append('LowSR')
         if not both or a.tsd_len <= 0:
             f.append('NoTSD')
-        if both and (a.tsd_len > 25 or a.tsd_len < -20):
+        if both and a.tsd_len > 0 and not 6 <= a.tsd_len <= 25:
             f.append('TSDOutlier')
 
         return ';'.join(f) if f else 'PASS'

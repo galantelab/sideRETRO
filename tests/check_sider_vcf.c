@@ -255,6 +255,7 @@ START_TEST (test_vcf)
 		.min_mapq = VCF_DEFAULT_MIN_MAPQ,
 		.min_sr = VCF_DEFAULT_MIN_SR,
 		.min_breakpoints = VCF_DEFAULT_MIN_BKP,
+		.min_tsd = VCF_DEFAULT_MIN_TSD,
 		.max_tsd = VCF_DEFAULT_MAX_TSD,
 		.fasta_file = fasta_file,
 		.rnames_file = rnames_file,
@@ -405,6 +406,7 @@ START_TEST (test_vcf)
 		.min_mapq         = 30,
 		.min_sr           = 2,
 		.min_breakpoints  = 1,
+		.min_tsd          = 1,
 		.max_tsd          = 5,
 		.disabled_filters = VCF_FILTER_AMBIGUOUS_PARENTAL
 			| VCF_FILTER_LOW_SR
