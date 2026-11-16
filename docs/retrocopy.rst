@@ -36,8 +36,8 @@ and ORF2p); iv) a 3’UTR region; v) a poly-A tail inside its transcript; vi) an
 distinct ORF (ORF0, which is 70 amino acids in length, but still with unknown function) was
 found in primates [7]_ [8]_.
 
-.. image:: images/LINE1.png
-   :scale: 30%
+.. image:: images/LINE1.svg
+   :width: 90%
    :align: center
 
 ORF1p encodes a RNA-binding protein, responsible for the mRNA

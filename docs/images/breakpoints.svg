@@ -1,64 +1,47 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="820" height="330" viewBox="0 0 820 330" font-family="Helvetica, Arial, sans-serif" font-size="14">
-  <defs>
-    <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
-      <path d="M0,0 L8,4 L0,8 z" fill="#333"/>
-    </marker>
-  </defs>
-
-  <!-- Reference genome -->
-  <text x="20" y="38" font-weight="bold">Reference</text>
-  <rect x="120" y="24" width="300" height="20" fill="#cfd8dc"/>
-  <rect x="420" y="24" width="60" height="20" fill="#ffcc80"/>
-  <rect x="480" y="24" width="300" height="20" fill="#cfd8dc"/>
-  <text x="250" y="39" text-anchor="middle">left flank</text>
-  <text x="450" y="39" text-anchor="middle" font-size="12">TSD</text>
-  <text x="630" y="39" text-anchor="middle">right flank</text>
-  <line x1="479" y1="20" x2="479" y2="48" stroke="#d32f2f" stroke-width="2"/>
-  <text x="479" y="64" text-anchor="middle" fill="#d32f2f" font-size="12">LBKP: last base of the left flank (after the TSD)</text>
-  <line x1="421" y1="20" x2="421" y2="48" stroke="#1976d2" stroke-width="2"/>
-  <text x="421" y="14" text-anchor="middle" fill="#1976d2" font-size="12">RBKP: first base of the right flank (the TSD start)</text>
-
-  <!-- Sequenced genome -->
-  <text x="20" y="128" font-weight="bold">Genome</text>
-  <rect x="60" y="114" width="200" height="20" fill="#cfd8dc"/>
-  <rect x="260" y="114" width="60" height="20" fill="#ffcc80"/>
-  <rect x="320" y="114" width="200" height="20" fill="#a5d6a7"/>
-  <rect x="520" y="114" width="40" height="20" fill="#81c784"/>
-  <rect x="560" y="114" width="60" height="20" fill="#ffcc80"/>
-  <rect x="620" y="114" width="180" height="20" fill="#cfd8dc"/>
-  <text x="160" y="129" text-anchor="middle">left flank</text>
-  <text x="290" y="129" text-anchor="middle" font-size="12">TSD</text>
-  <text x="420" y="129" text-anchor="middle">retrocopy</text>
-  <text x="540" y="129" text-anchor="middle" font-size="11">AAAA</text>
-  <text x="590" y="129" text-anchor="middle" font-size="12">TSD</text>
-  <text x="710" y="129" text-anchor="middle">right flank</text>
-
-  <!-- Reads crossing the left junction: clipped at the right -->
-  <g>
-    <rect x="200" y="160" width="120" height="12" fill="#546e7a"/>
-    <rect x="320" y="160" width="50" height="12" fill="#a5d6a7" stroke="#2e7d32" stroke-dasharray="3,2"/>
-    <rect x="230" y="178" width="90" height="12" fill="#546e7a"/>
-    <rect x="320" y="178" width="80" height="12" fill="#a5d6a7" stroke="#2e7d32" stroke-dasharray="3,2"/>
-    <text x="200" y="210" font-size="12" fill="#333">reads from the left flank: aligned part ends at LBKP,</text>
-    <text x="200" y="226" font-size="12" fill="#333">the clip (dashed) is the beginning of the insertion</text>
-  </g>
-
-  <!-- Reads crossing the right junction: clipped at the left -->
-  <g>
-    <rect x="490" y="160" width="70" height="12" fill="#a5d6a7" stroke="#2e7d32" stroke-dasharray="3,2"/>
-    <rect x="560" y="160" width="120" height="12" fill="#546e7a"/>
-    <rect x="520" y="178" width="40" height="12" fill="#a5d6a7" stroke="#2e7d32" stroke-dasharray="3,2"/>
-    <rect x="560" y="178" width="90" height="12" fill="#546e7a"/>
-    <text x="470" y="210" font-size="12" fill="#333">reads from the right flank: aligned part starts at RBKP,</text>
-    <text x="470" y="226" font-size="12" fill="#333">the clip ends with the poly-A</text>
-  </g>
-
-  <!-- Legend -->
-  <rect x="20" y="270" width="18" height="12" fill="#546e7a"/>
-  <text x="46" y="281" font-size="12">aligned to the reference</text>
-  <rect x="220" y="270" width="18" height="12" fill="#a5d6a7" stroke="#2e7d32" stroke-dasharray="3,2"/>
-  <text x="246" y="281" font-size="12">soft clipped</text>
-  <rect x="360" y="270" width="18" height="12" fill="#ffcc80"/>
-  <text x="386" y="281" font-size="12">target site duplication (TSD = RBKP .. LBKP)</text>
-  <text x="20" y="312" font-size="12" fill="#555">TSDLEN = LBKP - RBKP + 1. A clean insertion has LBKP = RBKP - 1 (TSDLEN = 0).</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="400" viewBox="0 0 900 400" font-family="Helvetica, Arial, sans-serif">
+<defs></defs>
+<rect width="900" height="400" fill="#FFFFFF"/>
+<text x="24" y="75" font-size="13" fill="#64748B" text-anchor="start" font-weight="bold">Reference</text>
+<rect x="130" y="58" width="300" height="24" rx="4" fill="#CBD5E1"/>
+<rect x="430" y="58" width="60" height="24" rx="0" fill="#F6A46B"/>
+<rect x="490" y="58" width="300" height="24" rx="4" fill="#CBD5E1"/>
+<text x="280" y="75" font-size="13" fill="#1F2A37" text-anchor="middle">left flank</text>
+<text x="460" y="75" font-size="13" fill="#1F2A37" text-anchor="middle" font-weight="bold">TSD</text>
+<text x="640" y="75" font-size="13" fill="#1F2A37" text-anchor="middle">right flank</text>
+<line x1="431" y1="48" x2="431" y2="92" stroke="#2B7A9B" stroke-width="2.5" stroke-linecap="butt"/>
+<text x="431" y="40" font-size="12" fill="#2B7A9B" text-anchor="middle" font-weight="bold">RBKP: first base of the right flank</text>
+<line x1="489" y1="48" x2="489" y2="92" stroke="#D9480F" stroke-width="2.5" stroke-linecap="butt"/>
+<text x="489" y="110" font-size="12" fill="#D9480F" text-anchor="middle" font-weight="bold">LBKP: last base of the left flank</text>
+<text x="24" y="185" font-size="13" fill="#64748B" text-anchor="start" font-weight="bold">Sample</text>
+<rect x="110" y="168" width="180" height="24" rx="4" fill="#CBD5E1"/>
+<rect x="290" y="168" width="60" height="24" rx="0" fill="#F6A46B"/>
+<rect x="350" y="168" width="200" height="24" rx="0" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<rect x="550" y="168" width="50" height="24" rx="0" fill="#1B5E7B" stroke="#2B7A9B" stroke-width="1.5"/>
+<rect x="600" y="168" width="60" height="24" rx="0" fill="#F6A46B"/>
+<rect x="660" y="168" width="150" height="24" rx="4" fill="#CBD5E1"/>
+<text x="200" y="185" font-size="13" fill="#1F2A37" text-anchor="middle">left flank</text>
+<text x="320" y="185" font-size="13" fill="#1F2A37" text-anchor="middle" font-weight="bold">TSD</text>
+<text x="450" y="185" font-size="13" fill="#1F2A37" text-anchor="middle">retrocopy</text>
+<text x="575" y="185" font-size="12" fill="#FFFFFF" text-anchor="middle" font-weight="bold">AAAA</text>
+<text x="630" y="185" font-size="13" fill="#1F2A37" text-anchor="middle" font-weight="bold">TSD</text>
+<text x="735" y="185" font-size="13" fill="#1F2A37" text-anchor="middle">right flank</text>
+<rect x="220" y="224" width="130" height="12" rx="3" fill="#64748B"/>
+<rect x="350" y="224" width="50" height="12" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2" stroke-dasharray="4,3"/>
+<rect x="250" y="244" width="100" height="12" rx="3" fill="#64748B"/>
+<rect x="350" y="244" width="80" height="12" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2" stroke-dasharray="4,3"/>
+<rect x="530" y="224" width="70" height="12" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2" stroke-dasharray="4,3"/>
+<rect x="600" y="224" width="130" height="12" rx="3" fill="#64748B"/>
+<rect x="560" y="244" width="40" height="12" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2" stroke-dasharray="4,3"/>
+<rect x="600" y="244" width="100" height="12" rx="3" fill="#64748B"/>
+<text x="220" y="284" font-size="12" fill="#1F2A37" text-anchor="start">aligned part ends at LBKP; the clip</text>
+<text x="220" y="300" font-size="12" fill="#1F2A37" text-anchor="start">is the beginning of the insertion</text>
+<text x="530" y="284" font-size="12" fill="#1F2A37" text-anchor="start">aligned part starts at RBKP; the clip</text>
+<text x="530" y="300" font-size="12" fill="#1F2A37" text-anchor="start">ends with the poly-A</text>
+<rect x="110" y="340" width="26" height="12" rx="3" fill="#64748B"/>
+<text x="144" y="351" font-size="12" fill="#1F2A37" text-anchor="start">aligned to the reference</text>
+<rect x="320" y="340" width="26" height="12" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2" stroke-dasharray="4,3"/>
+<text x="354" y="351" font-size="12" fill="#1F2A37" text-anchor="start">soft clipped</text>
+<rect x="460" y="340" width="26" height="12" rx="0" fill="#F6A46B"/>
+<text x="494" y="351" font-size="12" fill="#1F2A37" text-anchor="start">target site duplication: RBKP to LBKP</text>
+<text x="110" y="380" font-size="12" fill="#64748B" text-anchor="start">TSDLEN = LBKP - RBKP + 1. An insertion without duplication has LBKP = RBKP - 1 (TSDLEN = 0).</text>
 </svg>

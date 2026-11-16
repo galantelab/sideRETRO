@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="330" viewBox="0 0 900 330" font-family="Helvetica, Arial, sans-serif">
+<defs></defs>
+<rect width="900" height="330" fill="#FFFFFF"/>
+<line x1="60" y1="200" x2="840" y2="200" stroke="#F2C14E" stroke-width="8" stroke-linecap="round"/>
+<text x="60" y="230" font-size="13" fill="#64748B" text-anchor="start">Chromosome</text>
+<rect x="98" y="100" width="196" height="92" rx="12" fill="#2B7A9B" fill-opacity="0.1"/>
+<rect x="548" y="114" width="192" height="78" rx="12" fill="#2B7A9B" fill-opacity="0.1"/>
+<rect x="110" y="176" width="60" height="10" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="128" y="160" width="60" height="10" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="140" y="144" width="60" height="10" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="152" y="128" width="60" height="10" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="166" y="176" width="60" height="10" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="176" y="112" width="60" height="10" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="186" y="160" width="60" height="10" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="204" y="144" width="60" height="10" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="222" y="176" width="60" height="10" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="560" y="176" width="60" height="10" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="574" y="160" width="60" height="10" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="588" y="144" width="60" height="10" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="602" y="176" width="60" height="10" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="612" y="128" width="60" height="10" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="626" y="160" width="60" height="10" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="648" y="144" width="60" height="10" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="668" y="176" width="60" height="10" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="350" y="176" width="60" height="10" rx="3" fill="#FFFFFF" stroke="#64748B" stroke-width="1.2" stroke-dasharray="4,3"/>
+<rect x="420" y="176" width="60" height="10" rx="3" fill="#FFFFFF" stroke="#64748B" stroke-width="1.2" stroke-dasharray="4,3"/>
+<rect x="770" y="176" width="60" height="10" rx="3" fill="#FFFFFF" stroke="#64748B" stroke-width="1.2" stroke-dasharray="4,3"/>
+<text x="196" y="90" font-size="14" fill="#2B7A9B" text-anchor="middle" font-weight="bold">Cluster</text>
+<text x="644" y="104" font-size="14" fill="#2B7A9B" text-anchor="middle" font-weight="bold">Cluster</text>
+<text x="415" y="156" font-size="14" fill="#64748B" text-anchor="middle" font-weight="bold">Noise</text>
+<text x="800" y="156" font-size="14" fill="#64748B" text-anchor="middle" font-weight="bold">Noise</text>
+<line x1="110" y1="252" x2="170" y2="252" stroke="#1F2A37" stroke-width="1.5" stroke-linecap="butt"/>
+<line x1="110" y1="246" x2="110" y2="258" stroke="#1F2A37" stroke-width="1.5" stroke-linecap="butt"/>
+<line x1="170" y1="246" x2="170" y2="258" stroke="#1F2A37" stroke-width="1.5" stroke-linecap="butt"/>
+<text x="182" y="257" font-size="13" fill="#1F2A37" text-anchor="start">range of a read: its start and end are the point</text>
+<rect x="110" y="276" width="60" height="10" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2"/>
+<text x="182" y="286" font-size="13" fill="#1F2A37" text-anchor="start">read in a dense region: at least min-points within eps</text>
+<rect x="110" y="300" width="60" height="10" rx="3" fill="#FFFFFF" stroke="#64748B" stroke-width="1.2" stroke-dasharray="4,3"/>
+<text x="182" y="310" font-size="13" fill="#1F2A37" text-anchor="start">read in a sparse region: noise</text>
+</svg>

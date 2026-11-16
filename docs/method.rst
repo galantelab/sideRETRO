@@ -36,8 +36,8 @@ retrocopies come from a **mature mRNA**, reads from the
 retrocopy may be **erroneously** aligned to an **exon** of the
 **parental gene**:
 
-.. image:: images/indistinguishable_alignment.png
-   :scale: 25%
+.. image:: images/indistinguishable_alignment.svg
+   :width: 90%
    :align: center
 
 These kind of alignment may be called **indistinguishable**,
@@ -49,7 +49,7 @@ helpful according to their characteristics:
 - Paired-end reads aligned at **different** exons
 - Paired-end reads aligned at **different** chromosomes
 - Paired-end reads aligned at **distant** regions
-- Splitted reads (Reads with **supplementary** alignment)
+- Split reads (Reads with **supplementary** alignment)
 
 We will talk about each one as best as we can in the
 next lines.
@@ -61,8 +61,8 @@ When paired-end reads are mapped to contiguous exons and they
 came from a genomic sequencing - which of course is not
 expected.
 
-.. image:: images/abnormal_alignment_exon.png
-   :scale: 25%
+.. image:: images/abnormal_alignment_exon.svg
+   :width: 90%
    :align: center
 
 This kind of alignment is useful for **assume** a
@@ -79,8 +79,8 @@ retrocopy **does not exist** in the reference genome, the aligner will
 **map** one read to the retrotransposition chromosome and its pair to
 the parental gene **exon**.
 
-.. image:: images/abnormal_alignment_chr.png
-   :scale: 25%
+.. image:: images/abnormal_alignment_chr.svg
+   :width: 90%
    :align: center
 
 This alignment is useful to **estimate** the genomic position of the
@@ -98,8 +98,8 @@ the aligner try to map these reads, we will observe that one fall
 inside the parental gene exon, while its pair is mapped to a **distant
 region**.
 
-.. image:: images/abnormal_alignment_dist.png
-   :scale: 25%
+.. image:: images/abnormal_alignment_dist.svg
+   :width: 90%
    :align: center
 
 Split reads
@@ -112,8 +112,8 @@ intergenic region and part from the somatic retrocopy. When the aligner
 clipped part is long enough to be mapped elsewhere, the aligner **creates**
 another alignment to represent it, which is called **supplementary**.
 
-.. image:: images/abnormal_alignment_sr.png
-   :scale: 25%
+.. image:: images/abnormal_alignment_sr.svg
+   :width: 90%
    :align: center
 
 This alignment is useful to detect the **insertion point** with a
@@ -156,8 +156,8 @@ reads for those whose **mate is mapped** to a protein coding **exon**,
 and then we **cluster** them according to the chromosome they mapped
 to.
 
-.. image:: images/abnormal_alignment_clustering.png
-   :scale: 25%
+.. image:: images/abnormal_alignment_clustering.svg
+   :width: 90%
    :align: center
 
 Wherefore, the clustering algorithm plays the role to resolve
@@ -175,8 +175,8 @@ spatially of **one dimension** (the chromosome extension) and the
 points are represented by the **range** comprising the mapped reads
 start and end.
 
-.. image:: images/DBSCAN.png
-   :scale: 25%
+.. image:: images/DBSCAN.svg
+   :width: 90%
    :align: center
 
 The denser (covered) the region the greater the chance of a
@@ -264,8 +264,8 @@ number of reference allele *reads* - we select the *reads* that cover one
 come to the :math:`l` *reads* **identical** to the reference genome and can
 calculate the **genotype likelihoods**.
 
-.. image:: images/genotype.png
-   :scale: 25%
+.. image:: images/genotype.svg
+   :width: 90%
    :align: center
 
 .. _method_orientation:
@@ -297,14 +297,14 @@ Therefore summarizing:
 
 * Retrocopy and its parental gene are at the same strand
 
-  .. image:: images/orientation_same_strand.png
-     :scale: 25%
+  .. image:: images/orientation_same_strand.svg
+     :width: 90%
      :align: center
 
 * Retrocopy and its parental gene are at opposite strands
 
-  .. image:: images/orientation_opposite_strand.png
-     :scale: 25%
+  .. image:: images/orientation_opposite_strand.svg
+     :width: 90%
      :align: center
 
 Spearman's rank correlation coefficient
@@ -511,6 +511,10 @@ The reads are counted by retrocopy, sample and intron. Then,
 ``make-vcf`` reports an intron when **at least one sample** has enough
 reads at it (``--min-ir``, 2 by default): The introns at ``IRLIST`` and
 the sum of their reads at ``IR``.
+
+.. image:: images/intron_retention.svg
+   :width: 90%
+   :align: center
 
 .. note::
    The intron retention is an **annotation**, not a filter. It may be

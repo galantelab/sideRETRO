@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="470" viewBox="0 0 900 470" font-family="Helvetica, Arial, sans-serif">
+<defs></defs>
+<rect width="900" height="470" fill="#FFFFFF"/>
+<line x1="150" y1="50" x2="730" y2="50" stroke="#2B7A9B" stroke-width="8" stroke-linecap="round"/>
+<rect x="178" y="38" width="22" height="24" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<rect x="700" y="38" width="22" height="24" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<rect x="200" y="30" width="90" height="40" rx="4" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<rect x="360" y="30" width="120" height="40" rx="4" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<rect x="560" y="30" width="140" height="40" rx="4" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<text x="754" y="49" font-size="15" fill="#1F2A37" text-anchor="start" font-weight="bold">Parental gene</text>
+<text x="754" y="67" font-size="12" fill="#64748B" text-anchor="start">reference genome</text>
+<line x1="150" y1="250" x2="730" y2="250" stroke="#F2C14E" stroke-width="8" stroke-linecap="round"/>
+<text x="754" y="249" font-size="15" fill="#1F2A37" text-anchor="start" font-weight="bold">Insertion site</text>
+<text x="754" y="267" font-size="12" fill="#64748B" text-anchor="start">reference genome</text>
+<path d="M223,112 C223,150 320,130 320,196" fill="none" stroke="#64748B" stroke-width="1.2" stroke-linecap="round"/>
+<path d="M405,112 C405,150 365,130 365,164" fill="none" stroke="#64748B" stroke-width="1.2" stroke-linecap="round"/>
+<path d="M269,112 C269,150 365,130 365,196" fill="none" stroke="#64748B" stroke-width="1.2" stroke-linecap="round"/>
+<path d="M591,112 C591,150 500,130 500,196" fill="none" stroke="#64748B" stroke-width="1.2" stroke-linecap="round"/>
+<path d="M637,112 C637,150 545,130 545,164" fill="none" stroke="#64748B" stroke-width="1.2" stroke-linecap="round"/>
+<path d="M683,112 C683,150 545,130 545,196" fill="none" stroke="#64748B" stroke-width="1.2" stroke-linecap="round"/>
+<rect x="203" y="86" width="40" height="26" rx="5" fill="#1B5E7B" stroke="#2B7A9B" stroke-width="1.5"/>
+<text x="223" y="104" font-size="13" fill="#FFFFFF" text-anchor="middle" font-weight="bold">R2</text>
+<rect x="300" y="196" width="40" height="26" rx="5" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<text x="320" y="214" font-size="13" fill="#1F2A37" text-anchor="middle" font-weight="bold">R1</text>
+<rect x="385" y="86" width="40" height="26" rx="5" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<text x="405" y="104" font-size="13" fill="#1F2A37" text-anchor="middle" font-weight="bold">R1</text>
+<rect x="345" y="164" width="40" height="26" rx="5" fill="#1B5E7B" stroke="#2B7A9B" stroke-width="1.5"/>
+<text x="365" y="182" font-size="13" fill="#FFFFFF" text-anchor="middle" font-weight="bold">R2</text>
+<rect x="249" y="86" width="40" height="26" rx="5" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<text x="269" y="104" font-size="13" fill="#1F2A37" text-anchor="middle" font-weight="bold">R1</text>
+<rect x="345" y="196" width="40" height="26" rx="5" fill="#1B5E7B" stroke="#2B7A9B" stroke-width="1.5"/>
+<text x="365" y="214" font-size="13" fill="#FFFFFF" text-anchor="middle" font-weight="bold">R2</text>
+<rect x="571" y="86" width="40" height="26" rx="5" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<text x="591" y="104" font-size="13" fill="#1F2A37" text-anchor="middle" font-weight="bold">R1</text>
+<rect x="480" y="196" width="40" height="26" rx="5" fill="#1B5E7B" stroke="#2B7A9B" stroke-width="1.5"/>
+<text x="500" y="214" font-size="13" fill="#FFFFFF" text-anchor="middle" font-weight="bold">R2</text>
+<rect x="617" y="86" width="40" height="26" rx="5" fill="#1B5E7B" stroke="#2B7A9B" stroke-width="1.5"/>
+<text x="637" y="104" font-size="13" fill="#FFFFFF" text-anchor="middle" font-weight="bold">R2</text>
+<rect x="525" y="164" width="40" height="26" rx="5" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<text x="545" y="182" font-size="13" fill="#1F2A37" text-anchor="middle" font-weight="bold">R1</text>
+<rect x="663" y="86" width="40" height="26" rx="5" fill="#1B5E7B" stroke="#2B7A9B" stroke-width="1.5"/>
+<text x="683" y="104" font-size="13" fill="#FFFFFF" text-anchor="middle" font-weight="bold">R2</text>
+<rect x="525" y="196" width="40" height="26" rx="5" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<text x="545" y="214" font-size="13" fill="#1F2A37" text-anchor="middle" font-weight="bold">R1</text>
+<rect x="288" y="154" width="290" height="78" rx="14" fill="none" stroke="#2B7A9B" stroke-width="1.5" stroke-dasharray="6,4"/>
+<text x="590" y="190" font-size="13" fill="#2B7A9B" text-anchor="start" font-weight="bold">Cluster of</text>
+<text x="590" y="207" font-size="13" fill="#2B7A9B" text-anchor="start" font-weight="bold">abnormal reads</text>
+<line x1="440" y1="236" x2="440" y2="264" stroke="#D9480F" stroke-width="3" stroke-linecap="butt"/>
+<text x="440" y="288" font-size="13" fill="#D9480F" text-anchor="middle" font-weight="bold">Insertion point</text>
+<line x1="150" y1="410" x2="730" y2="410" stroke="#F2C14E" stroke-width="8" stroke-linecap="round"/>
+<rect x="258" y="398" width="22" height="24" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<rect x="280" y="390" width="350" height="40" rx="4" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<line x1="370" y1="390" x2="370" y2="430" stroke="#2B7A9B" stroke-width="1.5" stroke-linecap="butt"/>
+<line x1="490" y1="390" x2="490" y2="430" stroke="#2B7A9B" stroke-width="1.5" stroke-linecap="butt"/>
+<rect x="630" y="398" width="22" height="24" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<rect x="652" y="398" width="70" height="24" rx="3" fill="#1B5E7B" stroke="#2B7A9B" stroke-width="1.5"/>
+<text x="687" y="415" font-size="12" fill="#FFFFFF" text-anchor="middle" font-weight="bold">AAAA</text>
+<text x="754" y="409" font-size="15" fill="#1F2A37" text-anchor="start" font-weight="bold">Putative retrocopy</text>
+<text x="754" y="427" font-size="12" fill="#64748B" text-anchor="start">sample genome</text>
+<path d="M440,300 C440,350 258,340 258,384" fill="none" stroke="#D9480F" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="5,4"/>
+<path d="M440,300 C440,350 722,340 722,384" fill="none" stroke="#D9480F" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="5,4"/>
+</svg>
