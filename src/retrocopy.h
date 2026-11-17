@@ -34,16 +34,15 @@
  *   next to each other;
  * - RETROCOPY_HOTSPOT => Clusters overlap
  *   and their parental genes are not near
- *   or are at different chromosomes; Each
- *   cluster needs to be present at least
- *   at one individual at a time (mutually
- *   exclusive);
- * - RETROCOPY_AMBIGUOUS => Clusters overlap
- *   and their parental genes are not near
- *   or are at different chromosomes - just
- *   like in RETROCOPY_HOTSPOT - but there is
- *   no evidence of presence of each cluster
- *   at least at one individual;
+ *   or are at different chromosomes: They
+ *   are not merged, so there is a retrocopy
+ *   for each parental gene at the same
+ *   segment, whatever the individuals
+ *   carrying them;
+ * - RETROCOPY_AMBIGUOUS => Reserved: It is
+ *   never set. It was meant for the clusters
+ *   of a hotspot which cannot be told apart
+ *   by the individuals carrying them;
  * - RETROCOPY_PARENTAL_CHOSEN => Overlapped
  *   parental genes, but the evidence points
  *   to one of them: It is the first name of
