@@ -31,7 +31,7 @@ doc_images = files(
   'images/orientation_opposite_strand.svg',
   'images/orientation_same_strand.svg',
   'images/result_confusion.png',
-  'images/retrocopy.png'
+  'images/retrocopy.svg'
 )
 
 sphinx_source_dir = join_paths(meson.global_source_root(), 'docs')

@@ -602,7 +602,60 @@ def intron_fig():
     return f
 
 
+def retrocopy_fig():
+    """What a retrocopy is: Gene, mature mRNA and its copy elsewhere."""
+    f = Fig(W, 360)
+    # Parental gene
+    exons = f.gene(60, x0=60, x1=480, label=None, exons=((110, 180), (240, 310), (370, 440)))
+    f.text(60, 26, 'Parental gene', weight='bold')
+    f.text(170, 26, 'chromosome 1', size=12, fill=MUTED)
+    f.text(210, 96, 'intron', size=12, fill=MUTED, anchor='middle')
+    f.text(340, 96, 'intron', size=12, fill=MUTED, anchor='middle')
+    for (a, b), n in zip(exons, ('exon 1', 'exon 2', 'exon 3')):
+        f.text((a + b) / 2, 65, n, size=13, anchor='middle')
+
+    # Mature mRNA
+    y = 180
+    x = 300
+    f.rect(x - 22, y - 12, 22, 24, EXON, GENE, rx=3)
+    f.rect(x, y - 20, 210, 40, EXON, GENE)
+    f.line(x + 70, y - 20, x + 70, y + 20, stroke=GENE)
+    f.line(x + 140, y - 20, x + 140, y + 20, stroke=GENE)
+    f.rect(x + 210, y - 12, 22, 24, EXON, GENE, rx=3)
+    f.rect(x + 232, y - 12, 70, 24, DARK, GENE, rx=3)
+    f.text(x + 267, y + 5, 'AAAA', size=12, fill='#FFFFFF', anchor='middle', weight='bold')
+    f.text(x + 105, y + 44, 'Mature mRNA', anchor='middle', weight='bold')
+    f.text(x + 105, y + 60, 'no introns, with the poly-A tail', size=12, fill=MUTED,
+           anchor='middle')
+
+    # Retrocopy at another chromosome
+    y = 300
+    f.line(420, y, 860, y, stroke=CHR, sw=8, cap='round')
+    x = 520
+    f.rect(x - 34, y - 12, 34, 24, TSD, None, rx=0)
+    f.rect(x, y - 20, 210, 40, EXON, GENE, rx=0)
+    f.line(x + 70, y - 20, x + 70, y + 20, stroke=GENE)
+    f.line(x + 140, y - 20, x + 140, y + 20, stroke=GENE)
+    f.rect(x + 210, y - 12, 60, 24, DARK, GENE, rx=0)
+    f.text(x + 240, y + 5, 'AAAA', size=12, fill='#FFFFFF', anchor='middle', weight='bold')
+    f.rect(x + 270, y - 12, 34, 24, TSD, None, rx=0)
+    f.text(x - 17, y + 5, 'TSD', size=11, anchor='middle', weight='bold')
+    f.text(x + 287, y + 5, 'TSD', size=11, anchor='middle', weight='bold')
+    f.text(420, y + 44, 'Retrocopy', weight='bold')
+    f.text(500, y + 44, 'chromosome 2', size=12, fill=MUTED)
+
+    # The path
+    f.path('M150,96 C150,180 200,180 262,180', stroke=INK, sw=2, arrow=True)
+    f.text(60, 150, 'transcription', size=13)
+    f.text(60, 167, 'and splicing', size=13)
+    f.path('M612,180 C700,180 700,210 700,262', stroke=INK, sw=2, arrow=True)
+    f.text(716, 200, 'reverse transcription', size=13)
+    f.text(716, 217, 'and insertion (LINE-1)', size=13)
+    return f
+
+
 FIGS = {
+    'retrocopy': retrocopy_fig,
     'indistinguishable_alignment': lambda: alignment_fig('indist'),
     'abnormal_alignment_exon': lambda: alignment_fig('exon'),
     'abnormal_alignment_chr': lambda: alignment_fig('chr'),

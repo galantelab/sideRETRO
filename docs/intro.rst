@@ -18,8 +18,8 @@ resulting from **reverse-transcription** of a mature **mRNA**
 molecule into **cDNA**, and its insertion into a new position on
 the genome.
 
-.. image:: images/retrocopy.png
-   :scale: 50%
+.. image:: images/retrocopy.svg
+   :width: 90%
    :align: center
 
 Got interested? For a more detailed explanation about what is

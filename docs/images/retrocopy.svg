@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="360" viewBox="0 0 900 360" font-family="Helvetica, Arial, sans-serif">
+<defs><marker id="arrow-1F2A37" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M1,1 L8,4.5 L1,8 z" fill="#1F2A37"/></marker></defs>
+<rect width="900" height="360" fill="#FFFFFF"/>
+<line x1="60" y1="60" x2="480" y2="60" stroke="#2B7A9B" stroke-width="8" stroke-linecap="round"/>
+<rect x="88" y="48" width="22" height="24" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<rect x="440" y="48" width="22" height="24" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<rect x="110" y="40" width="70" height="40" rx="4" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<rect x="240" y="40" width="70" height="40" rx="4" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<rect x="370" y="40" width="70" height="40" rx="4" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<text x="60" y="26" font-size="15" fill="#1F2A37" text-anchor="start" font-weight="bold">Parental gene</text>
+<text x="170" y="26" font-size="12" fill="#64748B" text-anchor="start">chromosome 1</text>
+<text x="210" y="96" font-size="12" fill="#64748B" text-anchor="middle">intron</text>
+<text x="340" y="96" font-size="12" fill="#64748B" text-anchor="middle">intron</text>
+<text x="145" y="65" font-size="13" fill="#1F2A37" text-anchor="middle">exon 1</text>
+<text x="275" y="65" font-size="13" fill="#1F2A37" text-anchor="middle">exon 2</text>
+<text x="405" y="65" font-size="13" fill="#1F2A37" text-anchor="middle">exon 3</text>
+<rect x="278" y="168" width="22" height="24" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<rect x="300" y="160" width="210" height="40" rx="4" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<line x1="370" y1="160" x2="370" y2="200" stroke="#2B7A9B" stroke-width="1.5" stroke-linecap="butt"/>
+<line x1="440" y1="160" x2="440" y2="200" stroke="#2B7A9B" stroke-width="1.5" stroke-linecap="butt"/>
+<rect x="510" y="168" width="22" height="24" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<rect x="532" y="168" width="70" height="24" rx="3" fill="#1B5E7B" stroke="#2B7A9B" stroke-width="1.5"/>
+<text x="567" y="185" font-size="12" fill="#FFFFFF" text-anchor="middle" font-weight="bold">AAAA</text>
+<text x="405" y="224" font-size="15" fill="#1F2A37" text-anchor="middle" font-weight="bold">Mature mRNA</text>
+<text x="405" y="240" font-size="12" fill="#64748B" text-anchor="middle">no introns, with the poly-A tail</text>
+<line x1="420" y1="300" x2="860" y2="300" stroke="#F2C14E" stroke-width="8" stroke-linecap="round"/>
+<rect x="486" y="288" width="34" height="24" rx="0" fill="#F6A46B"/>
+<rect x="520" y="280" width="210" height="40" rx="0" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<line x1="590" y1="280" x2="590" y2="320" stroke="#2B7A9B" stroke-width="1.5" stroke-linecap="butt"/>
+<line x1="660" y1="280" x2="660" y2="320" stroke="#2B7A9B" stroke-width="1.5" stroke-linecap="butt"/>
+<rect x="730" y="288" width="60" height="24" rx="0" fill="#1B5E7B" stroke="#2B7A9B" stroke-width="1.5"/>
+<text x="760" y="305" font-size="12" fill="#FFFFFF" text-anchor="middle" font-weight="bold">AAAA</text>
+<rect x="790" y="288" width="34" height="24" rx="0" fill="#F6A46B"/>
+<text x="503" y="305" font-size="11" fill="#1F2A37" text-anchor="middle" font-weight="bold">TSD</text>
+<text x="807" y="305" font-size="11" fill="#1F2A37" text-anchor="middle" font-weight="bold">TSD</text>
+<text x="420" y="344" font-size="15" fill="#1F2A37" text-anchor="start" font-weight="bold">Retrocopy</text>
+<text x="500" y="344" font-size="12" fill="#64748B" text-anchor="start">chromosome 2</text>
+<path d="M150,96 C150,180 200,180 262,180" fill="none" stroke="#1F2A37" stroke-width="2" stroke-linecap="round" marker-end="url(#arrow-1F2A37)"/>
+<text x="60" y="150" font-size="13" fill="#1F2A37" text-anchor="start">transcription</text>
+<text x="60" y="167" font-size="13" fill="#1F2A37" text-anchor="start">and splicing</text>
+<path d="M612,180 C700,180 700,210 700,262" fill="none" stroke="#1F2A37" stroke-width="2" stroke-linecap="round" marker-end="url(#arrow-1F2A37)"/>
+<text x="716" y="200" font-size="13" fill="#1F2A37" text-anchor="start">reverse transcription</text>
+<text x="716" y="217" font-size="13" fill="#1F2A37" text-anchor="start">and insertion (LINE-1)</text>
+</svg>

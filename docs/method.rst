@@ -638,9 +638,56 @@ Quality and filters
 ===================
 
 At last, ``make-vcf`` gives each retrocopy a **quality** and a
-**filter**. The quality (``QUAL``) comes from the genotype likelihoods
-of all samples: The confidence that at least one of them carries the
-insertion. The filter (``FILTER``) asks whether the **insertion point**
+**filter**.
+
+The quality (``QUAL``) is the confidence that the insertion is **real**
+- that at least one sample carries it. It comes from the
+:ref:`genotype <method_genotype>` likelihoods, which are already
+calculated for each sample *i*: :math:`\delta_i(HOR)`,
+:math:`\delta_i(HET)` and :math:`\delta_i(HOA)`. With no preference
+for any genotype beforehand (a flat prior), the probability that the
+sample **does not** carry the insertion is the share of the homozygous
+reference among them:
+
+.. math::
+   P_i(HOR) =
+   \frac{\delta_i(HOR)}{\delta_i(HOR) + \delta_i(HET) + \delta_i(HOA)}
+
+The site is not variant only if **all** the *n* samples are homozygous
+reference. Taking the samples as independent, the probabilities are
+multiplied, and ``QUAL`` is the result at the Phred scale:
+
+.. math::
+   QUAL =
+   -10 \log_{10} \prod_{i=1}^{n} P_i(HOR) =
+   \sum_{i=1}^{n} -10 \log_{10} P_i(HOR)
+
+So each sample **adds** its own evidence. A carrier adds a lot, and a
+sample at the reference adds almost nothing. For instance, with the
+likelihoods (``GL``, at :math:`\log_{10}`) of two samples:
+
++----------+----------------------+-------------------------+----------+
+| Sample   | GL (HOR, HET, HOA)   | :math:`P_i(HOR)`        | Adds     |
++==========+======================+=========================+==========+
+| Carrier  | -30.0, -1.5, -0.1    | :math:`1.2 \times       | 299.2    |
+|          |                      | 10^{-30}`               |          |
++----------+----------------------+-------------------------+----------+
+| Reference| -0.1, -3.0, -30.0    | 0.9987                  | 0.0      |
++----------+----------------------+-------------------------+----------+
+
+and ``QUAL`` is 299.2. Some details:
+
+- The samples **without reads** at the site are not informative, and
+  they are skipped. Without any informative sample, ``QUAL`` is missing
+  (``.``).
+- The sum is done with the likelihoods at :math:`\log_{10}`, as they
+  are stored, so deep sites do not underflow.
+- ``QUAL`` is capped at 999.
+- It inherits the genotype model, which counts the reads weighted by
+  their mapping quality: A score to **rank** the insertions, not a
+  calibrated probability.
+
+The filter (``FILTER``) asks whether the **insertion point**
 is well defined, so that a ``PASS`` retrocopy is a good target for
 validation: Enough split reads, both breakpoints and a target site
 duplication of the expected length, besides the quality, the mapping
