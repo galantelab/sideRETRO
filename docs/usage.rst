@@ -44,7 +44,7 @@ Another classical example is to print **sideRETRO**'s installed version using
 the ``-V`` option::
 
   $ sider -V
-  sideRETRO 1.10.0
+  sideRETRO 1.11.0
 
 And, if the user need further help, he can find it both at the **sideRETRO**'s
 `readthedocs page <https://sideretro.readthedocs.io>`_ or in the already
