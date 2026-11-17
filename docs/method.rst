@@ -4,7 +4,7 @@
 Methodology
 ***********
 
-**siderRETRO** uses NGS (*Next Generation Sequencing*) data
+**sideRETRO** uses NGS (*Next Generation Sequencing*) data
 to identify **unfixed** - *dimorphic/polymorphic, germinative,
 or somatic* - retrocopies absent in the reference genome,
 but present in the sequenced genome (by NGS).
@@ -12,15 +12,29 @@ but present in the sequenced genome (by NGS).
 Our **methodology** consists of detecting
 abnormal (discordant) alignments in `SAM/BAM/CRAM
 <https://samtools.github.io/hts-specs/SAMv1.pdf>`_
-file and, with an **unsupervised machine learning**
-algorithm, clustering these reads and genotype in order
-to discover somatic retrocopy insertions. Care is taken
-to ensure the quality and consistency of the data,
-taking into account the features that characterize a
-retrocopy mobilization, such as the absence of
-**intronic** and **regulatory** regions.
+files and, with an **unsupervised machine learning**
+algorithm, clustering these reads in order to discover
+the retrocopy insertions. Then, each insertion is
+described by the features that characterize a
+retrocopy mobilization. In short:
+
+1. Select the :ref:`abnormal alignments <method_abnormal>` with a
+   mate at an exon (``process-sample``).
+2. :ref:`Cluster <method_clustering>` them by insertion site and
+   parental gene, and merge the clusters into retrocopies
+   (``merge-call``).
+3. Find the :ref:`breakpoints <method_breakpoints>` and the target site
+   duplication, the :ref:`poly-A tail <method_polya>`, the
+   :ref:`exon-exon junctions <method_junction>` and the
+   :ref:`ends <method_ends>` of the retrocopy into its parental gene.
+4. :ref:`Genotype <method_genotype>` each sample, looking for the
+   :ref:`intron retention <method_intron>` on the way.
+5. Score and filter the events (``make-vcf``), see :ref:`Quality and
+   filters <method_filter>`.
 
 .. note:: For more detail about the jargon, see `Retrocopy in a nutshell <retrocopy.rst>`_
+
+.. _method_abnormal:
 
 Abnormal alignment
 ==================
@@ -57,9 +71,9 @@ next lines.
 Alignment at different exons
 ----------------------------
 
-When paired-end reads are mapped to contiguous exons and they
-came from a genomic sequencing - which of course is not
-expected.
+The paired-end reads are mapped to **contiguous exons**, with the
+intron between them, although they came from a genomic sequencing -
+which of course is not expected.
 
 .. image:: images/abnormal_alignment_exon.svg
    :width: 90%
@@ -145,6 +159,19 @@ sideRETRO uses **only** the abnormal alignments **capable** to
 detect **at least** the coordinate, so those that fall into
 *different exons* are dismissed.
 
+In practice, ``process-sample`` takes a fragment as abnormal when its
+reads are at different chromosomes, farther than ``--max-distance``
+from each other, or have a supplementary alignment. The reads must be
+paired, mapped with the mate mapped, with the minimum mapping quality
+(``--phred-quality``) and not of low complexity (``--max-base-freq``).
+A fragment is **kept** only if one of its alignments overlaps an
+**exon** of the annotation - by one base, or by the fractions given at
+``--exon-frac`` and ``--alignment-frac``. A stricter fraction of the
+alignment leaves out the reads crossing from an exon into its intron,
+which do not come from a processed transcript.
+
+.. _method_clustering:
+
 Clustering
 ==========
 
@@ -152,9 +179,10 @@ So far we have been talking about abnormal reads **selection**. As
 soon as this step is over, we need to determine if a bunch of
 reads aligned to some genomic region may **represent** a putative
 retrocopy insertion. Therefore, firstly we restrict the abnormal
-reads for those whose **mate is mapped** to a protein coding **exon**,
-and then we **cluster** them according to the chromosome they mapped
-to.
+reads for those whose **mate is mapped** to an **exon** of the
+annotation - protein coding genes, by default - and then we
+**cluster** them according to the chromosome they mapped to and to
+the gene of their mates.
 
 .. image:: images/abnormal_alignment_clustering.svg
    :width: 90%
@@ -180,7 +208,41 @@ start and end.
    :align: center
 
 The denser (covered) the region the greater the chance of a
-retrotransposition event there.
+retrotransposition event there. Two reads are neighbours when they
+are up to ``--epsilon`` bases apart, and a dense region needs
+``--min-pts`` of them.
+
+From clusters to retrocopies
+----------------------------
+
+Not every cluster is a retrocopy. ``merge-call`` discards the clusters:
+
+- at a **blacklisted** chromosome or region - by default, the
+  mitochondrial chromosome and the retrocopies already annotated at the
+  reference, whose reads are abnormal for the same reason;
+- too **near** their own parental gene (``--parental-distance``), as
+  the reads of the gene itself;
+- without enough reads from a **single sample**
+  (``--genotype-support``).
+
+The remaining clusters are compared to each other. Clusters at the same
+site, from different genes, are **merged** into one retrocopy according
+to their parental genes (``PGTYPE``):
+
++-------------------+-------------------------------------------------+
+| Single            | No other cluster at the site                    |
++-------------------+-------------------------------------------------+
+| Overlapped        | The parental genes overlap each other, see      |
+| parental genes    | :ref:`Overlapped parental genes                 |
+|                   | <method_overlapped>`                            |
++-------------------+-------------------------------------------------+
+| Near parental     | The parental genes are neighbours, up to        |
+| genes             | ``--near-gene-rank`` genes apart                |
++-------------------+-------------------------------------------------+
+| Hotspot           | Unrelated parental genes: The clusters are not  |
+|                   | merged, and there is one retrocopy for each     |
+|                   | gene at the same site                           |
++-------------------+-------------------------------------------------+
 
 .. _method_genotype:
 
@@ -190,7 +252,7 @@ Genotype
 In order to **increase** the putative insertion coverage, it is common
 to **join** analysis of a bunch of individuals. After the discovery
 of the retrocopies, it is necessary to identify **who owns** the
-variation and with what **zygosity** ((heterozygous, homozygous).
+variation and with what **zygosity** (heterozygous, homozygous).
 So we have **three** possibilities for biallelic sites [2]_: If *A*
 is the **reference** allele and *B* is the **alternate** allele, the
 ordering of genotypes for the likelihoods is *AA*, *AB*, *BB*. The
@@ -450,6 +512,8 @@ from the chosen gene. If the signals disagree, or none applies - e.g. a
 gene and its read-through transcript, with the same exons - the parental
 gene stays ambiguous.
 
+.. _method_junction:
+
 Exon-exon junctions
 ===================
 
@@ -523,6 +587,8 @@ the sum of their reads at ``IR``.
    carries its introns too. The breakpoints and the target site
    duplication tell them apart, so they do the filtering.
 
+.. _method_ends:
+
 Retrocopy ends and predicted sequence
 =====================================
 
@@ -566,15 +632,35 @@ the :ref:`insertions file <insertions_file>`.
    acquired after the insertion or unannotated isoforms. This is also
    why the VCF keeps a **symbolic** ALT allele.
 
+.. _method_filter:
+
+Quality and filters
+===================
+
+At last, ``make-vcf`` gives each retrocopy a **quality** and a
+**filter**. The quality (``QUAL``) comes from the genotype likelihoods
+of all samples: The confidence that at least one of them carries the
+insertion. The filter (``FILTER``) asks whether the **insertion point**
+is well defined, so that a ``PASS`` retrocopy is a good target for
+validation: Enough split reads, both breakpoints and a target site
+duplication of the expected length, besides the quality, the mapping
+quality of the reads and a single parental gene.
+
+The poly-A tail, the exon-exon junctions and the intron retention are
+**reported**, but they do not filter: They depend on the coverage and
+on the biology of the sample, and their absence does not make an
+insertion less real. See :ref:`QUAL <qual>` and :ref:`FILTER <filter>`
+for the details and the thresholds.
+
 References and Further Reading
 ==============================
 
 .. [1] Ester, Martin. (1996).
-   A Density-Based Algorithm for Discovering Clustersin Large Spatial Databases with Noise.
+   A Density-Based Algorithm for Discovering Clusters in Large Spatial Databases with Noise.
    KDD. Available at https://www.aaai.org/Papers/KDD/1996/KDD96-037.pdf.
 
 .. [2] hts-specs. (2019).
-   The Variant Call Format (VCF) Version 4.2 Specificatio.
+   The Variant Call Format (VCF) Version 4.2 Specification.
    Available at https://samtools.github.io/hts-specs/VCFv4.2.pdf.
 
 .. [3] Li, Heng (2011).
