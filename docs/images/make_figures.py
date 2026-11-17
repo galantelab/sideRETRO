@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
 """Generate the figures of the sideRETRO documentation (SVG).
 
-One palette and one style for all of them. Usage:
-    make_figures.py OUTPUT_DIR
+One palette and one style for all of them. The background is transparent. Usage:
+    make_figures.py [--light-mode | --dark-mode] OUTPUT_DIR
+
+--light-mode  dark text and lines, for light pages (default)
+--dark-mode   light text and lines, for dark pages
+
+The colors are fixed in the SVG: The figures do not switch on their own.
 """
 
 import os
@@ -20,19 +25,35 @@ ACCENT = '#D9480F'   # insertion point, breakpoints
 TSD = '#F6A46B'      # target site duplication
 INTRON = '#7E5BB5'   # retained intron
 GREY = '#CBD5E1'     # neutral
-BG = '#FFFFFF'
+BG = 'none'          # transparent: figures adapt to the page background
 FONT = 'Helvetica, Arial, sans-serif'
+FONT_SCALE = 1.25    # all font sizes are multiplied by this
+
+# Dark mode: Text and lines drawn on the page background are lightened.
+# Text inside shapes keeps its color, as the shapes keep theirs.
+DARK_MODE = {INK: '#E5E7EB', MUTED: '#94A3B8', GENE: '#5FB3D3', ACCENT: '#F0743E',
+             INTRON: '#A88BD9'}
+DARK_LINES = (INK, MUTED)   # stroke colors lightened at dark mode
+dark_mode = False           # set by main()
+
+
+def on_bg(color, which=DARK_MODE):
+    """The color of something drawn on the page background."""
+    return DARK_MODE[color] if dark_mode and color in which else color
 
 
 class Fig:
     def __init__(self, w, h):
         self.w, self.h = w, h
         self.e = []
+        self.solid = []     # opaque rectangles: Text inside them keeps its color
 
     def add(self, s):
         self.e.append(s)
 
     def rect(self, x, y, w, h, fill, stroke=None, rx=4, sw=1.5, dash=None, op=None):
+        if fill == 'none' and stroke:
+            stroke = on_bg(stroke, DARK_LINES)
         a = 'x="%g" y="%g" width="%g" height="%g" rx="%g" fill="%s"' % (x, y, w, h, rx, fill)
         if stroke:
             a += ' stroke="%s" stroke-width="%g"' % (stroke, sw)
@@ -40,10 +61,18 @@ class Fig:
             a += ' stroke-dasharray="%s"' % dash
         if op is not None:
             a += ' fill-opacity="%g"' % op
+        if fill != 'none' and (op is None or op >= 0.5):
+            self.solid.append((x, y, w, h))
         self.add('<rect %s/>' % a)
 
     def text(self, x, y, s, size=15, fill=INK, anchor='start', weight='normal', style=None):
-        a = 'x="%g" y="%g" font-size="%g" fill="%s" text-anchor="%s"' % (x, y, size, fill, anchor)
+        inside = any(rx <= x <= rx + rw and ry <= y <= ry + rh for rx, ry, rw, rh in self.solid)
+        if not inside:
+            fill = on_bg(fill)
+        scaled = size * FONT_SCALE
+        if inside or anchor == 'middle':
+            y += (scaled - size) * 0.35     # labels stay centered at their shape
+        a = 'x="%g" y="%g" font-size="%.4g" fill="%s" text-anchor="%s"' % (x, y, scaled, fill, anchor)
         if weight != 'normal':
             a += ' font-weight="%s"' % weight
         if style:
@@ -52,6 +81,7 @@ class Fig:
         self.add('<text %s>%s</text>' % (a, s))
 
     def line(self, x1, y1, x2, y2, stroke=MUTED, sw=1.5, dash=None, arrow=False, cap='butt'):
+        stroke = on_bg(stroke, DARK_LINES)
         a = 'x1="%g" y1="%g" x2="%g" y2="%g" stroke="%s" stroke-width="%g" stroke-linecap="%s"' % (
             x1, y1, x2, y2, stroke, sw, cap)
         if dash:
@@ -62,6 +92,7 @@ class Fig:
         self.add('<line %s/>' % a)
 
     def path(self, d, stroke=MUTED, sw=1.5, dash=None, arrow=False, fill='none'):
+        stroke = on_bg(stroke, DARK_LINES)
         a = 'd="%s" fill="%s" stroke="%s" stroke-width="%g" stroke-linecap="round"' % (d, fill, stroke, sw)
         if dash:
             a += ' stroke-dasharray="%s"' % dash
@@ -99,8 +130,8 @@ class Fig:
         for a, b in exons:
             self.rect(a, y - 20, b - a, 40, EXON, GENE)
         if label:
-            self.text(x1 + 24, y - 1, label, weight='bold')
-            self.text(x1 + 24, y + 17, sub, size=12, fill=MUTED)
+            self.text(x1 + 24, y - 3, label, weight='bold')
+            self.text(x1 + 24, y + 19, sub, size=12, fill=MUTED)
         return exons
 
     def retro(self, y, x0=150, x1=730, flank=CHR, label='Retrocopy', sub='sample genome',
@@ -121,15 +152,15 @@ class Fig:
         self.text(x + 22 + polya / 2, y + 5, 'AAAA', size=12, fill='#FFFFFF', anchor='middle',
                   weight='bold')
         if label:
-            self.text(x1 + 24, y - 1, label, weight='bold')
-            self.text(x1 + 24, y + 17, sub, size=12, fill=MUTED)
+            self.text(x1 + 24, y - 3, label, weight='bold')
+            self.text(x1 + 24, y + 19, sub, size=12, fill=MUTED)
         return bounds, x + 22 + polya
 
     def chrom(self, y, x0=150, x1=730, label='Insertion site', sub='reference genome', color=CHR):
         self.line(x0, y, x1, y, stroke=color, sw=8, cap='round')
         if label:
-            self.text(x1 + 24, y - 1, label, weight='bold')
-            self.text(x1 + 24, y + 17, sub, size=12, fill=MUTED)
+            self.text(x1 + 24, y - 3, label, weight='bold')
+            self.text(x1 + 24, y + 19, sub, size=12, fill=MUTED)
 
     def pair(self, x1, x2, y, w=40):
         """Mates of a fragment, linked."""
@@ -152,11 +183,11 @@ class Fig:
                      'orient="auto"><path d="M1,1 L8,4.5 L1,8 z" fill="%s"/></marker>'
                      % (c.strip('#'), c))
         return ('<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" viewBox="0 0 %d %d" '
-                'font-family="%s">\n<defs>%s</defs>\n<rect width="%d" height="%d" fill="%s"/>\n%s\n</svg>\n'
-                % (self.w, self.h, self.w, self.h, FONT, defs, self.w, self.h, BG, '\n'.join(self.e)))
+                'font-family="%s">\n<defs>%s</defs>\n%s\n</svg>\n'
+                % (self.w, self.h, self.w, self.h, FONT, defs, '\n'.join(self.e)))
 
 
-W = 900
+W = 940         # room for the labels at the right
 REF_Y = 50      # parental gene at the reference
 ALN_Y = 86      # reads aligned under the gene
 
@@ -254,7 +285,7 @@ def clustering_fig():
         f.read(sx, sy, sl)
     f.rect(288, 154, 290, 78, 'none', GENE, rx=14, dash='6,4')
     f.text(590, 190, 'Cluster of', size=13, fill=GENE, weight='bold')
-    f.text(590, 207, 'abnormal reads', size=13, fill=GENE, weight='bold')
+    f.text(590, 210, 'abnormal reads', size=13, fill=GENE, weight='bold')
     f.line(ip, 236, ip, 264, stroke=ACCENT, sw=3)
     f.text(ip, 288, 'Insertion point', size=13, fill=ACCENT, anchor='middle', weight='bold')
     # The putative retrocopy
@@ -315,7 +346,7 @@ def genotype_fig():
                         (500, 0, 'R1'), (546, 1, 'R2'), (592, 0, 'R1'), (540, 2, 'R2')]:
         f.read(x, y - 46 - row * 32, lab)
     f.rect(238, y - 122, 416, 108, 'none', GENE, rx=14, dash='6,4')
-    f.text(64, y - 80, 'Abnormal reads', size=14, weight='bold')
+    f.text(64, y - 83, 'Abnormal reads', size=14, weight='bold')
     f.text(64, y - 62, 'evidence of the insertion', size=12, fill=MUTED)
 
     # Normal reads: Crossing the window or not
@@ -325,11 +356,11 @@ def genotype_fig():
                              (250, 0, 120, False), (232, 1, 120, False), (330, 3, 112, False),
                              (540, 0, 120, False), (462, 3, 120, False), (566, 1, 120, False)]:
         normal(x, row, w, cross)
-    f.text(64, y + 70, 'Normal reads', size=14, weight='bold')
+    f.text(64, y + 67, 'Normal reads', size=14, weight='bold')
     f.text(64, y + 88, 'proper pairs', size=12, fill=MUTED)
     f.rect(690, y + 52, 26, 12, DARK, None, rx=4)
     f.text(724, y + 63, 'crosses the window:', size=12)
-    f.text(724, y + 79, 'reference allele', size=12)
+    f.text(724, y + 82, 'reference allele', size=12)
     f.rect(690, y + 100, 26, 12, GREY, None, rx=4)
     f.text(724, y + 111, 'not counted', size=12)
     f.text(ip, y + 168, 'window: one decile of the read length', size=12, fill=ACCENT,
@@ -452,9 +483,9 @@ def breakpoints_fig():
         f.rect(x, ry, c, 12, EXON, GENE, rx=3, sw=1.2, dash='4,3')
         f.rect(x + c, ry, a, 12, MUTED, None, rx=3)
     f.text(220, 284, 'aligned part ends at LBKP; the clip', size=12, fill=INK)
-    f.text(220, 300, 'is the beginning of the insertion', size=12, fill=INK)
+    f.text(220, 303, 'is the beginning of the insertion', size=12, fill=INK)
     f.text(530, 284, 'aligned part starts at RBKP; the clip', size=12, fill=INK)
-    f.text(530, 300, 'ends with the poly-A', size=12, fill=INK)
+    f.text(530, 303, 'ends with the poly-A', size=12, fill=INK)
     # Legend
     ly = 340
     f.rect(110, ly, 26, 12, MUTED, None, rx=3)
@@ -501,7 +532,7 @@ def polya_fig():
     row(190, False)
     f.text(150, 290, 'A clip with other bases before the run gives the exact tail length; a clip '
            'made only of A (or T)', size=12, fill=MUTED)
-    f.text(150, 306, 'gives a lower bound (POLYAMIN). Sequences are read at the forward strand of '
+    f.text(150, 309, 'gives a lower bound (POLYAMIN). Sequences are read at the forward strand of '
            'the reference, as in SAM.', size=12, fill=MUTED)
     return f
 
@@ -538,7 +569,7 @@ def ends_fig():
     f.link(548, y - 16, p3, 100, color=ACCENT)
     f.text(150, y + 40, 'seed: the first 20 bases of the clips at LBKP', size=12)
     f.text(480, y + 40, 'seed: the last 20 bases before the poly-A', size=12)
-    f.text(480, y + 56, 'of the clips at RBKP', size=12)
+    f.text(480, y + 59, 'of the clips at RBKP', size=12)
 
     # Predicted sequence
     y = 340
@@ -551,10 +582,10 @@ def ends_fig():
     f.rect(x, y - 16, 70, 32, DARK, GENE, rx=0)
     f.text(x + 35, y + 5, 'poly-A', size=12, fill='#FFFFFF', anchor='middle', weight='bold')
     f.text(560, y - 2, 'reference bases of the exons from PG5P to PG3P,', size=12)
-    f.text(560, y + 14, 'spliced, in the mRNA sense, plus the poly-A (SVLEN)', size=12)
+    f.text(560, y + 17, 'spliced, in the mRNA sense, plus the poly-A (SVLEN)', size=12)
     f.text(150, 410, 'The seeds are searched in both orientations. A forward match in a + gene '
            '(or a reverse one in a - gene)', size=12, fill=MUTED)
-    f.text(150, 426, "means the insertion follows the mRNA sense at the reference. The junction "
+    f.text(150, 429, "means the insertion follows the mRNA sense at the reference. The junction "
            "with the poly-A is the 3' end.", size=12, fill=MUTED)
     return f
 
@@ -583,8 +614,8 @@ def intron_fig():
     f.rect(x + 360, y - 12, 22, 24, EXON, GENE, rx=3)
     f.rect(x + 382, y - 12, 60, 24, DARK, GENE, rx=3)
     f.text(x + 412, y + 5, 'AAAA', size=12, fill='#FFFFFF', anchor='middle', weight='bold')
-    f.text(754, y - 1, 'Retrocopy', weight='bold')
-    f.text(754, y + 17, 'with a retained intron', size=12, fill=MUTED)
+    f.text(754, y - 3, 'Retrocopy', weight='bold')
+    f.text(754, y + 19, 'with a retained intron', size=12, fill=MUTED)
     f.text(24, REF_Y + 5, 'Aligned', size=13, fill=MUTED, weight='bold')
     f.text(24, sample_y + 5, 'Sequenced', size=13, fill=MUTED, weight='bold')
 
@@ -608,7 +639,7 @@ def retrocopy_fig():
     # Parental gene
     exons = f.gene(60, x0=60, x1=480, label=None, exons=((110, 180), (240, 310), (370, 440)))
     f.text(60, 26, 'Parental gene', weight='bold')
-    f.text(170, 26, 'chromosome 1', size=12, fill=MUTED)
+    f.text(196, 26, 'chromosome 1', size=12, fill=MUTED)
     f.text(210, 96, 'intron', size=12, fill=MUTED, anchor='middle')
     f.text(340, 96, 'intron', size=12, fill=MUTED, anchor='middle')
     for (a, b), n in zip(exons, ('exon 1', 'exon 2', 'exon 3')):
@@ -625,7 +656,7 @@ def retrocopy_fig():
     f.rect(x + 232, y - 12, 70, 24, DARK, GENE, rx=3)
     f.text(x + 267, y + 5, 'AAAA', size=12, fill='#FFFFFF', anchor='middle', weight='bold')
     f.text(x + 105, y + 44, 'Mature mRNA', anchor='middle', weight='bold')
-    f.text(x + 105, y + 60, 'no introns, with the poly-A tail', size=12, fill=MUTED,
+    f.text(x + 105, y + 63, 'no introns, with the poly-A tail', size=12, fill=MUTED,
            anchor='middle')
 
     # Retrocopy at another chromosome
@@ -642,15 +673,15 @@ def retrocopy_fig():
     f.text(x - 17, y + 5, 'TSD', size=11, anchor='middle', weight='bold')
     f.text(x + 287, y + 5, 'TSD', size=11, anchor='middle', weight='bold')
     f.text(420, y + 44, 'Retrocopy', weight='bold')
-    f.text(500, y + 44, 'chromosome 2', size=12, fill=MUTED)
+    f.text(526, y + 44, 'chromosome 2', size=12, fill=MUTED)
 
     # The path
     f.path('M150,96 C150,180 200,180 262,180', stroke=INK, sw=2, arrow=True)
     f.text(60, 150, 'transcription', size=13)
-    f.text(60, 167, 'and splicing', size=13)
+    f.text(60, 170, 'and splicing', size=13)
     f.path('M612,180 C700,180 700,210 700,262', stroke=INK, sw=2, arrow=True)
     f.text(716, 200, 'reverse transcription', size=13)
-    f.text(716, 217, 'and insertion (LINE-1)', size=13)
+    f.text(716, 220, 'and insertion (LINE-1)', size=13)
     return f
 
 
@@ -675,7 +706,15 @@ FIGS = {
 
 
 def main():
-    out = sys.argv[1]
+    global dark_mode
+    args = sys.argv[1:]
+    modes = [a for a in args if a in ('--light-mode', '--dark-mode')]
+    args = [a for a in args if a not in modes]
+    if len(set(modes)) > 1 or len(args) != 1 or args[0].startswith('-'):
+        sys.stderr.write(__doc__)
+        return 1
+    dark_mode = modes == ['--dark-mode'] or set(modes) == {'--dark-mode'}
+    out = args[0]
     os.makedirs(out, exist_ok=True)
     for name, fn in FIGS.items():
         with open(os.path.join(out, name + '.svg'), 'w') as fp:

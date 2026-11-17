@@ -1,17 +1,16 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="900" height="400" viewBox="0 0 900 400" font-family="Helvetica, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="940" height="400" viewBox="0 0 940 400" font-family="Helvetica, Arial, sans-serif">
 <defs><marker id="arrow-64748B" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M1,1 L8,4.5 L1,8 z" fill="#64748B"/></marker></defs>
-<rect width="900" height="400" fill="#FFFFFF"/>
 <line x1="150" y1="50" x2="730" y2="50" stroke="#2B7A9B" stroke-width="8" stroke-linecap="round"/>
 <rect x="178" y="38" width="22" height="24" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
 <rect x="700" y="38" width="22" height="24" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
 <rect x="200" y="30" width="90" height="40" rx="4" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
 <rect x="360" y="30" width="120" height="40" rx="4" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
 <rect x="560" y="30" width="140" height="40" rx="4" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
-<text x="754" y="49" font-size="15" fill="#1F2A37" text-anchor="start" font-weight="bold">Parental gene</text>
-<text x="754" y="67" font-size="12" fill="#64748B" text-anchor="start">reference genome</text>
+<text x="754" y="47" font-size="18.75" fill="#1F2A37" text-anchor="start" font-weight="bold">Parental gene</text>
+<text x="754" y="69" font-size="15" fill="#64748B" text-anchor="start">reference genome</text>
 <line x1="150" y1="170" x2="730" y2="170" stroke="#F2C14E" stroke-width="8" stroke-linecap="round"/>
-<text x="754" y="169" font-size="15" fill="#1F2A37" text-anchor="start" font-weight="bold">Insertion site</text>
-<text x="754" y="187" font-size="12" fill="#64748B" text-anchor="start">another chromosome</text>
+<text x="754" y="167" font-size="18.75" fill="#1F2A37" text-anchor="start" font-weight="bold">Insertion site</text>
+<text x="754" y="189" font-size="15" fill="#64748B" text-anchor="start">another chromosome</text>
 <line x1="150" y1="340" x2="730" y2="340" stroke="#F2C14E" stroke-width="8" stroke-linecap="round"/>
 <rect x="258" y="328" width="22" height="24" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
 <rect x="280" y="320" width="350" height="40" rx="4" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
@@ -19,27 +18,27 @@
 <line x1="490" y1="320" x2="490" y2="360" stroke="#2B7A9B" stroke-width="1.5" stroke-linecap="butt"/>
 <rect x="630" y="328" width="22" height="24" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
 <rect x="652" y="328" width="70" height="24" rx="3" fill="#1B5E7B" stroke="#2B7A9B" stroke-width="1.5"/>
-<text x="687" y="345" font-size="12" fill="#FFFFFF" text-anchor="middle" font-weight="bold">AAAA</text>
-<text x="754" y="339" font-size="15" fill="#1F2A37" text-anchor="start" font-weight="bold">Retrocopy</text>
-<text x="754" y="357" font-size="12" fill="#64748B" text-anchor="start">sample genome</text>
-<text x="24" y="55" font-size="13" fill="#64748B" text-anchor="start" font-weight="bold">Aligned</text>
-<text x="24" y="345" font-size="13" fill="#64748B" text-anchor="start" font-weight="bold">Sequenced</text>
+<text x="687" y="346.05" font-size="15" fill="#FFFFFF" text-anchor="middle" font-weight="bold">AAAA</text>
+<text x="754" y="337" font-size="18.75" fill="#1F2A37" text-anchor="start" font-weight="bold">Retrocopy</text>
+<text x="754" y="359" font-size="15" fill="#64748B" text-anchor="start">sample genome</text>
+<text x="24" y="55" font-size="16.25" fill="#64748B" text-anchor="start" font-weight="bold">Aligned</text>
+<text x="24" y="345" font-size="16.25" fill="#64748B" text-anchor="start" font-weight="bold">Sequenced</text>
 <rect x="150" y="284" width="40" height="26" rx="5" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
-<text x="170" y="302" font-size="13" fill="#1F2A37" text-anchor="middle" font-weight="bold">R1</text>
+<text x="170" y="303.137" font-size="16.25" fill="#1F2A37" text-anchor="middle" font-weight="bold">R1</text>
 <rect x="226" y="284" width="64" height="26" rx="5" fill="#1B5E7B" stroke="#2B7A9B" stroke-width="1.5"/>
-<text x="244" y="302" font-size="13" fill="#FFFFFF" text-anchor="middle" font-weight="bold">R2</text>
+<text x="244" y="303.137" font-size="16.25" fill="#FFFFFF" text-anchor="middle" font-weight="bold">R2</text>
 <line x1="258" y1="276" x2="258" y2="318" stroke="#D9480F" stroke-width="2" stroke-linecap="butt" stroke-dasharray="4,3"/>
-<text x="296" y="302" font-size="12" fill="#D9480F" text-anchor="start">crosses the junction</text>
+<text x="296" y="302" font-size="15" fill="#D9480F" text-anchor="start">crosses the junction</text>
 <line x1="190" y1="297" x2="226" y2="297" stroke="#2B7A9B" stroke-width="1.5" stroke-linecap="butt"/>
 <rect x="330" y="186" width="40" height="26" rx="5" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
-<text x="350" y="204" font-size="13" fill="#1F2A37" text-anchor="middle" font-weight="bold">R1</text>
+<text x="350" y="205.137" font-size="16.25" fill="#1F2A37" text-anchor="middle" font-weight="bold">R1</text>
 <rect x="410" y="186" width="32" height="26" rx="5" fill="#1B5E7B" stroke="#2B7A9B" stroke-width="1.5"/>
-<text x="426" y="204" font-size="13" fill="#FFFFFF" text-anchor="middle" font-weight="bold">R2</text>
-<rect x="442" y="186" width="32" height="26" rx="5" fill="#FFFFFF" stroke="#2B7A9B" stroke-width="1.5" stroke-dasharray="4,3"/>
-<text x="484" y="204" font-size="12" fill="#64748B" text-anchor="start">clip</text>
+<text x="426" y="205.137" font-size="16.25" fill="#FFFFFF" text-anchor="middle" font-weight="bold">R2</text>
+<rect x="442" y="186" width="32" height="26" rx="5" fill="none" stroke="#2B7A9B" stroke-width="1.5" stroke-dasharray="4,3"/>
+<text x="484" y="204" font-size="15" fill="#64748B" text-anchor="start">clip</text>
 <rect x="206" y="86" width="32" height="26" rx="5" fill="#1B5E7B" stroke="#2B7A9B" stroke-width="1.5"/>
-<text x="222" y="104" font-size="13" fill="#FFFFFF" text-anchor="middle" font-weight="bold">S</text>
-<text x="246" y="104" font-size="12" fill="#64748B" text-anchor="start">supplementary: the clipped part</text>
+<text x="222" y="105.138" font-size="16.25" fill="#FFFFFF" text-anchor="middle" font-weight="bold">S</text>
+<text x="246" y="104" font-size="15" fill="#64748B" text-anchor="start">supplementary: the clipped part</text>
 <path d="M170,280 C170,249 350,249 350,218" fill="none" stroke="#64748B" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="5,4" marker-end="url(#arrow-64748B)"/>
 <path d="M250,280 C250,249 426,249 426,218" fill="none" stroke="#64748B" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="5,4" marker-end="url(#arrow-64748B)"/>
 <path d="M458,186 C458,140 222,150 222,118" fill="none" stroke="#64748B" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="5,4" marker-end="url(#arrow-64748B)"/>

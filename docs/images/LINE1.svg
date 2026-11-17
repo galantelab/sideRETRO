@@ -1,31 +1,30 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="900" height="250" viewBox="0 0 900 250" font-family="Helvetica, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="940" height="250" viewBox="0 0 940 250" font-family="Helvetica, Arial, sans-serif">
 <defs><marker id="arrow-1F2A37" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M1,1 L8,4.5 L1,8 z" fill="#1F2A37"/></marker></defs>
-<rect width="900" height="250" fill="#FFFFFF"/>
 <line x1="40" y1="120" x2="860" y2="120" stroke="#2B7A9B" stroke-width="8" stroke-linecap="round"/>
 <rect x="40" y="104" width="56" height="32" rx="4" fill="#F6A46B"/>
-<text x="68" y="125" font-size="13" fill="#1F2A37" text-anchor="middle" font-weight="bold">TSD</text>
+<text x="68" y="126.138" font-size="16.25" fill="#1F2A37" text-anchor="middle" font-weight="bold">TSD</text>
 <rect x="804" y="104" width="56" height="32" rx="4" fill="#F6A46B"/>
-<text x="832" y="125" font-size="13" fill="#1F2A37" text-anchor="middle" font-weight="bold">TSD</text>
+<text x="832" y="126.138" font-size="16.25" fill="#1F2A37" text-anchor="middle" font-weight="bold">TSD</text>
 <rect x="140" y="98" width="80" height="44" rx="4" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
-<text x="180" y="125" font-size="14" fill="#1F2A37" text-anchor="middle" font-weight="bold">ORF0</text>
+<text x="180" y="126.225" font-size="17.5" fill="#1F2A37" text-anchor="middle" font-weight="bold">ORF0</text>
 <path d="M112,114 L112,76 L150,76" fill="none" stroke="#1F2A37" stroke-width="1.5" stroke-linecap="round" marker-end="url(#arrow-1F2A37)"/>
-<text x="112" y="66" font-size="13" fill="#1F2A37" text-anchor="start" font-weight="bold">TSS</text>
+<text x="112" y="66" font-size="16.25" fill="#1F2A37" text-anchor="start" font-weight="bold">TSS</text>
 <path d="M228,126 L228,164 L190,164" fill="none" stroke="#1F2A37" stroke-width="1.5" stroke-linecap="round" marker-end="url(#arrow-1F2A37)"/>
-<text x="236" y="169" font-size="13" fill="#1F2A37" text-anchor="start">antisense promoter (ASP)</text>
+<text x="236" y="169" font-size="16.25" fill="#1F2A37" text-anchor="start">antisense promoter (ASP)</text>
 <rect x="300" y="98" width="110" height="44" rx="4" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
-<text x="355" y="125" font-size="14" fill="#1F2A37" text-anchor="middle" font-weight="bold">ORF1</text>
+<text x="355" y="126.225" font-size="17.5" fill="#1F2A37" text-anchor="middle" font-weight="bold">ORF1</text>
 <rect x="450" y="98" width="250" height="44" rx="4" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
 <rect x="450" y="98" width="80" height="44" rx="4" fill="#F2C14E" stroke="#2B7A9B" stroke-width="1.5"/>
-<text x="490" y="125" font-size="14" fill="#1F2A37" text-anchor="middle" font-weight="bold">EN</text>
+<text x="490" y="126.225" font-size="17.5" fill="#1F2A37" text-anchor="middle" font-weight="bold">EN</text>
 <rect x="570" y="98" width="130" height="44" rx="4" fill="#F6A46B" stroke="#2B7A9B" stroke-width="1.5"/>
-<text x="635" y="125" font-size="14" fill="#1F2A37" text-anchor="middle" font-weight="bold">RT</text>
-<text x="575" y="86" font-size="14" fill="#1F2A37" text-anchor="middle" font-weight="bold">ORF2</text>
+<text x="635" y="126.225" font-size="17.5" fill="#1F2A37" text-anchor="middle" font-weight="bold">RT</text>
+<text x="575" y="87.225" font-size="17.5" fill="#1F2A37" text-anchor="middle" font-weight="bold">ORF2</text>
 <rect x="730" y="108" width="62" height="24" rx="3" fill="#1B5E7B" stroke="#2B7A9B" stroke-width="1.5"/>
-<text x="761" y="125" font-size="12" fill="#FFFFFF" text-anchor="middle" font-weight="bold">AAA(n)</text>
+<text x="761" y="126.05" font-size="15" fill="#FFFFFF" text-anchor="middle" font-weight="bold">AAA(n)</text>
 <line x1="100" y1="204" x2="290" y2="204" stroke="#64748B" stroke-width="1.5" stroke-linecap="butt"/>
-<text x="195" y="224" font-size="13" fill="#64748B" text-anchor="middle">5' UTR</text>
+<text x="195" y="225.137" font-size="16.25" fill="#64748B" text-anchor="middle">5' UTR</text>
 <line x1="706" y1="204" x2="796" y2="204" stroke="#64748B" stroke-width="1.5" stroke-linecap="butt"/>
-<text x="751" y="224" font-size="13" fill="#64748B" text-anchor="middle">3' UTR</text>
-<text x="490" y="164" font-size="12" fill="#64748B" text-anchor="middle">endonuclease</text>
-<text x="635" y="164" font-size="12" fill="#64748B" text-anchor="middle">reverse transcriptase</text>
+<text x="751" y="225.137" font-size="16.25" fill="#64748B" text-anchor="middle">3' UTR</text>
+<text x="490" y="165.05" font-size="15" fill="#64748B" text-anchor="middle">endonuclease</text>
+<text x="635" y="165.05" font-size="15" fill="#64748B" text-anchor="middle">reverse transcriptase</text>
 </svg>
