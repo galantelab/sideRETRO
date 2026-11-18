@@ -525,10 +525,23 @@ the genome. When such a read is aligned to the reference, the aligner
 kept with the abnormal fragment.
 
 So, for each retrocopy, we search its fragments for reads with **two
-alignments** overlapping **two different exons** of the parental gene.
-The reads are counted at ``EEJ`` and the junctions listed at ``EEJLIST``,
-which also tells **which isoform** was retrocopied when the gene has
-alternative exons. No reference genome is needed.
+alignments** on **two different exons** of the parental gene. Exons of
+different transcripts overlap, so the pieces of a read overlap many exon
+pairs: The junction is the pair whose **boundaries** are met by the
+pieces - the left one ends, clipped, at the end of the first exon and
+the right one starts, clipped, at the start of the second exon. A piece
+may stop up to 5 bases before the boundary (mismatches near the
+junction), or go up to 10 bases beyond it: The sequence shared by the
+end of one exon and the intron before the other (**microhomology**) is
+aligned at both pieces. The closest pair wins.
+
+The junctions are counted at ``EEJ`` and listed at ``EEJLIST``, which
+also tells **which isoform** was retrocopied when the gene has
+alternative exons. The reads spanning them are at the read names file
+(role ``junction``) and at the primer file. Only split reads count:
+A discordant read at the insertion window, whose mate falls into one
+exon, does not tell which exon comes next. No reference genome is
+needed.
 
 Beware of the parental genes with a **single exon**: They have no
 exon-exon junction at all, so a missing ``EEJ`` is expected for them.

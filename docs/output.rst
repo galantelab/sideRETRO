@@ -288,7 +288,7 @@ is a duplication.
 +------------+--------------------------------------------------------------+
 | HALLMARKS  | The retrocopy hallmarks observed, separated by comma: ``TSD``|
 |            | (target site duplication), ``POLYA`` (poly-A tail) and       |
-|            | ``EEJ`` (reads spanning exon-exon junctions). Only the TSD   |
+|            | ``EEJ`` (exon-exon junctions). Only the TSD                  |
 |            | filters (``NoTSD``): The poly-A and the junctions are        |
 |            | reported for you to judge                                    |
 +------------+--------------------------------------------------------------+
@@ -312,8 +312,10 @@ is a duplication.
 |            | **single exon** gene has no exon-exon junction, so a missing |
 |            | EEJ is expected for it                                       |
 +------------+--------------------------------------------------------------+
-| EEJ        | Number of reads spanning **exon-exon junctions** of the      |
-|            | parental gene: Direct evidence of a processed transcript     |
+| EEJ        | Number of **exon-exon junctions** of the parental gene       |
+|            | spanned by split reads: Direct evidence of a processed       |
+|            | transcript. The reads are at the read names file and at the  |
+|            | primer file                                                  |
 +------------+--------------------------------------------------------------+
 | EEJLIST    | The junctions spanned, as ``exon_id1-exon_id2``. With        |
 |            | alternative exons, it tells which isoform was retrocopied    |
@@ -393,7 +395,7 @@ The INFO column was wrapped for reading::
 
    chr1  9999  RTC000001  A  <INS:ME:RTC>  999.0  PASS
      SVTYPE=INS;ORHO=0.514382;POLARITY=+;PG=PARENT;PGTYPE=1;PGEXONS=PARENT:3;
-     HALLMARKS=TSD,POLYA,EEJ;EEJ=6;EEJLIST=ENSEP0-ENSEP1;PG5P=ENSEP0:1001:8;PG3P=ENSEP2:3398:3;SVLEN=1225;
+     HALLMARKS=TSD,POLYA,EEJ;EEJ=1;EEJLIST=ENSEP0-ENSEP1;PG5P=ENSEP0:1001:8;PG3P=ENSEP2:3398:3;SVLEN=1225;
      LEFT_SVINSSEQ=CACTGATACAGCAGACTCATTCCCCTATAAGCGAATCGTA;
      RIGHT_SVINSSEQ=ACTCAGCAGGACTCGGTTTAAAAAAAAAAAAAAAAAAAAAAAAAAA;
      DP=42;SR=16;LBKP=10011;LSR=8;RBKP=10000;RSR=8;TSDLEN=12;TSD=GAACGCCCCGTG;
@@ -404,7 +406,7 @@ Reading it: The insertion is **precise** (no ``IMPRECISE``), with 8
 reads at each breakpoint (``LSR``, ``RSR``) and a TSD of 12 bases
 (``TSDLEN``, ``TSD``). The poly-A has 27 bases - 25 simulated plus
 two A at the end of the last exon - and puts the retrocopy at the
-``+`` strand. Six reads span the junction between the first two exons
+``+`` strand. Reads span one junction, between the first two exons
 (``EEJ``, ``EEJLIST``), the retrocopy is **full length** (``PG5P`` at
 the first base of exon *ENSEP0*) and its predicted length is 1225
 bases: Three exons of 400 bases plus the poly-A. The single sample is
@@ -443,7 +445,7 @@ its mate), and its roles are:
 | polya       | Its clip has the **poly-A** tail (counted at ``POLYASR``)   |
 +-------------+-------------------------------------------------------------+
 | junction    | Spans an **exon-exon junction** of the parental gene        |
-|             | (counted at ``EEJ``)                                        |
+|             | (its junction is counted at ``EEJ``)                        |
 +-------------+-------------------------------------------------------------+
 | discordant  | None of the above: A read at the insertion site whose mate  |
 |             | falls into the parental gene                                |
@@ -573,10 +575,9 @@ Some notes:
 - The sequences are in upper case: The junction is given at the
   header, not by the case of the bases, which some tools read as
   masked sequence.
-- ``EEJLIST`` names the same junction many times when exons of
-  different transcripts share the same boundaries. Here, each
-  **distinct** junction - the end of the first exon and the start of
-  the second one - is written once.
+- Exons of different transcripts may share the boundaries of a
+  junction. The junction is named after one of them (``EEJLIST``),
+  but its flanks come from the **longest** of them.
 - A retrocopy with one breakpoint has only the records of that side,
   and many retrocopies have no exon-exon junction observed.
 - The observed sequences may have ``N`` where the reads disagree, and
