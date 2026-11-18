@@ -100,6 +100,7 @@ struct _MergeCall
 	int          parental_dist;
 	int          support;
 	int          near_gene_rank;
+	long         max_tsd_del;
 	const char  *fasta_file;
 
 	// Genotyping
@@ -164,7 +165,7 @@ print_summary (const MergeCall *mc, sqlite3 *db, const char *db_file,
 	} while (0)
 
 	SUMMARY_RTC ("Single parental gene",
-			"SELECT COUNT(*) FROM retrocopy WHERE level = 1 OR level & 32");
+			"SELECT COUNT(*) FROM retrocopy WHERE (level & ~64) = 1 OR level & 32");
 	SUMMARY_RTC ("Precise",
 			"SELECT COUNT(*) FROM retrocopy WHERE insertion_point_type = 2");
 	SUMMARY_RTC ("Both breakpoints",
@@ -379,7 +380,7 @@ run (MergeCall *mc)
 			log_info ("Run the annotation step");
 			retrocopy (retrocopy_stmt, cluster_merging_stmt,
 					junction_stmt, insertion_stmt, evidence_stmt, mc->fasta_file,
-					mc->near_gene_rank);
+					mc->near_gene_rank, mc->max_tsd_del);
 
 			// Commit
 			db_end_transaction (db);
@@ -501,6 +502,10 @@ print_usage (FILE *fp)
 		"                              the parental genes of overlapping clusters to\n"
 		"                              merge them as near parental genes\n"
 		"                              [default:\"%d\"]\n"
+		"   -D, --max-tsd-del          Maximum length of a deletion at the target site\n"
+		"                              to merge the retrocopies at its two flanks, each\n"
+		"                              with a single breakpoint. 0 merges none\n"
+		"                              [default:\"%d\"]\n"
 		"   -r, --reference-file       FASTA file of the reference genome. With it,\n"
 		"                              the retrocopy ends are searched in the parental\n"
 		"                              exons and its sequence is predicted\n"
@@ -514,7 +519,7 @@ print_usage (FILE *fp)
 		DEFAULT_OUTPUT_DIR, DEFAULT_PREFIX, DEFAULT_CACHE_SIZE, DEFAULT_EPS, DEFAULT_MIN_PTS,
 		DEFAULT_BLACKLIST_CHR, DEFAULT_BLACKLIST_PADDING, DEFAULT_GFF_FEATURE, DEFAULT_GFF_ATTRIBUTE,
 		DEFAULT_GFF_GENE_NAME, DEFAULT_PARENTAL_DISTANCE, DEFAULT_SUPPORT, DEFAULT_NEAR_GENE_RANK,
-		DEFAULT_THREADS, DEFAULT_PHRED_QUALITY);
+		RETROCOPY_DEFAULT_MAX_TSD_DEL, DEFAULT_THREADS, DEFAULT_PHRED_QUALITY);
 }
 
 static void
@@ -551,6 +556,7 @@ merge_call_init (MergeCall *mc)
 		.parental_dist    = DEFAULT_PARENTAL_DISTANCE,
 		.support          = DEFAULT_SUPPORT,
 		.near_gene_rank   = DEFAULT_NEAR_GENE_RANK,
+		.max_tsd_del      = RETROCOPY_DEFAULT_MAX_TSD_DEL,
 		.fasta_file       = NULL,
 		.threads          = DEFAULT_THREADS,
 		.phred_quality    = DEFAULT_PHRED_QUALITY
@@ -652,6 +658,12 @@ merge_call_validate (MergeCall *mc)
 	if (mc->near_gene_rank < 1)
 		{
 			fprintf (stderr, "%s: --near-gene-rank must be greater or equal to 1\n", PACKAGE);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
+	if (mc->max_tsd_del < 0)
+		{
+			fprintf (stderr, "%s: --max-tsd-del must be greater or equal to 0\n", PACKAGE);
 			rc = EXIT_FAILURE; goto Exit;
 		}
 
@@ -820,9 +832,10 @@ merge_call_print (const MergeCall *mc)
 		"  --parental-distance=%d \\\n"
 		"  --genotype-support=%d \\\n"
 		"  --near-gene-rank=%d \\\n"
+		"  --max-tsd-del=%li \\\n"
 		"  --threads=%d \\\n"
 		"  --phred-quality=%d\n",
-		mc->parental_dist, mc->support, mc->near_gene_rank,
+		mc->parental_dist, mc->support, mc->near_gene_rank, mc->max_tsd_del,
 		mc->threads, mc->phred_quality);
 
 	log_info ("%s", msg->str);
@@ -865,6 +878,7 @@ parse_merge_call_command_opt (int argc, char **argv)
 		{"gff-attribute",      required_argument, 0, 'A'},
 		{"gff-gene-name",      required_argument, 0, 'N'},
 		{"near-gene-distance", required_argument, 0, 'n'},
+		{"max-tsd-del",        required_argument, 0, 'D'},
 		{"reference-file",     required_argument, 0, 'r'},
 		{"phred-quality",      required_argument, 0, 'Q'},
 		{"threads",            required_argument, 0, 't'},
@@ -879,7 +893,7 @@ parse_merge_call_command_opt (int argc, char **argv)
 	int option_index = 0;
 	int c, i;
 
-	while ((c = getopt_long (argc, argv, "hqdIl:o:p:c:e:m:b:B:P:T:A:N:x:g:n:r:Q:t:i:", opt, &option_index)) >= 0)
+	while ((c = getopt_long (argc, argv, "hqdIl:o:p:c:e:m:b:B:P:T:A:N:x:g:n:D:r:Q:t:i:", opt, &option_index)) >= 0)
 		{
 			switch (c)
 				{
@@ -953,6 +967,11 @@ parse_merge_call_command_opt (int argc, char **argv)
 				case 'n':
 					{
 						mc.near_gene_rank = atoi (optarg);
+						break;
+					}
+				case 'D':
+					{
+						mc.max_tsd_del = atol (optarg);
 						break;
 					}
 				case 'r':

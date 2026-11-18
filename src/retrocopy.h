@@ -49,6 +49,12 @@
  *   the parental genes, followed by the
  *   others ('chosen/other'). Set together
  *   with RETROCOPY_OVERLAPPED_PARENTALS;
+ * - RETROCOPY_TSITE_MERGED => Two retrocopies of
+ *   the same parental gene, each one with a single
+ *   breakpoint, facing each other: The flanks of
+ *   a deletion at the target site longer than the
+ *   cluster window. They were merged into one, and
+ *   the flag is set along with the other levels;
  * P.S: Clusters are merged in
  *      RETROCOPY_OVERLAPPED_PARENTALS
  *      and RETROCOPY_NEAR_PARENTALS
@@ -60,7 +66,8 @@ enum _RetrocopyLevel
 	RETROCOPY_NEAR_PARENTALS       = 4,
 	RETROCOPY_HOTSPOT              = 8,
 	RETROCOPY_AMBIGUOUS            = 16,
-	RETROCOPY_PARENTAL_CHOSEN      = 32
+	RETROCOPY_PARENTAL_CHOSEN      = 32,
+	RETROCOPY_TSITE_MERGED         = 64
 };
 
 typedef enum _RetrocopyLevel RetrocopyLevel;
@@ -125,6 +132,15 @@ typedef enum _RetrocopyInsertionPoint RetrocopyInsertionPoint;
 #define RETROCOPY_JUNCTION_MAX_OUTER 10
 
 /*
+ * Deletion at the target site longer than the cluster
+ * window: Default maximum length, and the number of
+ * fragments of a sample at one flank, with none at the
+ * other, that tells two different events
+ */
+#define RETROCOPY_DEFAULT_MAX_TSD_DEL 50000
+#define RETROCOPY_TSITE_MIN_CONFLICT 5
+
+/*
  * Seed used to search the clipped sequence at the
  * junction into the parental exons: Its maximum
  * length and the minimum length allowed
@@ -153,6 +169,7 @@ void retrocopy (sqlite3_stmt *retrocopy_stmt,
 		sqlite3_stmt *insertion_stmt,
 		sqlite3_stmt *evidence_stmt,
 		const char *fasta_file,
-		int near_gene_dist);
+		int near_gene_dist,
+		long max_tsd_del);
 
 #endif /* retrocopy.h */

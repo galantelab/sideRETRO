@@ -210,6 +210,8 @@ def cases(t, sim):
           expect=['--blacklist-padding must be'])
     t.run('mc: near-gene-rank', mc + ['-n', '0'] + db, rc=FAIL,
           expect=['--near-gene-rank must be'])
+    t.run('mc: max-tsd-del', mc + ['-D', '-1'] + db, rc=FAIL,
+          expect=['--max-tsd-del must be'])
     t.run('mc: reference not found', mc + ['-r', 'ponga.fa'] + db, rc=FAIL,
           expect=["--reference-file 'ponga.fa': No such file"])
     t.run('mc: phred-quality', mc + ['-Q', '-1'] + db, rc=FAIL,
@@ -224,9 +226,9 @@ def cases(t, sim):
                 '-c', '300000', '-e', '300', '-m', '3', '-b', 'chrM',
                 '-b', 'chrY', '-B', P('black.gtf'), '-P', '10', '-T', 'gene',
                 '-A', 'gene_type=processed_pseudogene', '-N', 'gene_name',
-                '-x', '100000', '-g', '1', '-n', '3', '-r', P('ref.fa'),
-                '-t', '2', '-Q', '1'] + db,
-          expect=['merge-call summary', '--blacklist-region=',
+                '-x', '100000', '-g', '1', '-n', '3', '-D', '20000',
+                '-r', P('ref.fa'), '-t', '2', '-Q', '1'] + db,
+          expect=['merge-call summary', '--blacklist-region=', '--max-tsd-del=20000',
                   '--gff-attribute=', '--reference-file=', 'Predicted sequence'])
     t.run('mc: run with BED blacklist, two databases',
           mc + ['-o', P('mc2'), '-B', P('black.bed'), P('ps/sim.db'),

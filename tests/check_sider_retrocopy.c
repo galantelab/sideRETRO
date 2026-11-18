@@ -302,7 +302,8 @@ START_TEST (test_retrocopy)
 			insertion_stmt,
 			evidence_stmt,
 			fasta_file,
-			near_dist);
+			near_dist,
+			RETROCOPY_DEFAULT_MAX_TSD_DEL);
 
 	// The genotypes of the previous retrocopies are gone
 	sqlite3_stmt *genotype_stmt = db_prepare (db, "SELECT COUNT(*) FROM genotype");
@@ -743,7 +744,8 @@ START_TEST (test_retrocopy_edge)
 	* RTC 4 (chrT): geneQ, whose exon is absent from the reference
 	*/
 	retrocopy (retrocopy_stmt, cluster_merging_stmt, junction_stmt,
-			insertion_stmt, evidence_stmt, fasta_file, 1);
+			insertion_stmt, evidence_stmt, fasta_file, 1,
+			RETROCOPY_DEFAULT_MAX_TSD_DEL);
 
 	search_stmt = db_prepare (db,
 			"SELECT id, chr, parental_gene_name, breakpoint_left, breakpoint_left_sr,\n"
@@ -842,7 +844,8 @@ run_edge_with (const char *sql, long *five_pos, int *five_sr,
 	evidence_stmt = db_prepare_evidence_stmt (db);
 
 	retrocopy (retrocopy_stmt, cluster_merging_stmt, junction_stmt,
-			insertion_stmt, evidence_stmt, fasta_file, 1);
+			insertion_stmt, evidence_stmt, fasta_file, 1,
+			RETROCOPY_DEFAULT_MAX_TSD_DEL);
 
 	search_stmt = db_prepare (db,
 			"SELECT five_prime_pos, five_prime_sr, three_prime_sr, len\n"
@@ -1002,7 +1005,8 @@ check_parental (const int only_a, const int only_b, const int polya,
 	db_exec (db, sql->str);
 
 	retrocopy (retrocopy_stmt, cluster_merging_stmt, junction_stmt,
-			insertion_stmt, evidence_stmt, NULL, 3);
+			insertion_stmt, evidence_stmt, NULL, 3,
+			RETROCOPY_DEFAULT_MAX_TSD_DEL);
 
 	search_stmt = db_prepare (db,
 			"SELECT parental_gene_name, level,\n"
@@ -1065,6 +1069,228 @@ START_TEST (test_retrocopy_choose_parental)
 }
 END_TEST
 
+/*
+ * Deletion at the target site longer than the cluster window:
+ * A retrocopy of geneA at each flank, with a single breakpoint
+ * each - the left one at chr1:1500 and the right one at
+ * chr1:6500. Each flank has 10 fragments and two reads clipped
+ * at its breakpoint, from the given samples (source ids). The
+ * mates follow the reads (direct) or go the other way
+ */
+static void
+add_flank (String *sql, int *aid, const int cid, const int left,
+		const long bkp, const int source, const int clip_source,
+		const int polya, const int direct)
+{
+	const long base = left ? bkp - 400 : bkp;
+	const char *clip = NULL;
+	long apos = 0;
+	long gpos = 0;
+	int flank = 0;
+	int mate = 0;
+	int i = 0;
+
+	for (i = 0; i < 12; i++)
+		{
+			flank = ++(*aid);
+			mate = ++(*aid);
+
+			// The last two reads are clipped at the breakpoint
+			apos = i < 10
+				? left ? base + 20 * i : bkp + 100 + 20 * i
+				: left ? bkp - 69 : bkp;
+
+			gpos = direct ? 1000 + (apos - base) : 2800 - (apos - base);
+
+			if (i < 10)
+				string_concat_printf (sql,
+						"INSERT INTO alignment VALUES (%d,'f%d',%d,'chr1',%li,60,'100M',"
+						"100,100,'chr2',%li,2,%d,'*','*');\n",
+						flank, flank, left ? 97 : 81, apos, gpos, source);
+			else if (left)
+				{
+					// Poly-T after the left flank: Poly-A at '-'
+					clip = polya
+						? "TTTTTTTTTTTTCAGGCATCAGGCATCAGG"
+						: "CAGGCATCAGGCATCAGGCATCAGGCATCA";
+					string_concat_printf (sql,
+							"INSERT INTO alignment VALUES (%d,'f%d',97,'chr1',%li,60,'70M30S',"
+							"100,70,'chr2',%li,2,%d,'%.70s%s','*');\n",
+							flank, flank, apos, gpos, clip_source,
+							"GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG",
+							clip);
+				}
+			else
+				{
+					// Poly-A before the right flank: Poly-A at '+'
+					clip = polya
+						? "CAGGCATCAGGCATCAGAAAAAAAAAAAAA"
+						: "CAGGCATCAGGCATCAGGCATCAGGCATCA";
+					string_concat_printf (sql,
+							"INSERT INTO alignment VALUES (%d,'f%d',81,'chr1',%li,60,'30S70M',"
+							"100,70,'chr2',%li,2,%d,'%s%.70s','*');\n",
+							flank, flank, apos, gpos, clip_source, clip,
+							"GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG");
+				}
+
+			string_concat_printf (sql,
+					"INSERT INTO alignment VALUES (%d,'f%d',%d,'chr2',%li,60,'100M',100,100,"
+					"'chr1',%li,8,%d,'*','*');\n"
+					"INSERT INTO overlapping VALUES (1,%d,%li,100);\n"
+					"INSERT INTO clustering VALUES (%d,1,%d,3,100);\n",
+					mate, flank, left ? 145 : 161, gpos, apos,
+					i < 10 ? source : clip_source, mate, gpos, cid, flank);
+		}
+}
+
+struct _TsiteCase
+{
+	// Samples of the fragments and of the clipped reads
+	int  left_source;
+	int  left_clip_source;
+	int  right_source;
+	int  right_clip_source;
+
+	int  left_polya;
+	int  right_polya;
+	int  right_direct;
+
+	// Another flank: 1 at the right (chr1:9500) or
+	// 2 at the left (chr1:4000)
+	int  other;
+
+	long max_tsd_del;
+
+	// Expected: Number of retrocopies and, if merged,
+	// the breakpoints of the first one
+	int  num_retrocopies;
+	int  merged;
+};
+
+typedef struct _TsiteCase TsiteCase;
+
+static void
+check_tsite (const TsiteCase *t)
+{
+	char db_file[] = "/tmp/ponga.db.XXXXXX";
+	sqlite3 *db = create_db (db_file);
+	sqlite3_stmt *cluster_merging_stmt = db_prepare_cluster_merging_stmt (db);
+	sqlite3_stmt *retrocopy_stmt = db_prepare_retrocopy_stmt (db);
+	sqlite3_stmt *junction_stmt = db_prepare_junction_stmt (db);
+	sqlite3_stmt *insertion_stmt = db_prepare_insertion_stmt (db);
+	sqlite3_stmt *evidence_stmt = db_prepare_evidence_stmt (db);
+	sqlite3_stmt *search_stmt = NULL;
+
+	String *sql = string_new (
+			"BEGIN TRANSACTION;\n"
+			"INSERT INTO batch VALUES (1,'1552578609');\n"
+			"INSERT INTO source VALUES (1,1,'ponga1.bam');\n"
+			"INSERT INTO source VALUES (2,1,'ponga2.bam');\n"
+			"INSERT INTO exon VALUES (1,'geneA','chr2',1000,3000,'+','ega','eea');\n"
+			"INSERT INTO cluster VALUES (1,1,'chr1',1100,1600,'geneA',31);\n"
+			"INSERT INTO cluster VALUES (2,1,'chr1',6500,6900,'geneA',31);\n");
+
+	int aid = 0;
+
+	add_flank (sql, &aid, 1, 1, 1500, t->left_source, t->left_clip_source,
+			t->left_polya, 1);
+	add_flank (sql, &aid, 2, 0, 6500, t->right_source, t->right_clip_source,
+			t->right_polya, t->right_direct);
+
+	if (t->other == 1)
+		{
+			string_concat_printf (sql,
+					"INSERT INTO cluster VALUES (3,1,'chr1',9500,9900,'geneA',31);\n");
+			add_flank (sql, &aid, 3, 0, 9500, 1, 1, 0, 1);
+		}
+	else if (t->other == 2)
+		{
+			string_concat_printf (sql,
+					"INSERT INTO cluster VALUES (3,1,'chr1',3600,4100,'geneA',31);\n");
+			add_flank (sql, &aid, 3, 1, 4000, 1, 1, 0, 1);
+		}
+
+	string_concat_printf (sql, "COMMIT;");
+	db_exec (db, sql->str);
+
+	retrocopy (retrocopy_stmt, cluster_merging_stmt, junction_stmt,
+			insertion_stmt, evidence_stmt, NULL, 3, t->max_tsd_del);
+
+	search_stmt = db_prepare (db,
+			"SELECT (SELECT COUNT(*) FROM retrocopy), level,\n"
+			"	breakpoint_left, breakpoint_left_sr,\n"
+			"	breakpoint_right, breakpoint_right_sr, insertion_point,\n"
+			"	(SELECT COUNT(DISTINCT retrocopy_id) FROM evidence)\n"
+			"FROM retrocopy\n"
+			"ORDER BY id ASC");
+
+	ck_assert_int_eq (db_step (search_stmt), SQLITE_ROW);
+	ck_assert_int_eq (db_column_int (search_stmt, 0), t->num_retrocopies);
+
+	if (t->merged)
+		{
+			ck_assert_int_eq (db_column_int (search_stmt, 1),
+					RETROCOPY_PASS | RETROCOPY_TSITE_MERGED);
+			ck_assert_int_eq (db_column_int64 (search_stmt, 2), 1500);
+			ck_assert_int_eq (db_column_int (search_stmt, 3), 2);
+			ck_assert_int_eq (db_column_int64 (search_stmt, 4), 6500);
+			ck_assert_int_eq (db_column_int (search_stmt, 5), 2);
+
+			// The first deleted base, and the evidence of
+			// both flanks under the merged retrocopy
+			ck_assert_int_eq (db_column_int64 (search_stmt, 6), 1501);
+			ck_assert_int_eq (db_column_int (search_stmt, 7), 1);
+		}
+	else
+		ck_assert_int_eq (db_column_int (search_stmt, 1), RETROCOPY_PASS);
+
+	db_finalize (search_stmt);
+	db_finalize (retrocopy_stmt);
+	db_finalize (cluster_merging_stmt);
+	db_finalize (junction_stmt);
+	db_finalize (insertion_stmt);
+	db_finalize (evidence_stmt);
+	db_close (db);
+
+	string_free (sql, 1);
+	xunlink (db_file);
+}
+
+START_TEST (test_retrocopy_tsite_deletion)
+{
+	const long max = RETROCOPY_DEFAULT_MAX_TSD_DEL;
+
+	const TsiteCase cases[] = {
+		// The flanks of a deletion of 4999 bases: Merged. The
+		// poly-A at one of them agrees with any strand
+		{1, 1, 1, 1, 0, 0, 1, 0, max,  1, 1},
+		{1, 1, 1, 1, 0, 1, 1, 0, max,  1, 1},
+		// Longer than the maximum, or merge turned off
+		{1, 1, 1, 1, 0, 0, 1, 0, 4998, 2, 0},
+		{1, 1, 1, 1, 0, 0, 1, 0, 0,    2, 0},
+		// Poly-A at both flanks: One retrocopy per strand
+		{1, 1, 1, 1, 1, 1, 1, 0, max,  2, 0},
+		// The orientation of the reads disagree
+		{1, 1, 1, 1, 0, 0, 0, 0, max,  2, 0},
+		// No sample at both flanks
+		{1, 1, 2, 2, 0, 0, 1, 0, max,  2, 0},
+		// A sample with 10 fragments at one flank and none at
+		// the other - at the left, then at the right
+		{1, 2, 2, 2, 0, 0, 1, 0, max,  2, 0},
+		{1, 1, 2, 1, 0, 0, 1, 0, max,  2, 0},
+		// Two right flanks fit the left one, or two left
+		// flanks fit the right one: Not merged
+		{1, 1, 1, 1, 0, 0, 1, 1, max,  3, 0},
+		{1, 1, 1, 1, 0, 0, 1, 2, max,  3, 0}
+	};
+
+	int i = 0;
+
+	for (i = 0; i < (int) (sizeof (cases) / sizeof (cases[0])); i++)
+		check_tsite (&cases[i]);
+}
+END_TEST
+
 Suite *
 make_retrocopy_suite (void)
 {
@@ -1080,6 +1306,7 @@ make_retrocopy_suite (void)
 	tcase_add_test (tc_core, test_retrocopy_edge);
 	tcase_add_test (tc_core, test_retrocopy_inverted_end);
 	tcase_add_test (tc_core, test_retrocopy_choose_parental);
+	tcase_add_test (tc_core, test_retrocopy_tsite_deletion);
 	suite_add_tcase (s, tc_core);
 
 	return s;

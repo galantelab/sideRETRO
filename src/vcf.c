@@ -357,6 +357,8 @@ vcf_print_header (const List *hl, Hash *contig_len,
 		" Positive for duplication, zero for a blunt insertion and negative for target site deletion of -TSDLEN bases\">\n"
 		"##INFO=<ID=TSITE,Number=1,Type=String,Description=\"Target site of the insertion, given by both breakpoints:"
 		" DUP (duplication), BLUNT (blunt insertion) or DEL (deletion)\">\n"
+		"##INFO=<ID=TSITEMERGED,Number=0,Type=Flag,Description=\"Deletion at the target site longer than the cluster window:"
+		" The insertion was merged from the retrocopies at its two flanks (merge-call --max-tsd-del)\">\n"
 		"##FILTER=<ID=PASS,Description=\"All filters passed\">\n");
 
 	for (i = 0; filter_defs[i].id != NULL; i++)
@@ -1357,7 +1359,7 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 
 			// A single parental gene, or one chosen
 			// among overlapped parental genes
-			single_parental = b.level == RETROCOPY_PASS
+			single_parental = (b.level & ~RETROCOPY_TSITE_MERGED) == RETROCOPY_PASS
 				|| (b.level & RETROCOPY_PARENTAL_CHOSEN);
 
 			orho_polarity = '?';
@@ -1442,7 +1444,7 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 			xfprintf (fp,
 				";PG=%s;PGTYPE=%d",
 				b.parental_gene_name,
-				b.level & ~RETROCOPY_PARENTAL_CHOSEN);
+				b.level & ~(RETROCOPY_PARENTAL_CHOSEN | RETROCOPY_TSITE_MERGED));
 
 			if (strcmp (b.parental_others, "?"))
 				xfprintf (fp, ";PGALT=%s", b.parental_others);
@@ -1532,6 +1534,9 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 					tsd_len = b.breakpoint_left - b.breakpoint_right + 1;
 					xfprintf (fp, ";TSDLEN=%li;TSITE=%s", tsd_len,
 							tsd_len > 0 ? "DUP" : tsd_len == 0 ? "BLUNT" : "DEL");
+
+					if (b.level & RETROCOPY_TSITE_MERGED)
+						xfprintf (fp, ";TSITEMERGED");
 
 					if (tsd_len > 0 && tsd_len <= VCF_MAX_TSD_LEN)
 						{

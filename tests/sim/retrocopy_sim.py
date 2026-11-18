@@ -128,6 +128,11 @@ class Sim:
         self.tsd_end = args.insertion_point + args.tsd_len - 1
         self.tsd = self.chr1[self.tsd_start - 1:self.tsd_end]
 
+        # The flanks: The left one ends before the TSD or the
+        # deleted bases, and the right one starts after them
+        self.left_anchor = min(self.tsd_start, self.tsd_end + 1)
+        self.right_anchor = max(self.tsd_end, self.tsd_start - 1)
+
         # Alternative haplotype
         left = self.chr1[:self.tsd_end]
         right = self.chr1[self.tsd_start - 1:]
@@ -159,8 +164,8 @@ class Sim:
 
             if i % 2 == 0:
                 # Left flank, forward read. Mate at the first exon
-                pos = random.randint(self.tsd_start - a.fragment_len,
-                                     self.tsd_start - READ_LEN - 20)
+                pos = random.randint(self.left_anchor - a.fragment_len,
+                                     self.left_anchor - READ_LEN - 20)
                 seq = self.chr1[pos - 1:pos - 1 + READ_LEN]
                 mpos, mseq = self.exon_read(0)
 
@@ -169,8 +174,8 @@ class Sim:
                          mseq)
             else:
                 # Right flank, reverse read. Mate at the last exon
-                pos = random.randint(self.tsd_end + 20,
-                                     self.tsd_end + a.fragment_len - READ_LEN)
+                pos = random.randint(self.right_anchor + 20,
+                                     self.right_anchor + a.fragment_len - READ_LEN)
                 seq = self.chr1[pos - 1:pos - 1 + READ_LEN]
                 mpos, mseq = self.exon_read(len(self.exons) - 1)
 
@@ -193,8 +198,8 @@ class Sim:
         for i in range(a.n_intron_mates):
             qname = 'intron%d' % i
 
-            pos = random.randint(self.tsd_start - a.fragment_len,
-                                 self.tsd_start - READ_LEN - 20)
+            pos = random.randint(self.left_anchor - a.fragment_len,
+                                 self.left_anchor - READ_LEN - 20)
             seq = self.chr1[pos - 1:pos - 1 + READ_LEN]
             mpos = random.randint(start + 20, end - READ_LEN - 20)
             mseq = self.chr2[mpos - 1:mpos - 1 + READ_LEN]
@@ -217,8 +222,8 @@ class Sim:
             seq = self.ins[start:start + READ_LEN]
 
             # Left flank read, forward. The mate spans the junction
-            pos = random.randint(self.tsd_start - a.fragment_len,
-                                 self.tsd_start - READ_LEN - 20)
+            pos = random.randint(self.left_anchor - a.fragment_len,
+                                 self.left_anchor - READ_LEN - 20)
             fseq = self.chr1[pos - 1:pos - 1 + READ_LEN]
             mpos = self.exons[0][1] - m + 1
 
@@ -235,8 +240,8 @@ class Sim:
 
             # Left flank, forward read, clipped at the right
             # as if the end of the read was trimmed
-            pos = random.randint(self.tsd_start - a.fragment_len,
-                                 self.tsd_start - READ_LEN - 20)
+            pos = random.randint(self.left_anchor - a.fragment_len,
+                                 self.left_anchor - READ_LEN - 20)
             c = random.randint(10, 30)
             m = READ_LEN - c
             seq = self.chr1[pos - 1:pos - 1 + READ_LEN]
@@ -390,6 +395,9 @@ class Sim:
             ('TSITE', ('DUP' if a.tsd_len > 0 else 'BLUNT' if a.tsd_len == 0
                        else 'DEL') if both else 'NA'),
             ('TSD', self.tsd if both and a.tsd_len > 0 else 'NA'),
+            # A deletion longer than the cluster window splits the
+            # insertion into two retrocopies, merged by merge-call
+            ('TSITEMERGED', '' if both and a.tsd_len < -1000 else 'NA'),
             ('POLYA', polya_len),
             ('POLYAMIN', polya_min),
             ('POLYASR', polya_sr),
@@ -558,7 +566,8 @@ def check(vcf_file, truth_file, no_ref=False):
     if truth['POS'] != 'NA':
         expect('POS', fields[1], truth['POS'])
 
-    for key in ('IMPRECISE', 'LBKP', 'LSR', 'RBKP', 'RSR', 'TSDLEN', 'TSITE', 'TSD',
+    for key in ('IMPRECISE', 'LBKP', 'LSR', 'RBKP', 'RSR', 'TSDLEN', 'TSITE',
+                'TSITEMERGED', 'TSD',
                 'POLYA', 'POLYAMIN', 'POLYASR', 'POLYASTRAND', 'POLARITY', 'PG',
                 'PGEXONS', 'EEJ', 'EEJLIST', 'IR', 'IRLIST', 'PG5P', 'PG3P', 'SVLEN',
                 'LEFT_SVINSSEQ', 'RIGHT_SVINSSEQ', 'HALLMARKS'):

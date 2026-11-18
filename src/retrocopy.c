@@ -2485,6 +2485,324 @@ choose_parental (sqlite3 *db, Hash *rtc_h)
 	db_finalize (delete_stmt);
 }
 
+/*
+ * A retrocopy with a single breakpoint: One flank of a
+ * deletion at the target site, if another retrocopy of
+ * the same parental gene has the other flank
+ */
+struct _TsiteSide
+{
+	int   rid;
+	char *chr;
+	char *gene;
+	long  breakpoint;
+	int   left;
+
+	// The only compatible retrocopy at the other side,
+	// and how many there are
+	int   partner;
+	int   n_partners;
+
+	// Fragments of each sample (source id)
+	int  *sources;
+	int  *fragments;
+	int   n_sources;
+	int   alloc;
+};
+
+typedef struct _TsiteSide TsiteSide;
+
+static void
+tsite_side_free (TsiteSide *t)
+{
+	xfree (t->chr);
+	xfree (t->gene);
+	xfree (t->sources);
+	xfree (t->fragments);
+	xfree (t);
+}
+
+static int
+tsite_side_fragments (const TsiteSide *t, const int source_id)
+{
+	int i = 0;
+
+	for (i = 0; i < t->n_sources; i++)
+		if (t->sources[i] == source_id)
+			return t->fragments[i];
+
+	return 0;
+}
+
+/*
+ * The samples must agree: At least one of them with
+ * fragments at both flanks, and none with many fragments
+ * at one flank and nothing at the other
+ */
+static int
+tsite_side_samples_agree (const TsiteSide *a, const TsiteSide *b)
+{
+	int shared = 0;
+	int n = 0;
+	int i = 0;
+
+	for (i = 0; i < a->n_sources; i++)
+		{
+			n = tsite_side_fragments (b, a->sources[i]);
+
+			if (n > 0)
+				shared = 1;
+			else if (a->fragments[i] >= RETROCOPY_TSITE_MIN_CONFLICT)
+				return 0;
+		}
+
+	for (i = 0; i < b->n_sources; i++)
+		if (b->fragments[i] >= RETROCOPY_TSITE_MIN_CONFLICT
+				&& tsite_side_fragments (a, b->sources[i]) == 0)
+			return 0;
+
+	return shared;
+}
+
+static int
+tsite_side_compatible (const TsiteSide *l, const TsiteSide *r,
+		Hash *rtc_h, const long max_tsd_del)
+{
+	const RetrocopyEntry *el = NULL;
+	const RetrocopyEntry *er = NULL;
+
+	// The left flank comes first, and the deletion
+	// has at least one base
+	if (strcmp (l->chr, r->chr) || strcmp (l->gene, r->gene)
+			|| l->breakpoint + 1 >= r->breakpoint
+			|| r->breakpoint - l->breakpoint - 1 > max_tsd_del)
+		return 0;
+
+	el = hash_lookup (rtc_h, &l->rid);
+	er = hash_lookup (rtc_h, &r->rid);
+
+	// The poly-A is found at the left flank for '-' and
+	// at the right one for '+': One retrocopy per strand
+	if (el->polya_sr > 0 && er->polya_sr > 0
+			&& el->polya_strand != er->polya_strand)
+		return 0;
+
+	// The orientation of the reads must agree
+	if (el->orientation_p_value <= RETROCOPY_ORIENTATION_ALPHA
+			&& er->orientation_p_value <= RETROCOPY_ORIENTATION_ALPHA
+			&& (el->orientation_rho >= 0.0) != (er->orientation_rho >= 0.0))
+		return 0;
+
+	return tsite_side_samples_agree (l, r);
+}
+
+static void
+tsite_side_pair (TsiteSide *t, const int rid)
+{
+	t->partner = rid;
+	t->n_partners++;
+}
+
+static int
+merge_tsite_deletion (sqlite3 *db, Hash *rtc_h, const long max_tsd_del)
+{
+	log_trace ("Inside %s", __func__);
+
+	sqlite3_stmt *stmt = NULL;
+	sqlite3_stmt *update_merging_stmt = NULL;
+	sqlite3_stmt *update_evidence_stmt = NULL;
+
+	RetrocopyEntry *e = NULL;
+	RetrocopyEntry *er = NULL;
+	TsiteSide *t = NULL;
+	TsiteSide *l = NULL;
+	TsiteSide *r = NULL;
+
+	// The one-sided retrocopies: ID => side
+	Hash *side_h = NULL;
+	TsiteSide **sides = NULL;
+	int n_sides = 0;
+	int alloc = 0;
+
+	int rid = 0;
+	int merged = 0;
+	int i = 0;
+	int j = 0;
+
+	side_h = hash_new_full (int_hash, int_equal, NULL,
+			(DestroyNotify) tsite_side_free);
+
+	/*
+	* A single parental gene - not overlapped, near genes
+	* or a hotspot - and a single breakpoint
+	*/
+	stmt = db_prepare (db,
+			"SELECT m.retrocopy_id, MIN(c.chr), MIN(c.gene_name),\n"
+			"	COUNT(DISTINCT c.gene_name)\n"
+			"FROM cluster_merging AS m\n"
+			"INNER JOIN cluster AS c\n"
+			"	ON c.id = m.cluster_id AND c.sid = m.cluster_sid\n"
+			"GROUP BY m.retrocopy_id\n"
+			"ORDER BY m.retrocopy_id ASC");
+
+	while (db_step (stmt) == SQLITE_ROW)
+		{
+			rid = db_column_int (stmt, 0);
+
+			e = hash_lookup (rtc_h, &rid);
+			assert (e != NULL);
+
+			if (e->level != RETROCOPY_PASS
+					|| db_column_int (stmt, 3) != 1
+					|| (e->breakpoint_left_sr > 0) == (e->breakpoint_right_sr > 0))
+				continue;
+
+			t = xcalloc (1, sizeof (TsiteSide));
+
+			t->rid        = rid;
+			t->chr        = xstrdup (db_column_text (stmt, 1));
+			t->gene       = xstrdup (db_column_text (stmt, 2));
+			t->left       = e->breakpoint_left_sr > 0;
+			t->breakpoint = t->left ? e->breakpoint_left : e->breakpoint_right;
+
+			hash_insert (side_h, &t->rid, t);
+
+			if (n_sides >= alloc)
+				{
+					alloc += BLOCK_SIZE;
+					sides = xrealloc (sides, sizeof (TsiteSide *) * alloc);
+				}
+
+			sides[n_sides++] = t;
+		}
+
+	db_finalize (stmt);
+
+	if (n_sides < 2)
+		goto Exit;
+
+	// The fragments of each sample
+	stmt = db_prepare (db,
+			"SELECT m.retrocopy_id, a.source_id, COUNT(DISTINCT a.qname)\n"
+			"FROM cluster_merging AS m\n"
+			"INNER JOIN clustering AS c\n"
+			"	USING (cluster_id, cluster_sid)\n"
+			"INNER JOIN alignment AS a\n"
+			"	ON a.id = c.alignment_id\n"
+			"GROUP BY m.retrocopy_id, a.source_id");
+
+	while (db_step (stmt) == SQLITE_ROW)
+		{
+			rid = db_column_int (stmt, 0);
+
+			t = hash_lookup (side_h, &rid);
+			if (t == NULL)
+				continue;
+
+			if (t->n_sources >= t->alloc)
+				{
+					t->alloc += BLOCK_SIZE;
+					t->sources = xrealloc (t->sources, sizeof (int) * t->alloc);
+					t->fragments = xrealloc (t->fragments, sizeof (int) * t->alloc);
+				}
+
+			t->sources[t->n_sources] = db_column_int (stmt, 1);
+			t->fragments[t->n_sources] = db_column_int (stmt, 2);
+			t->n_sources++;
+		}
+
+	db_finalize (stmt);
+
+	// Pair the left flanks with the right ones
+	for (i = 0; i < n_sides; i++)
+		{
+			if (!sides[i]->left)
+				continue;
+
+			for (j = 0; j < n_sides; j++)
+				{
+					if (sides[j]->left
+							|| !tsite_side_compatible (sides[i], sides[j],
+								rtc_h, max_tsd_del))
+						continue;
+
+					tsite_side_pair (sides[i], sides[j]->rid);
+					tsite_side_pair (sides[j], sides[i]->rid);
+				}
+		}
+
+	update_merging_stmt = db_prepare (db,
+			"UPDATE cluster_merging SET retrocopy_id = ?1\n"
+			"WHERE retrocopy_id = ?2");
+
+	update_evidence_stmt = db_prepare (db,
+			"UPDATE evidence SET retrocopy_id = ?1\n"
+			"WHERE retrocopy_id = ?2");
+
+	/*
+	* Merge only when both flanks have a single compatible
+	* retrocopy at the other side: With more than one, the
+	* deletion cannot be told
+	*/
+	for (i = 0; i < n_sides; i++)
+		{
+			l = sides[i];
+
+			if (!l->left || l->n_partners != 1)
+				continue;
+
+			r = hash_lookup (side_h, &l->partner);
+			assert (r != NULL);
+
+			if (r->n_partners != 1)
+				continue;
+
+			log_debug ("Retrocopies %d and %d: Flanks of a deletion of %li "
+					"bases at the target site", l->rid, r->rid,
+					r->breakpoint - l->breakpoint - 1);
+
+			db_reset (update_merging_stmt);
+			db_clear_bindings (update_merging_stmt);
+			db_bind_int (update_merging_stmt, 1, l->rid);
+			db_bind_int (update_merging_stmt, 2, r->rid);
+			db_step (update_merging_stmt);
+
+			db_reset (update_evidence_stmt);
+			db_clear_bindings (update_evidence_stmt);
+			db_bind_int (update_evidence_stmt, 1, l->rid);
+			db_bind_int (update_evidence_stmt, 2, r->rid);
+			db_step (update_evidence_stmt);
+
+			e = hash_lookup (rtc_h, &l->rid);
+			er = hash_lookup (rtc_h, &r->rid);
+
+			e->breakpoint_right = er->breakpoint_right;
+			e->breakpoint_right_sr = er->breakpoint_right_sr;
+
+			if (e->polya_sr == 0 && er->polya_sr > 0)
+				{
+					e->polya_len = er->polya_len;
+					e->polya_lower_bound = er->polya_lower_bound;
+					e->polya_strand = er->polya_strand;
+					e->polya_sr = er->polya_sr;
+				}
+
+			e->level |= RETROCOPY_TSITE_MERGED;
+			hash_remove (rtc_h, &r->rid);
+
+			merged++;
+		}
+
+	db_finalize (update_merging_stmt);
+	db_finalize (update_evidence_stmt);
+
+Exit:
+	xfree (sides);
+	hash_free (side_h);
+
+	return merged;
+}
+
 static sqlite3_stmt *
 prepare_cluster_merging_query_stmt (sqlite3 *db)
 {
@@ -2605,7 +2923,8 @@ retrocopy (sqlite3_stmt *retrocopy_stmt,
 		sqlite3_stmt *insertion_stmt,
 		sqlite3_stmt *evidence_stmt,
 		const char *fasta_file,
-		int near_gene_dist)
+		int near_gene_dist,
+		long max_tsd_del)
 {
 	log_trace ("Inside %s", __func__);
 	assert (retrocopy_stmt != NULL
@@ -2613,7 +2932,8 @@ retrocopy (sqlite3_stmt *retrocopy_stmt,
 			&& junction_stmt != NULL
 			&& insertion_stmt != NULL
 			&& evidence_stmt != NULL
-			&& near_gene_dist > 0);
+			&& near_gene_dist > 0
+			&& max_tsd_del >= 0);
 
 	// Keep ID => level
 	Hash *rtc_h = NULL;
@@ -2654,6 +2974,20 @@ retrocopy (sqlite3_stmt *retrocopy_stmt,
 	choose_parental (
 			sqlite3_db_handle (retrocopy_stmt),
 			rtc_h);
+
+	/*
+	* A deletion at the target site longer than the cluster
+	* window splits the insertion into two retrocopies, one
+	* at each flank, with a single breakpoint each. Merge
+	* them, and recalculate the orientation of the merged
+	* ones with the reads of both flanks
+	*/
+	log_info ("Merge the flanks of deletions at the target site");
+	if (merge_tsite_deletion (sqlite3_db_handle (retrocopy_stmt),
+				rtc_h, max_tsd_del) > 0)
+		calculate_orientation (
+				sqlite3_db_handle (retrocopy_stmt),
+				rtc_h);
 
 	log_info ("Annotate the insertion points");
 	annotate_retrocopy (retrocopy_stmt, rtc_h);

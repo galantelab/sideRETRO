@@ -59,6 +59,10 @@ SCENARIOS = [
     # Target site: A blunt insertion and a deletion pass as well
     ('blunt',            ['--seed', '6', '--tsd-len', '0']),
     ('target_deletion',  ['--seed', '6', '--tsd-len', '-15']),
+    # A deletion longer than the cluster window: The retrocopies
+    # at its two flanks are merged into one
+    ('long_deletion',    ['--seed', '6', '--tsd-len', '-10000',
+                          '--chr1-len', '40000', '--insertion-point', '25000']),
     # Filters: A TSD longer than the maximum (TSDOutlier), and many
     # split reads at just one side (not LowSR, but OneBreakpoint)
     ('long_tsd',         ['--seed', '8', '--tsd-len', '30']),
