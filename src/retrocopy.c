@@ -2551,9 +2551,18 @@ annotate_retrocopy (sqlite3_stmt *retrocopy_stmt, Hash *rtc_h)
 			* The insertion point is the first reference base
 			* after the insertion. Prefer the right breakpoint,
 			* so the insertion (and its TSD) is left aligned.
-			* Without split reads, fall back to the window mean
+			* With a deletion at the target site, it is the first
+			* deleted base: The left-most breakpoint, as VCF asks
+			* for a structural variant. Without split reads, fall
+			* back to the window mean
 			*/
-			if (e->breakpoint_right_sr > 0)
+			if (e->breakpoint_left_sr > 0 && e->breakpoint_right_sr > 0
+					&& e->breakpoint_left + 1 < e->breakpoint_right)
+				{
+					ip = e->breakpoint_left + 1;
+					ip_type = RETROCOPY_INSERTION_POINT_SUPPLEMENTARY_MODE;
+				}
+			else if (e->breakpoint_right_sr > 0)
 				{
 					ip = e->breakpoint_right;
 					ip_type = RETROCOPY_INSERTION_POINT_SUPPLEMENTARY_MODE;

@@ -366,7 +366,11 @@ class Sim:
         left_seq = self.ins[:READ_LEN - a.min_match] if left else 'NA'
         right_seq = self.ins[-max(all_clips):] if right else 'NA'
 
-        if right:
+        # POS: The base before the TSD or, with a deletion at the
+        # target site, the base before the deleted ones
+        if left and right:
+            pos = min(self.tsd_start - 1, self.tsd_end)
+        elif right:
             pos = self.tsd_start - 1
         elif left:
             pos = self.tsd_end

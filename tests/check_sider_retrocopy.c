@@ -332,7 +332,9 @@ START_TEST (test_retrocopy)
 	// chr16: Two clipped reads without supplementary agree
 	// at the left. The lone ones at 434 and 420 are ignored
 	// chr17: Poly-A at '+'. One read gives the exact length
-	// (25) and the other just a lower bound (30)
+	// (25) and the other just a lower bound (30). The breakpoints
+	// make a deletion at the target site (490-499): The insertion
+	// point is the first deleted base
 	// chr18: Poly-A at '-' (run of T after the left flank)
 	// chr19: Fragment whose read spans the exon-exon junction
 	// of gene10 (exons 16 and 17). Exons of other transcripts
@@ -344,7 +346,7 @@ START_TEST (test_retrocopy)
 		"chr14", "chr14", "chr15", "chr16", "chr17", "chr18", "chr19"
 	};
 
-	long ips[]        = {101, 250, 250, 150, 350, 250, 550, 290, 380, 500, 670, 200};
+	long ips[]        = {101, 250, 250, 150, 350, 250, 550, 290, 380, 490, 670, 200};
 	int  ip_types[]   = {2,   1,   2,   1,   1,   1,   1,   2,   2,   2,   2,   1};
 	long lefts[]      = {100, 0,   249, 0,   0,   0,   0,   299, 379, 489, 669, 0};
 	int  left_srs[]   = {1,   0,   1,   0,   0,   0,   0,   1,   2,   1,   2,   0};
