@@ -277,14 +277,11 @@ def cases(t, sim):
           expect=['--min-mapq must be'])
     t.run('vcf: min-sr', vcf + ['-S', '-1'] + mdb, rc=FAIL,
           expect=['--min-sr must be'])
-    t.run('vcf: min-breakpoints 0', vcf + ['-B', '0'] + mdb, rc=FAIL,
-          expect=['--min-breakpoints must be 1 or 2'])
-    t.run('vcf: min-breakpoints 3', vcf + ['-B', '3'] + mdb, rc=FAIL,
-          expect=['--min-breakpoints must be 1 or 2'])
-    t.run('vcf: min-tsd', vcf + ['-t', '0'] + mdb, rc=FAIL,
-          expect=['--min-tsd must be'])
-    t.run('vcf: max-tsd', vcf + ['-t', '8', '-T', '7'] + mdb, rc=FAIL,
-          expect=['--max-tsd must be greater or equal to --min-tsd'])
+    t.run('vcf: max-tsd', vcf + ['-T', '0'] + mdb, rc=FAIL,
+          expect=['--max-tsd must be greater or equal to 1'])
+    t.run('vcf: removed min-tsd', vcf + ['-t', '4'] + mdb, rc=FAIL)
+    t.run('vcf: removed min-breakpoints', vcf + ['--min-breakpoints=1'] + mdb,
+          rc=FAIL)
     t.run('vcf: primer-flank', vcf + ['-f', '0'] + mdb, rc=FAIL,
           expect=['--primer-flank must be'])
     t.run('vcf: min-ir', vcf + ['-i', '0'] + mdb, rc=FAIL,
@@ -295,10 +292,10 @@ def cases(t, sim):
     t.run('vcf: run with options',
           vcf + ['-o', P('vcf'), '-p', 'sim', '-l', P('vcf.log'), '-d',
                  '-r', P('ref.fa'), '-n', '5000', '-e', '0.1', '-L', '10',
-                 '-Q', '10', '-S', '2', '-B', '1', '-t', '4', '-T', '30',
-                 '-x', 'TSDOutlier', '-x', 'LowQual', '-f', '50', '-i', '3'] + mdb,
+                 '-Q', '10', '-S', '2', '-T', '30', '-x', 'TSDOutlier',
+                 '-x', 'LowQual', '-x', 'OneBreakpoint', '-f', '50', '-i', '3'] + mdb,
           expect=['make-vcf summary', 'PASS', '--no-filter=TSDOutlier',
-                  '--min-sr=2', '--min-breakpoints=1', '--min-tsd=4', '--max-tsd=30',
+                  '--no-filter=OneBreakpoint', '--min-sr=2', '--max-tsd=30',
                   '--primer-flank=50', '--min-ir=3', '--reference-file=',
                   'sim.primer.fa'])
     t.run('vcf: run without reference, quiet',

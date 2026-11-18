@@ -56,8 +56,11 @@ SCENARIOS = [
     ('right_only',       ['--seed', '7', '--n-split-left', '0', '--n-split-right', '2']),
     ('no_junction',      ['--seed', '4', '--n-junction-reads', '0']),
     ('short_tsd',        ['--seed', '6', '--tsd-len', '4', '--truncation', '37']),
+    # Target site: A blunt insertion and a deletion pass as well
+    ('blunt',            ['--seed', '6', '--tsd-len', '0']),
+    ('target_deletion',  ['--seed', '6', '--tsd-len', '-15']),
     # Filters: A TSD longer than the maximum (TSDOutlier), and many
-    # split reads at just one side (not LowSR, but NoTSD)
+    # split reads at just one side (not LowSR, but OneBreakpoint)
     ('long_tsd',         ['--seed', '8', '--tsd-len', '30']),
     ('left_many',        ['--seed', '7', '--n-split-left', '6', '--n-split-right', '0']),
     # Intron retention: Mates inside an intron of the parental

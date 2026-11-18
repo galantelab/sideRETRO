@@ -41,8 +41,6 @@ struct _VCFOption
 	double      min_qual;
 	int         min_mapq;
 	int         min_sr;
-	int         min_breakpoints;
-	int         min_tsd;
 	int         max_tsd;
 	int         disabled_filters;
 
@@ -62,10 +60,11 @@ typedef struct _VCFOption VCFOption;
 
 /*
  * FILTER column: Each flag is a check that failed.
- * A PASS retrocopy has enough split reads, the breakpoints
- * required and a target site duplication of the expected
- * length. The length is checked only when there is a TSD
- * (TSDLEN > 0): Otherwise it is NoTSD
+ * A PASS retrocopy has enough split reads and both
+ * breakpoints, which describe the target site: A
+ * duplication, a blunt insertion or a deletion. Only
+ * the duplication length is checked - a long one comes
+ * from breakpoints of unrelated reads
  */
 enum _VCFFilter
 {
@@ -73,8 +72,9 @@ enum _VCFFilter
 	VCF_FILTER_LOW_MAPQ           = 2,
 	VCF_FILTER_AMBIGUOUS_PARENTAL = 4,
 	VCF_FILTER_LOW_SR             = 8,
-	VCF_FILTER_NO_TSD             = 16,
-	VCF_FILTER_TSD_OUTLIER        = 32
+	VCF_FILTER_NO_BREAKPOINT      = 16,
+	VCF_FILTER_ONE_BREAKPOINT     = 32,
+	VCF_FILTER_TSD_OUTLIER        = 64
 };
 
 typedef enum _VCFFilter VCFFilter;
@@ -82,8 +82,6 @@ typedef enum _VCFFilter VCFFilter;
 #define VCF_DEFAULT_MIN_QUAL      20.0
 #define VCF_DEFAULT_MIN_MAPQ      20
 #define VCF_DEFAULT_MIN_SR        3
-#define VCF_DEFAULT_MIN_BKP       2
-#define VCF_DEFAULT_MIN_TSD       6
 #define VCF_DEFAULT_MAX_TSD       25
 #define VCF_DEFAULT_PRIMER_FLANK  200
 #define VCF_DEFAULT_MIN_IR        2

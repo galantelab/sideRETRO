@@ -58,10 +58,12 @@ static const VCFFilterDef filter_defs[] =
 		"The parental gene is ambiguous: Overlapped (none chosen, no PGALT) or near parental genes, or hotspot"},
 	{VCF_FILTER_LOW_SR,             "LowSR",
 		"Number of split reads at the breakpoints (SR) below the threshold (make-vcf --min-sr)"},
-	{VCF_FILTER_NO_TSD,             "NoTSD",
-		"No target site duplication: Fewer breakpoints found than required (make-vcf --min-breakpoints), or both found and TSDLEN <= 0"},
+	{VCF_FILTER_NO_BREAKPOINT,      "NoBreakpoint",
+		"No breakpoint found: The insertion point is imprecise"},
+	{VCF_FILTER_ONE_BREAKPOINT,     "OneBreakpoint",
+		"Only one breakpoint found: The target site is not described"},
 	{VCF_FILTER_TSD_OUTLIER,        "TSDOutlier",
-		"Target site duplication length out of the expected range (make-vcf --min-tsd and --max-tsd)"},
+		"Target site duplication longer than the threshold (make-vcf --max-tsd)"},
 	{0, NULL, NULL}
 };
 
@@ -352,7 +354,9 @@ vcf_print_header (const List *hl, Hash *contig_len,
 		"##INFO=<ID=SVTYPE,Number=1,Type=String,Description=\"Type of structural variant\">\n"
 		"##INFO=<ID=TSD,Number=1,Type=String,Description=\"Target site duplication sequence: Reference bases from RBKP to LBKP\">\n"
 		"##INFO=<ID=TSDLEN,Number=1,Type=Integer,Description=\"Target site duplication length (LBKP - RBKP + 1):"
-		" Positive for duplication, zero for a clean insertion and negative for target site deletion\">\n"
+		" Positive for duplication, zero for a blunt insertion and negative for target site deletion of -TSDLEN bases\">\n"
+		"##INFO=<ID=TSITE,Number=1,Type=String,Description=\"Target site of the insertion, given by both breakpoints:"
+		" DUP (duplication), BLUNT (blunt insertion) or DEL (deletion)\">\n"
 		"##FILTER=<ID=PASS,Description=\"All filters passed\">\n");
 
 	for (i = 0; filter_defs[i].id != NULL; i++)
@@ -1343,7 +1347,8 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 			* Filters: A PASS retrocopy has its insertion point
 			* well defined - a target for validation. The poly-A
 			* and the exon-exon junctions are reported, but they
-			* do not filter
+			* do not filter. Duplication, blunt insertion and
+			* deletion are all valid target sites
 			*/
 			qual = vcf_qual (gi, hl);
 			num_breakpoints = (b.breakpoint_left_sr > 0) + (b.breakpoint_right_sr > 0);
@@ -1377,15 +1382,17 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 			if (b.sr_acm < opt->min_sr)
 				failed |= VCF_FILTER_LOW_SR;
 
-			// The TSD needs the left and the right breakpoints.
-			// With fewer breakpoints than required, it is missing
-			if (num_breakpoints < opt->min_breakpoints
-					|| (both_breakpoints && tsd_len <= 0))
-				failed |= VCF_FILTER_NO_TSD;
+			// The target site needs the left and the
+			// right breakpoints
+			if (num_breakpoints == 0)
+				failed |= VCF_FILTER_NO_BREAKPOINT;
+			else if (num_breakpoints == 1)
+				failed |= VCF_FILTER_ONE_BREAKPOINT;
 
-			// There is a TSD, but too short or too long
-			if (both_breakpoints && tsd_len > 0
-					&& (tsd_len < opt->min_tsd || tsd_len > opt->max_tsd))
+			// A duplication too long: The breakpoints come
+			// from unrelated reads, not from the same event.
+			// A deletion is bounded by the cluster window
+			if (both_breakpoints && tsd_len > opt->max_tsd)
 				failed |= VCF_FILTER_TSD_OUTLIER;
 
 			failed &= ~opt->disabled_filters;
@@ -1517,12 +1524,14 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 				xfprintf (fp, ";RBKP=%li;RSR=%d",
 						b.breakpoint_right, b.breakpoint_right_sr);
 
-			// Target site duplication: The reference
-			// bases between the two breakpoints
+			// Target site: Duplication, blunt insertion or
+			// deletion. The TSD is the reference bases
+			// between the two breakpoints
 			if (b.breakpoint_left_sr > 0 && b.breakpoint_right_sr > 0)
 				{
 					tsd_len = b.breakpoint_left - b.breakpoint_right + 1;
-					xfprintf (fp, ";TSDLEN=%li", tsd_len);
+					xfprintf (fp, ";TSDLEN=%li;TSITE=%s", tsd_len,
+							tsd_len > 0 ? "DUP" : tsd_len == 0 ? "BLUNT" : "DEL");
 
 					if (tsd_len > 0 && tsd_len <= VCF_MAX_TSD_LEN)
 						{

@@ -254,8 +254,6 @@ START_TEST (test_vcf)
 		.min_qual = VCF_DEFAULT_MIN_QUAL,
 		.min_mapq = VCF_DEFAULT_MIN_MAPQ,
 		.min_sr = VCF_DEFAULT_MIN_SR,
-		.min_breakpoints = VCF_DEFAULT_MIN_BKP,
-		.min_tsd = VCF_DEFAULT_MIN_TSD,
 		.max_tsd = VCF_DEFAULT_MAX_TSD,
 		.fasta_file = fasta_file,
 		.rnames_file = rnames_file,
@@ -278,25 +276,25 @@ START_TEST (test_vcf)
 	const char *present[][2] = {
 		{";ORHO=-1.000000;POLARITY=-;PG=gene1;PGTYPE=1;PGEXONS=gene1:2;HALLMARKS=POLYA,EEJ;EEJ=1;EEJLIST=ee1-ee13;PG5P=ee1:1050:7;PG3P=ee13:3000:2;SVLEN=2000;LEFT_SVINSSEQ=GGTTAACC;RIGHT_SVINSSEQ=TTGGCC;", ";SR=2;LBKP=100;LSR=2;POLYA=25;POLYASR=6;POLYASTRAND=+"},
 		{";PGEXONS=gene2_1:1,gene2_2:1;",   ";DP="},
-		{";SR=7;LBKP=259;LSR=3;RBKP=250;RSR=4;TSDLEN=10;TSD=CCCCCCCCCC", NULL},
+		{";SR=7;LBKP=259;LSR=3;RBKP=250;RSR=4;TSDLEN=10;TSITE=DUP;TSD=CCCCCCCCCC", NULL},
 		{";DP=",                            NULL},
 		{";DP=",                            NULL},
 		{";DP=",                            NULL},
 		{";DP=",                            NULL},
-		{";ORHO=1.000000;POLARITY=+;PG=gene1;PGTYPE=1;PGEXONS=gene1:2;HALLMARKS=POLYA;PG3P=ee1:150:3;DP=", ";SR=2;LBKP=100;LSR=1;RBKP=102;RSR=1;TSDLEN=-1;POLYA=30;POLYAMIN;POLYASR=2;POLYASTRAND=-"}
+		{";ORHO=1.000000;POLARITY=+;PG=gene1;PGTYPE=1;PGEXONS=gene1:2;HALLMARKS=POLYA;PG3P=ee1:150:3;DP=", ";SR=2;LBKP=100;LSR=1;RBKP=102;RSR=1;TSDLEN=-1;TSITE=DEL;POLYA=30;POLYAMIN;POLYASR=2;POLYASTRAND=-"}
 	};
 
 	// QUAL and FILTER. Samples without reads give no QUAL. The
 	// others: -10 * log10 P(0/0) with GL (-33, -0.1, -5) = 329.0
 	const char *qual_filter[] = {
-		"\t.\tLowSR;NoTSD\tSVTYPE=INS;",
-		"\t.\tAmbiguousParental;LowSR;NoTSD\tSVTYPE=INS;",
+		"\t.\tLowSR;OneBreakpoint\tSVTYPE=INS;",
+		"\t.\tAmbiguousParental;LowSR;NoBreakpoint\tSVTYPE=INS;",
 		"\t.\tAmbiguousParental\tSVTYPE=INS;",
-		"\t329.0\tAmbiguousParental;LowSR;NoTSD\tSVTYPE=INS;",
-		"\t329.0\tAmbiguousParental;LowSR;NoTSD\tSVTYPE=INS;",
-		"\t329.0\tAmbiguousParental;LowSR;NoTSD\tSVTYPE=INS;",
-		"\t329.0\tAmbiguousParental;LowSR;NoTSD\tSVTYPE=INS;",
-		"\t329.0\tLowSR;NoTSD\tSVTYPE=INS;"
+		"\t329.0\tAmbiguousParental;LowSR;NoBreakpoint\tSVTYPE=INS;",
+		"\t329.0\tAmbiguousParental;LowSR;NoBreakpoint\tSVTYPE=INS;",
+		"\t329.0\tAmbiguousParental;LowSR;NoBreakpoint\tSVTYPE=INS;",
+		"\t329.0\tAmbiguousParental;LowSR;NoBreakpoint\tSVTYPE=INS;",
+		"\t329.0\tLowSR\tSVTYPE=INS;"
 	};
 
 	const char *absent[] = {
@@ -399,30 +397,29 @@ START_TEST (test_vcf)
 	// Thresholds and disabled filters: The disabled ones are
 	// neither checked nor declared at the header. One breakpoint
 	// is enough (chr10), none is not (chr11); the TSD of 10 bases
-	// (chr12) is longer than the maximum of 5
+	// (chr12) is longer than the maximum of 5, and the deletion
+	// of 1 base (chrY) is not checked
 	VCFOption opt2 = {
 		.fasta_file       = fasta_file,
 		.min_qual         = 400,
 		.min_mapq         = 30,
 		.min_sr           = 2,
-		.min_breakpoints  = 1,
-		.min_tsd          = 1,
 		.max_tsd          = 5,
 		.disabled_filters = VCF_FILTER_AMBIGUOUS_PARENTAL
-			| VCF_FILTER_LOW_SR
+			| VCF_FILTER_LOW_SR | VCF_FILTER_ONE_BREAKPOINT
 	};
 
 	vcf (db, vcf_file, &opt2);
 
 	const char *filters2[] = {
 		"\tLowMAPQ\tSVTYPE=INS;",
-		"\tLowMAPQ;NoTSD\tSVTYPE=INS;",
+		"\tLowMAPQ;NoBreakpoint\tSVTYPE=INS;",
 		"\tLowMAPQ;TSDOutlier\tSVTYPE=INS;",
-		"\tLowQual;LowMAPQ;NoTSD\tSVTYPE=INS;",
-		"\tLowQual;LowMAPQ;NoTSD\tSVTYPE=INS;",
-		"\tLowQual;LowMAPQ;NoTSD\tSVTYPE=INS;",
-		"\tLowQual;LowMAPQ;NoTSD\tSVTYPE=INS;",
-		"\tLowQual;LowMAPQ;NoTSD\tSVTYPE=INS;"
+		"\tLowQual;LowMAPQ;NoBreakpoint\tSVTYPE=INS;",
+		"\tLowQual;LowMAPQ;NoBreakpoint\tSVTYPE=INS;",
+		"\tLowQual;LowMAPQ;NoBreakpoint\tSVTYPE=INS;",
+		"\tLowQual;LowMAPQ;NoBreakpoint\tSVTYPE=INS;",
+		"\tLowQual;LowMAPQ\tSVTYPE=INS;"
 	};
 
 	fp = xfopen (vcf_file, "r");
@@ -432,7 +429,8 @@ START_TEST (test_vcf)
 			if (line[0] == '#')
 				{
 					ck_assert_msg (strstr (line, "ID=AmbiguousParental") == NULL
-							&& strstr (line, "ID=LowSR") == NULL,
+							&& strstr (line, "ID=LowSR") == NULL
+							&& strstr (line, "ID=OneBreakpoint") == NULL,
 							"Disabled filter declared: %s", line);
 					continue;
 				}
@@ -449,7 +447,9 @@ START_TEST (test_vcf)
 	xfclose (fp);
 
 	// Filter names
-	ck_assert_int_eq (vcf_filter_lookup ("NoTSD"), VCF_FILTER_NO_TSD);
+	ck_assert_int_eq (vcf_filter_lookup ("NoBreakpoint"), VCF_FILTER_NO_BREAKPOINT);
+	ck_assert_int_eq (vcf_filter_lookup ("OneBreakpoint"), VCF_FILTER_ONE_BREAKPOINT);
+	ck_assert_int_eq (vcf_filter_lookup ("NoTSD"), 0);
 	ck_assert_int_eq (vcf_filter_lookup ("LowSR"), VCF_FILTER_LOW_SR);
 	ck_assert_int_eq (vcf_filter_lookup ("PolarityConflict"), 0);
 	ck_assert_int_eq (vcf_filter_lookup ("Ponga"), 0);
@@ -605,8 +605,6 @@ START_TEST (test_vcf_parental_chosen)
 		.min_qual = VCF_DEFAULT_MIN_QUAL,
 		.min_mapq = VCF_DEFAULT_MIN_MAPQ,
 		.min_sr = VCF_DEFAULT_MIN_SR,
-		.min_breakpoints = VCF_DEFAULT_MIN_BKP,
-		.min_tsd = VCF_DEFAULT_MIN_TSD,
 		.max_tsd = VCF_DEFAULT_MAX_TSD,
 		.insertion_file = insertion_file
 	};
@@ -627,7 +625,7 @@ START_TEST (test_vcf_parental_chosen)
 			ck_assert_msg (strstr (line,
 						";ORHO=-1.000000;POLARITY=-;PG=gene1;PGTYPE=2;"
 						"PGALT=geneX,geneY;PGEXONS=") != NULL, "%s", line);
-			ck_assert_msg (strstr (line, "\tLowSR;NoTSD\t") != NULL, "%s", line);
+			ck_assert_msg (strstr (line, "\tLowSR;OneBreakpoint\t") != NULL, "%s", line);
 		}
 
 	ck_assert_int_eq (found, 1);
@@ -737,9 +735,9 @@ START_TEST (test_vcf_primer)
 		"COMMIT;";
 
 	const char expected[] =
-		">RTC000002_empty chr1:1-15 PG=geneP FILTER=LowSR;NoTSD junction=5\n"
+		">RTC000002_empty chr1:1-15 PG=geneP FILTER=LowSR;OneBreakpoint junction=5\n"
 		"TTTCCTCATGCAATT\n"
-		">RTC000002_eej1 chr2:81-85,91-94 PG=geneP FILTER=LowSR;NoTSD junction=5 strand=+ reads=2\n"
+		">RTC000002_eej1 chr2:81-85,91-94 PG=geneP FILTER=LowSR;OneBreakpoint junction=5 strand=+ reads=2\n"
 		"CCTGCGGCT\n"
 		">RTC000001_empty chr1:43-70 PG=geneM FILTER=PASS junction=10\n"
 		"ATAGTAAACCATTTTACGGAGGATACCA\n"
@@ -749,7 +747,7 @@ START_TEST (test_vcf_primer)
 		"TTTTGGGGATTTTACGGA\n"
 		">RTC000001_eej1 chr2:21-30,51-60 PG=geneM FILTER=PASS junction=10 strand=- reads=6\n"
 		"TTCACAAAGCACGAACGGGC\n"
-		">RTC000006_empty chr1:91-112 PG=geneP FILTER=NoTSD junction=10\n"
+		">RTC000006_empty chr1:91-112 PG=geneP FILTER=PASS junction=10\n"
 		"CTAACCTGAGGTAAACCAGGTC\n"
 		">RTC000005_left chr1:141-150 PG=geneP FILTER=TSDOutlier junction=10\n"
 		"CCTAGCCAAGAA\n";
@@ -781,8 +779,6 @@ START_TEST (test_vcf_primer)
 		.min_qual = VCF_DEFAULT_MIN_QUAL,
 		.min_mapq = VCF_DEFAULT_MIN_MAPQ,
 		.min_sr = VCF_DEFAULT_MIN_SR,
-		.min_breakpoints = VCF_DEFAULT_MIN_BKP,
-		.min_tsd = VCF_DEFAULT_MIN_TSD,
 		.max_tsd = VCF_DEFAULT_MAX_TSD,
 		.primer_file = primer_file,
 		.primer_flank = 10
@@ -896,6 +892,77 @@ START_TEST (test_vcf_intron_retention)
 }
 END_TEST
 
+START_TEST (test_vcf_target_site)
+{
+	char db_file[] = "/tmp/ponga.db.XXXXXX";
+	char vcf_file[] = "/tmp/ponga.vcf.XXXXXX";
+	sqlite3 *db = NULL;
+
+	db = create_db (db_file);
+	create_vcf (vcf_file);
+	populate_db (db);
+
+	VCFOption opt = {
+		.min_qual = VCF_DEFAULT_MIN_QUAL,
+		.min_mapq = VCF_DEFAULT_MIN_MAPQ,
+		.min_sr = VCF_DEFAULT_MIN_SR,
+		.max_tsd = VCF_DEFAULT_MAX_TSD,
+		.disabled_filters = VCF_FILTER_LOW_SR
+	};
+
+	/*
+	* The chrY retrocopy (QUAL 329.0, the only one at 329.0
+	* that may pass) with its breakpoints moved: Duplication,
+	* blunt insertion and deletion are all valid target sites.
+	* Only a duplication too long fails, and one breakpoint
+	* or none
+	*/
+	struct
+	{
+		const char *update;
+		const char *info;
+		const char *filter;
+	} cases[] = {
+		{"breakpoint_right = 91, breakpoint_right_sr = 1",
+			";TSDLEN=10;TSITE=DUP;", "\t329.0\tPASS\t"},
+		{"breakpoint_right = 101, breakpoint_right_sr = 1",
+			";TSDLEN=0;TSITE=BLUNT;", "\t329.0\tPASS\t"},
+		{"breakpoint_right = 106, breakpoint_right_sr = 1",
+			";TSDLEN=-5;TSITE=DEL;", "\t329.0\tPASS\t"},
+		{"breakpoint_right = 70, breakpoint_right_sr = 1",
+			";TSDLEN=31;TSITE=DUP;", "\t329.0\tTSDOutlier\t"},
+		{"breakpoint_right = NULL, breakpoint_right_sr = 0",
+			";LBKP=100;LSR=1;POLYA=", "\t329.0\tOneBreakpoint\t"},
+		{"breakpoint_left = NULL, breakpoint_left_sr = 0",
+			";PG3P=ee1:150:3;DP=", "\t329.0\tNoBreakpoint\t"}
+	};
+
+	char sql[256] = {};
+	int i = 0;
+
+	for (i = 0; i < (int) (sizeof (cases) / sizeof (cases[0])); i++)
+		{
+			snprintf (sql, sizeof (sql),
+					"UPDATE retrocopy SET %s WHERE id = 8", cases[i].update);
+			db_exec (db, sql);
+
+			vcf (db, vcf_file, &opt);
+
+			ck_assert_msg (grep_vcf (vcf_file, cases[i].info),
+					"'%s' not found", cases[i].info);
+			ck_assert_msg (grep_vcf (vcf_file, cases[i].filter),
+					"'%s' not found", cases[i].filter);
+		}
+
+	// Without both breakpoints, there is no target site
+	ck_assert (!grep_vcf (vcf_file, "TSITE=DEL"));
+
+	db_close (db);
+	xunlink (db_file);
+	xunlink (vcf_file);
+}
+END_TEST
+
 START_TEST (test_vcf_no_genotype_fail)
 {
 	char db_file[] = "/tmp/ponga.db.XXXXXX";
@@ -913,8 +980,6 @@ START_TEST (test_vcf_no_genotype_fail)
 		.min_qual = VCF_DEFAULT_MIN_QUAL,
 		.min_mapq = VCF_DEFAULT_MIN_MAPQ,
 		.min_sr = VCF_DEFAULT_MIN_SR,
-		.min_breakpoints = VCF_DEFAULT_MIN_BKP,
-		.min_tsd = VCF_DEFAULT_MIN_TSD,
 		.max_tsd = VCF_DEFAULT_MAX_TSD
 	};
 
@@ -939,6 +1004,7 @@ make_vcf_suite (void)
 	tcase_add_test (tc_core, test_vcf_parental_chosen);
 	tcase_add_test (tc_core, test_vcf_primer);
 	tcase_add_test (tc_core, test_vcf_intron_retention);
+	tcase_add_test (tc_core, test_vcf_target_site);
 	suite_add_tcase (s, tc_core);
 
 	/* Abort test case */

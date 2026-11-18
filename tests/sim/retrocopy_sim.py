@@ -121,7 +121,9 @@ class Sim:
         self.spliced = ''.join(self.chr2[s - 1:e] for s, e in self.exons)
         self.ins = self.spliced[args.truncation:] + 'A' * args.polya_len
 
-        # TSD at chr1: 1-based inclusive
+        # TSD at chr1: 1-based inclusive. A TSD length of zero
+        # makes a blunt insertion, and a negative one deletes
+        # -tsd_len bases before the insertion point
         self.tsd_start = args.insertion_point
         self.tsd_end = args.insertion_point + args.tsd_len - 1
         self.tsd = self.chr1[self.tsd_start - 1:self.tsd_end]
@@ -381,7 +383,9 @@ class Sim:
             ('RBKP', self.tsd_start if right else 'NA'),
             ('RSR', len(clips) if right else 'NA'),
             ('TSDLEN', a.tsd_len if both else 'NA'),
-            ('TSD', self.tsd if both else 'NA'),
+            ('TSITE', ('DUP' if a.tsd_len > 0 else 'BLUNT' if a.tsd_len == 0
+                       else 'DEL') if both else 'NA'),
+            ('TSD', self.tsd if both and a.tsd_len > 0 else 'NA'),
             ('POLYA', polya_len),
             ('POLYAMIN', polya_min),
             ('POLYASR', polya_sr),
@@ -420,8 +424,9 @@ class Sim:
         Expected FILTER with the make-vcf defaults: The simulated
         retrocopy has a single parental gene and reads with MAPQ
         60. It passes with at least 3 split reads (whatever their
-        side), both breakpoints and a TSD of 6 to 25 bases. The
-        poly-A and the exon-exon junctions do not filter
+        side), both breakpoints - a duplication, a blunt insertion or
+        a deletion at the target site - and a TSD of at most 25 bases.
+        The poly-A and the exon-exon junctions do not filter
         """
         a = self.args
         both = left and right
@@ -430,9 +435,11 @@ class Sim:
 
         if sr < 3:
             f.append('LowSR')
-        if not both or a.tsd_len <= 0:
-            f.append('NoTSD')
-        if both and a.tsd_len > 0 and not 6 <= a.tsd_len <= 25:
+        if not left and not right:
+            f.append('NoBreakpoint')
+        elif not both:
+            f.append('OneBreakpoint')
+        if both and a.tsd_len > 25:
             f.append('TSDOutlier')
 
         return ';'.join(f) if f else 'PASS'
@@ -547,7 +554,7 @@ def check(vcf_file, truth_file, no_ref=False):
     if truth['POS'] != 'NA':
         expect('POS', fields[1], truth['POS'])
 
-    for key in ('IMPRECISE', 'LBKP', 'LSR', 'RBKP', 'RSR', 'TSDLEN', 'TSD',
+    for key in ('IMPRECISE', 'LBKP', 'LSR', 'RBKP', 'RSR', 'TSDLEN', 'TSITE', 'TSD',
                 'POLYA', 'POLYAMIN', 'POLYASR', 'POLYASTRAND', 'POLARITY', 'PG',
                 'PGEXONS', 'EEJ', 'EEJLIST', 'IR', 'IRLIST', 'PG5P', 'PG3P', 'SVLEN',
                 'LEFT_SVINSSEQ', 'RIGHT_SVINSSEQ', 'HALLMARKS'):
@@ -624,7 +631,9 @@ def main():
     p.add_argument('--chr2-len', type=int, default=10000)
     p.add_argument('--insertion-point', type=int, default=10000,
                    help='first base of the TSD at chr1 [10000]')
-    p.add_argument('--tsd-len', type=int, default=12)
+    p.add_argument('--tsd-len', type=int, default=12,
+                   help='TSD length: 0 for a blunt insertion and negative '
+                        'for a deletion at the target site [12]')
     p.add_argument('--polya-len', type=int, default=25)
     p.add_argument('--truncation', type=int, default=0,
                    help="bases missing at the 5' end of the retrocopy [0]")
