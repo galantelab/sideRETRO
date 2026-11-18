@@ -428,22 +428,120 @@ positions and so can never define a breakpoint by themselves. Without an
 accepted breakpoint, the insertion point is the **mean** of the cluster
 window and the retrocopy is flagged ``IMPRECISE``.
 
+Some points are worth stressing:
+
+- Only the **side of the clip** matters. The strand of the retrocopy is
+  not known at this step, and it is not needed: The two breakpoints are
+  found the same way for both strands.
+- The breakpoints are **reference coordinates** of the aligned part of
+  the reads - the last aligned base (``LBKP``) and the first one
+  (``RBKP``) - and not positions inside the clips.
+- The two modes are chosen **independently**: Nothing assures that they
+  come from the two ends of the same event (see
+  :ref:`below <method_tsd_limits>`).
+- The clipped reads are the ones **stored** by ``process-sample`` and
+  clustered into the retrocopy: Fragments with a mate or a
+  supplementary alignment at the exons of the parental gene. A clipped
+  read whose mate is in the flank - a normal pair - is not seen. This
+  makes the poly-A side harder: Its clip, made mostly of A, seldom has
+  a supplementary alignment, so its reads are kept only when their
+  mates fall into the retrocopy.
+
 Retrocopies are inserted by the **LINE-1** machinery (see
-:ref:`Retrocopy in a nutshell <chap_retrocopy>`), which **duplicates** a
-few bases of the target site at both sides of the insertion: The
-**target site duplication** (TSD). As the figure shows, the reads from
-the left flank cross the junction **after** the TSD, while the reads from
-the right flank cross it **before** the TSD. So, at the reference, the
-TSD is the segment from ``RBKP`` to ``LBKP`` and its length is
-``LBKP - RBKP + 1``: Positive for a duplication, zero for a clean
-insertion and negative when some bases were **deleted** at the target
-site. The insertion point reported at the VCF is the right breakpoint
-when it is known, so the insertion is **left aligned**, with the TSD
-belonging to the inserted allele.
+:ref:`Retrocopy in a nutshell <chap_retrocopy>`), which cuts the two
+strands of the target site at **staggered** positions. The repair fills
+the single strand stretches, so the segment between the cuts ends up
+**twice** at the inserted allele, one copy at each side of the
+retrocopy: The **target site duplication** (TSD). As the figure shows,
+the reads from the left flank cross the junction **after** the TSD,
+while the reads from the right flank cross it **before** the TSD.
+
+Why don't the two breakpoints coincide? Because each group of reads
+carries **its own copy** of the TSD, and both copies align to the
+**same** reference segment. For a TSD of 12 bases at the reference
+positions 101 to 112:
+
+.. code-block:: text
+
+   reference:  ...[1 ......... 100][101 ... 112][113 ......... 200]...
+                     left flank         TSD        right flank
+
+   inserted:   ...left flank [TSD] >>> retrocopy >>> AAAA [TSD] right flank...
+
+   left flank read  100M50S:  aligned = left flank + first TSD copy
+                              ref 13..112                   -> LBKP = 112
+   right flank read 50S100M:  aligned = second TSD copy + right flank
+                              ref 101..200                  -> RBKP = 101
+
+At the inserted allele, the ``100M50S`` read **enters** the event and the
+``50S100M`` read **leaves** it. At the reference, the aligned part of the
+first one ends to the **right** of where the second one begins, and the
+overlap is the TSD: The segment from ``RBKP`` to ``LBKP``, of length
+``LBKP - RBKP + 1``. The TSD sequence is then taken from the
+**reference** (``make-vcf -r``), not from the reads.
+
+The relation between the breakpoints tells what happened at the target
+site:
+
++---------------------+-----------------------------+--------------------+
+| Breakpoints         | Target site                 | ``TSDLEN``         |
++=====================+=============================+====================+
+| LBKP >= RBKP        | **Duplication**: The aligned| Positive           |
+|                     | parts overlap               |                    |
++---------------------+-----------------------------+--------------------+
+| LBKP = RBKP - 1     | **Blunt** insertion: The    | Zero               |
+|                     | aligned parts meet          |                    |
++---------------------+-----------------------------+--------------------+
+| LBKP < RBKP - 1     | **Deletion**: The reference | Negative: The      |
+|                     | bases between the aligned   | deleted bases are  |
+|                     | parts are missing           | ``-TSDLEN``        |
++---------------------+-----------------------------+--------------------+
+
+A target site **deletion** is not the loss of a TSD copy: There is no
+TSD at all. The segment between the cuts is lost instead of being
+copied, and the retrocopy takes its place. LINE-1 insertions with
+deletions at the target site are known, from a few bases to many
+kilobases. Only the duplication passes the filter (``NoTSD``), as it is
+the signature expected for the insertion. The insertion point reported
+at the VCF is the right breakpoint when it is known, so the insertion is
+**left aligned**, with the TSD belonging to the inserted allele.
 
 The clipped sequences themselves are kept as the **observed** ends of the
 insertion (``LEFT_SVINSSEQ``, ``RIGHT_SVINSSEQ``): A base by base
 consensus of the clips, anchored at the junction.
+
+.. _method_tsd_limits:
+
+What the TSD does not tell
+--------------------------
+
+The TSD is **inferred** from the geometry of the breakpoints: Two
+boundaries, and the reference segment between them. It is not observed
+as two copies in the reads, and the clips are not checked to hold the
+parental gene. Most of the time the geometry is right, but a TSD out of
+the expected length (``TSDOutlier``) usually means that the two groups
+of clipped reads do not describe the two ends of the same event:
+
+- **Hotspots** and low complexity regions, where clipped reads pile up
+  at both sides for unrelated reasons, give long and arbitrary
+  overlaps.
+- **Mirror** clusters: A retrocopy inserted into an exon of another
+  gene makes the reads of that gene look abnormal at the parental gene
+  locus. There, the "breakpoints" are the ends of the exons, and the
+  "TSD" the distance between them.
+- **Local variation**: A small duplication or a change in the length of
+  a tandem repeat near the site gives clipped reads of its own. Their
+  clips are reference sequence, and the reads span the whole event.
+- **Shifts**: When the TSD begins with A, the aligner cannot tell the
+  tail from the flank and extends the alignment into the tail. A
+  microhomology between the retrocopy and the flank does the same at
+  the other side. The TSD becomes a few bases longer or shorter.
+
+And the biology varies: Very short TSDs, no TSD or long ones also happen
+in real insertions. The expected range (``make-vcf --min-tsd``,
+``--max-tsd``) is a choice, not a law, and the clips are kept at the VCF
+(``LEFT_SVINSSEQ``, ``RIGHT_SVINSSEQ``) for you to judge: Those of a
+retrocopy hold its ends - exon sequence or the tail - not the flanks.
 
 .. _method_polya:
 
@@ -468,6 +566,14 @@ The clipped bases are read at the forward strand of the reference, as the
 SAM format stores the read sequence - soft clips included - whatever the
 strand of the read. So the run of A or T, and its side, do not depend on
 the strand of the reads.
+
+The tail is searched only where it can be - a run of A at the end of
+the clips at the right junction, or of T at the beginning of the clips
+at the left junction - and only in the reads clipped **exactly** at the
+accepted breakpoint. So, without a breakpoint at its side, there is no
+tail to find, and the hard clipped bases of a supplementary alignment
+are not stored to be read. The strand is not chosen beforehand: Both
+junctions are searched, and the tail tells it.
 
 A run of at least 6 bases is called as the tail. It may begin up to 3
 bases away from the flank: The aligner may shift the breakpoint, or

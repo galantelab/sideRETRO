@@ -227,8 +227,9 @@ The fields are grouped by subject. Fields without a value are
 +----------------+----------------------------------------------------------+
 | TSDLEN         | Length of the **target site duplication**:               |
 |                | ``LBKP - RBKP + 1``. Positive for a duplication, zero    |
-|                | for a clean insertion and negative for a deletion at the |
-|                | target site. Needs both breakpoints                      |
+|                | for a blunt insertion and negative for a deletion at the |
+|                | target site, of ``-TSDLEN`` bases. Needs both            |
+|                | breakpoints. See :ref:`Breakpoints <method_breakpoints>` |
 +----------------+----------------------------------------------------------+
 | TSD            | The TSD sequence: The reference bases from RBKP to LBKP. |
 |                | Needs ``-r`` and ``0 < TSDLEN <= 100``                   |
