@@ -113,11 +113,13 @@ A ``PASS`` retrocopy is a good target for **validation** (e.g. by PCR). It
 lists the checks that failed, separated by ``;``, or ``PASS`` when all of
 them passed.
 
-The **target site duplication** is the reference here. It needs the **left**
-and the **right** breakpoints, so by default a retrocopy with fewer than two
-breakpoints fails ``NoTSD``. ``LowSR`` counts all the split reads, at any
+The **target site** is the reference here. It needs the **left** and the
+**right** breakpoints, which tell what happened at it (``TSITE``): A
+duplication, a blunt insertion or a deletion - all of them valid. So a
+retrocopy with a single breakpoint fails ``OneBreakpoint``, and one with
+none fails ``NoBreakpoint``. ``LowSR`` counts all the split reads, at any
 side: A retrocopy may have many of them at a single breakpoint, passing
-``LowSR`` and failing ``NoTSD``.
+``LowSR`` and failing ``OneBreakpoint``.
 
 +-------------------+-------------------------------------------------------+
 | LowQual           | ``QUAL`` below the threshold (``make-vcf -L``,        |
@@ -135,15 +137,17 @@ side: A retrocopy may have many of them at a single breakpoint, passing
 |                   | the threshold (``make-vcf -S``, default 3), whatever  |
 |                   | their side                                            |
 +-------------------+-------------------------------------------------------+
-| NoTSD             | No target site duplication: Fewer breakpoints found   |
-|                   | than required (``make-vcf -B``, default 2), or both   |
-|                   | found and ``TSDLEN <= 0``                             |
+| NoBreakpoint      | No breakpoint found: The insertion point is           |
+|                   | imprecise (``IMPRECISE``)                             |
 +-------------------+-------------------------------------------------------+
-| TSDOutlier        | There is a TSD, but its length is out of the expected |
-|                   | range: Shorter than the minimum (``make-vcf -t``,     |
-|                   | default 6) or longer than the maximum                 |
-|                   | (``make-vcf -T``, default 25) - probably wrong        |
-|                   | breakpoints or a repeat                               |
+| OneBreakpoint     | Only one breakpoint found: The target site is not     |
+|                   | described                                             |
++-------------------+-------------------------------------------------------+
+| TSDOutlier        | The target site duplication is longer than the        |
+|                   | maximum (``make-vcf -T``, default 25) - probably      |
+|                   | breakpoints of unrelated reads. Blunt insertions and  |
+|                   | deletions are not checked: A deletion longer than the |
+|                   | cluster window splits the insertion in two            |
 +-------------------+-------------------------------------------------------+
 
 The poly-A tail, the exon-exon junctions and the orientation are **reported**
@@ -154,8 +158,9 @@ retrocopy.
 .. note::
    Alignments without soft clipping (e.g. ``bwa aln``, or an aligner at
    end-to-end mode) have no split reads, so no breakpoint is found. For
-   them, turn off ``NoTSD`` and ``LowSR`` (``make-vcf -x``), or accept a
-   single breakpoint (``make-vcf -B 1``) if there are some clipped reads.
+   them, turn off ``NoBreakpoint``, ``OneBreakpoint`` and ``LowSR``
+   (``make-vcf -x``), or only ``OneBreakpoint`` to accept a single
+   breakpoint if there are some clipped reads.
 
 Any filter can be turned off with ``make-vcf -x`` (it may be passed more than
 once), and the filters are applied by ``make-vcf``, so trying other thresholds
@@ -231,6 +236,11 @@ The fields are grouped by subject. Fields without a value are
 |                | target site, of ``-TSDLEN`` bases. Needs both            |
 |                | breakpoints. See :ref:`Breakpoints <method_breakpoints>` |
 +----------------+----------------------------------------------------------+
+| TSITE          | **Target site** of the insertion, given by both          |
+|                | breakpoints: ``DUP`` (duplication, ``TSDLEN > 0``),      |
+|                | ``BLUNT`` (blunt insertion, ``TSDLEN = 0``) or ``DEL``   |
+|                | (deletion, ``TSDLEN < 0``)                               |
++----------------+----------------------------------------------------------+
 | TSD            | The TSD sequence: The reference bases from RBKP to LBKP. |
 |                | Needs ``-r`` and ``0 < TSDLEN <= 100``                   |
 +----------------+----------------------------------------------------------+
@@ -289,9 +299,8 @@ is a duplication.
 +------------+--------------------------------------------------------------+
 | HALLMARKS  | The retrocopy hallmarks observed, separated by comma: ``TSD``|
 |            | (target site duplication), ``POLYA`` (poly-A tail) and       |
-|            | ``EEJ`` (exon-exon junctions). Only the TSD                  |
-|            | filters (``NoTSD``): The poly-A and the junctions are        |
-|            | reported for you to judge                                    |
+|            | ``EEJ`` (exon-exon junctions). The poly-A and the junctions  |
+|            | do not filter: They are reported for you to judge            |
 +------------+--------------------------------------------------------------+
 
 **Parental gene**

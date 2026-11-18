@@ -501,16 +501,12 @@ others::
      -S, --min-sr               LowSR: Minimum number of split reads at the
                                 breakpoints, whatever their side
                                 [default:"3"]
-     -B, --min-breakpoints      NoTSD: Minimum number of breakpoints, 1 or 2.
-                                The target site duplication needs both
-                                [default:"2"]
-     -t, --min-tsd              TSDOutlier: Minimum length of the target site
-                                duplication [default:"6"]
      -T, --max-tsd              TSDOutlier: Maximum length of the target site
                                 duplication [default:"25"]
      -x, --no-filter            Disable a filter. It may be passed multiple
                                 times: LowQual, LowMAPQ, AmbiguousParental,
-                                LowSR, NoTSD and TSDOutlier
+                                LowSR, NoBreakpoint, OneBreakpoint and
+                                TSDOutlier
 
 
 So, in order to produce the results from a database input file like

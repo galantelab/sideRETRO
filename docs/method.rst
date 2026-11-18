@@ -484,25 +484,35 @@ The relation between the breakpoints tells what happened at the target
 site:
 
 +---------------------+-----------------------------+--------------------+
-| Breakpoints         | Target site                 | ``TSDLEN``         |
+| Breakpoints         | Target site (``TSITE``)     | ``TSDLEN``         |
 +=====================+=============================+====================+
-| LBKP >= RBKP        | **Duplication**: The aligned| Positive           |
-|                     | parts overlap               |                    |
+| LBKP >= RBKP        | **Duplication** (``DUP``):  | Positive           |
+|                     | The aligned parts overlap   |                    |
 +---------------------+-----------------------------+--------------------+
-| LBKP = RBKP - 1     | **Blunt** insertion: The    | Zero               |
-|                     | aligned parts meet          |                    |
+| LBKP = RBKP - 1     | **Blunt** insertion         | Zero               |
+|                     | (``BLUNT``): The aligned    |                    |
+|                     | parts meet                  |                    |
 +---------------------+-----------------------------+--------------------+
-| LBKP < RBKP - 1     | **Deletion**: The reference | Negative: The      |
-|                     | bases between the aligned   | deleted bases are  |
-|                     | parts are missing           | ``-TSDLEN``        |
+| LBKP < RBKP - 1     | **Deletion** (``DEL``): The | Negative: The      |
+|                     | reference bases between the | deleted bases are  |
+|                     | aligned parts are missing   | ``-TSDLEN``        |
 +---------------------+-----------------------------+--------------------+
 
 A target site **deletion** is not the loss of a TSD copy: There is no
 TSD at all. The segment between the cuts is lost instead of being
 copied, and the retrocopy takes its place. LINE-1 insertions with
 deletions at the target site are known, from a few bases to many
-kilobases. Only the duplication passes the filter (``NoTSD``), as it is
-the signature expected for the insertion. The insertion point reported
+kilobases, and blunt insertions happen as well.
+
+So the three target sites are **valid**, and all of them pass the
+filter: What fails is a retrocopy with a single breakpoint
+(``OneBreakpoint``) or none (``NoBreakpoint``), whose target site is not
+known. Only the length of a duplication is checked (``TSDOutlier``):
+A long one usually comes from breakpoints of unrelated reads (see
+:ref:`below <method_tsd_limits>`). A deletion needs no limit, because a
+long one cannot be seen at a single retrocopy: The two flanks of the
+deletion are farther apart than the clustering allows, so each one
+makes its own cluster, with a single breakpoint. The insertion point reported
 at the VCF is the right breakpoint when it is known, so the insertion is
 **left aligned**, with the TSD belonging to the inserted allele.
 
@@ -518,9 +528,9 @@ What the TSD does not tell
 The TSD is **inferred** from the geometry of the breakpoints: Two
 boundaries, and the reference segment between them. It is not observed
 as two copies in the reads, and the clips are not checked to hold the
-parental gene. Most of the time the geometry is right, but a TSD out of
-the expected length (``TSDOutlier``) usually means that the two groups
-of clipped reads do not describe the two ends of the same event:
+parental gene. Most of the time the geometry is right, but a TSD too
+long (``TSDOutlier``) usually means that the two groups of clipped reads
+do not describe the two ends of the same event:
 
 - **Hotspots** and low complexity regions, where clipped reads pile up
   at both sides for unrelated reasons, give long and arbitrary
@@ -535,11 +545,12 @@ of clipped reads do not describe the two ends of the same event:
 - **Shifts**: When the TSD begins with A, the aligner cannot tell the
   tail from the flank and extends the alignment into the tail. A
   microhomology between the retrocopy and the flank does the same at
-  the other side. The TSD becomes a few bases longer or shorter.
+  the other side. The TSD becomes a few bases longer or shorter, and a
+  short one may turn into a blunt insertion or a small deletion.
 
-And the biology varies: Very short TSDs, no TSD or long ones also happen
-in real insertions. The expected range (``make-vcf --min-tsd``,
-``--max-tsd``) is a choice, not a law, and the clips are kept at the VCF
+And the biology varies: Long TSDs also happen in real insertions. The
+maximum (``make-vcf --max-tsd``) is a choice, not a law, and the clips
+are kept at the VCF
 (``LEFT_SVINSSEQ``, ``RIGHT_SVINSSEQ``) for you to judge: Those of a
 retrocopy hold its ends - exon sequence or the tail - not the flanks.
 
@@ -808,9 +819,10 @@ and ``QUAL`` is 299.2. Some details:
 
 The filter (``FILTER``) asks whether the **insertion point**
 is well defined, so that a ``PASS`` retrocopy is a good target for
-validation: Enough split reads, both breakpoints and a target site
-duplication of the expected length, besides the quality, the mapping
-quality of the reads and a single parental gene.
+validation: Enough split reads and both breakpoints - a duplication not
+too long, a blunt insertion or a deletion at the target site - besides
+the quality, the mapping quality of the reads and a single parental
+gene.
 
 The poly-A tail, the exon-exon junctions and the intron retention are
 **reported**, but they do not filter: They depend on the coverage and
