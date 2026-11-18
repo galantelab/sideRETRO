@@ -54,7 +54,8 @@ separated by **comma**, as usual for VCF: ``PG``, ``PGALT``,
 +------------+-------------------------------------------------------------+
 | POS        | The reference base **before** the insertion. When the two   |
 |            | breakpoints are known, it is the base before the **TSD**,   |
-|            | so the insertion is left aligned                            |
+|            | so the insertion is left aligned, or the base before the    |
+|            | deleted ones for a deletion at the target site (``LBKP``)   |
 +------------+-------------------------------------------------------------+
 | ID         | The retrocopy ID: ``RTC`` followed by six digits            |
 +------------+-------------------------------------------------------------+

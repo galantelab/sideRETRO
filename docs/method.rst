@@ -509,12 +509,16 @@ filter: What fails is a retrocopy with a single breakpoint
 (``OneBreakpoint``) or none (``NoBreakpoint``), whose target site is not
 known. Only the length of a duplication is checked (``TSDOutlier``):
 A long one usually comes from breakpoints of unrelated reads (see
-:ref:`below <method_tsd_limits>`). A deletion needs no limit, because a
-long one cannot be seen at a single retrocopy: The two flanks of the
-deletion are farther apart than the clustering allows, so each one
-makes its own cluster, with a single breakpoint. The insertion point reported
-at the VCF is the right breakpoint when it is known, so the insertion is
-**left aligned**, with the TSD belonging to the inserted allele.
+:ref:`below <method_tsd_limits>`). A deletion has no limit yet: A long
+one is not seen at a single retrocopy, as the two flanks of the deletion
+are farther apart than the clustering allows - each one makes its own
+cluster, with a single breakpoint.
+
+The insertion point reported at the VCF is the right breakpoint when it
+is known, so the insertion is **left aligned**, with the TSD belonging to
+the inserted allele. With a deletion, it is the first deleted base: As
+VCF asks for a structural variant, ``POS`` is the base before the
+**left-most** breakpoint.
 
 The clipped sequences themselves are kept as the **observed** ends of the
 insertion (``LEFT_SVINSSEQ``, ``RIGHT_SVINSSEQ``): A base by base
