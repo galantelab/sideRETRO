@@ -114,6 +114,17 @@ typedef enum _RetrocopyInsertionPoint RetrocopyInsertionPoint;
 #define RETROCOPY_ORIENTATION_ALPHA 0.05
 
 /*
+ * Maximum distance between the end of a piece of a read
+ * spanning an exon-exon junction and the exon boundary:
+ * Inside the exon (bases left unaligned by mismatches near
+ * the junction) and outside it, into the intron (sequence
+ * shared by the exon end and the intron before the other
+ * exon, aligned at both pieces)
+ */
+#define RETROCOPY_JUNCTION_MAX_INNER 5
+#define RETROCOPY_JUNCTION_MAX_OUTER 10
+
+/*
  * Seed used to search the clipped sequence at the
  * junction into the parental exons: Its maximum
  * length and the minimum length allowed

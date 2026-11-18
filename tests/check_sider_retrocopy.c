@@ -185,6 +185,10 @@ populate_db (sqlite3 *db)
 		"INSERT INTO exon VALUES (15,'gene9','chr21',1,3000,'+','eg15','ee15');\n"
 		"INSERT INTO exon VALUES (16,'gene10','chr22',1000,1200,'+','eg16','ee16');\n"
 		"INSERT INTO exon VALUES (17,'gene10','chr22',2000,2200,'+','eg16','ee17');\n"
+		"INSERT INTO exon VALUES (18,'gene10','chr22',1100,1200,'+','eg16','ee18');\n"
+		"INSERT INTO exon VALUES (19,'gene10','chr22',1000,1210,'+','eg16','ee19');\n"
+		"INSERT INTO exon VALUES (20,'gene10','chr22',2003,2200,'+','eg16','ee20');\n"
+		"INSERT INTO exon VALUES (21,'gene10','chr22',1900,2200,'+','eg16','ee21');\n"
 		"INSERT INTO alignment VALUES (1,'q1',0x800,'chr10',1,20,'100M10S',100,100,'chr10',1,1,1,'*','*');\n"
 		"INSERT INTO alignment VALUES (12,'q1',0x880,'chr10',1,20,'100M10S',100,100,'chr10',1,8,1,'*','*');\n"
 		"INSERT INTO alignment VALUES (2,'q4',97,'chr11',1,20,'110M',100,50,'chr11',1,8,1,'*','*');\n"
@@ -215,6 +219,10 @@ populate_db (sqlite3 *db)
 		"INSERT INTO alignment VALUES (28,'q25',145,'chr19',100,20,'100M',100,100,'chr22',1150,14,1,'*','*');\n"
 		"INSERT INTO overlapping VALUES (16,26,1150,50);\n"
 		"INSERT INTO overlapping VALUES (17,27,2000,50);\n"
+		"INSERT INTO overlapping VALUES (18,26,1150,50);\n"
+		"INSERT INTO overlapping VALUES (19,26,1150,50);\n"
+		"INSERT INTO overlapping VALUES (20,27,2003,47);\n"
+		"INSERT INTO overlapping VALUES (21,27,2000,50);\n"
 		"INSERT INTO clustering VALUES (1,2,1,3,100);\n"
 		"INSERT INTO clustering VALUES (2,2,2,3,100);\n"
 		"INSERT INTO clustering VALUES (3,2,3,3,100);\n"
@@ -327,7 +335,10 @@ START_TEST (test_retrocopy)
 	// (25) and the other just a lower bound (30)
 	// chr18: Poly-A at '-' (run of T after the left flank)
 	// chr19: Fragment whose read spans the exon-exon junction
-	// of gene10 (exons 16 and 17)
+	// of gene10 (exons 16 and 17). Exons of other transcripts
+	// overlap its pieces: 18 shares the end of 16, 19 ends 10
+	// bases away, 20 starts 3 bases away (farther than 17)
+	// and 21 starts inside the piece - one junction only
 	const char *chrs[] = {
 		"chr10", "chr11", "chr12", "chr13", "chr13",
 		"chr14", "chr14", "chr15", "chr16", "chr17", "chr18", "chr19"

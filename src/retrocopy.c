@@ -1225,8 +1225,26 @@ calculate_polya (sqlite3 *db, sqlite3_stmt *evidence_stmt, Hash *rtc_h)
 }
 
 /*
- * The fragments of each retrocopy and their alignments
- * overlapping exons, shared by the junction queries
+ * A read spanning an exon-exon junction of the retrocopy
+ * is aligned to the parental gene in two pieces: One
+ * alignment at each exon. So, search the fragments of
+ * each retrocopy for reads with two alignments on two
+ * different exons - not overlapping each other - of the
+ * parental gene. The read is identified by its qname,
+ * source and the flag bits 0x40|0x80.
+ *
+ * Exons of different transcripts overlap, so the same
+ * pieces overlap many exon pairs. The junction is the one
+ * whose boundaries are met by the pieces: The left piece
+ * ends - clipped - at the end of the first exon, and the
+ * right piece starts - clipped - at the start of the
+ * second exon. A piece may stop up to ?1 bases before the
+ * boundary (mismatches near the junction), or go up to ?2
+ * bases beyond it, into the intron: The sequence shared by
+ * the end of one exon and the intron before the other
+ * (microhomology) is aligned at both pieces. The closest
+ * pair wins, and the exons with the same boundaries are
+ * represented by the lowest ids
  */
 #define JUNCTION_QUERY_WITH \
 	"WITH\n" \
@@ -1242,29 +1260,45 @@ calculate_polya (sqlite3 *db, sqlite3_stmt *evidence_stmt, Hash *rtc_h)
 	"		INNER JOIN alignment AS a\n" \
 	"			ON a.id = c.alignment_id\n" \
 	"	),\n" \
-	"	exonic (qname, source_id, read, aid, eid, gene_name, start, end) AS (\n" \
+	"	exonic (qname, source_id, read, aid, apos, aend, cigar,\n" \
+	"		eid, gene_name, start, end) AS (\n" \
 	"		SELECT a.qname, a.source_id, a.flag & 0xC0, a.id,\n" \
+	"			a.pos, a.pos + a.rlen - 1, a.cigar,\n" \
 	"			e.id, e.gene_name, e.start, e.end\n" \
 	"		FROM alignment AS a\n" \
 	"		INNER JOIN overlapping AS o\n" \
 	"			ON o.alignment_id = a.id\n" \
 	"		INNER JOIN exon AS e\n" \
 	"			ON e.id = o.exon_id\n" \
+	"	),\n" \
+	"	candidate (rid, aid, eid1, eid2, end, start, rank) AS (\n" \
+	"		SELECT f.rid, x1.aid, x1.eid, x2.eid, x1.end, x2.start,\n" \
+	"			ROW_NUMBER () OVER (\n" \
+	"				PARTITION BY f.rid, x1.aid, x2.aid\n" \
+	"				ORDER BY ABS (x1.aend - x1.end) + ABS (x2.apos - x2.start),\n" \
+	"					x1.eid, x2.eid)\n" \
+	"		FROM fragment AS f\n" \
+	"		INNER JOIN exonic AS x1\n" \
+	"			ON x1.qname = f.qname\n" \
+	"				AND x1.source_id = f.source_id\n" \
+	"				AND x1.gene_name = f.gene_name\n" \
+	"		INNER JOIN exonic AS x2\n" \
+	"			ON x2.qname = x1.qname\n" \
+	"				AND x2.source_id = x1.source_id\n" \
+	"				AND x2.read = x1.read\n" \
+	"				AND x2.gene_name = x1.gene_name\n" \
+	"				AND x2.aid != x1.aid\n" \
+	"		WHERE x1.end < x2.start\n" \
+	"			AND x1.aend - x1.end BETWEEN -?1 AND ?2\n" \
+	"			AND x2.start - x2.apos BETWEEN -?1 AND ?2\n" \
+	"			AND x1.cigar GLOB '*[SH]'\n" \
+	"			AND LTRIM (x2.cigar, '0123456789') GLOB '[SH]*'\n" \
+	"	),\n" \
+	"	matched (rid, aid, eid1, eid2, end, start) AS (\n" \
+	"		SELECT rid, aid, eid1, eid2, end, start\n" \
+	"		FROM candidate\n" \
+	"		WHERE rank = 1\n" \
 	"	)\n"
-
-#define JUNCTION_QUERY_FROM \
-	"FROM fragment AS f\n" \
-	"INNER JOIN exonic AS x1\n" \
-	"	ON x1.qname = f.qname\n" \
-	"		AND x1.source_id = f.source_id\n" \
-	"		AND x1.gene_name = f.gene_name\n" \
-	"INNER JOIN exonic AS x2\n" \
-	"	ON x2.qname = x1.qname\n" \
-	"		AND x2.source_id = x1.source_id\n" \
-	"		AND x2.read = x1.read\n" \
-	"		AND x2.gene_name = x1.gene_name\n" \
-	"		AND x2.aid != x1.aid\n" \
-	"WHERE x1.end < x2.start\n"
 
 static sqlite3_stmt *
 prepare_junction_query_stmt (sqlite3 *db)
@@ -1273,25 +1307,18 @@ prepare_junction_query_stmt (sqlite3 *db)
 
 	sqlite3_stmt *stmt = NULL;
 
-	/*
-	* A read spanning an exon-exon junction of the retrocopy
-	* is aligned to the parental gene in two pieces: One
-	* alignment at each exon. So, search the fragments of
-	* each retrocopy for reads with two alignments overlapping
-	* two different exons - not overlapping each other - of
-	* the parental gene. The read is identified by its qname,
-	* source and the flag bits 0x40|0x80
-	*/
+	// Each distinct junction once, with its reads
 	const char sql[] =
 		JUNCTION_QUERY_WITH
-		"SELECT f.rid, x1.eid, x2.eid,\n"
-		"	COUNT(DISTINCT x1.qname || '/' || x1.source_id || '/' || x1.read)\n"
-		JUNCTION_QUERY_FROM
-		"GROUP BY f.rid, x1.eid, x2.eid\n"
-		"ORDER BY f.rid ASC, x1.start ASC, x2.start ASC";
+		"SELECT rid, MIN(eid1), MIN(eid2), COUNT(DISTINCT aid)\n"
+		"FROM matched\n"
+		"GROUP BY rid, end, start\n"
+		"ORDER BY rid ASC, end ASC, start ASC";
 
 	log_debug ("Query schema:\n%s", sql);
 	stmt = db_prepare (db, sql);
+	db_bind_int (stmt, 1, RETROCOPY_JUNCTION_MAX_INNER);
+	db_bind_int (stmt, 2, RETROCOPY_JUNCTION_MAX_OUTER);
 
 	return stmt;
 }
@@ -1330,11 +1357,13 @@ calculate_junction (sqlite3_stmt *junction_stmt, sqlite3_stmt *evidence_stmt)
 	// The reads spanning the junctions
 	const char sql[] =
 		JUNCTION_QUERY_WITH
-		"SELECT DISTINCT f.rid, x1.aid\n"
-		JUNCTION_QUERY_FROM;
+		"SELECT DISTINCT rid, aid\n"
+		"FROM matched";
 
 	log_debug ("Query schema:\n%s", sql);
 	junction_query_stmt = db_prepare (sqlite3_db_handle (junction_stmt), sql);
+	db_bind_int (junction_query_stmt, 1, RETROCOPY_JUNCTION_MAX_INNER);
+	db_bind_int (junction_query_stmt, 2, RETROCOPY_JUNCTION_MAX_OUTER);
 
 	while (db_step (junction_query_stmt) == SQLITE_ROW)
 		db_insert_evidence (evidence_stmt,

@@ -304,12 +304,12 @@ vcf_print_header (const List *hl, Hash *contig_len,
 	xfprintf (fp,
 		"##INFO=<ID=CIPOS,Number=2,Type=Integer,Description=\"Confidence interval around POS for imprecise variants\">\n"
 		"##INFO=<ID=DP,Number=1,Type=Integer,Description=\"Read Depth of segment containing breakpoint\">\n"
-		"##INFO=<ID=EEJ,Number=1,Type=Integer,Description=\"Number of reads spanning exon-exon junctions of the parental gene:"
+		"##INFO=<ID=EEJ,Number=1,Type=Integer,Description=\"Number of exon-exon junctions of the parental gene spanned by split reads:"
 		" Evidence of a processed transcript\">\n"
-		"##INFO=<ID=EEJLIST,Number=.,Type=String,Description=\"Exon-exon junctions spanned by reads as 'exon_id1-exon_id2'\">\n"
+		"##INFO=<ID=EEJLIST,Number=.,Type=String,Description=\"Exon-exon junctions spanned by split reads as 'exon_id1-exon_id2'\">\n"
 		"##INFO=<ID=EXONIC,Number=.,Type=String,Description=\"Host gene IDs for a retrocopy inserted into an exon\">\n"
 		"##INFO=<ID=HALLMARKS,Number=.,Type=String,Description=\"Retrocopy hallmarks observed: TSD (target site duplication),"
-		" POLYA (poly-A tail) and EEJ (reads spanning exon-exon junctions)\">\n"
+		" POLYA (poly-A tail) and EEJ (exon-exon junctions spanned by split reads)\">\n"
 		"##INFO=<ID=IMPRECISE,Number=0,Type=Flag,Description=\"Imprecise structural variation\">\n"
 		"##INFO=<ID=INTRONIC,Number=.,Type=String,Description=\"Host gene IDs for a retrocopy inserted into an intron\">\n"
 		"##INFO=<ID=IR,Number=1,Type=Integer,Description=\"Intron retention: Number of reads at the insertion whose mate is"
@@ -452,7 +452,7 @@ prepare_retrocopy_query_stmt (sqlite3 *db, const long near_gene_dist,
 		"		GROUP BY rid\n"
 		"	),\n"
 		"	junction_g (rid, eej, txt) AS (\n"
-		"		SELECT rid, SUM(reads), GROUP_CONCAT(ense1 || '-' || ense2, ',')\n"
+		"		SELECT rid, COUNT(*), GROUP_CONCAT(ense1 || '-' || ense2, ',')\n"
 		"		FROM (\n"
 		"			SELECT j.retrocopy_id AS rid, j.reads, e1.ense AS ense1, e2.ense AS ense2\n"
 		"			FROM junction AS j\n"
@@ -866,21 +866,29 @@ prepare_primer_junction_stmt (sqlite3 *db)
 
 	/*
 	* The exon-exon junctions of a retrocopy - or of all of
-	* them for ?1 = 0. Exons of different transcripts share
-	* the same boundaries, so the same junction comes under
-	* many exon pairs: Take each distinct junction once, with
-	* the longest exons
+	* them for ?1 = 0. Each junction is stored once, with the
+	* exons of one transcript, but exons of other transcripts
+	* share the same boundaries: Take the longest of them for
+	* the flanks
 	*/
 	const char sql[] =
-		"SELECT MIN(e1.chr), MIN(e1.start), e1.end,\n"
-		"	e2.start, MAX(e2.end), MIN(e1.strand), MAX(j.reads)\n"
+		"SELECT e1.chr, MIN(x1.start), e1.end,\n"
+		"	e2.start, MAX(x2.end), e1.strand, j.reads\n"
 		"FROM junction AS j\n"
 		"INNER JOIN exon AS e1\n"
 		"	ON e1.id = j.exon_id1\n"
 		"INNER JOIN exon AS e2\n"
 		"	ON e2.id = j.exon_id2\n"
+		"INNER JOIN exon AS x1\n"
+		"	ON x1.gene_name = e1.gene_name\n"
+		"		AND x1.chr = e1.chr\n"
+		"		AND x1.end = e1.end\n"
+		"INNER JOIN exon AS x2\n"
+		"	ON x2.gene_name = e2.gene_name\n"
+		"		AND x2.chr = e2.chr\n"
+		"		AND x2.start = e2.start\n"
 		"WHERE ?1 = 0 OR j.retrocopy_id = ?1\n"
-		"GROUP BY j.retrocopy_id, e1.end, e2.start\n"
+		"GROUP BY j.retrocopy_id, j.exon_id1, j.exon_id2\n"
 		"ORDER BY j.retrocopy_id ASC, e1.end ASC, e2.start ASC";
 
 	log_debug ("Query schema:\n%s", sql);

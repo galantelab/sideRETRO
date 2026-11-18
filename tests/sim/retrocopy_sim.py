@@ -406,7 +406,7 @@ class Sim:
                 ('TSD', both and a.tsd_len > 0),
                 ('POLYA', polya),
                 ('EEJ', a.n_junction_reads > 0)) if ok) or 'NA'),
-            ('EEJ', a.n_junction_reads if a.n_junction_reads else 'NA'),
+            ('EEJ', 1 if a.n_junction_reads else 'NA'),
             ('EEJLIST', 'ENSEP0-ENSEP1' if a.n_junction_reads else 'NA'),
             # An intron needs MIN_IR mates at the sample
             ('IR', a.n_intron_mates if a.n_intron_mates >= MIN_IR else 'NA'),

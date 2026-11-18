@@ -276,7 +276,7 @@ START_TEST (test_vcf)
 	// at the other strand (POLYASTRAND): It does not filter
 	// (chr10, chr11, chr12, chr13, chr13, chr14, chr14, chrY)
 	const char *present[][2] = {
-		{";ORHO=-1.000000;POLARITY=-;PG=gene1;PGTYPE=1;PGEXONS=gene1:2;HALLMARKS=POLYA,EEJ;EEJ=5;EEJLIST=ee1-ee13;PG5P=ee1:1050:7;PG3P=ee13:3000:2;SVLEN=2000;LEFT_SVINSSEQ=GGTTAACC;RIGHT_SVINSSEQ=TTGGCC;", ";SR=2;LBKP=100;LSR=2;POLYA=25;POLYASR=6;POLYASTRAND=+"},
+		{";ORHO=-1.000000;POLARITY=-;PG=gene1;PGTYPE=1;PGEXONS=gene1:2;HALLMARKS=POLYA,EEJ;EEJ=1;EEJLIST=ee1-ee13;PG5P=ee1:1050:7;PG3P=ee13:3000:2;SVLEN=2000;LEFT_SVINSSEQ=GGTTAACC;RIGHT_SVINSSEQ=TTGGCC;", ";SR=2;LBKP=100;LSR=2;POLYA=25;POLYASR=6;POLYASTRAND=+"},
 		{";PGEXONS=gene2_1:1,gene2_2:1;",   ";DP="},
 		{";SR=7;LBKP=259;LSR=3;RBKP=250;RSR=4;TSDLEN=10;TSD=CCCCCCCCCC", NULL},
 		{";DP=",                            NULL},
@@ -663,7 +663,8 @@ START_TEST (test_vcf_primer)
 	* Sequences for primer design, with 10 bases of flank:
 	* RTC000001: Both breakpoints (TSD of 8 bases) and both
 	* observed sequences. Its parental gene is at '-', and two
-	* exons share the same end: Only one exon-exon junction
+	* exons share the same end: The junction is stored with
+	* the shorter one, but the flank comes from the longer
 	* RTC000002: Only the left breakpoint, at the start of the
 	* contig, and no observed sequence. Exons shorter than the
 	* flank at its junction
@@ -678,13 +679,12 @@ START_TEST (test_vcf_primer)
 		"BEGIN TRANSACTION;\n"
 		"INSERT INTO source VALUES (1,1,'PONGA');\n"
 		"INSERT INTO exon VALUES (1,'geneM','chr2',11,30,'-','egm','eem1');\n"
-		"INSERT INTO exon VALUES (2,'geneM','chr2',21,30,'-','egm','eem2');\n"
+		"INSERT INTO exon VALUES (2,'geneM','chr2',26,30,'-','egm','eem2');\n"
 		"INSERT INTO exon VALUES (3,'geneM','chr2',51,70,'-','egm','eem3');\n"
 		"INSERT INTO exon VALUES (4,'geneP','chr2',81,85,'+','egp','eep1');\n"
 		"INSERT INTO exon VALUES (5,'geneP','chr2',91,94,'+','egp','eep2');\n"
 		"INSERT INTO exon VALUES (6,'geneZ','chrZ',11,30,'+','egz','eez1');\n"
 		"INSERT INTO exon VALUES (7,'geneZ','chrZ',51,70,'+','egz','eez2');\n"
-		"INSERT INTO junction VALUES (1,1,3,4);\n"
 		"INSERT INTO junction VALUES (1,2,3,6);\n"
 		"INSERT INTO junction VALUES (2,4,5,2);\n"
 		"INSERT INTO junction VALUES (7,6,7,3);\n"
