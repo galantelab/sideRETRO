@@ -377,6 +377,10 @@ known by calling it without any argument::
                                 the parental genes of overlapping clusters to
                                 merge them as near parental genes
                                 [default:"3"]
+     -D, --max-tsd-del          Maximum length of a deletion at the target site
+                                to merge the retrocopies at its two flanks, each
+                                with a single breakpoint. 0 merges none
+                                [default:"50000"]
      -r, --reference-file       FASTA file of the reference genome. With it,
                                 the retrocopy ends are searched in the parental
                                 exons and its sequence is predicted

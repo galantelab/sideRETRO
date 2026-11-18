@@ -242,6 +242,11 @@ The fields are grouped by subject. Fields without a value are
 |                | ``BLUNT`` (blunt insertion, ``TSDLEN = 0``) or ``DEL``   |
 |                | (deletion, ``TSDLEN < 0``)                               |
 +----------------+----------------------------------------------------------+
+| TSITEMERGED    | A **deletion** at the target site longer than the        |
+|                | cluster window: The insertion was merged from the        |
+|                | retrocopies at its two flanks (``merge-call -D``). See   |
+|                | :ref:`Long deletions <method_tsite_merged>`              |
++----------------+----------------------------------------------------------+
 | TSD            | The TSD sequence: The reference bases from RBKP to LBKP. |
 |                | Needs ``-r`` and ``0 < TSDLEN <= 100``                   |
 +----------------+----------------------------------------------------------+

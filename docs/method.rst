@@ -509,10 +509,9 @@ filter: What fails is a retrocopy with a single breakpoint
 (``OneBreakpoint``) or none (``NoBreakpoint``), whose target site is not
 known. Only the length of a duplication is checked (``TSDOutlier``):
 A long one usually comes from breakpoints of unrelated reads (see
-:ref:`below <method_tsd_limits>`). A deletion has no limit yet: A long
-one is not seen at a single retrocopy, as the two flanks of the deletion
-are farther apart than the clustering allows - each one makes its own
-cluster, with a single breakpoint.
+:ref:`below <method_tsd_limits>`). A deletion longer than the cluster
+window is not seen at a single retrocopy - see
+:ref:`below <method_tsite_merged>`.
 
 The insertion point reported at the VCF is the right breakpoint when it
 is known, so the insertion is **left aligned**, with the TSD belonging to
@@ -523,6 +522,48 @@ VCF asks for a structural variant, ``POS`` is the base before the
 The clipped sequences themselves are kept as the **observed** ends of the
 insertion (``LEFT_SVINSSEQ``, ``RIGHT_SVINSSEQ``): A base by base
 consensus of the clips, anchored at the junction.
+
+.. _method_tsite_merged:
+
+Long deletions at the target site
+---------------------------------
+
+A deletion at the target site may be as long as many kilobases. The two
+flanks of a long one are farther apart than the clustering allows, so
+each flank makes its **own** cluster - a retrocopy with a **single**
+breakpoint, facing the other one:
+
+.. code-block:: text
+
+   reference:  ...left flank |------ deleted bases ------| right flank...
+                         LBKP                             RBKP
+   inserted:   ...left flank >>> retrocopy >>> right flank...
+
+   retrocopy A: reads of the left flank  - only LBKP
+   retrocopy B: reads of the right flank - only RBKP
+
+``merge-call`` merges such pairs into a single retrocopy, so that it is
+genotyped as one insertion. Two retrocopies are merged only when all of
+these hold:
+
+- The same parental gene - a single one, not overlapped, near genes or a
+  hotspot - and the same chromosome.
+- A has only the left breakpoint and B only the right one, with
+  ``LBKP < RBKP``, at most ``merge-call --max-tsd-del`` bases apart
+  (default 50000).
+- The strand agrees: A poly-A at both flanks - which means one strand at
+  each - forbids it, and so does a significant orientation (``ORHO``) of
+  opposite signs.
+- The samples agree: At least one of them has reads at both flanks, and
+  none has 5 or more fragments at one flank and nothing at the other.
+- A and B are the **only** compatible retrocopies of each other: With
+  more candidates, the deletion cannot be told, and both are kept as
+  they are.
+
+The merged retrocopy has both breakpoints, a negative ``TSDLEN`` and the
+flag ``TSITEMERGED``, and its orientation is calculated again with the
+reads of both flanks. A deletion shorter than the cluster window needs
+none of this: Its flanks are already in the same retrocopy.
 
 .. _method_tsd_limits:
 
