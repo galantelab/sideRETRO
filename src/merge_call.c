@@ -498,7 +498,7 @@ print_usage (FILE *fp)
 		"                              [default:\"%d\"]\n"
 		"   -g, --genotype-support     Minimum number of reads from a single sample\n"
 		"                              (SAM/BAM/CRAM) to keep a cluster [default:\"%d\"]\n"
-		"   -n, --near-gene-rank       Maximum distance, in number of genes, between\n"
+		"   -n, --near-gene-distance   Maximum distance, in number of genes, between\n"
 		"                              the parental genes of overlapping clusters to\n"
 		"                              merge them as near parental genes\n"
 		"                              [default:\"%d\"]\n"
@@ -657,7 +657,7 @@ merge_call_validate (MergeCall *mc)
 
 	if (mc->near_gene_rank < 1)
 		{
-			fprintf (stderr, "%s: --near-gene-rank must be greater or equal to 1\n", PACKAGE);
+			fprintf (stderr, "%s: --near-gene-distance must be greater or equal to 1\n", PACKAGE);
 			rc = EXIT_FAILURE; goto Exit;
 		}
 
@@ -831,7 +831,7 @@ merge_call_print (const MergeCall *mc)
 	string_concat_printf (msg,
 		"  --parental-distance=%d \\\n"
 		"  --genotype-support=%d \\\n"
-		"  --near-gene-rank=%d \\\n"
+		"  --near-gene-distance=%d \\\n"
 		"  --max-tsd-del=%li \\\n"
 		"  --threads=%d \\\n"
 		"  --phred-quality=%d\n",

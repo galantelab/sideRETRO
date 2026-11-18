@@ -237,7 +237,7 @@ to their parental genes (``PGTYPE``):
 |                   | <method_overlapped>`                            |
 +-------------------+-------------------------------------------------+
 | Near parental     | The parental genes are neighbours, up to        |
-| genes             | ``--near-gene-rank`` genes apart                |
+| genes             | ``--near-gene-distance`` genes apart            |
 +-------------------+-------------------------------------------------+
 | Hotspot           | Unrelated parental genes: The clusters are not  |
 |                   | merged, and there is one retrocopy for each     |

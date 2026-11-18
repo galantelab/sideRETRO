@@ -373,7 +373,7 @@ known by calling it without any argument::
                                 [default:"1000000"]
      -g, --genotype-support     Minimum number of reads from a single sample
                                 (SAM/BAM/CRAM) to keep a cluster [default:"1"]
-     -n, --near-gene-rank       Maximum distance, in number of genes, between
+     -n, --near-gene-distance   Maximum distance, in number of genes, between
                                 the parental genes of overlapping clusters to
                                 merge them as near parental genes
                                 [default:"3"]
