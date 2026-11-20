@@ -307,6 +307,14 @@ lookup (BiTreeNode *node, long low, long high, float node_overlap_frac,
 					interval_overlap_frac, either, func, user_data, acm);
 		}
 
+	/*
+	* The nodes are sorted by their low: If the node begins
+	* after the given interval, neither the node nor its right
+	* subtree can overlap it
+	*/
+	if (ibitree_data (node)->low > high)
+		return;
+
 	// Alloc the overlap struct
 	IBiTreeLookupData ldata = {};
 
@@ -318,7 +326,7 @@ lookup (BiTreeNode *node, long low, long high, float node_overlap_frac,
 			(*acm)++;
 		}
 
-	// Else interval can only overlap with right subtree
+	// The interval may still overlap the right subtree
 	lookup (bitree_right (node), low, high, node_overlap_frac,
 			interval_overlap_frac, either, func, user_data, acm);
 }
