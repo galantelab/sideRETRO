@@ -286,6 +286,35 @@ overlaps_exon (AbnormalFilter *argf, const bam1_t *align)
 			argf->exon_frac, argf->alignment_frac, argf->either) > 0;
 }
 
+/*
+ * A supplementary alignment below the minimum mapping quality.
+ * The clip of a read crossing the poly-A junction is often aligned
+ * as a short supplementary piece at a random place, with MAPQ 0,
+ * and the fragment would lose all its alignments with it - the
+ * read at the insertion site included. So it is left out: It
+ * does not fail its fragment, but it is not stored either
+ */
+static inline int
+abnormal_left_out (const AbnormalFilter *argf, const bam1_t *align)
+{
+	return (align->core.flag & 0x800)
+		&& align->core.qual < argf->phred_quality;
+}
+
+/*
+ * Classify an alignment of a fragment: A left out alignment
+ * passes the other checks, and its type still marks the
+ * fragment - as a split read, for instance
+ */
+static inline int
+abnormal_fragment_classifier (AbnormalFilter *argf, const bam1_t *align,
+		AbnormalType *type)
+{
+	return abnormal_classifier (align, argf->max_distance,
+			abnormal_left_out (argf, align) ? 0 : argf->phred_quality,
+			argf->max_base_freq, type);
+}
+
 static void
 dump_alignment (AbnormalFilter *argf, const bam1_t *align,
 		AbnormalType type)
@@ -392,9 +421,7 @@ dump_stack_if_abnormal (AbnormalFilter *argf, const List *stack)
 		{
 			align = list_data (cur);
 
-			if (!abnormal_classifier (align, argf->max_distance,
-						argf->phred_quality, argf->max_base_freq,
-						&rtype))
+			if (!abnormal_fragment_classifier (argf, align, &rtype))
 				return;
 
 			type |= rtype;
@@ -412,7 +439,8 @@ dump_stack_if_abnormal (AbnormalFilter *argf, const List *stack)
 	*/
 	for (cur = list_head (stack); cur != NULL;
 			cur = list_next (cur))
-		if (overlaps_exon (argf, list_data (cur)))
+		if (!abnormal_left_out (argf, list_data (cur))
+				&& overlaps_exon (argf, list_data (cur)))
 			break;
 
 	if (cur == NULL)
@@ -422,7 +450,8 @@ dump_stack_if_abnormal (AbnormalFilter *argf, const List *stack)
 			cur = list_next (cur))
 		{
 			align = list_data (cur);
-			dump_alignment (argf, align, type);
+			if (!abnormal_left_out (argf, align))
+				dump_alignment (argf, align, type);
 		}
 }
 
@@ -621,8 +650,7 @@ parse_unsorted_sam (AbnormalFilter *argf)
 		{
 			argf->alignment_acm++;
 
-			pass = abnormal_classifier (argf->align, argf->max_distance,
-					argf->phred_quality, argf->max_base_freq, &type);
+			pass = abnormal_fragment_classifier (argf, argf->align, &type);
 
 			frag = hash_lookup (abnormal_frags,
 					bam_get_qname (argf->align));
@@ -642,7 +670,8 @@ parse_unsorted_sam (AbnormalFilter *argf)
 					hash_insert (abnormal_frags, name, frag);
 				}
 
-			if (frag != NULL && !frag->failed && !frag->exonic)
+			if (frag != NULL && !frag->failed && !frag->exonic
+					&& !abnormal_left_out (argf, argf->align))
 				frag->exonic = overlaps_exon (argf, argf->align);
 		}
 
@@ -669,9 +698,10 @@ parse_unsorted_sam (AbnormalFilter *argf)
 
 			if (idx < frag->first)
 				{
-					// Unknown alignment: test and keep it
-					pass = abnormal_classifier (argf->align, argf->max_distance,
-							argf->phred_quality, argf->max_base_freq, &type);
+					// Unknown alignment: test and keep it. It is not
+					// abnormal - otherwise it would be the first - so it
+					// is never a left out (supplementary) alignment
+					pass = abnormal_fragment_classifier (argf, argf->align, &type);
 
 					if (!pass)
 						{
@@ -712,8 +742,9 @@ parse_unsorted_sam (AbnormalFilter *argf)
 
 			// From the first abnormal alignment on, all
 			// alignments passed the classifier - otherwise
-			// the fragment would be marked as failed
-			if (frag->exonic)
+			// the fragment would be marked as failed. The left
+			// out ones are not stored
+			if (frag->exonic && !abnormal_left_out (argf, argf->align))
 				dump_alignment (argf, argf->align, frag->type);
 			argf->abnormal_acm++;
 		}

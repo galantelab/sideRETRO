@@ -474,6 +474,96 @@ START_TEST (test_abnormal_filter_edge)
 }
 END_TEST
 
+/*
+ * Mapping quality (-Q 20), with the exon e1 at chr1:45-65:
+ * S1: A read clipped at chr2 (MAPQ 60), its clip aligned as a
+ * supplementary piece with MAPQ 0, and the mate at e1: The piece
+ * is left out, and the fragment is kept as a split read
+ * P2: The read at chr2 with MAPQ 0: Discarded
+ * E3: The mate at e1 with MAPQ 0: Discarded
+ * S4: The supplementary piece with MAPQ 0 is the only alignment
+ * at an exon: Left out, the fragment is not exonic
+ * In the unsorted file, the supplementary pieces come first
+ */
+static const char *sam_mapq_sorted =
+	"@HD\tVN:1.0\tSO:queryname\n"
+	"@SQ\tSN:chr1\tLN:248956422\n"
+	"@SQ\tSN:chr2\tLN:242193529\n"
+	"E3\t97\tchr2\t700\t60\t10M\tchr1\t50\t0\tAAATTTCCGA\t~~~~~~~~~~\n"
+	"E3\t145\tchr1\t50\t0\t10M\tchr2\t700\t0\tTTTTTGGGGA\t~~~~~~~~~~\n"
+	"P2\t97\tchr2\t600\t0\t10M\tchr1\t50\t0\tAAATTTCCGA\t~~~~~~~~~~\n"
+	"P2\t145\tchr1\t50\t60\t10M\tchr2\t600\t0\tTTTTTGGGGA\t~~~~~~~~~~\n"
+	"S1\t97\tchr2\t500\t60\t5M5S\tchr1\t50\t0\tAAATTAAAAA\t~~~~~~~~~~\n"
+	"S1\t145\tchr1\t50\t60\t10M\tchr2\t500\t0\tTTTTTGGGGA\t~~~~~~~~~~\n"
+	"S1\t2145\tchr2\t9000\t0\t5H5M\tchr1\t50\t0\tAAAAA\t~~~~~\n"
+	"S4\t97\tchr2\t800\t60\t5M5S\tchr2\t900\t0\tAAATTAAAAA\t~~~~~~~~~~\n"
+	"S4\t145\tchr2\t900\t60\t10M\tchr2\t800\t0\tTTTTTGGGGA\t~~~~~~~~~~\n"
+	"S4\t2145\tchr1\t50\t0\t5H5M\tchr2\t900\t0\tAAAAA\t~~~~~\n";
+
+static const char *sam_mapq_unsorted =
+	"@SQ\tSN:chr1\tLN:248956422\n"
+	"@SQ\tSN:chr2\tLN:242193529\n"
+	"S1\t2145\tchr2\t9000\t0\t5H5M\tchr1\t50\t0\tAAAAA\t~~~~~\n"
+	"S4\t2145\tchr1\t50\t0\t5H5M\tchr2\t900\t0\tAAAAA\t~~~~~\n"
+	"E3\t145\tchr1\t50\t0\t10M\tchr2\t700\t0\tTTTTTGGGGA\t~~~~~~~~~~\n"
+	"P2\t97\tchr2\t600\t0\t10M\tchr1\t50\t0\tAAATTTCCGA\t~~~~~~~~~~\n"
+	"S1\t145\tchr1\t50\t60\t10M\tchr2\t500\t0\tTTTTTGGGGA\t~~~~~~~~~~\n"
+	"S1\t97\tchr2\t500\t60\t5M5S\tchr1\t50\t0\tAAATTAAAAA\t~~~~~~~~~~\n"
+	"P2\t145\tchr1\t50\t60\t10M\tchr2\t600\t0\tTTTTTGGGGA\t~~~~~~~~~~\n"
+	"E3\t97\tchr2\t700\t60\t10M\tchr1\t50\t0\tAAATTTCCGA\t~~~~~~~~~~\n"
+	"S4\t97\tchr2\t800\t60\t5M5S\tchr2\t900\t0\tAAATTAAAAA\t~~~~~~~~~~\n"
+	"S4\t145\tchr2\t900\t60\t10M\tchr2\t800\t0\tTTTTTGGGGA\t~~~~~~~~~~\n";
+
+START_TEST (test_abnormal_filter_mapq)
+{
+	const char *sams[] = {sam_mapq_sorted, sam_mapq_unsorted};
+	TestAbnormal a;
+	AbnormalStat stat = {};
+	sqlite3_stmt *stmt = NULL;
+	int i = 0;
+	int j = 0;
+
+	const struct {const char *chr; long pos;} rows[] = {
+		{"chr1", 50},
+		{"chr2", 500}
+	};
+
+	for (j = 0; j < 2; j++)
+		{
+			stat = (AbnormalStat) {};
+			test_abnormal_init (&a, sams[j]);
+			a.arg->phred_quality = 20;
+			a.arg->hts_threads = 1;
+			a.arg->stat = &stat;
+
+			abnormal_filter (a.arg);
+
+			ck_assert_int_eq (stat.stored, 2);
+
+			// Only S1, without the supplementary piece, but
+			// still marked as supplementary (split read)
+			stmt = db_prepare (a.db,
+					"SELECT qname, chr, pos, mapq, type FROM alignment\n"
+					"ORDER BY qname ASC, chr ASC");
+
+			for (i = 0; db_step (stmt) == SQLITE_ROW; i++)
+				{
+					ck_assert_int_lt (i, 2);
+					ck_assert_str_eq (db_column_text (stmt, 0), "S1");
+					ck_assert_str_eq (db_column_text (stmt, 1), rows[i].chr);
+					ck_assert_int_eq (db_column_int64 (stmt, 2), rows[i].pos);
+					ck_assert_int_eq (db_column_int (stmt, 3), 60);
+					ck_assert (db_column_int (stmt, 4) & ABNORMAL_SUPPLEMENTARY);
+				}
+
+			ck_assert_int_eq (i, 2);
+
+			db_finalize (stmt);
+			test_abnormal_destroy (&a);
+		}
+}
+END_TEST
+
 START_TEST (test_abnormal_filter_no_chr)
 {
 	TestAbnormal a;
@@ -672,6 +762,7 @@ make_abnormal_suite (void)
 	tcase_add_test (tc_core, test_abnormal_filter_unsorted);
 	tcase_add_test (tc_core, test_abnormal_filter_seq_qual);
 	tcase_add_test (tc_core, test_abnormal_filter_edge);
+	tcase_add_test (tc_core, test_abnormal_filter_mapq);
 	tcase_add_test (tc_core, test_abnormal_filter_no_chr);
 #ifdef HAVE_LD_WRAP
 	tcase_add_test (tc_core, test_abnormal_threads_fail);
