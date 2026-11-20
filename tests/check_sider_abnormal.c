@@ -474,6 +474,80 @@ START_TEST (test_abnormal_filter_edge)
 }
 END_TEST
 
+/*
+ * Mapping quality (-Q 20): M1 has its mate at the exon e1 with
+ * MAPQ 0 - kept, as an alignment at an exon does not need the
+ * minimum. W2 and W3 have the read at the insertion site with
+ * MAPQ 0: The fragment is discarded, whatever the order of
+ * its alignments
+ */
+static const char *sam_mapq_sorted =
+	"@HD\tVN:1.0\tSO:queryname\n"
+	"@SQ\tSN:chr1\tLN:248956422\n"
+	"@SQ\tSN:chr2\tLN:242193529\n"
+	"M1\t97\tchr2\t500\t60\t10M\tchr1\t50\t0\tAAATTTCCGA\t~~~~~~~~~~\n"
+	"M1\t145\tchr1\t50\t0\t10M\tchr2\t500\t0\tTTTTTGGGGA\t~~~~~~~~~~\n"
+	"W2\t97\tchr2\t700\t0\t10M\tchr1\t50\t0\tAAATTTCCGA\t~~~~~~~~~~\n"
+	"W2\t145\tchr1\t50\t60\t10M\tchr2\t700\t0\tTTTTTGGGGA\t~~~~~~~~~~\n"
+	"W3\t97\tchr2\t900\t0\t10M\tchr1\t50\t0\tAAATTTCCGA\t~~~~~~~~~~\n"
+	"W3\t145\tchr1\t50\t60\t10M\tchr2\t900\t0\tTTTTTGGGGA\t~~~~~~~~~~\n";
+
+static const char *sam_mapq_unsorted =
+	"@SQ\tSN:chr1\tLN:248956422\n"
+	"@SQ\tSN:chr2\tLN:242193529\n"
+	"M1\t145\tchr1\t50\t0\t10M\tchr2\t500\t0\tTTTTTGGGGA\t~~~~~~~~~~\n"
+	"W2\t97\tchr2\t700\t0\t10M\tchr1\t50\t0\tAAATTTCCGA\t~~~~~~~~~~\n"
+	"W3\t145\tchr1\t50\t60\t10M\tchr2\t900\t0\tTTTTTGGGGA\t~~~~~~~~~~\n"
+	"M1\t97\tchr2\t500\t60\t10M\tchr1\t50\t0\tAAATTTCCGA\t~~~~~~~~~~\n"
+	"W2\t145\tchr1\t50\t60\t10M\tchr2\t700\t0\tTTTTTGGGGA\t~~~~~~~~~~\n"
+	"W3\t97\tchr2\t900\t0\t10M\tchr1\t50\t0\tAAATTTCCGA\t~~~~~~~~~~\n";
+
+START_TEST (test_abnormal_filter_mapq)
+{
+	const char *sams[] = {sam_mapq_sorted, sam_mapq_unsorted};
+	TestAbnormal a;
+	AbnormalStat stat = {};
+	sqlite3_stmt *stmt = NULL;
+	int i = 0;
+	int j = 0;
+
+	for (j = 0; j < 2; j++)
+		{
+			stat = (AbnormalStat) {};
+			test_abnormal_init (&a, sams[j]);
+			a.arg->phred_quality = 20;
+			a.arg->hts_threads = 1;
+			a.arg->stat = &stat;
+
+			abnormal_filter (a.arg);
+
+			ck_assert_int_eq (stat.stored, 2);
+
+			stmt = db_prepare (a.db,
+					"SELECT qname, chr, mapq FROM alignment\n"
+					"ORDER BY qname ASC, chr ASC");
+
+			const struct {const char *chr; int mapq;} rows[] = {
+				{"chr1", 0},
+				{"chr2", 60}
+			};
+
+			for (i = 0; db_step (stmt) == SQLITE_ROW; i++)
+				{
+					ck_assert_int_lt (i, 2);
+					ck_assert_str_eq (db_column_text (stmt, 0), "M1");
+					ck_assert_str_eq (db_column_text (stmt, 1), rows[i].chr);
+					ck_assert_int_eq (db_column_int (stmt, 2), rows[i].mapq);
+				}
+
+			ck_assert_int_eq (i, 2);
+
+			db_finalize (stmt);
+			test_abnormal_destroy (&a);
+		}
+}
+END_TEST
+
 START_TEST (test_abnormal_filter_no_chr)
 {
 	TestAbnormal a;
@@ -672,6 +746,7 @@ make_abnormal_suite (void)
 	tcase_add_test (tc_core, test_abnormal_filter_unsorted);
 	tcase_add_test (tc_core, test_abnormal_filter_seq_qual);
 	tcase_add_test (tc_core, test_abnormal_filter_edge);
+	tcase_add_test (tc_core, test_abnormal_filter_mapq);
 	tcase_add_test (tc_core, test_abnormal_filter_no_chr);
 #ifdef HAVE_LD_WRAP
 	tcase_add_test (tc_core, test_abnormal_threads_fail);
