@@ -159,8 +159,9 @@ this command::
      -c, --cache-size        SQLite3 cache size in KiB [default:"200000"]
 
   Read Quality Options:
-     -Q, --phred-quality     Minimum mapping quality (MAPQ) of the reads
-                             [default:"8"]
+     -Q, --phred-quality     Minimum mapping quality (MAPQ) of the reads.
+                             The alignments overlapping an exon are kept
+                             whatever their MAPQ [default:"8"]
      -M, --max-base-freq     Maximum frequency of a single base in a read.
                              Reads above it are discarded as low complexity
                              sequences, such as poly-A [default:"0.75"]
