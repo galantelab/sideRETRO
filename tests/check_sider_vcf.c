@@ -957,6 +957,13 @@ START_TEST (test_vcf_target_site)
 	// Without both breakpoints, there is no target site
 	ck_assert (!grep_vcf (vcf_file, "TSITE=DEL"));
 
+	// PGMAPQ: The other alignment of the fragment of the chr10
+	// retrocopy at an exon of the parental gene (MAPQ 20)
+	ck_assert (!grep_vcf (vcf_file, "PGMAPQ="));
+	db_exec (db, "INSERT INTO overlapping VALUES (12,12,1,100)");
+	vcf (db, vcf_file, &opt);
+	ck_assert (grep_vcf (vcf_file, ";PGEXONS=gene1:2;PGMAPQ=20.0;"));
+
 	db_close (db);
 	xunlink (db_file);
 	xunlink (vcf_file);
