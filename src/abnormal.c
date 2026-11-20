@@ -286,31 +286,6 @@ overlaps_exon (AbnormalFilter *argf, const bam1_t *align)
 			argf->exon_frac, argf->alignment_frac, argf->either) > 0;
 }
 
-/*
- * Classify an alignment of a fragment. The fragment loses all
- * its alignments if one of them fails. The mapping quality of
- * an alignment at an exon may be low for reasons of the gene
- * itself - paralogs, processed pseudogenes at the reference, a
- * short supplementary piece - and it would take with it the read
- * at the insertion site. So an alignment overlapping an exon does
- * not need the minimum mapping quality: Only the other ones do.
- * Its mapping quality is stored, and merge-call and make-vcf tell
- * about it
- */
-static inline int
-abnormal_fragment_classifier (AbnormalFilter *argf, const bam1_t *align,
-		AbnormalType *type)
-{
-	if (abnormal_classifier (align, argf->max_distance,
-				argf->phred_quality, argf->max_base_freq, type))
-		return 1;
-
-	return align->core.qual < argf->phred_quality
-		&& abnormal_classifier (align, argf->max_distance,
-			0, argf->max_base_freq, type)
-		&& overlaps_exon (argf, align);
-}
-
 static void
 dump_alignment (AbnormalFilter *argf, const bam1_t *align,
 		AbnormalType type)
@@ -417,7 +392,9 @@ dump_stack_if_abnormal (AbnormalFilter *argf, const List *stack)
 		{
 			align = list_data (cur);
 
-			if (!abnormal_fragment_classifier (argf, align, &rtype))
+			if (!abnormal_classifier (align, argf->max_distance,
+						argf->phred_quality, argf->max_base_freq,
+						&rtype))
 				return;
 
 			type |= rtype;
@@ -644,7 +621,8 @@ parse_unsorted_sam (AbnormalFilter *argf)
 		{
 			argf->alignment_acm++;
 
-			pass = abnormal_fragment_classifier (argf, argf->align, &type);
+			pass = abnormal_classifier (argf->align, argf->max_distance,
+					argf->phred_quality, argf->max_base_freq, &type);
 
 			frag = hash_lookup (abnormal_frags,
 					bam_get_qname (argf->align));
@@ -692,7 +670,8 @@ parse_unsorted_sam (AbnormalFilter *argf)
 			if (idx < frag->first)
 				{
 					// Unknown alignment: test and keep it
-					pass = abnormal_fragment_classifier (argf, argf->align, &type);
+					pass = abnormal_classifier (argf->align, argf->max_distance,
+							argf->phred_quality, argf->max_base_freq, &type);
 
 					if (!pass)
 						{

@@ -155,10 +155,6 @@ struct _VCFBody
 	int         ir;
 	const char *ir_list;
 
-	// Mean mapping quality of the alignments of the
-	// fragments at the parental gene, or -1
-	double      pg_mapq;
-
 	// Retrocopy ends into the parental gene,
 	// predicted sequence and observed junctions
 	long        five_prime_pos;
@@ -334,8 +330,6 @@ vcf_print_header (const List *hl, Hash *contig_len,
 		" PG was chosen among them by the fragments explained by it alone and by the strand given by the poly-A\">\n"
 		"##INFO=<ID=PGEXONS,Number=.,Type=String,Description=\"Number of exons of each parental gene as 'gene:n'."
 		" A single exon gene has no exon-exon junction\">\n"
-		"##INFO=<ID=PGMAPQ,Number=1,Type=Float,Description=\"Mean mapping quality of the alignments of the supporting fragments"
-		" at the parental gene exons: Near zero when they fall into a repeat, such as a mobile element inside an exon\">\n"
 		"##INFO=<ID=PG5P,Number=1,Type=String,Description=\"5' end of the retrocopy into the parental gene as 'exon_id:position:reads',"
 		" where position is at the reference genome\">\n"
 		"##INFO=<ID=PG3P,Number=1,Type=String,Description=\"3' end of the retrocopy into the parental gene, before the poly-A,"
@@ -492,27 +486,6 @@ prepare_retrocopy_query_stmt (sqlite3 *db, const long near_gene_dist,
 		"		)\n"
 		"		GROUP BY rid\n"
 		"	),\n"
-		"	pg_mapq (rid, mean) AS (\n"
-		"		SELECT rid, AVG(mapq)\n"
-		"		FROM (\n"
-		"			SELECT DISTINCT cm.retrocopy_id AS rid, x.id, x.mapq\n"
-		"			FROM cluster_merging AS cm\n"
-		"			INNER JOIN clustering AS c\n"
-		"				ON c.cluster_id = cm.cluster_id\n"
-		"					AND c.cluster_sid = cm.cluster_sid\n"
-		"			INNER JOIN alignment AS a\n"
-		"				ON a.id = c.alignment_id\n"
-		"			INNER JOIN alignment AS x\n"
-		"				ON x.qname = a.qname\n"
-		"					AND x.source_id = a.source_id\n"
-		"			WHERE x.id != a.id\n"
-		"				AND EXISTS (\n"
-		"					SELECT 1\n"
-		"					FROM overlapping AS o\n"
-		"					WHERE o.alignment_id = x.id)\n"
-		"		)\n"
-		"		GROUP BY rid\n"
-		"	),\n"
 		"	mapq (rid, mean) AS (\n"
 		"		SELECT cm.retrocopy_id, AVG(a.mapq)\n"
 		"		FROM cluster_merging AS cm\n"
@@ -581,8 +554,7 @@ prepare_retrocopy_query_stmt (sqlite3 *db, const long near_gene_dist,
 		"	COALESCE(ins.seq, '?'), COALESCE(ins.left_seq, '?'),\n"
 		"	COALESCE(ins.right_seq, '?'),\n"
 		"	COALESCE(m.mean, 0), REPLACE(r.pgalt, '/', ','),\n"
-		"	COALESCE(ir.ir, 0), COALESCE(ir.txt, '?'),\n"
-		"	COALESCE(pm.mean, -1.0)\n"
+		"	COALESCE(ir.ir, 0), COALESCE(ir.txt, '?')\n"
 		"FROM (\n"
 		"	SELECT *,\n"
 		"		CASE\n"
@@ -614,8 +586,6 @@ prepare_retrocopy_query_stmt (sqlite3 *db, const long near_gene_dist,
 		"	ON e3.id = ins.three_prime_exon_id\n"
 		"LEFT JOIN mapq AS m\n"
 		"	ON r.id = m.rid\n"
-		"LEFT JOIN pg_mapq AS pm\n"
-		"	ON r.id = pm.rid\n"
 		"LEFT JOIN gene AS g\n"
 		"	ON r.pg = g.gene_name\n"
 		"INNER JOIN genotype AS gn\n"
@@ -759,7 +729,6 @@ vcf_get_body_line (sqlite3_stmt *stmt, VCFBody *b)
 	b->parental_others      = db_column_text   (stmt, 38);
 	b->ir                   = db_column_int    (stmt, 39);
 	b->ir_list              = db_column_text   (stmt, 40);
-	b->pg_mapq              = db_column_double (stmt, 41);
 }
 
 static double
@@ -1482,9 +1451,6 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 
 			if (strcmp (b.pg_exons, "?"))
 				xfprintf (fp, ";PGEXONS=%s", b.pg_exons);
-
-			if (b.pg_mapq >= 0.0)
-				xfprintf (fp, ";PGMAPQ=%.1f", b.pg_mapq);
 
 			// Hallmarks observed
 			if ((both_breakpoints && tsd_len > 0) || b.polya_sr > 0 || b.eej > 0)

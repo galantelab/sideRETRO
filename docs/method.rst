@@ -164,12 +164,6 @@ reads are at different chromosomes, farther than ``--max-distance``
 from each other, or have a supplementary alignment. The reads must be
 paired, mapped with the mate mapped, with the minimum mapping quality
 (``--phred-quality``) and not of low complexity (``--max-base-freq``).
-The mapping quality is not required of an alignment overlapping an
-exon: It is often low for reasons of the gene itself - paralogs,
-processed pseudogenes at the reference, a short supplementary piece -
-and, as one failing alignment drops the whole fragment, it would take
-with it the read at the insertion site. It is stored, and reported at
-``PGMAPQ``.
 A fragment is **kept** only if one of its alignments overlaps an
 **exon** of the annotation - by one base, or by the fractions given at
 ``--exon-frac`` and ``--alignment-frac``. A stricter fraction of the

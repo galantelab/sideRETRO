@@ -328,13 +328,6 @@ is a duplication.
 |            | **single exon** gene has no exon-exon junction, so a missing |
 |            | EEJ is expected for it                                       |
 +------------+--------------------------------------------------------------+
-| PGMAPQ     | Mean **mapping quality** of the alignments of the supporting |
-|            | fragments at the exons of the parental gene. Near zero, they |
-|            | fall into a repeat: Typically a mobile element (Alu, LINE-1) |
-|            | inside an exon, whose own insertions then look like          |
-|            | retrocopies of the gene. Paralogs and processed pseudogenes  |
-|            | at the reference lower it too. It does not filter            |
-+------------+--------------------------------------------------------------+
 | EEJ        | Number of **exon-exon junctions** of the parental gene       |
 |            | spanned by split reads: Direct evidence of a processed       |
 |            | transcript. The reads are at the read names file and at the  |
