@@ -1,3 +1,44 @@
+Version 1.12.0
+
+* Target site: Both breakpoints describe it at the new INFO
+  TSITE - DUP (duplication), BLUNT (blunt insertion) or DEL
+  (deletion) - and all of them are valid. NoTSD is replaced
+  by NoBreakpoint and OneBreakpoint, and the 'make-vcf'
+  options --min-breakpoints and --min-tsd were removed:
+  TSDOutlier fails only a duplication longer than --max-tsd.
+  With a deletion, POS is the base before it (LBKP).
+
+* A deletion at the target site longer than the cluster
+  window splits the insertion into two retrocopies, one at
+  each flank. 'merge-call' merges them when they agree -
+  parental gene, strand and samples - up to --max-tsd-del
+  bases apart (-D, 50000 by default). They are flagged with
+  the new INFO TSITEMERGED.
+
+* EEJ is the number of exon-exon junctions spanned by split
+  reads. A read is matched to the exon boundaries its pieces
+  meet, so the exons of other transcripts no longer multiply
+  the junctions and their reads (EEJ, EEJLIST and the primer
+  file).
+
+* 'process-sample' leaves out a supplementary alignment
+  below --phred-quality, instead of discarding its fragment:
+  The poly-A clip, aligned as a short piece with MAPQ 0,
+  took with it the read at the insertion site. More poly-A
+  tails and breakpoints are found. Databases of previous
+  versions must be regenerated with 'process-sample' to
+  benefit.
+
+* Faster lookups at the interval trees of the exons and of
+  the genotyping windows (process-sample and merge-call).
+
+* 'merge-call': The help, the log and the messages name the
+  option --near-gene-distance (-n), as it is parsed.
+
+* Documentation: How the breakpoints, the TSD and the poly-A
+  are found, what the TSD does not tell, the target sites
+  and the long deletions.
+
 Version 1.11.0
 
 * Intron retention: 'merge-call' counts the reads at the
