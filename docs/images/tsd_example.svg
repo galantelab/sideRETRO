@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="940" height="380" viewBox="0 0 940 380" font-family="Helvetica, Arial, sans-serif">
+<defs><marker id="arrow-64748B" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M1,1 L8,4.5 L1,8 z" fill="#64748B"/></marker></defs>
+<text x="24" y="65" font-size="16.25" fill="#64748B" text-anchor="start" font-weight="bold">Inserted</text>
+<rect x="150" y="48" width="220" height="24" rx="0" fill="#CBD5E1"/>
+<text x="260" y="66.1375" font-size="16.25" fill="#1F2A37" text-anchor="middle">left flank</text>
+<rect x="370" y="48" width="44" height="24" rx="0" fill="#F6A46B"/>
+<text x="392" y="66.05" font-size="15" fill="#1F2A37" text-anchor="middle" font-weight="bold">TSD</text>
+<rect x="414" y="48" width="170" height="24" rx="0" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<text x="499" y="66.1375" font-size="16.25" fill="#1F2A37" text-anchor="middle">retrocopy</text>
+<rect x="584" y="48" width="50" height="24" rx="0" fill="#1B5E7B" stroke="#2B7A9B" stroke-width="1.5"/>
+<text x="609" y="66.05" font-size="15" fill="#FFFFFF" text-anchor="middle" font-weight="bold">AAAA</text>
+<rect x="634" y="48" width="44" height="24" rx="0" fill="#F6A46B"/>
+<text x="656" y="66.05" font-size="15" fill="#1F2A37" text-anchor="middle" font-weight="bold">TSD</text>
+<rect x="678" y="48" width="194" height="24" rx="0" fill="#CBD5E1"/>
+<text x="775" y="66.1375" font-size="16.25" fill="#1F2A37" text-anchor="middle">right flank</text>
+<rect x="176" y="92" width="238" height="12" rx="3" fill="#64748B"/>
+<rect x="414" y="92" width="110" height="12" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2" stroke-dasharray="4,3"/>
+<rect x="524" y="116" width="110" height="12" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2" stroke-dasharray="4,3"/>
+<rect x="634" y="116" width="238" height="12" rx="3" fill="#64748B"/>
+<text x="166" y="103" font-size="16.25" fill="#1F2A37" text-anchor="end" font-weight="bold">100M50S</text>
+<text x="514" y="127" font-size="16.25" fill="#1F2A37" text-anchor="end" font-weight="bold">50S100M</text>
+<rect x="370" y="184" width="44" height="90" rx="0" fill="#D9480F" fill-opacity="0.1"/>
+<rect x="176" y="192" width="238" height="12" rx="3" fill="#64748B"/>
+<rect x="414" y="192" width="110" height="12" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2" stroke-dasharray="4,3"/>
+<rect x="260" y="216" width="110" height="12" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2" stroke-dasharray="4,3"/>
+<rect x="370" y="216" width="238" height="12" rx="3" fill="#64748B"/>
+<path d="M295,108 C295,148 295,148 295,188" fill="none" stroke="#64748B" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="5,4" marker-end="url(#arrow-64748B)"/>
+<path d="M753,132 C753,172 566,172 566,212" fill="none" stroke="#64748B" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="5,4" marker-end="url(#arrow-64748B)"/>
+<text x="24" y="267" font-size="16.25" fill="#64748B" text-anchor="start" font-weight="bold">Reference</text>
+<rect x="150" y="250" width="220" height="24" rx="0" fill="#CBD5E1"/>
+<text x="260" y="268.137" font-size="16.25" fill="#1F2A37" text-anchor="middle">left flank (1-100)</text>
+<rect x="370" y="250" width="44" height="24" rx="0" fill="#F6A46B"/>
+<text x="392" y="268.05" font-size="15" fill="#1F2A37" text-anchor="middle" font-weight="bold">TSD</text>
+<rect x="414" y="250" width="194" height="24" rx="0" fill="#CBD5E1"/>
+<text x="511" y="268.137" font-size="16.25" fill="#1F2A37" text-anchor="middle">right flank (113-200)</text>
+<line x1="414" y1="180" x2="414" y2="284" stroke="#D9480F" stroke-width="2.5" stroke-linecap="butt"/>
+<line x1="370" y1="180" x2="370" y2="284" stroke="#2B7A9B" stroke-width="2.5" stroke-linecap="butt"/>
+<text x="420" y="304" font-size="16.25" fill="#D9480F" text-anchor="start" font-weight="bold">LBKP = 112</text>
+<text x="364" y="304" font-size="16.25" fill="#2B7A9B" text-anchor="end" font-weight="bold">RBKP = 101</text>
+<text x="626" y="232" font-size="16.25" fill="#64748B" text-anchor="start">ref 101-200</text>
+<text x="156" y="178" font-size="16.25" fill="#64748B" text-anchor="start">ref 13-112</text>
+<text x="470" y="345.137" font-size="16.25" fill="#64748B" text-anchor="middle">LBKP is the last aligned base of 100M50S, and RBKP the first of 50S100M.</text>
+<text x="470" y="367.137" font-size="16.25" fill="#64748B" text-anchor="middle">The aligned parts overlap at the TSD, from RBKP to LBKP: LBKP - RBKP + 1 = 12 bases.</text>
+</svg>

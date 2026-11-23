@@ -261,12 +261,11 @@ The fields are grouped by subject. Fields without a value are
 +----------------+----------------------------------------------------------+
 
 A retrocopy with a TSD looks like this at the reference and at the
-sequenced genome::
+sequenced genome:
 
-   reference:  ...left flank | TSD |                        right flank...
-   genome:     ...left flank | TSD | retrocopy + poly-A | TSD | right flank...
-                                  ^                          ^
-                                LBKP                        RBKP
+.. image:: images/breakpoints.svg
+   :width: 90%
+   :align: center
 
 The reads from the left flank cross the junction after the **last**
 base of the TSD (``LBKP``), while the reads from the right flank

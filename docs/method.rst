@@ -251,6 +251,10 @@ to their parental genes (``PGTYPE``):
 |                   | gene at the same site                           |
 +-------------------+-------------------------------------------------+
 
+.. image:: images/cluster_merging.svg
+   :width: 90%
+   :align: center
+
 .. _method_genotype:
 
 Genotype
@@ -478,17 +482,9 @@ carries **its own copy** of the TSD, and both copies align to the
 **same** reference segment. For a TSD of 12 bases at the reference
 positions 101 to 112:
 
-.. code-block:: text
-
-   reference:  ...[1 ......... 100][101 ... 112][113 ......... 200]...
-                     left flank         TSD        right flank
-
-   inserted:   ...left flank [TSD] >>> retrocopy >>> AAAA [TSD] right flank...
-
-   left flank read  100M50S:  aligned = left flank + first TSD copy
-                              ref 13..112                   -> LBKP = 112
-   right flank read 50S100M:  aligned = second TSD copy + right flank
-                              ref 101..200                  -> RBKP = 101
+.. image:: images/tsd_example.svg
+   :width: 90%
+   :align: center
 
 At the inserted allele, the ``100M50S`` read **enters** the event and the
 ``50S100M`` read **leaves** it. At the reference, the aligned part of the
@@ -550,14 +546,9 @@ flanks of a long one are farther apart than the clustering allows, so
 each flank makes its **own** cluster - a retrocopy with a **single**
 breakpoint, facing the other one:
 
-.. code-block:: text
-
-   reference:  ...left flank |------ deleted bases ------| right flank...
-                         LBKP                             RBKP
-   inserted:   ...left flank >>> retrocopy >>> right flank...
-
-   retrocopy A: reads of the left flank  - only LBKP
-   retrocopy B: reads of the right flank - only RBKP
+.. image:: images/long_deletion.svg
+   :width: 90%
+   :align: center
 
 ``merge-call`` merges such pairs into a single retrocopy, so that it is
 genotyped as one insertion. Two retrocopies are merged only when all of
@@ -683,6 +674,10 @@ the parental gene is ambiguous (``PGTYPE=2``). Two signals may point to
   agree for only one of them. It needs a poly-A and a significant
   orientation (p-value up to 0.05).
 
+.. image:: images/overlapped_parental_genes.svg
+   :width: 90%
+   :align: center
+
 A gene is **chosen** when at least one signal favours it and none favours
 another gene. It becomes the parental gene (``PG``), the others are listed
 at ``PGALT`` and the event is not flagged as ``AmbiguousParental``. The
@@ -713,6 +708,10 @@ may stop up to 5 bases before the boundary (mismatches near the
 junction), or go up to 10 bases beyond it: The sequence shared by the
 end of one exon and the intron before the other (**microhomology**) is
 aligned at both pieces. The closest pair wins.
+
+.. image:: images/exon_exon_junction.svg
+   :width: 90%
+   :align: center
 
 The junctions are counted at ``EEJ`` and listed at ``EEJLIST``, which
 also tells **which isoform** was retrocopied when the gene has

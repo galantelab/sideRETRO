@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="940" height="340" viewBox="0 0 940 340" font-family="Helvetica, Arial, sans-serif">
+<defs><marker id="arrow-64748B" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M1,1 L8,4.5 L1,8 z" fill="#64748B"/></marker></defs>
+<line x1="150" y1="50" x2="730" y2="50" stroke="#2B7A9B" stroke-width="8" stroke-linecap="round"/>
+<rect x="178" y="38" width="22" height="24" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<rect x="700" y="38" width="22" height="24" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<rect x="200" y="30" width="90" height="40" rx="4" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<rect x="360" y="30" width="120" height="40" rx="4" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<rect x="560" y="30" width="140" height="40" rx="4" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<text x="754" y="47" font-size="18.75" fill="#1F2A37" text-anchor="start" font-weight="bold">Parental gene</text>
+<text x="754" y="69" font-size="15" fill="#64748B" text-anchor="start">reference genome</text>
+<text x="245" y="56.1375" font-size="16.25" fill="#1F2A37" text-anchor="middle">exon 1</text>
+<text x="420" y="56.1375" font-size="16.25" fill="#1F2A37" text-anchor="middle">exon 2</text>
+<text x="630" y="56.1375" font-size="16.25" fill="#1F2A37" text-anchor="middle">exon 3</text>
+<line x1="150" y1="260" x2="730" y2="260" stroke="#F2C14E" stroke-width="8" stroke-linecap="round"/>
+<rect x="258" y="248" width="22" height="24" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<rect x="280" y="240" width="350" height="40" rx="4" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<line x1="370" y1="240" x2="370" y2="280" stroke="#2B7A9B" stroke-width="1.5" stroke-linecap="butt"/>
+<line x1="490" y1="240" x2="490" y2="280" stroke="#2B7A9B" stroke-width="1.5" stroke-linecap="butt"/>
+<rect x="630" y="248" width="22" height="24" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<rect x="652" y="248" width="70" height="24" rx="3" fill="#1B5E7B" stroke="#2B7A9B" stroke-width="1.5"/>
+<text x="687" y="266.05" font-size="15" fill="#FFFFFF" text-anchor="middle" font-weight="bold">AAAA</text>
+<text x="754" y="257" font-size="18.75" fill="#1F2A37" text-anchor="start" font-weight="bold">Retrocopy</text>
+<text x="754" y="279" font-size="15" fill="#64748B" text-anchor="start">sample genome</text>
+<text x="24" y="55" font-size="16.25" fill="#64748B" text-anchor="start" font-weight="bold">Aligned</text>
+<text x="24" y="265" font-size="16.25" fill="#64748B" text-anchor="start" font-weight="bold">Sequenced</text>
+<rect x="320" y="204" width="50" height="24" rx="5" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<rect x="370" y="204" width="50" height="24" rx="5" fill="#1B5E7B" stroke="#2B7A9B" stroke-width="1.5"/>
+<line x1="370" y1="196" x2="370" y2="236" stroke="#D9480F" stroke-width="2" stroke-linecap="butt" stroke-dasharray="4,3"/>
+<text x="432" y="221" font-size="16.25" fill="#D9480F" text-anchor="start">crosses the exon-exon junction</text>
+<rect x="240" y="94" width="50" height="22" rx="5" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<rect x="290" y="94" width="50" height="22" rx="5" fill="none" stroke="#1B5E7B" stroke-width="1.5" stroke-dasharray="4,3"/>
+<rect x="310" y="128" width="50" height="22" rx="5" fill="none" stroke="#2B7A9B" stroke-width="1.5" stroke-dasharray="4,3"/>
+<rect x="360" y="128" width="50" height="22" rx="5" fill="#1B5E7B" stroke="#2B7A9B" stroke-width="1.5"/>
+<line x1="290" y1="70" x2="290" y2="122" stroke="#D9480F" stroke-width="1.5" stroke-linecap="butt" stroke-dasharray="3,3"/>
+<line x1="360" y1="70" x2="360" y2="156" stroke="#D9480F" stroke-width="1.5" stroke-linecap="butt" stroke-dasharray="3,3"/>
+<text x="422" y="110" font-size="16.25" fill="#1F2A37" text-anchor="start">piece 1 ends at the end of exon 1</text>
+<text x="422" y="144" font-size="16.25" fill="#1F2A37" text-anchor="start">piece 2 starts at the start of exon 2</text>
+<path d="M345,200 C345,161 265,161 265,122" fill="none" stroke="#64748B" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="5,4" marker-end="url(#arrow-64748B)"/>
+<path d="M395,200 C395,178 385,178 385,156" fill="none" stroke="#64748B" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="5,4" marker-end="url(#arrow-64748B)"/>
+<text x="470" y="327.137" font-size="16.25" fill="#64748B" text-anchor="middle">A piece may stop up to 5 bases before the boundary, or go up to 10 bases beyond it (microhomology).</text>
+</svg>

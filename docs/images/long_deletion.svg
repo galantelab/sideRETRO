@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="940" height="440" viewBox="0 0 940 440" font-family="Helvetica, Arial, sans-serif">
+<defs><marker id="arrow-2B7A9B" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M1,1 L8,4.5 L1,8 z" fill="#2B7A9B"/></marker></defs>
+<text x="24" y="85" font-size="16.25" fill="#64748B" text-anchor="start" font-weight="bold">Reference</text>
+<rect x="130" y="68" width="200" height="24" rx="4" fill="#CBD5E1"/>
+<rect x="330" y="68" width="280" height="24" rx="0" fill="none" stroke="#64748B" stroke-width="1.5" stroke-dasharray="4,3"/>
+<rect x="610" y="68" width="200" height="24" rx="4" fill="#CBD5E1"/>
+<text x="230" y="86.1375" font-size="16.25" fill="#1F2A37" text-anchor="middle">left flank</text>
+<text x="470" y="86.1375" font-size="16.25" fill="#64748B" text-anchor="middle">deleted bases</text>
+<text x="710" y="86.1375" font-size="16.25" fill="#1F2A37" text-anchor="middle">right flank</text>
+<line x1="330" y1="58" x2="330" y2="102" stroke="#D9480F" stroke-width="2.5" stroke-linecap="butt"/>
+<text x="330" y="51.1375" font-size="16.25" fill="#D9480F" text-anchor="middle" font-weight="bold">LBKP</text>
+<line x1="610" y1="58" x2="610" y2="102" stroke="#2B7A9B" stroke-width="2.5" stroke-linecap="butt"/>
+<text x="610" y="51.1375" font-size="16.25" fill="#2B7A9B" text-anchor="middle" font-weight="bold">RBKP</text>
+<text x="470" y="121.138" font-size="16.25" fill="#64748B" text-anchor="middle">up to --max-tsd-del bases (50000)</text>
+<text x="24" y="205" font-size="16.25" fill="#64748B" text-anchor="start" font-weight="bold">Sample</text>
+<rect x="130" y="188" width="200" height="24" rx="4" fill="#CBD5E1"/>
+<rect x="330" y="188" width="190" height="24" rx="0" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<rect x="520" y="188" width="60" height="24" rx="0" fill="#1B5E7B" stroke="#2B7A9B" stroke-width="1.5"/>
+<rect x="580" y="188" width="200" height="24" rx="4" fill="#CBD5E1"/>
+<text x="230" y="206.137" font-size="16.25" fill="#1F2A37" text-anchor="middle">left flank</text>
+<text x="425" y="206.137" font-size="16.25" fill="#1F2A37" text-anchor="middle">retrocopy</text>
+<text x="550" y="206.137" font-size="16.25" fill="#FFFFFF" text-anchor="middle" font-weight="bold">AAAA</text>
+<text x="680" y="206.137" font-size="16.25" fill="#1F2A37" text-anchor="middle">right flank</text>
+<line x1="330" y1="104" x2="330" y2="186" stroke="#D9480F" stroke-width="1.5" stroke-linecap="butt" stroke-dasharray="4,3"/>
+<line x1="610" y1="104" x2="580" y2="186" stroke="#2B7A9B" stroke-width="1.5" stroke-linecap="butt" stroke-dasharray="4,3"/>
+<rect x="200" y="232" width="130" height="12" rx="3" fill="#64748B"/>
+<rect x="330" y="232" width="50" height="12" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2" stroke-dasharray="4,3"/>
+<rect x="240" y="252" width="90" height="12" rx="3" fill="#64748B"/>
+<rect x="330" y="252" width="70" height="12" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2" stroke-dasharray="4,3"/>
+<rect x="520" y="232" width="60" height="12" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2" stroke-dasharray="4,3"/>
+<rect x="580" y="232" width="130" height="12" rx="3" fill="#64748B"/>
+<rect x="540" y="252" width="40" height="12" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2" stroke-dasharray="4,3"/>
+<rect x="580" y="252" width="100" height="12" rx="3" fill="#64748B"/>
+<text x="200" y="296" font-size="16.25" fill="#1F2A37" text-anchor="start" font-weight="bold">Retrocopy A</text>
+<text x="200" y="316" font-size="16.25" fill="#64748B" text-anchor="start">reads of the left flank: only LBKP</text>
+<text x="520" y="296" font-size="16.25" fill="#1F2A37" text-anchor="start" font-weight="bold">Retrocopy B</text>
+<text x="520" y="316" font-size="16.25" fill="#64748B" text-anchor="start">reads of the right flank: only RBKP</text>
+<path d="M265,328 C265,360 440,350 455,374" fill="none" stroke="#2B7A9B" stroke-width="1.5" stroke-linecap="round" marker-end="url(#arrow-2B7A9B)"/>
+<path d="M585,328 C585,360 480,350 465,374" fill="none" stroke="#2B7A9B" stroke-width="1.5" stroke-linecap="round" marker-end="url(#arrow-2B7A9B)"/>
+<text x="460" y="399.137" font-size="16.25" fill="#2B7A9B" text-anchor="middle" font-weight="bold">Merged: one retrocopy with LBKP and RBKP</text>
+<text x="460" y="419.137" font-size="16.25" fill="#64748B" text-anchor="middle">TSDLEN &lt; 0 and the flag TSITEMERGED</text>
+</svg>

@@ -107,6 +107,12 @@ class Fig:
             a += ' stroke="%s" stroke-width="%g"' % (stroke, sw)
         self.add('<circle %s/>' % a)
 
+    def ellipse(self, x, y, rx, ry, fill, stroke=None, sw=1.5):
+        a = 'cx="%g" cy="%g" rx="%g" ry="%g" fill="%s"' % (x, y, rx, ry, fill)
+        if stroke:
+            a += ' stroke="%s" stroke-width="%g"' % (stroke, sw)
+        self.add('<ellipse %s/>' % a)
+
     def need_arrow(self, color):
         if not hasattr(self, 'arrows'):
             self.arrows = set()
@@ -685,6 +691,294 @@ def retrocopy_fig():
     return f
 
 
+def long_deletion_fig():
+    f = Fig(W, 440)
+    # Reference
+    y = 80
+    f.text(24, y + 5, 'Reference', size=13, fill=MUTED, weight='bold')
+    f.rect(130, y - 12, 200, 24, GREY, None)
+    f.rect(330, y - 12, 280, 24, 'none', MUTED, rx=0, dash='4,3')
+    f.rect(610, y - 12, 200, 24, GREY, None)
+    f.text(230, y + 5, 'left flank', size=13, anchor='middle')
+    f.text(470, y + 5, 'deleted bases', size=13, fill=MUTED, anchor='middle')
+    f.text(710, y + 5, 'right flank', size=13, anchor='middle')
+    f.line(330, y - 22, 330, y + 22, stroke=ACCENT, sw=2.5)
+    f.text(330, y - 30, 'LBKP', size=13, fill=ACCENT, anchor='middle', weight='bold')
+    f.line(610, y - 22, 610, y + 22, stroke=GENE, sw=2.5)
+    f.text(610, y - 30, 'RBKP', size=13, fill=GENE, anchor='middle', weight='bold')
+    f.text(470, y + 40, 'up to --max-tsd-del bases (50000)', size=13, fill=MUTED, anchor='middle')
+
+    # Sample
+    y = 200
+    f.text(24, y + 5, 'Sample', size=13, fill=MUTED, weight='bold')
+    f.rect(130, y - 12, 200, 24, GREY, None)
+    f.rect(330, y - 12, 190, 24, EXON, GENE, rx=0)
+    f.rect(520, y - 12, 60, 24, DARK, GENE, rx=0)
+    f.rect(580, y - 12, 200, 24, GREY, None)
+    f.text(230, y + 5, 'left flank', size=13, anchor='middle')
+    f.text(425, y + 5, 'retrocopy', size=13, anchor='middle')
+    f.text(550, y + 5, 'AAAA', size=13, fill='#FFFFFF', anchor='middle', weight='bold')
+    f.text(680, y + 5, 'right flank', size=13, anchor='middle')
+    f.line(330, 104, 330, y - 14, stroke=ACCENT, dash='4,3')
+    f.line(610, 104, 580, y - 14, stroke=GENE, dash='4,3')
+
+    # Clipped reads: Each flank makes its own cluster
+    for x, a, c, row in ((200, 130, 50, 0), (240, 90, 70, 1)):
+        ry = 232 + row * 20
+        f.rect(x, ry, a, 12, MUTED, None, rx=3)
+        f.rect(x + a, ry, c, 12, EXON, GENE, rx=3, sw=1.2, dash='4,3')
+    for x, c, a, row in ((520, 60, 130, 0), (540, 40, 100, 1)):
+        ry = 232 + row * 20
+        f.rect(x, ry, c, 12, EXON, GENE, rx=3, sw=1.2, dash='4,3')
+        f.rect(x + c, ry, a, 12, MUTED, None, rx=3)
+    f.text(200, 296, 'Retrocopy A', size=13, weight='bold')
+    f.text(200, 316, 'reads of the left flank: only LBKP', size=13, fill=MUTED)
+    f.text(520, 296, 'Retrocopy B', size=13, weight='bold')
+    f.text(520, 316, 'reads of the right flank: only RBKP', size=13, fill=MUTED)
+
+    # Merged
+    f.path('M265,328 C265,360 440,350 455,374', stroke=GENE, sw=1.5, arrow=True)
+    f.path('M585,328 C585,360 480,350 465,374', stroke=GENE, sw=1.5, arrow=True)
+    f.text(460, 398, 'Merged: one retrocopy with LBKP and RBKP', size=13, fill=GENE,
+           anchor='middle', weight='bold')
+    f.text(460, 418, 'TSDLEN < 0 and the flag TSITEMERGED', size=13, fill=MUTED, anchor='middle')
+    return f
+
+
+def tsd_example_fig():
+    """The worked example: A TSD of 12 bases at the reference positions 101 to 112."""
+    f = Fig(W, 380)
+    # Inserted allele
+    y = 60
+    f.text(24, y + 5, 'Inserted', size=13, fill=MUTED, weight='bold')
+    for x, w, fill, s in ((150, 220, GREY, 'left flank'), (370, 44, TSD, 'TSD'),
+                          (414, 170, EXON, 'retrocopy'), (584, 50, DARK, 'AAAA'),
+                          (634, 44, TSD, 'TSD'), (678, 194, GREY, 'right flank')):
+        f.rect(x, y - 12, w, 24, fill, GENE if fill in (EXON, DARK) else None, rx=0)
+        f.text(x + w / 2, y + 5, s, size=12 if fill in (TSD, DARK) else 13, anchor='middle',
+               fill='#FFFFFF' if fill == DARK else INK,
+               weight='bold' if fill in (TSD, DARK) else 'normal')
+
+    # The reads at the inserted allele
+    def read(y, parts):
+        for x, w, aligned in parts:
+            if aligned:
+                f.rect(x, y, w, 12, MUTED, None, rx=3)
+            else:
+                f.rect(x, y, w, 12, EXON, GENE, rx=3, sw=1.2, dash='4,3')
+
+    r1, r2 = 92, 116
+    read(r1, ((176, 238, True), (414, 110, False)))
+    read(r2, ((524, 110, False), (634, 238, True)))
+    f.text(166, r1 + 11, '100M50S', size=13, anchor='end', weight='bold')
+    f.text(514, r2 + 11, '50S100M', size=13, anchor='end', weight='bold')
+
+    # Aligned at the reference
+    a1, a2, ry = 192, 216, 262
+    f.rect(370, a1 - 8, 44, ry + 12 - a1 + 8, ACCENT, None, rx=0, op=0.10)
+    read(a1, ((176, 238, True), (414, 110, False)))
+    read(a2, ((260, 110, False), (370, 238, True)))
+    f.link(295, r1 + 16, 295, a1 - 4)
+    f.link(753, r2 + 16, 566, a2 - 4)
+    f.text(24, ry + 5, 'Reference', size=13, fill=MUTED, weight='bold')
+    for x, w, fill, s in ((150, 220, GREY, 'left flank (1-100)'), (370, 44, TSD, 'TSD'),
+                          (414, 194, GREY, 'right flank (113-200)')):
+        f.rect(x, ry - 12, w, 24, fill, None, rx=0)
+        f.text(x + w / 2, ry + 5, s, size=12 if fill == TSD else 13, anchor='middle',
+               weight='bold' if fill == TSD else 'normal')
+    f.line(414, a1 - 12, 414, ry + 22, stroke=ACCENT, sw=2.5)
+    f.line(370, a1 - 12, 370, ry + 22, stroke=GENE, sw=2.5)
+    f.text(420, ry + 42, 'LBKP = 112', size=13, fill=ACCENT, weight='bold')
+    f.text(364, ry + 42, 'RBKP = 101', size=13, fill=GENE, anchor='end', weight='bold')
+    f.text(626, ry - 30, 'ref 101-200', size=13, fill=MUTED)
+    f.text(156, a1 - 14, 'ref 13-112', size=13, fill=MUTED)
+    f.caption(344, 'LBKP is the last aligned base of 100M50S, and RBKP the first of 50S100M.')
+    f.caption(366, 'The aligned parts overlap at the TSD, from RBKP to LBKP: '
+              'LBKP - RBKP + 1 = 12 bases.')
+    return f
+
+
+def pipeline_fig():
+    """The three commands and the database between them."""
+    f = Fig(W, 340)
+    cy, ch = 80, 56     # command boxes
+
+    def box(x, y, w, h, s, fill=GREY):
+        f.rect(x, y, w, h, fill, None if fill == GREY else GENE, rx=5)
+        f.text(x + 12, y + h / 2 + 5, s, size=13)
+
+    # Inputs
+    f.text(24, 62, 'Inputs', size=13, fill=MUTED, weight='bold')
+    box(20, 76, 164, 30, 'BAM / CRAM files')
+    box(20, 114, 164, 30, 'annotation (GTF)')
+    f.line(184, 91, 197, 100, stroke=INK, arrow=True)
+    f.line(184, 129, 197, 120, stroke=INK, arrow=True)
+    f.rect(478, 14, 236, 32, GREY, None, rx=5)
+    f.text(596, 35, 'reference genome (FASTA)', size=13, anchor='middle')
+    f.line(540, 46, 500, cy - 4, stroke=INK, arrow=True)
+    f.line(640, 46, 650, cy - 4, stroke=INK, arrow=True)
+
+    # Commands
+    for x, name, sub in ((200, 'process-sample', 'abnormal reads'),
+                         (380, 'merge-call', 'clusters, annotation'),
+                         (560, 'make-vcf', 'quality, filters')):
+        f.rect(x, cy, 164, ch, EXON, GENE, rx=6)
+        f.text(x + 82, cy + 24, name, size=13, anchor='middle', weight='bold')
+        f.text(x + 82, cy + 44, sub, size=12, fill=MUTED, anchor='middle')
+
+    # The database: A card with a stacked-disks icon
+    f.rect(352, 208, 230, 72, CHR, CHR_D, rx=12, sw=1.2, op=0.18)
+    ix, iy, iw, ih = 372, 222, 46, 42       # icon: left, top, width, height
+    rx, ry = iw / 2, 7
+    f.path('M%g,%g L%g,%g A%g,%g 0 0 0 %g,%g L%g,%g Z' % (ix, iy, ix, iy + ih, rx, ry, ix + iw,
+           iy + ih, ix + iw, iy), stroke=CHR_D, sw=1.2, fill=CHR)
+    for k in (1, 2):
+        yk = iy + ih * k / 3
+        f.path('M%g,%g A%g,%g 0 0 0 %g,%g' % (ix, yk, rx, ry, ix + iw, yk), stroke=CHR_D, sw=1.2)
+    f.ellipse(ix + rx, iy, rx, ry, '#F8DA8B', CHR_D, sw=1.2)
+    f.text(434, 240, 'out.db', size=14, weight='bold')
+    f.text(434, 262, 'SQLite3 database', size=12, fill=MUTED)
+    f.line(282, cy + ch, 362, 202, stroke=INK, arrow=True)
+    f.line(461, cy + ch, 461, 202, stroke=INK, arrow=True)
+    f.line(473, 204, 473, cy + ch + 4, stroke=INK, arrow=True)
+    f.line(586, 222, 662, cy + ch + 4, stroke=INK, arrow=True)
+    f.text(300, 186, 'writes', size=12, fill=MUTED, anchor='end')
+    f.text(484, 186, 'reads and writes', size=12, fill=MUTED)
+    f.text(646, 192, 'reads', size=12, fill=MUTED)
+
+    # merge-call reads the alignments again, from the paths stored at the database
+    f.path('M150,76 C150,40 180,46 300,46 L400,46 C428,46 428,52 428,%d' % (cy - 4), stroke=MUTED,
+           dash='5,4', arrow=True)
+    f.text(186, 38, 'reopened from the paths in out.db', size=12, fill=MUTED)
+
+    # Outputs
+    f.text(740, 40, 'Outputs', size=13, fill=MUTED, weight='bold')
+    for i, s in enumerate(('out.vcf', 'out.rnames.tsv', 'out.insertions.fa', 'out.primer.fa')):
+        box(740, 52 + i * 36, 180, 28, s)
+    f.line(724, cy + ch / 2, 736, cy + ch / 2, stroke=INK, arrow=True)
+    f.caption(326, 'Each command reads what the previous one left at the database.')
+    return f
+
+
+def mini_gene(f, x0, x1, y, fill, n=3):
+    """A small gene: Its line and n exons."""
+    f.line(x0, y, x1, y, stroke=GENE, sw=5, cap='round')
+    step = (x1 - x0) / n
+    for i in range(n):
+        f.rect(x0 + i * step + step * 0.2, y - 9, step * 0.6, 18, fill, GENE, rx=3, sw=1.2)
+
+
+def merging_fig():
+    """How clusters at the same site are merged, by their parental genes."""
+    f = Fig(W, 420)
+    panels = (
+        ('Single', '1 retrocopy', GENE, 'single'),
+        ('Overlapped parental genes', 'merged: 1 retrocopy', GENE, 'overlap'),
+        ('Near parental genes', 'merged: 1 retrocopy', GENE, 'near'),
+        ('Hotspot', 'not merged: 1 retrocopy for each gene', ACCENT, 'hotspot'),
+    )
+    for k, (title, verdict, vcolor, kind) in enumerate(panels):
+        ox, oy = 10 + (k % 2) * 465, 10 + (k // 2) * 205
+        f.rect(ox, oy, 455, 195, 'none', GREY, rx=10)
+        f.text(ox + 20, oy + 30, title, size=14, weight='bold')
+        f.text(ox + 20, oy + 52, verdict, size=13, fill=vcolor, weight='bold')
+        gy, sy = oy + 92, oy + 172
+        if kind == 'single':
+            mini_gene(f, ox + 40, ox + 220, gy, EXON)
+            f.text(ox + 234, gy + 5, 'gene A', size=12, fill=MUTED)
+        elif kind == 'overlap':
+            mini_gene(f, ox + 40, ox + 220, gy - 10, EXON)
+            mini_gene(f, ox + 160, ox + 340, gy + 16, TSD)
+            f.text(ox + 234, gy - 5, 'gene A', size=12, fill=MUTED)
+            f.text(ox + 354, gy + 21, 'gene B', size=12, fill=MUTED)
+        elif kind == 'near':
+            mini_gene(f, ox + 40, ox + 160, gy, EXON, 2)
+            mini_gene(f, ox + 250, ox + 370, gy, TSD, 2)
+            f.text(ox + 100, gy - 18, 'gene A', size=12, fill=MUTED, anchor='middle')
+            f.text(ox + 310, gy - 18, 'gene B', size=12, fill=MUTED, anchor='middle')
+            f.text(ox + 205, gy + 5, 'neighbours', size=12, fill=MUTED, anchor='middle')
+        else:
+            mini_gene(f, ox + 40, ox + 160, gy, EXON, 2)
+            mini_gene(f, ox + 280, ox + 400, gy, TSD, 2)
+            f.text(ox + 100, gy - 18, 'gene A, chr 3', size=12, fill=MUTED, anchor='middle')
+            f.text(ox + 340, gy - 18, 'gene B, chr 9', size=12, fill=MUTED, anchor='middle')
+            f.text(ox + 220, gy + 5, 'unrelated', size=12, fill=MUTED, anchor='middle')
+        # Reads at the insertion site, colored by gene
+        both = kind != 'single'
+        for i, (x, row) in enumerate(((150, 0), (176, 1), (204, 0), (228, 2), (250, 1), (276, 0))):
+            fill = TSD if both and i % 2 else EXON
+            f.rect(ox + x, sy - 20 - row * 13, 34, 9, fill, GENE, rx=3, sw=1.2)
+        f.line(ox + 40, sy, ox + 328, sy, stroke=CHR, sw=6, cap='round')
+        f.text(ox + 340, sy + 5, 'insertion site', size=12, fill=MUTED)
+    return f
+
+
+def overlapped_fig():
+    """Parental genes overlapping tail to tail, at opposite strands."""
+    f = Fig(W, 330)
+    ya, yb = 70, 150
+    # The shared exonic bases
+    f.rect(470, 36, 90, 150, ACCENT, None, rx=0, op=0.10)
+    f.text(515, 26, 'shared exonic bases', size=13, fill=ACCENT, anchor='middle', weight='bold')
+    f.gene(ya, x0=130, x1=600, label=None, exons=((180, 240), (310, 380), (450, 560)))
+    f.gene(yb, x0=440, x1=880, label=None, exons=((470, 560), (630, 710), (780, 840)))
+    f.text(24, ya - 1, 'Gene A', size=14, weight='bold')
+    f.text(24, ya + 19, '+ strand  →', size=13, fill=MUTED)
+    f.text(24, yb - 1, 'Gene B', size=14, weight='bold')
+    f.text(24, yb + 19, '− strand  ←', size=13, fill=MUTED)
+
+    # Mates at the exons
+    ry = 210
+    for x, lab in ((190, 'R1'), (302, 'R2'), (346, 'R1')):
+        f.read(x, ry, lab)
+        f.line(x + 20, ry, x + 20, ya + 22, stroke=MUTED, sw=1.2, dash='3,3')
+    for x, lab in ((478, 'R2'), (520, 'R1')):
+        f.read(x, ry, lab)
+        f.line(x + 20, ry, x + 20, yb + 22, stroke=MUTED, sw=1.2, dash='3,3')
+    f.text(190, ry + 48, 'explained by gene A alone', size=13)
+    f.text(478, ry + 48, 'fit both genes', size=13)
+    f.caption(296, 'Gene A is chosen with at least 3 fragments of its own and none for gene B,')
+    f.caption(316, 'or when the poly-A strand and the orientation agree only with gene A.')
+    return f
+
+
+def junction_fig():
+    """A read crossing an exon-exon junction, split into two pieces."""
+    sample_y = 260
+    seq_y = sample_y - 56
+    f = Fig(W, 340)
+    exons = f.gene(REF_Y)
+    for (a, b), n in zip(exons, ('exon 1', 'exon 2', 'exon 3')):
+        f.text((a + b) / 2, REF_Y + 5, n, size=13, anchor='middle')
+    bounds, end = f.retro(sample_y, flank=CHR)
+    f.text(24, REF_Y + 5, 'Aligned', size=13, fill=MUTED, weight='bold')
+    f.text(24, sample_y + 5, 'Sequenced', size=13, fill=MUTED, weight='bold')
+
+    # The read: one half from exon 1, the other from exon 2
+    j = bounds[0][1]
+    f.rect(j - 50, seq_y, 50, 24, EXON, GENE, rx=5)
+    f.rect(j, seq_y, 50, 24, DARK, GENE, rx=5)
+    f.line(j, seq_y - 8, j, seq_y + 32, stroke=ACCENT, sw=2, dash='4,3')
+    f.text(j + 62, seq_y + 17, 'crosses the exon-exon junction', size=13, fill=ACCENT)
+
+    # Aligned: Two pieces, each clipped at the boundary of its exon
+    e1, e2 = exons[0][1], exons[1][0]
+    p1, p2 = ALN_Y + 8, ALN_Y + 42
+    f.rect(e1 - 50, p1, 50, 22, EXON, GENE, rx=5)
+    f.rect(e1, p1, 50, 22, 'none', DARK, rx=5, dash='4,3')
+    f.rect(e2 - 50, p2, 50, 22, 'none', GENE, rx=5, dash='4,3')
+    f.rect(e2, p2, 50, 22, DARK, GENE, rx=5)
+    f.line(e1, REF_Y + 20, e1, p1 + 28, stroke=ACCENT, sw=1.5, dash='3,3')
+    f.line(e2, REF_Y + 20, e2, p2 + 28, stroke=ACCENT, sw=1.5, dash='3,3')
+    f.text(e2 + 62, p1 + 16, 'piece 1 ends at the end of exon 1', size=13)
+    f.text(e2 + 62, p2 + 16, 'piece 2 starts at the start of exon 2', size=13)
+    f.link(j - 25, seq_y - 4, e1 - 25, p1 + 28)
+    f.link(j + 25, seq_y - 4, e2 + 25, p2 + 28)
+    f.caption(326, 'A piece may stop up to 5 bases before the boundary, or go up to 10 bases '
+              'beyond it (microhomology).')
+    return f
+
+
 FIGS = {
     'retrocopy': retrocopy_fig,
     'indistinguishable_alignment': lambda: alignment_fig('indist'),
@@ -702,6 +996,12 @@ FIGS = {
     'polya_polarity': polya_fig,
     'retrocopy_ends': ends_fig,
     'intron_retention': intron_fig,
+    'long_deletion': long_deletion_fig,
+    'tsd_example': tsd_example_fig,
+    'pipeline': pipeline_fig,
+    'cluster_merging': merging_fig,
+    'overlapped_parental_genes': overlapped_fig,
+    'exon_exon_junction': junction_fig,
 }
 
 

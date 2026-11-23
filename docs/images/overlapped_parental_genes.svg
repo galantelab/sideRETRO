@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="940" height="330" viewBox="0 0 940 330" font-family="Helvetica, Arial, sans-serif">
+<defs></defs>
+<rect x="470" y="36" width="90" height="150" rx="0" fill="#D9480F" fill-opacity="0.1"/>
+<text x="515" y="27.1375" font-size="16.25" fill="#D9480F" text-anchor="middle" font-weight="bold">shared exonic bases</text>
+<line x1="130" y1="70" x2="600" y2="70" stroke="#2B7A9B" stroke-width="8" stroke-linecap="round"/>
+<rect x="158" y="58" width="22" height="24" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<rect x="560" y="58" width="22" height="24" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<rect x="180" y="50" width="60" height="40" rx="4" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<rect x="310" y="50" width="70" height="40" rx="4" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<rect x="450" y="50" width="110" height="40" rx="4" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<line x1="440" y1="150" x2="880" y2="150" stroke="#2B7A9B" stroke-width="8" stroke-linecap="round"/>
+<rect x="448" y="138" width="22" height="24" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<rect x="840" y="138" width="22" height="24" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<rect x="470" y="130" width="90" height="40" rx="4" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<rect x="630" y="130" width="80" height="40" rx="4" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<rect x="780" y="130" width="60" height="40" rx="4" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<text x="24" y="69" font-size="17.5" fill="#1F2A37" text-anchor="start" font-weight="bold">Gene A</text>
+<text x="24" y="89" font-size="16.25" fill="#64748B" text-anchor="start">+ strand  →</text>
+<text x="24" y="149" font-size="17.5" fill="#1F2A37" text-anchor="start" font-weight="bold">Gene B</text>
+<text x="24" y="169" font-size="16.25" fill="#64748B" text-anchor="start">− strand  ←</text>
+<rect x="190" y="210" width="40" height="26" rx="5" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<text x="210" y="229.137" font-size="16.25" fill="#1F2A37" text-anchor="middle" font-weight="bold">R1</text>
+<line x1="210" y1="210" x2="210" y2="92" stroke="#64748B" stroke-width="1.2" stroke-linecap="butt" stroke-dasharray="3,3"/>
+<rect x="302" y="210" width="40" height="26" rx="5" fill="#1B5E7B" stroke="#2B7A9B" stroke-width="1.5"/>
+<text x="322" y="229.137" font-size="16.25" fill="#FFFFFF" text-anchor="middle" font-weight="bold">R2</text>
+<line x1="322" y1="210" x2="322" y2="92" stroke="#64748B" stroke-width="1.2" stroke-linecap="butt" stroke-dasharray="3,3"/>
+<rect x="346" y="210" width="40" height="26" rx="5" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<text x="366" y="229.137" font-size="16.25" fill="#1F2A37" text-anchor="middle" font-weight="bold">R1</text>
+<line x1="366" y1="210" x2="366" y2="92" stroke="#64748B" stroke-width="1.2" stroke-linecap="butt" stroke-dasharray="3,3"/>
+<rect x="478" y="210" width="40" height="26" rx="5" fill="#1B5E7B" stroke="#2B7A9B" stroke-width="1.5"/>
+<text x="498" y="229.137" font-size="16.25" fill="#FFFFFF" text-anchor="middle" font-weight="bold">R2</text>
+<line x1="498" y1="210" x2="498" y2="172" stroke="#64748B" stroke-width="1.2" stroke-linecap="butt" stroke-dasharray="3,3"/>
+<rect x="520" y="210" width="40" height="26" rx="5" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.5"/>
+<text x="540" y="229.137" font-size="16.25" fill="#1F2A37" text-anchor="middle" font-weight="bold">R1</text>
+<line x1="540" y1="210" x2="540" y2="172" stroke="#64748B" stroke-width="1.2" stroke-linecap="butt" stroke-dasharray="3,3"/>
+<text x="190" y="258" font-size="16.25" fill="#1F2A37" text-anchor="start">explained by gene A alone</text>
+<text x="478" y="258" font-size="16.25" fill="#1F2A37" text-anchor="start">fit both genes</text>
+<text x="470" y="297.137" font-size="16.25" fill="#64748B" text-anchor="middle">Gene A is chosen with at least 3 fragments of its own and none for gene B,</text>
+<text x="470" y="317.137" font-size="16.25" fill="#64748B" text-anchor="middle">or when the poly-A strand and the orientation agree only with gene A.</text>
+</svg>

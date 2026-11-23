@@ -112,6 +112,10 @@ subcommand :code:`make-vcf` and generate an annotated retrocopy
 `VCF <https://samtools.github.io/hts-specs/VCFv4.2.pdf>`_, alongside
 the list of supporting reads and the predicted sequences.
 
+.. image:: images/pipeline.svg
+   :width: 90%
+   :align: center
+
 .. code-block:: sh
 
    # List of BAM files

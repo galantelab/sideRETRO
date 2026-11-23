@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="940" height="420" viewBox="0 0 940 420" font-family="Helvetica, Arial, sans-serif">
+<defs></defs>
+<rect x="10" y="10" width="455" height="195" rx="10" fill="none" stroke="#CBD5E1" stroke-width="1.5"/>
+<text x="30" y="40" font-size="17.5" fill="#1F2A37" text-anchor="start" font-weight="bold">Single</text>
+<text x="30" y="62" font-size="16.25" fill="#2B7A9B" text-anchor="start" font-weight="bold">1 retrocopy</text>
+<line x1="50" y1="102" x2="230" y2="102" stroke="#2B7A9B" stroke-width="5" stroke-linecap="round"/>
+<rect x="62" y="93" width="36" height="18" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="122" y="93" width="36" height="18" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="182" y="93" width="36" height="18" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2"/>
+<text x="244" y="107" font-size="15" fill="#64748B" text-anchor="start">gene A</text>
+<rect x="160" y="162" width="34" height="9" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="186" y="149" width="34" height="9" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="214" y="162" width="34" height="9" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="238" y="136" width="34" height="9" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="260" y="149" width="34" height="9" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="286" y="162" width="34" height="9" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2"/>
+<line x1="50" y1="182" x2="338" y2="182" stroke="#F2C14E" stroke-width="6" stroke-linecap="round"/>
+<text x="350" y="187" font-size="15" fill="#64748B" text-anchor="start">insertion site</text>
+<rect x="475" y="10" width="455" height="195" rx="10" fill="none" stroke="#CBD5E1" stroke-width="1.5"/>
+<text x="495" y="40" font-size="17.5" fill="#1F2A37" text-anchor="start" font-weight="bold">Overlapped parental genes</text>
+<text x="495" y="62" font-size="16.25" fill="#2B7A9B" text-anchor="start" font-weight="bold">merged: 1 retrocopy</text>
+<line x1="515" y1="92" x2="695" y2="92" stroke="#2B7A9B" stroke-width="5" stroke-linecap="round"/>
+<rect x="527" y="83" width="36" height="18" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="587" y="83" width="36" height="18" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="647" y="83" width="36" height="18" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2"/>
+<line x1="635" y1="118" x2="815" y2="118" stroke="#2B7A9B" stroke-width="5" stroke-linecap="round"/>
+<rect x="647" y="109" width="36" height="18" rx="3" fill="#F6A46B" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="707" y="109" width="36" height="18" rx="3" fill="#F6A46B" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="767" y="109" width="36" height="18" rx="3" fill="#F6A46B" stroke="#2B7A9B" stroke-width="1.2"/>
+<text x="709" y="97" font-size="15" fill="#64748B" text-anchor="start">gene A</text>
+<text x="829" y="123" font-size="15" fill="#64748B" text-anchor="start">gene B</text>
+<rect x="625" y="162" width="34" height="9" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="651" y="149" width="34" height="9" rx="3" fill="#F6A46B" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="679" y="162" width="34" height="9" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="703" y="136" width="34" height="9" rx="3" fill="#F6A46B" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="725" y="149" width="34" height="9" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="751" y="162" width="34" height="9" rx="3" fill="#F6A46B" stroke="#2B7A9B" stroke-width="1.2"/>
+<line x1="515" y1="182" x2="803" y2="182" stroke="#F2C14E" stroke-width="6" stroke-linecap="round"/>
+<text x="815" y="187" font-size="15" fill="#64748B" text-anchor="start">insertion site</text>
+<rect x="10" y="215" width="455" height="195" rx="10" fill="none" stroke="#CBD5E1" stroke-width="1.5"/>
+<text x="30" y="245" font-size="17.5" fill="#1F2A37" text-anchor="start" font-weight="bold">Near parental genes</text>
+<text x="30" y="267" font-size="16.25" fill="#2B7A9B" text-anchor="start" font-weight="bold">merged: 1 retrocopy</text>
+<line x1="50" y1="307" x2="170" y2="307" stroke="#2B7A9B" stroke-width="5" stroke-linecap="round"/>
+<rect x="62" y="298" width="36" height="18" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="122" y="298" width="36" height="18" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2"/>
+<line x1="260" y1="307" x2="380" y2="307" stroke="#2B7A9B" stroke-width="5" stroke-linecap="round"/>
+<rect x="272" y="298" width="36" height="18" rx="3" fill="#F6A46B" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="332" y="298" width="36" height="18" rx="3" fill="#F6A46B" stroke="#2B7A9B" stroke-width="1.2"/>
+<text x="110" y="290.05" font-size="15" fill="#64748B" text-anchor="middle">gene A</text>
+<text x="320" y="290.05" font-size="15" fill="#64748B" text-anchor="middle">gene B</text>
+<text x="215" y="313.05" font-size="15" fill="#64748B" text-anchor="middle">neighbours</text>
+<rect x="160" y="367" width="34" height="9" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="186" y="354" width="34" height="9" rx="3" fill="#F6A46B" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="214" y="367" width="34" height="9" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="238" y="341" width="34" height="9" rx="3" fill="#F6A46B" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="260" y="354" width="34" height="9" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="286" y="367" width="34" height="9" rx="3" fill="#F6A46B" stroke="#2B7A9B" stroke-width="1.2"/>
+<line x1="50" y1="387" x2="338" y2="387" stroke="#F2C14E" stroke-width="6" stroke-linecap="round"/>
+<text x="350" y="392" font-size="15" fill="#64748B" text-anchor="start">insertion site</text>
+<rect x="475" y="215" width="455" height="195" rx="10" fill="none" stroke="#CBD5E1" stroke-width="1.5"/>
+<text x="495" y="245" font-size="17.5" fill="#1F2A37" text-anchor="start" font-weight="bold">Hotspot</text>
+<text x="495" y="267" font-size="16.25" fill="#D9480F" text-anchor="start" font-weight="bold">not merged: 1 retrocopy for each gene</text>
+<line x1="515" y1="307" x2="635" y2="307" stroke="#2B7A9B" stroke-width="5" stroke-linecap="round"/>
+<rect x="527" y="298" width="36" height="18" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="587" y="298" width="36" height="18" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2"/>
+<line x1="755" y1="307" x2="875" y2="307" stroke="#2B7A9B" stroke-width="5" stroke-linecap="round"/>
+<rect x="767" y="298" width="36" height="18" rx="3" fill="#F6A46B" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="827" y="298" width="36" height="18" rx="3" fill="#F6A46B" stroke="#2B7A9B" stroke-width="1.2"/>
+<text x="575" y="290.05" font-size="15" fill="#64748B" text-anchor="middle">gene A, chr 3</text>
+<text x="815" y="290.05" font-size="15" fill="#64748B" text-anchor="middle">gene B, chr 9</text>
+<text x="695" y="313.05" font-size="15" fill="#64748B" text-anchor="middle">unrelated</text>
+<rect x="625" y="367" width="34" height="9" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="651" y="354" width="34" height="9" rx="3" fill="#F6A46B" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="679" y="367" width="34" height="9" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="703" y="341" width="34" height="9" rx="3" fill="#F6A46B" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="725" y="354" width="34" height="9" rx="3" fill="#CDE7F0" stroke="#2B7A9B" stroke-width="1.2"/>
+<rect x="751" y="367" width="34" height="9" rx="3" fill="#F6A46B" stroke="#2B7A9B" stroke-width="1.2"/>
+<line x1="515" y1="387" x2="803" y2="387" stroke="#F2C14E" stroke-width="6" stroke-linecap="round"/>
+<text x="815" y="392" font-size="15" fill="#64748B" text-anchor="start">insertion site</text>
+</svg>
