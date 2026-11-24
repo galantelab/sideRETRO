@@ -287,18 +287,20 @@ overlaps_exon (AbnormalFilter *argf, const bam1_t *align)
 }
 
 /*
- * A supplementary alignment below the minimum mapping quality.
- * The clip of a read crossing the poly-A junction is often aligned
- * as a short supplementary piece at a random place, with MAPQ 0,
- * and the fragment would lose all its alignments with it - the
- * read at the insertion site included. So it is left out: It
- * does not fail its fragment, but it is not stored either
+ * A supplementary alignment below the minimum mapping quality
+ * or of low complexity. The clip of a read crossing the poly-A
+ * junction is often aligned as a short supplementary piece at a
+ * random place: A run of A bases, with MAPQ 0. The fragment would
+ * lose all its alignments with it - the read at the insertion
+ * site included. So it is left out: It does not fail its
+ * fragment, but it is not stored either
  */
 static inline int
 abnormal_left_out (const AbnormalFilter *argf, const bam1_t *align)
 {
 	return (align->core.flag & 0x800)
-		&& align->core.qual < argf->phred_quality;
+		&& (align->core.qual < argf->phred_quality
+				|| is_base_overly_freq (align, argf->max_base_freq));
 }
 
 /*
@@ -310,9 +312,11 @@ static inline int
 abnormal_fragment_classifier (AbnormalFilter *argf, const bam1_t *align,
 		AbnormalType *type)
 {
+	const int left_out = abnormal_left_out (argf, align);
+
 	return abnormal_classifier (align, argf->max_distance,
-			abnormal_left_out (argf, align) ? 0 : argf->phred_quality,
-			argf->max_base_freq, type);
+			left_out ? 0 : argf->phred_quality,
+			left_out ? 1.0 : argf->max_base_freq, type);
 }
 
 static void

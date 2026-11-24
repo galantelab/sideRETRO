@@ -166,11 +166,11 @@ paired, mapped with the mate mapped, with the minimum mapping quality
 (``--phred-quality``) and not of low complexity (``--max-base-freq``).
 A single failing alignment drops the whole fragment, with one
 exception: A **supplementary** alignment below the minimum mapping
-quality is left out - not stored - and the fragment is kept, still
-marked as a split read. The clip of a read crossing the poly-A
-junction is often aligned as a short piece at a random place, with
-mapping quality 0, and it would take with it the read at the
-insertion site.
+quality, or of low complexity, is left out - not stored - and the
+fragment is kept, still marked as a split read. The clip of a read
+crossing the poly-A junction is often aligned as a short piece at a
+random place - a run of A bases, with mapping quality 0 - and it
+would take with it the read at the insertion site.
 A fragment is **kept** only if one of its alignments overlaps an
 **exon** of the annotation - by one base, or by the fractions given at
 ``--exon-frac`` and ``--alignment-frac``. A stricter fraction of the
