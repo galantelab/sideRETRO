@@ -39,7 +39,10 @@ haplotype and written with the SAM fields an aligner would produce:
   - Right junction reads: the read crosses the junction
     'poly-A | TSD'. The primary alignment is clipped at the left
     ('<c>S<m>M') and there is no supplementary alignment, because
-    the poly-A does not map anywhere.
+    the poly-A does not map anywhere. With --polya-supplementary,
+    the A run of the clip is aligned at a random place, with MAPQ 0,
+    as an aligner often does: A piece of low complexity that must
+    not drop its fragment.
   - Exon-exon junction reads: discordant pairs whose chr2 mate
     crosses the junction 'exon1 | exon2' of the retrocopy. It is
     aligned in two pieces: The primary at the end of exon1,
@@ -295,6 +298,13 @@ class Sim:
             # Primary clipped at the left. No supplementary
             self.rec(qname, 81, 'chr1', self.tsd_start, '%dS%dM' % (c, m), 'chr2', mpos,
                      seq)
+
+            # The A run of the clip, aligned at a random place
+            n = min(c, a.polya_len)
+            if a.polya_supplementary and n >= MIN_CLIP:
+                cigar = ('%dH' % (c - n) if c > n else '') + '%dM%dH' % (n, m)
+                self.rec(qname, 2129, 'chr2', a.chr2_len - 500, cigar, 'chr2', mpos,
+                         seq[c - n:c], mapq=0)
             self.rec(qname, 161, 'chr2', mpos, '%dM' % READ_LEN, 'chr1', self.tsd_start, mseq)
 
     def proper_clips(self):
@@ -704,6 +714,9 @@ def main():
                    help='discordant reads with random soft clips [0]')
     p.add_argument('--n-proper-clips', type=int, default=0,
                    help='proper pairs clipped at each junction [0]')
+    p.add_argument('--polya-supplementary', action='store_true',
+                   help='align the poly-A of the right junction reads as '
+                        'a supplementary piece with MAPQ 0')
     args = p.parse_args()
 
     if args.check:

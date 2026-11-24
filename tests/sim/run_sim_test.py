@@ -76,6 +76,10 @@ SCENARIOS = [
     ('proper_clips',     ['--seed', '6', '--n-proper-clips', '6']),
     ('proper_clips_left', ['--seed', '5', '--n-split-left', '1',
                            '--n-split-right', '0', '--n-proper-clips', '6']),
+    # The poly-A of the right junction reads aligned as a
+    # supplementary piece of low complexity: It is left out
+    ('polya_supplementary', ['--seed', '3', '--polya-len', '40',
+                             '--polya-supplementary']),
 ]
 
 
