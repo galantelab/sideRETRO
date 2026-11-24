@@ -127,6 +127,6 @@ for run in $RUNS; do
 
 	# Evaluate: For the control, every call is a false positive
 	log "[$run] Evaluate"
-	python3 "$BENCH/bench_eval.py" --prefix "$dir/eval" "$OUT/truth.tsv" \
-		"$dir/out.vcf" | tee "$dir/eval.txt"
+	python3 "$BENCH/bench_eval.py" --prefix "$dir/eval" --db "$dir/out.db" \
+		"$OUT/truth.tsv" "$dir/out.vcf" | tee "$dir/eval.txt"
 done

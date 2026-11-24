@@ -33,6 +33,11 @@ or, for a CNV, its span):
                ('wrong_gene').
   FP background  The call matches no event.
 
+With --db (the database of merge-call), a retrocopy event without
+any abnormal alignment within --flank bases of its site is left out
+of the recall and of the FN: the reads give sideRETRO nothing to
+call, so it is a failure of the simulation, not of the caller.
+
 Precision, recall and F1 are given for the PASS calls and for all
 the calls. Recall is broken down by the event attributes, and each
 filter is counted at the TP and FP calls. The attributes of the TP
@@ -46,12 +51,13 @@ Output files (with --prefix):
 Example:
 
   $ tests/bench/bench_eval.py --prefix bench/eval bench/truth.tsv \\
-      bench/out.vcf
+      bench/out.vcf --db bench/out.db
 """
 
 import argparse
 import csv
 import gzip
+import sqlite3
 import sys
 
 DECOYS = ['alu', 'l1', 'cnv', 'unprocessed']
@@ -96,6 +102,17 @@ def read_vcf(path):
 				'pg': set(info.get('PG', '').split(','))
 			})
 	return calls
+
+def count_reads(path, truth, flank):
+	"""Abnormal alignments stored around each retrocopy event."""
+	db = sqlite3.connect('file:%s?mode=ro' % path, uri=True)
+	for ev in truth:
+		if ev['class'] != 'retrocopy':
+			continue
+		ev['reads'] = db.execute(
+			'SELECT COUNT(*) FROM alignment WHERE chr = ? AND pos BETWEEN ? AND ?',
+			(ev['chr'], ev['lo'] - flank, ev['hi'] + flank)).fetchone()[0]
+	db.close()
 
 def distance(call, ev):
 	if call['hi'] < ev['lo']:
@@ -170,7 +187,17 @@ def groups(ev):
 
 def report(calls, truth, best, out):
 	events = [ev for ev in truth if ev['class'] == 'retrocopy']
+	no_reads = [ev for ev in events if ev.get('reads', 1) == 0]
+	events = [ev for ev in events if ev.get('reads', 1) > 0]
 	w = out.write
+
+	if no_reads:
+		w('== Left out: %d retrocopies without abnormal reads ==\n'
+				% len(no_reads))
+		for ev in no_reads:
+			w('%s %s:%s %s%s\n' % (ev['id'], ev['chr'], ev['lbkp'], ev['gene'],
+				' (called %s)' % best[ev['id']]['id'] if ev['id'] in best else ''))
+		w('\n')
 
 	w('== Precision and recall: %d retrocopies, %d calls ==\n'
 			% (len(events), len(calls)))
@@ -216,12 +243,11 @@ def report(calls, truth, best, out):
 			continue
 		info = c['info']
 		for k in ('LBKP', 'RBKP'):
+			tally(k + ' reported', k in info)
 			if k in info:
 				d = abs(int(info[k]) - int(ev[k.lower()]))
 				tally(k + ' exact', d == 0)
 				tally(k + ' within 5', d <= 5)
-			else:
-				tally(k + ' reported', False)
 		if 'TSDLEN' in info:
 			tally('TSDLEN exact', int(info['TSDLEN']) == int(ev['tsdlen']))
 			tally('TSITE', info.get('TSITE') == ev['tsite'])
@@ -239,19 +265,19 @@ def report(calls, truth, best, out):
 		w('%-18s %3d/%-3d %6.2f\n' % (name, ok, n, ratio(ok, n)))
 
 def write_tables(calls, truth, best, prefix):
-	cols = ['id', 'tsite', 'tsdlen', 'zygosity', 'context', 'gene', 'exons',
+	cols = ['id', 'chr', 'tsite', 'tsdlen', 'zygosity', 'context', 'gene', 'exons',
 			'retained_len', 'transcript_len', 'polya_len', 'orientation',
 			'lbkp', 'rbkp']
 	vcols = ['LBKP', 'RBKP', 'TSDLEN', 'TSITE', 'POLARITY', 'POLYA', 'EEJ',
 			'TSITEMERGED']
 	with open(prefix + '.events.tsv', 'w') as fh:
-		fh.write('\t'.join(cols + ['call', 'filter', 'gt']
+		fh.write('\t'.join(cols + ['reads', 'call', 'filter', 'gt']
 			+ ['call_' + k.lower() for k in vcols]) + '\n')
 		for ev in truth:
 			if ev['class'] != 'retrocopy':
 				continue
 			c = best.get(ev['id'])
-			row = [ev[k] for k in cols]
+			row = [ev[k] for k in cols] + [str(ev.get('reads', '.'))]
 			if c is None:
 				row += ['.'] * (3 + len(vcols))
 			else:
@@ -275,11 +301,17 @@ def main():
 	p.add_argument('vcf', help='VCF from sider make-vcf')
 	p.add_argument('--window', type=int, default=100,
 		help='Maximum distance of a call to an event [default: %(default)s]')
+	p.add_argument('--db',
+		help='Database of merge-call: leave out the events without reads')
+	p.add_argument('--flank', type=int, default=1000,
+		help='Distance to look for the reads of an event [default: %(default)s]')
 	p.add_argument('--prefix', help='Write <prefix>.events.tsv and .calls.tsv')
 	args = p.parse_args()
 
 	truth = read_truth(args.truth)
 	calls = read_vcf(args.vcf)
+	if args.db:
+		count_reads(args.db, truth, args.flank)
 	best = classify(calls, truth, args.window)
 	report(calls, truth, best, sys.stdout)
 	if args.prefix:
