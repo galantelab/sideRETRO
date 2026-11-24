@@ -48,6 +48,11 @@ haplotype and written with the SAM fields an aligner would produce:
   - Noise clips (--n-noise-clips): discordant reads at the flanks
     soft clipped at random positions, as produced by adapters or
     quality trimming. They must not define a breakpoint.
+  - Proper clips (--n-proper-clips): proper pairs at a flank
+    whose read crosses a junction into the insertion, clipped as
+    the split reads. Outside the exons, process-sample does not
+    keep them, but the genotype reads them: Aligned along the
+    TSD, they must not be taken for the reference allele.
 
 The sequences are written at the forward strand of the reference,
 as in the SAM format, whatever the strand of the read (flag 0x10).
@@ -292,6 +297,35 @@ class Sim:
                      seq)
             self.rec(qname, 161, 'chr2', mpos, '%dM' % READ_LEN, 'chr1', self.tsd_start, mseq)
 
+    def proper_clips(self):
+        a = self.args
+        inner = a.fragment_len - READ_LEN
+
+        for i in range(a.n_proper_clips):
+            # Left junction: Clipped at the right, as the left
+            # split reads, with the mate upstream
+            qname = 'properL%d' % i
+            m = a.min_match + i
+            start = self.left_junction - m
+            seq = self.alt[start:start + READ_LEN]
+            mpos = start + 1 - inner
+            self.rec(qname, 99, 'chr1', mpos, '%dM' % READ_LEN, 'chr1', start + 1,
+                     self.chr1[mpos - 1:mpos - 1 + READ_LEN])
+            self.rec(qname, 147, 'chr1', start + 1, '%dM%dS' % (m, READ_LEN - m),
+                     'chr1', mpos, seq)
+
+            # Right junction: Clipped at the left, as the right
+            # split reads, with the mate downstream
+            qname = 'properR%d' % i
+            c = a.polya_len + RIGHT_CLIP_STEP * i
+            start = self.right_junction - c
+            seq = self.alt[start:start + READ_LEN]
+            mpos = self.tsd_start + inner
+            self.rec(qname, 99, 'chr1', self.tsd_start, '%dS%dM' % (c, READ_LEN - c),
+                     'chr1', mpos, seq)
+            self.rec(qname, 147, 'chr1', mpos, '%dM' % READ_LEN, 'chr1', self.tsd_start,
+                     self.chr1[mpos - 1:mpos - 1 + READ_LEN])
+
     def truth(self):
         """
         Expected VCF values. 'NA' means the INFO field must be
@@ -415,7 +449,8 @@ class Sim:
             ('INSSEQ', insseq),
             ('RNAMES', ','.join(sorted(set(
                 r.split('\t')[0] for r in self.recs
-                if not r.startswith(READ_PREFIX + 'intron'))))),
+                if not r.startswith((READ_PREFIX + 'intron',
+                                     READ_PREFIX + 'proper')))))),
             ('ROLES', self.roles(left, right, run, all_clips, polya)),
             ('FILTER', self.filters(left, right, len(clips))),
             ('HALLMARKS', ','.join(h for h, ok in (
@@ -496,6 +531,7 @@ class Sim:
         self.noise_clips()
         self.split_left()
         self.split_right()
+        self.proper_clips()
 
         with open(os.path.join(a.output_dir, 'sim.sam'), 'w') as fp:
             fp.write('@HD\tVN:1.0\tSO:queryname\n')
@@ -557,6 +593,10 @@ def check(vcf_file, truth_file, no_ref=False):
     expect('CHROM', fields[0], truth['CHROM'])
     expect('ID', fields[2], truth['ID'])
     expect('FILTER', fields[6], truth['FILTER'])
+
+    # Every read comes from the alternate allele
+    keys = fields[8].split(':')
+    expect('GT', fields[9].split(':')[keys.index('GT')], '1/1')
 
     # The single sample carries the insertion: High QUAL
     if fields[5] == '.' or float(fields[5]) < 20:
@@ -662,6 +702,8 @@ def main():
                    help='reads with the mate inside the first intron [0]')
     p.add_argument('--n-noise-clips', type=int, default=0,
                    help='discordant reads with random soft clips [0]')
+    p.add_argument('--n-proper-clips', type=int, default=0,
+                   help='proper pairs clipped at each junction [0]')
     args = p.parse_args()
 
     if args.check:

@@ -71,6 +71,11 @@ SCENARIOS = [
     # gene. A single one is not enough to report the intron
     ('intron_retention', ['--seed', '4', '--n-intron-mates', '4']),
     ('intron_single',    ['--seed', '4', '--n-intron-mates', '1']),
+    # Genotype: Proper pairs clipped at the junctions are from the
+    # alternate allele, with both or just one breakpoint known
+    ('proper_clips',     ['--seed', '6', '--n-proper-clips', '6']),
+    ('proper_clips_left', ['--seed', '5', '--n-split-left', '1',
+                           '--n-split-right', '0', '--n-proper-clips', '6']),
 ]
 
 
