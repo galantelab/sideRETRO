@@ -34,6 +34,17 @@
 #include "intron.h"
 #include "genotype.h"
 
+/*
+ * A read clipped at the insertion site comes from the
+ * alternate allele. With both breakpoints, the clip must
+ * be up to GENOTYPE_CLIP_TOLERANCE bases from one of them.
+ * Without them, the missing breakpoint can be anywhere
+ * along a TSD or a short deletion: Up to GENOTYPE_CLIP_WINDOW
+ * bases from the insertion point
+ */
+#define GENOTYPE_CLIP_TOLERANCE 5
+#define GENOTYPE_CLIP_WINDOW    25
+
 struct _Region
 {
 	const char *chr;
@@ -42,6 +53,10 @@ struct _Region
 	long        window_end;
 
 	long        insertion_point;
+
+	// Zero when there is no split read
+	long        breakpoint_left;
+	long        breakpoint_right;
 };
 
 typedef struct _Region Region;
@@ -99,15 +114,18 @@ typedef struct _CrossWindowLinear CrossWindowLinear;
 
 static Region *
 region_new (const char *chr, const long window_start,
-		const long window_end, const long insertion_point)
+		const long window_end, const long insertion_point,
+		const long breakpoint_left, const long breakpoint_right)
 {
 	Region *r = xcalloc (1, sizeof (Region));
 
 	*r = (Region) {
-		.chr             = xstrdup (chr),
-		.window_start    = window_start,
-		.window_end      = window_end,
-		.insertion_point = insertion_point
+		.chr              = xstrdup (chr),
+		.window_start     = window_start,
+		.window_end       = window_end,
+		.insertion_point  = insertion_point,
+		.breakpoint_left  = breakpoint_left,
+		.breakpoint_right = breakpoint_right
 	};
 
 	return r;
@@ -206,9 +224,13 @@ genotype_index_retrocopy (sqlite3 *db)
 	long window_start = 0;
 	long window_end = 0;
 	long insertion_point = 0;
+	long breakpoint_left = 0;
+	long breakpoint_right = 0;
 
 	const char sql[] =
-		"SELECT id, chr, window_start, window_end, insertion_point\n"
+		"SELECT id, chr, window_start, window_end, insertion_point,\n"
+		"	CASE WHEN breakpoint_left_sr > 0 THEN breakpoint_left ELSE 0 END,\n"
+		"	CASE WHEN breakpoint_right_sr > 0 THEN breakpoint_right ELSE 0 END\n"
 		"FROM retrocopy";
 
 	log_debug ("Query schema:\n%s", sql);
@@ -223,17 +245,19 @@ genotype_index_retrocopy (sqlite3 *db)
 			chr             = db_column_text  (stmt, 1);
 			window_start    = db_column_int64 (stmt, 2);
 			window_end      = db_column_int64 (stmt, 3);
-			insertion_point = db_column_int64 (stmt, 4);
+			insertion_point  = db_column_int64 (stmt, 4);
+			breakpoint_left  = db_column_int64 (stmt, 5);
+			breakpoint_right = db_column_int64 (stmt, 6);
 
 			r = region_new (chr, window_start, window_end,
-					insertion_point);
+					insertion_point, breakpoint_left, breakpoint_right);
 
 			id = xcalloc (1, sizeof (int));
 			*id = retrocopy_id;
 
-			log_debug ("Index retrocopy region [%d] %s:%li-%li in %li",
+			log_debug ("Index retrocopy region [%d] %s:%li-%li in %li (%li %li)",
 					retrocopy_id, chr, window_start, window_end,
-					insertion_point);
+					insertion_point, breakpoint_left, breakpoint_right);
 
 			hash_insert (ri, id, r);
 		}
@@ -451,7 +475,47 @@ calculate_align_start_end (const bam1_t *align, long *start, long *end)
 }
 
 static inline int
-cross_insertion_point (const bam1_t *align, const long insertion_point,
+is_clip (const uint32_t c)
+{
+	return bam_cigar_op (c) == BAM_CSOFT_CLIP
+		|| bam_cigar_op (c) == BAM_CHARD_CLIP;
+}
+
+/*
+ * A clip at the start of the alignment joins the first
+ * aligned base, and a clip at the end, the last one
+ */
+static inline int
+clipped_between (const bam1_t *align, const long start, const long end,
+		const long from, const long to)
+{
+	const uint32_t *cigar = bam_get_cigar (align);
+	const uint32_t n_cigar = align->core.n_cigar;
+
+	return n_cigar > 0
+		&& ((is_clip (cigar[0]) && start >= from && start <= to)
+				|| (is_clip (cigar[n_cigar - 1]) && end >= from && end <= to));
+}
+
+static inline int
+clipped_at_site (const bam1_t *align, const Region *r, const long start,
+		const long end)
+{
+	if (r->breakpoint_left > 0 && r->breakpoint_right > 0)
+		return clipped_between (align, start, end,
+				r->breakpoint_left - GENOTYPE_CLIP_TOLERANCE,
+				r->breakpoint_left + GENOTYPE_CLIP_TOLERANCE)
+			|| clipped_between (align, start, end,
+				r->breakpoint_right - GENOTYPE_CLIP_TOLERANCE,
+				r->breakpoint_right + GENOTYPE_CLIP_TOLERANCE);
+
+	return clipped_between (align, start, end,
+			r->insertion_point - GENOTYPE_CLIP_WINDOW,
+			r->insertion_point + GENOTYPE_CLIP_WINDOW);
+}
+
+static inline int
+cross_insertion_point (const bam1_t *align, const Region *r,
 		const int phred_quality)
 {
 	/*
@@ -477,15 +541,31 @@ cross_insertion_point (const bam1_t *align, const long insertion_point,
 
 	long start = 0;
 	long end = 0;
+	long site_start = r->insertion_point;
+	long site_end = r->insertion_point;
 	int half_decil = 0;
+
+	/*
+	* A target site duplication is present twice at the
+	* alternate allele, and its reads align along the TSD
+	* before the clip: The reference read must cover the
+	* whole TSD, from the right to the left breakpoint
+	*/
+	if (r->breakpoint_left > 0 && r->breakpoint_right > 0
+			&& r->breakpoint_left >= r->breakpoint_right)
+		{
+			site_start = r->breakpoint_right;
+			site_end = r->breakpoint_left;
+		}
 
 	calculate_align_start_end (align, &start, &end);
 	half_decil = (end - start + 1) / 20;
 
-	// The read needs to cover at least the window comprising
-	// the insertion_point +/- read half_decil
-	return (insertion_point - half_decil) >= start
-		&& (insertion_point + half_decil) <= end;
+	// The read needs to cover at least the site
+	// +/- read half_decil, and not be clipped there
+	return (site_start - half_decil) >= start
+		&& (site_end + half_decil) <= end
+		&& !clipped_at_site (align, r, start, end);
 }
 
 static Hash *
@@ -675,7 +755,7 @@ cross_window (IBiTreeLookupData *ldata, void *user_data)
 	Genotype *g = ldata->data;
 	int *q = NULL;
 
-	if (cross_insertion_point (c->align, g->region->insertion_point, c->phred_quality))
+	if (cross_insertion_point (c->align, g->region, c->phred_quality))
 		{
 			q = xcalloc (1, sizeof (int));
 			*q = c->align->core.qual;
@@ -783,7 +863,7 @@ zygosity_indexed_search (samFile *fp, bam_hdr_t *hdr, bam1_t *align,
 
 			while ((rc = sam_itr_next (fp, itr, align)) >= 0)
 				{
-					if (cross_insertion_point (align, r->insertion_point, zd->phred_quality))
+					if (cross_insertion_point (align, r, zd->phred_quality))
 						{
 							q = xcalloc (1, sizeof (int));
 							*q = align->core.qual;

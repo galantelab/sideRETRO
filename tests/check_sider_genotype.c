@@ -262,6 +262,120 @@ START_TEST (test_genotype_deep)
 }
 END_TEST
 
+START_TEST (test_genotype_tsd)
+{
+	char db_file[] = "/tmp/ponga.db.XXXXXX";
+	char sam_file[] = "/tmp/ponga.sam.XXXXXX";
+	char bam_file[] = "/tmp/ponga.bam.XXXXXX";
+
+	sqlite3 *db = NULL;
+	sqlite3_stmt *stmt = NULL;
+	sqlite3_stmt *intron_stmt = NULL;
+	sqlite3_stmt *search_stmt = NULL;
+	FILE *fp = NULL;
+	char *sql = NULL;
+	int i = 0;
+
+	/*
+	* Proper pairs around the insertion site. The reads of
+	* the alternate allele cross a junction and are clipped
+	* there. The reference reads are R*
+	*
+	* chr1  DUP: LBKP 207, RBKP 201 (TSD 201-207)
+	*   A1  aligned along the TSD up to LBKP, clipped
+	*   A2  the same, with no clip (microhomology)
+	*   A3  covers the TSD, clipped 4 bases after LBKP
+	*   A4  clipped at RBKP
+	* chr2  only RBKP 201: Insertion point 201
+	*   A5  clipped 13 bases after it, at the missing LBKP
+	* chr3  BLUNT: LBKP 200, RBKP 201
+	*   R3  clipped away from the breakpoints: Reference
+	* chr4  only LBKP 207: Insertion point 208
+	*   A6  clipped at the missing RBKP 201
+	*/
+	const char sam[] =
+		"@HD\tVN:1.0\tSO:coordinate\n"
+		"@SQ\tSN:chr1\tLN:248956422\n"
+		"@SQ\tSN:chr2\tLN:248956422\n"
+		"@SQ\tSN:chr3\tLN:248956422\n"
+		"@SQ\tSN:chr4\tLN:248956422\n"
+		"A2\t99\tchr1\t168\t60\t40M\t=\t400\t0\t*\t*\n"
+		"A1\t99\tchr1\t175\t60\t33M7S\t=\t400\t0\t*\t*\n"
+		"A3\t99\tchr1\t175\t60\t37M3S\t=\t400\t0\t*\t*\n"
+		"R1\t99\tchr1\t180\t60\t40M\t=\t400\t0\t*\t*\n"
+		"A4\t99\tchr1\t201\t60\t7S33M\t=\t400\t0\t*\t*\n"
+		"R2\t99\tchr2\t180\t60\t40M\t=\t400\t0\t*\t*\n"
+		"A5\t99\tchr2\t182\t60\t33M7S\t=\t400\t0\t*\t*\n"
+		"R3\t99\tchr3\t180\t60\t40M\t=\t400\t0\t*\t*\n"
+		"R4\t99\tchr3\t190\t60\t35M5S\t=\t400\t0\t*\t*\n"
+		"R5\t99\tchr4\t190\t60\t40M\t=\t400\t0\t*\t*\n"
+		"A6\t99\tchr4\t201\t60\t7S33M\t=\t400\t0\t*\t*\n";
+
+	db = create_db (db_file);
+	create_file (sam_file);
+	create_file (bam_file);
+
+	// Source 1: SAM, no index (linear search)
+	fp = xfopen (sam_file, "w");
+	xfprintf (fp, "%s", sam);
+	xfclose (fp);
+
+	// Source 2: Indexed BAM
+	fp = xfopen (bam_file, "w");
+	xfprintf (fp, "%s", sam);
+	xfclose (fp);
+
+	fp = xfopen (bam_file, "rb+");
+	sam_to_bam_fp (fp, bam_file);
+	index_bam (bam_file);
+
+	xasprintf (&sql,
+		"BEGIN TRANSACTION;\n"
+		"INSERT INTO source VALUES (1,1,'%s');\n"
+		"INSERT INTO source VALUES (2,1,'%s');\n"
+		"INSERT INTO retrocopy VALUES (1,'chr1',1,400,'G1',1,201,2,1,0.0,207,3,201,3,NULL,0,NULL,0);\n"
+		"INSERT INTO retrocopy VALUES (2,'chr2',1,400,'G2',1,201,2,1,0.0,NULL,0,201,3,NULL,0,NULL,0);\n"
+		"INSERT INTO retrocopy VALUES (3,'chr3',1,400,'G3',1,201,2,1,0.0,200,3,201,3,NULL,0,NULL,0);\n"
+		"INSERT INTO retrocopy VALUES (4,'chr4',1,400,'G4',1,208,2,1,0.0,207,3,NULL,0,NULL,0,NULL,0);\n"
+		"COMMIT;", sam_file, bam_file);
+
+	db_exec (db, sql);
+	xfree (sql);
+
+	stmt = db_prepare_genotype_stmt (db);
+	intron_stmt = db_prepare_intron_retention_stmt (db);
+
+	genotype (stmt, intron_stmt, 2, 20);
+
+	// The same reference reads with and without the index
+	const int expected[] = {1, 1, 2, 1};
+
+	search_stmt = db_prepare (db,
+			"SELECT retrocopy_id, source_id, reference_depth\n"
+			"FROM genotype\n"
+			"ORDER BY retrocopy_id, source_id");
+
+	for (i = 0; i < 8; i++)
+		{
+			ck_assert_int_eq (db_step (search_stmt), SQLITE_ROW);
+			ck_assert_int_eq (db_column_int (search_stmt, 0), i / 2 + 1);
+			ck_assert_int_eq (db_column_int (search_stmt, 1), i % 2 + 1);
+			ck_assert_int_eq (db_column_int (search_stmt, 2), expected[i / 2]);
+		}
+
+	ck_assert_int_eq (db_step (search_stmt), SQLITE_DONE);
+	db_finalize (search_stmt);
+
+	db_finalize (stmt);
+	db_finalize (intron_stmt);
+	db_close (db);
+
+	xunlink (db_file);
+	xunlink (sam_file);
+	xunlink (bam_file);
+}
+END_TEST
+
 static void
 run_genotype_on (const char *path)
 {
@@ -546,6 +660,7 @@ make_genotype_suite (void)
 	tcase_add_test (tc_core, test_genotype);
 	tcase_add_test (tc_core, test_genotype_deep);
 	tcase_add_test (tc_core, test_genotype_intron);
+	tcase_add_test (tc_core, test_genotype_tsd);
 	suite_add_tcase (s, tc_core);
 
 	/* Abort test case */

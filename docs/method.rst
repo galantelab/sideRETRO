@@ -333,6 +333,16 @@ number of reference allele *reads* - we select the *reads* that cover one
 come to the :math:`l` *reads* **identical** to the reference genome and can
 calculate the **genotype likelihoods**.
 
+A *read* of the alternative allele aligns to the reference genome until
+the junction, where it is clipped. With a target site duplication, the
+TSD is present twice at the alternative allele, so these *reads* align
+along the whole TSD before the clip, and would cover the insertion point.
+Therefore, with both :ref:`breakpoints <method_breakpoints>`, a *read*
+of the reference allele must cover the whole TSD - from the right to the
+left breakpoint - plus the window. And a *read* clipped up to 5 bases
+from a breakpoint - or, without the breakpoints, up to 25 bases from the
+insertion point - is never taken for the reference allele.
+
 .. image:: images/genotype.svg
    :width: 90%
    :align: center
