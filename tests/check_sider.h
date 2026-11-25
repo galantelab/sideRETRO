@@ -41,6 +41,7 @@ Suite * make_wrapper_suite        (void);
 Suite * make_db_merge_suite       (void);
 Suite * make_set_suite            (void);
 Suite * make_summary_suite        (void);
+Suite * make_tandem_suite         (void);
 Suite * make_fault_suite          (void);
 
 #ifdef HAVE_LD_WRAP

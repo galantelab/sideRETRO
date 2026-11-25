@@ -65,6 +65,8 @@ sider_sources = files(
   'set.h',
   'str.c',
   'str.h',
+  'tandem.c',
+  'tandem.h',
   'thpool.c',
   'thpool.h',
   'types.h',
