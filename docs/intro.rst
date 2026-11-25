@@ -77,8 +77,10 @@ Supporting reads
 Quality and filters
   A **quality** score for each event and **filters** that check
   whether the insertion point is well defined - split reads, both
-  breakpoints and the target site duplication - so the events that
-  ``PASS`` are good targets for validation.
+  breakpoints and the target site - and whether there is a hallmark of
+  retrotransposition - an exon-exon junction, the poly-A tail or a
+  target site duplication -, at the primary chromosomes, so the events
+  that ``PASS`` are good targets for validation.
 
 Genomic context
   The retrocopy integration site context: If the retrotransposition

@@ -527,9 +527,11 @@ insertion, with its measured ``TSDLEN`` kept at the VCF. The TSDs of
 LINE-1 insertions are usually longer, from 7 to 20 bases.
 
 So the three target sites are **valid**, and all of them pass the
-filter: What fails is a retrocopy with a single breakpoint
+target site checks: What fails is a retrocopy with a single breakpoint
 (``OneBreakpoint``) or none (``NoBreakpoint``), whose target site is not
-known. Only the length of a duplication is checked (``TSDOutlier``):
+known. Only a duplication counts as a hallmark, though: A blunt
+insertion or a deletion needs the poly-A tail or an exon-exon junction
+to pass (``NoHallmark``). Only the length of a duplication is checked (``TSDOutlier``):
 A long one usually comes from breakpoints of unrelated reads (see
 :ref:`below <method_tsd_limits>`). A deletion longer than the cluster
 window is not seen at a single retrocopy - see

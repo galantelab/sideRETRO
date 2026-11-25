@@ -103,6 +103,11 @@ MIN_IR = 2
 # is a blunt insertion (make-vcf --min-tsd)
 MIN_TSD = 5
 
+# Tandem repeat at the target site (--site-repeat): Its length
+# and its start before the insertion point
+SITE_REPEAT_LEN = 20
+SITE_REPEAT_OFFSET = 4
+
 # Each right junction read has this many more exon
 # bases at its clip than the previous one
 RIGHT_CLIP_STEP = 3
@@ -125,6 +130,9 @@ class Sim:
 
         self.chr1 = random_seq(args.chr1_len)
         self.chr2 = random_seq(args.chr2_len)
+
+        if args.site_repeat:
+            self.put_site_repeat(args.site_repeat)
 
         # Parental exons at chr2: 1-based inclusive, + strand
         self.exons = [(1001, 1400), (2001, 2400), (3001, 3400)]
@@ -153,6 +161,28 @@ class Sim:
         # Alternative haplotype offsets (0-based) of the junctions
         self.left_junction = len(left)
         self.right_junction = len(left) + len(self.ins)
+
+    def put_site_repeat(self, unit):
+        """
+        A perfect tandem repeat of SITE_REPEAT_LEN bases at chr1,
+        from SITE_REPEAT_OFFSET bases before the insertion point,
+        over the target site. The bases at each side break it, so
+        its span is exact: make-vcf reports it at TSITETR
+        """
+        k = len(unit)
+        start = self.args.insertion_point - SITE_REPEAT_OFFSET - 1
+        end = start + SITE_REPEAT_LEN
+        rep = (unit * SITE_REPEAT_LEN)[:SITE_REPEAT_LEN]
+        seq = list(self.chr1)
+        seq[start:end] = rep
+
+        # The run would go on to the left if the base before it
+        # repeated the one k bases ahead, and to the right if the
+        # base after it repeated the one k bases behind
+        seq[start - 1] = next(b for b in 'ACGT' if b != seq[start - 1 + k])
+        seq[end] = next(b for b in 'ACGT' if b != seq[end - k])
+
+        self.chr1 = ''.join(seq)
 
     def rec(self, qname, flag, chr_, pos, cigar, rnext, pnext, seq, mapq=60):
         self.recs.append('\t'.join(map(str, [
@@ -446,6 +476,8 @@ class Sim:
             # A deletion longer than the cluster window splits the
             # insertion into two retrocopies, merged by merge-call
             ('TSITEMERGED', '' if both and a.tsd_len < -1000 else 'NA'),
+            ('TSITETR', '%s:%d' % (a.site_repeat, SITE_REPEAT_LEN)
+             if a.site_repeat and (left or right) else 'NA'),
             ('POLYA', polya_len),
             ('POLYAMIN', polya_min),
             ('POLYASR', polya_sr),
@@ -468,7 +500,7 @@ class Sim:
             ('ROLES', self.roles(left, right, run, all_clips, polya)),
             ('FILTER', self.filters(left, right, len(clips), polya)),
             ('HALLMARKS', ','.join(h for h, ok in (
-                ('TSD', both and a.tsd_len >= MIN_TSD),
+                ('TSD', self.tsd_hallmark(both)),
                 ('POLYA', polya),
                 ('EEJ', a.n_junction_reads > 0)) if ok) or 'NA'),
             ('EEJ', 1 if a.n_junction_reads else 'NA'),
@@ -480,6 +512,15 @@ class Sim:
             ('INS', self.ins),
         ]
 
+    def tsd_hallmark(self, both):
+        """
+        The TSD is a hallmark for a duplication of at least
+        MIN_TSD bases, not inside a tandem repeat (--site-repeat
+        writes one of 2 bases or more)
+        """
+        a = self.args
+        return both and a.tsd_len >= MIN_TSD and not a.site_repeat
+
     def filters(self, left, right, n_right, polya):
         """
         Expected FILTER with the make-vcf defaults: The simulated
@@ -488,8 +529,8 @@ class Sim:
         side), both breakpoints - a duplication, a blunt insertion or
         a deletion at the target site - a TSD of at most 25 bases and
         a hallmark: A TSD of at least MIN_TSD bases, the poly-A or an
-        exon-exon junction. The random genome has no tandem repeat
-        at the target site
+        exon-exon junction. A TSD inside a tandem repeat does not
+        count
         """
         a = self.args
         both = left and right
@@ -504,8 +545,7 @@ class Sim:
             f.append('OneBreakpoint')
         if both and a.tsd_len > 25:
             f.append('TSDOutlier')
-        if not ((both and a.tsd_len >= MIN_TSD) or polya
-                or a.n_junction_reads > 0):
+        if not (self.tsd_hallmark(both) or polya or a.n_junction_reads > 0):
             f.append('NoHallmark')
 
         return ';'.join(f) if f else 'PASS'
@@ -619,7 +659,7 @@ def check(vcf_file, truth_file):
         expect('POS', fields[1], truth['POS'])
 
     for key in ('IMPRECISE', 'LBKP', 'LSR', 'RBKP', 'RSR', 'TSDLEN', 'TSITE',
-                'TSITEMERGED', 'TSD',
+                'TSITEMERGED', 'TSITETR', 'TSD',
                 'POLYA', 'POLYAMIN', 'POLYASR', 'POLYASTRAND', 'POLARITY', 'PG',
                 'PGEXONS', 'EEJ', 'EEJLIST', 'IR', 'IRLIST', 'PG5P', 'PG3P', 'SVLEN',
                 'LEFT_SVINSSEQ', 'RIGHT_SVINSSEQ', 'HALLMARKS'):
@@ -714,6 +754,9 @@ def main():
                    help='discordant reads with random soft clips [0]')
     p.add_argument('--n-proper-clips', type=int, default=0,
                    help='proper pairs clipped at each junction [0]')
+    p.add_argument('--site-repeat', metavar='UNIT', type=str.upper,
+                   help='write a tandem repeat of UNIT (2 to 6 bases) over '
+                        'the target site')
     p.add_argument('--polya-supplementary', action='store_true',
                    help='align the poly-A of the right junction reads as '
                         'a supplementary piece with MAPQ 0')
@@ -721,6 +764,9 @@ def main():
 
     if args.check:
         return check(*args.check)
+
+    if args.site_repeat and not 2 <= len(args.site_repeat) <= 6:
+        p.error('--site-repeat: The unit must have 2 to 6 bases')
 
     Sim(args).write()
     return 0

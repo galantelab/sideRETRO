@@ -326,9 +326,10 @@ is a duplication.
 
 +------------+--------------------------------------------------------------+
 | HALLMARKS  | The retrocopy hallmarks observed, separated by comma: ``TSD``|
-|            | (target site duplication), ``POLYA`` (poly-A tail) and       |
-|            | ``EEJ`` (exon-exon junctions). The poly-A and the junctions  |
-|            | do not filter: They are reported for you to judge            |
+|            | (target site duplication: ``TSITE=DUP``, not inside a tandem |
+|            | repeat other than a run of A or T), ``POLYA`` (poly-A tail)  |
+|            | and ``EEJ`` (exon-exon junctions). Without any of them, the  |
+|            | retrocopy fails ``NoHallmark``                               |
 +------------+--------------------------------------------------------------+
 
 **Parental gene**
@@ -432,17 +433,17 @@ inserted at *chr1* with a 12 bases TSD and a 25 bases poly-A tail.
 The INFO column was wrapped for reading::
 
    chr1  9999  RTC000001  A  <INS:ME:RTC>  999.0  PASS
-     SVTYPE=INS;ORHO=0.514382;POLARITY=+;PG=PARENT;PGTYPE=1;PGEXONS=PARENT:3;
+     SVTYPE=INS;ORHO=0.683714;POLARITY=+;PG=PARENT;PGTYPE=1;PGEXONS=PARENT:3;
      HALLMARKS=TSD,POLYA,EEJ;EEJ=1;EEJLIST=ENSEP0-ENSEP1;PG5P=ENSEP0:1001:8;PG3P=ENSEP2:3398:3;SVLEN=1225;
      LEFT_SVINSSEQ=CACTGATACAGCAGACTCATTCCCCTATAAGCGAATCGTA;
      RIGHT_SVINSSEQ=ACTCAGCAGGACTCGGTTTAAAAAAAAAAAAAAAAAAAAAAAAAAA;
-     DP=42;SR=16;LBKP=10011;LSR=8;RBKP=10000;RSR=8;TSDLEN=12;TSD=GAACGCCCCGTG;
+     DP=42;SR=16;LBKP=10011;LSR=8;RBKP=10000;RSR=8;TSDLEN=12;TSITE=DUP;TSD=GAACGCCCCGTG;
      POLYA=27;POLYASR=8;POLYASTRAND=+
      GT:DP2:GL  1/1:0,42:-253,-12.6,-1.8e-05
 
 Reading it: The insertion is **precise** (no ``IMPRECISE``), with 8
 reads at each breakpoint (``LSR``, ``RSR``) and a TSD of 12 bases
-(``TSDLEN``, ``TSD``). The poly-A has 27 bases - 25 simulated plus
+(``TSDLEN``, ``TSITE``, ``TSD``). The poly-A has 27 bases - 25 simulated plus
 two A at the end of the last exon - and puts the retrocopy at the
 ``+`` strand. Reads span one junction, between the first two exons
 (``EEJ``, ``EEJLIST``), the retrocopy is **full length** (``PG5P`` at

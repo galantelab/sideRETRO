@@ -72,6 +72,11 @@ SCENARIOS = [
                           '--n-junction-reads', '0']),
     ('tsd_hallmark',     ['--seed', '6', '--polya-len', '3',
                           '--n-junction-reads', '0']),
+    # A tandem repeat at the target site (TSITETR): The TSD is not
+    # a hallmark there, but the poly-A still is
+    ('repeat_site',      ['--seed', '6', '--site-repeat', 'CA']),
+    ('repeat_site_only', ['--seed', '6', '--site-repeat', 'CA', '--polya-len', '3',
+                          '--n-junction-reads', '0']),
     # Intron retention: Mates inside an intron of the parental
     # gene. A single one is not enough to report the intron
     ('intron_retention', ['--seed', '4', '--n-intron-mates', '4']),
@@ -215,7 +220,7 @@ def main():
         return 1
 
     os.unlink(log.name)
-    print('\nAll %d scenarios passed' % (2 * len(SCENARIOS) + 1))
+    print('\nAll %d scenarios passed' % (len(SCENARIOS) + 1))
     return 0
 
 
