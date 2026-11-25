@@ -156,6 +156,12 @@ side: A retrocopy may have many of them at a single breakpoint, passing
 |                   | a tandem repeat (``TSITETR``) other than a run of A   |
 |                   | or T                                                  |
 +-------------------+-------------------------------------------------------+
+| NonPrimary        | Not at a **primary chromosome** - 1 to 22, X and Y,   |
+|                   | with or without ``chr`` (``make-vcf -P``): An alt,    |
+|                   | decoy, unplaced or HLA contig. An alt contig copies a |
+|                   | region of a primary chromosome, and the others are    |
+|                   | pieces of sequence often too short for both flanks    |
++-------------------+-------------------------------------------------------+
 
 A retrocopy needs **one** hallmark, whichever (``NoHallmark``): The poly-A
 tail and the exon-exon junctions depend on the coverage and on where the

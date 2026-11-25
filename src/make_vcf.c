@@ -23,6 +23,7 @@
 #include <stdio.h>
 #include <getopt.h>
 #include <assert.h>
+#include <regex.h>
 #include "wrapper.h"
 #include "utils.h"
 #include "str.h"
@@ -63,6 +64,7 @@ struct _MakeVcf
 	int          max_tsd;
 	int          disabled_filters;
 	String      *disabled_ids;
+	const char  *primary_chr;
 
 	// Annotation
 	const char  *fasta_file;
@@ -118,6 +120,7 @@ run (MakeVcf *v)
 		.min_tsd           = v->min_tsd,
 		.max_tsd           = v->max_tsd,
 		.disabled_filters  = v->disabled_filters,
+		.primary_chr       = v->primary_chr,
 		.fasta_file        = v->fasta_file,
 		.rnames_file       = rnames_file,
 		.insertion_file    = insertion_file,
@@ -164,7 +167,7 @@ print_usage (FILE *fp)
 		"Usage: %s make-vcf [-h] [-q] [-d] [-l FILE] [-o DIR] [-p STR]\n"
 		"       %*c          [-n INT] [-e FLOAT] [-L FLOAT] [-Q INT]\n"
 		"       %*c          [-S INT] [-t INT] [-T INT] [-x STR] [-f INT]\n"
-		"       %*c          [-i INT] -r FILE <FILE>\n"
+		"       %*c          [-i INT] [-P STR] -r FILE <FILE>\n"
 		"\n"
 		"Write the annotated retrocopies to a VCF and to their companion files\n"
 		"\n"
@@ -216,7 +219,8 @@ print_usage (FILE *fp)
 		"Filter Options:\n"
 		"   The FILTER column lists the checks that failed, or PASS: A\n"
 		"   retrocopy with its insertion point well defined and a hallmark\n"
-		"   of retrotransposition (NoHallmark)\n"
+		"   of retrotransposition (NoHallmark), at a primary chromosome\n"
+		"   (NonPrimary)\n"
 		"   -L, --min-qual             LowQual: Minimum QUAL [default:\"%g\"]\n"
 		"   -Q, --min-mapq             LowMAPQ: Minimum mean mapping quality of the\n"
 		"                              supporting reads [default:\"%d\"]\n"
@@ -230,17 +234,22 @@ print_usage (FILE *fp)
 		"                              ambiguous [default:\"%d\"]\n"
 		"   -T, --max-tsd              TSDOutlier: Maximum length of the target site\n"
 		"                              duplication [default:\"%d\"]\n"
+		"   -P, --primary-chr          NonPrimary: Extended regular expression of the\n"
+		"                              primary chromosomes. Any other one is an alt,\n"
+		"                              decoy, unplaced or HLA contig\n"
+		"                              [default:\"%s\"]\n"
 		"   -x, --no-filter            Disable a filter. It may be passed multiple\n"
 		"                              times: LowQual, LowMAPQ, AmbiguousParental,\n"
 		"                              LowSR, NoBreakpoint, OneBreakpoint,\n"
-		"                              TSDOutlier and NoHallmark\n"
+		"                              TSDOutlier, NoHallmark and NonPrimary\n"
 		"\n",
 		PACKAGE_STRING, PACKAGE, pkg_len, ' ', pkg_len, ' ', pkg_len, ' ',
 		DEFAULT_OUTPUT_DIR, DEFAULT_PREFIX, DEFAULT_NEAR_GENE_DIST,
 		DEFAULT_ORIENTATION_ERROR, VCF_DEFAULT_MIN_IR,
 		VCF_DEFAULT_PRIMER_FLANK,
 		VCF_DEFAULT_MIN_QUAL, VCF_DEFAULT_MIN_MAPQ,
-		VCF_DEFAULT_MIN_SR, VCF_DEFAULT_MIN_TSD, VCF_DEFAULT_MAX_TSD);
+		VCF_DEFAULT_MIN_SR, VCF_DEFAULT_MIN_TSD, VCF_DEFAULT_MAX_TSD,
+		VCF_DEFAULT_PRIMARY_CHR);
 }
 
 static void
@@ -270,6 +279,7 @@ make_vcf_init (MakeVcf *vcf)
 		.max_tsd            = VCF_DEFAULT_MAX_TSD,
 		.disabled_filters   = 0,
 		.disabled_ids       = string_new (""),
+		.primary_chr        = VCF_DEFAULT_PRIMARY_CHR,
 		.fasta_file         = NULL,
 		.primer_flank       = VCF_DEFAULT_PRIMER_FLANK,
 		.min_ir             = VCF_DEFAULT_MIN_IR
@@ -292,6 +302,7 @@ static int
 make_vcf_validate (MakeVcf *vcf)
 {
 	int rc = EXIT_SUCCESS;
+	regex_t reg;
 
 	/*
 	* Validate arguments and mandatory options
@@ -380,6 +391,16 @@ make_vcf_validate (MakeVcf *vcf)
 			rc = EXIT_FAILURE; goto Exit;
 		}
 
+	// The primary chromosomes must be a valid regex
+	if (regcomp (&reg, vcf->primary_chr, REG_EXTENDED|REG_NOSUB) != 0)
+		{
+			fprintf (stderr, "%s: --primary-chr '%s': Invalid regular expression\n",
+					PACKAGE, vcf->primary_chr);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
+	regfree (&reg);
+
 	/*
 	* Final settings
 	*/
@@ -448,11 +469,12 @@ make_vcf_print (MakeVcf *vcf)
 		"  --min-sr=%d \\\n"
 		"  --min-tsd=%d \\\n"
 		"  --max-tsd=%d \\\n"
+		"  --primary-chr='%s' \\\n"
 		"  --primer-flank=%d \\\n"
 		"  --min-ir=%d\n",
 		vcf->near_gene_dist, vcf->orientation_error,
 		vcf->min_qual, vcf->min_mapq, vcf->min_sr,
-		vcf->min_tsd, vcf->max_tsd,
+		vcf->min_tsd, vcf->max_tsd, vcf->primary_chr,
 		vcf->primer_flank, vcf->min_ir);
 
 	log_info ("%s", msg->str);
@@ -490,6 +512,7 @@ parse_make_vcf_command_opt (int argc, char **argv)
 		{"min-tsd",           required_argument, 0, 't'},
 		{"max-tsd",           required_argument, 0, 'T'},
 		{"no-filter",         required_argument, 0, 'x'},
+		{"primary-chr",       required_argument, 0, 'P'},
 		{"primer-flank",      required_argument, 0, 'f'},
 		{"min-ir",            required_argument, 0, 'i'},
 		{0,                   0,                 0,  0 }
@@ -503,7 +526,7 @@ parse_make_vcf_command_opt (int argc, char **argv)
 	int option_index = 0;
 	int c = 0;
 
-	while ((c = getopt_long (argc, argv, "hqdl:o:p:n:e:r:L:Q:S:t:T:x:f:i:", opt, &option_index)) >= 0)
+	while ((c = getopt_long (argc, argv, "hqdl:o:p:n:e:r:L:Q:S:t:T:x:P:f:i:", opt, &option_index)) >= 0)
 		{
 			switch (c)
 				{
@@ -588,6 +611,11 @@ parse_make_vcf_command_opt (int argc, char **argv)
 						vcf.min_ir = atoi (optarg);
 						break;
 					}
+				case 'P':
+					{
+						vcf.primary_chr = optarg;
+						break;
+					}
 				case 'x':
 					{
 						int flag = vcf_filter_lookup (optarg);
@@ -596,7 +624,7 @@ parse_make_vcf_command_opt (int argc, char **argv)
 							{
 								fprintf (stderr, "%s: --no-filter '%s': Unknown filter. "
 										"Choose from: LowQual, LowMAPQ, AmbiguousParental, LowSR, "
-										"NoBreakpoint, OneBreakpoint, TSDOutlier\n",
+										"NoBreakpoint, OneBreakpoint, TSDOutlier, NoHallmark, NonPrimary\n",
 										PACKAGE, optarg);
 								print_try_help (stderr);
 								rc = EXIT_FAILURE; goto Exit;

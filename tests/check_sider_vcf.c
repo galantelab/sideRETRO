@@ -1177,6 +1177,107 @@ START_TEST (test_vcf_tsite_repeat)
 }
 END_TEST
 
+START_TEST (test_vcf_non_primary)
+{
+	char db_file[] = "/tmp/ponga.db.XXXXXX";
+	char vcf_file[] = "/tmp/ponga.vcf.XXXXXX";
+	char fasta_file[] = "/tmp/ponga.fa.XXXXXX";
+	sqlite3 *db = NULL;
+
+	db = create_db (db_file);
+	create_vcf (vcf_file);
+	create_fasta (fasta_file);
+	populate_db (db);
+
+	VCFOption opt = {
+		.min_tsd = VCF_DEFAULT_MIN_TSD,
+		.fasta_file = fasta_file,
+		.min_qual = VCF_DEFAULT_MIN_QUAL,
+		.min_mapq = VCF_DEFAULT_MIN_MAPQ,
+		.min_sr = VCF_DEFAULT_MIN_SR,
+		.max_tsd = VCF_DEFAULT_MAX_TSD
+	};
+
+	/*
+	* The chrY retrocopy moved to other contigs: Only the
+	* chromosomes 1-22, X and Y, with or without 'chr',
+	* are primary by default
+	*/
+	struct
+	{
+		const char *chr;
+		int primary;
+	} cases[] = {
+		{"chr1",                       1},
+		{"chr22",                      1},
+		{"chrX",                       1},
+		{"Y",                          1},
+		{"1",                          1},
+		{"chr23",                      0},
+		{"chrM",                       0},
+		{"chr1_KI270762v1_alt",        0},
+		{"chrUn_JTFH01000737v1_decoy", 0},
+		{"chr1_KI270706v1_random",     0},
+		{"chrUn_KI270302v1",           0},
+		{"chrEBV",                     0},
+		{"HLA-DRB1*01:01:01",          0},
+		{"GL000194.1",                 0},
+		{"NC_000001.11",               0}
+	};
+
+	char sql[256] = {};
+	int i = 0;
+
+	for (i = 0; i < (int) (sizeof (cases) / sizeof (cases[0])); i++)
+		{
+			snprintf (sql, sizeof (sql),
+					"UPDATE retrocopy SET chr = '%s' WHERE id = 8", cases[i].chr);
+			db_exec (db, sql);
+
+			vcf (db, vcf_file, &opt);
+
+			ck_assert_msg (grep_vcf_record (vcf_file, "\tRTC000008\t", "NonPrimary")
+					== !cases[i].primary, "'%s': NonPrimary", cases[i].chr);
+		}
+
+	ck_assert (grep_vcf_header (vcf_file, "##FILTER=<ID=NonPrimary,"));
+
+	// Another naming: The RefSeq accessions of the chromosomes
+	opt.primary_chr = "^NC_0000(0[1-9]|1[0-9]|2[0-4])\\.[0-9]+$";
+	vcf (db, vcf_file, &opt);
+
+	ck_assert (!grep_vcf_record (vcf_file, "\tRTC000008\t", "NonPrimary"));
+	ck_assert (grep_vcf_record (vcf_file, "\tRTC000001\t", "NonPrimary"));
+
+	db_close (db);
+	xunlink (db_file);
+	xunlink (vcf_file);
+	xunlink (fasta_file);
+}
+END_TEST
+
+START_TEST (test_vcf_primary_regex_fail)
+{
+	char db_file[] = "/tmp/ponga.db.XXXXXX";
+	char vcf_file[] = "/tmp/ponga.vcf.XXXXXX";
+	char fasta_file[] = "/tmp/ponga.fa.XXXXXX";
+	sqlite3 *db = NULL;
+
+	db = create_db (db_file);
+	create_vcf (vcf_file);
+	create_fasta (fasta_file);
+	populate_db (db);
+
+	VCFOption opt = {
+		.min_tsd = VCF_DEFAULT_MIN_TSD,
+		.fasta_file = fasta_file,
+		.primary_chr = "(chr"
+	};
+
+	vcf (db, vcf_file, &opt);
+}
+END_TEST
+
 START_TEST (test_vcf_no_genotype_fail)
 {
 	char db_file[] = "/tmp/ponga.db.XXXXXX";
@@ -1224,12 +1325,14 @@ make_vcf_suite (void)
 	tcase_add_test (tc_core, test_vcf_intron_retention);
 	tcase_add_test (tc_core, test_vcf_target_site);
 	tcase_add_test (tc_core, test_vcf_tsite_repeat);
+	tcase_add_test (tc_core, test_vcf_non_primary);
 	suite_add_tcase (s, tc_core);
 
 	/* Abort test case */
 	tc_abort = tcase_create ("Abort");
 
 	tcase_add_exit_test (tc_abort, test_vcf_no_genotype_fail, EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_vcf_primary_regex_fail, EXIT_FAILURE);
 	suite_add_tcase (s, tc_abort);
 
 	return s;

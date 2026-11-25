@@ -926,8 +926,12 @@ without any of them cannot be told from an unprocessed copy of the
 gene, or from a tandem repeat that changed length. A duplication inside
 a tandem repeat does not count (see :ref:`Tandem repeats
 <method_tsite_repeat>`), unless the repeat is a run of A or T: LINE-1
-cuts at T-rich sites. The intron retention is **reported**, but it does
-not filter. See :ref:`QUAL <qual>` and :ref:`FILTER <filter>` for the
+cuts at T-rich sites. And it must be at a **primary chromosome**
+(``NonPrimary``): Alt, decoy, unplaced and HLA contigs copy regions of
+the primary chromosomes or are too short for both flanks, and their
+names vary among the references - so the primary ones are given as a
+regular expression (``make-vcf -P``). The intron retention is
+**reported**, but it does not filter. See :ref:`QUAL <qual>` and :ref:`FILTER <filter>` for the
 details and the thresholds.
 
 References and Further Reading

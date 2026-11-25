@@ -502,7 +502,8 @@ discover the others::
   Filter Options:
      The FILTER column lists the checks that failed, or PASS: A
      retrocopy with its insertion point well defined and a hallmark
-     of retrotransposition (NoHallmark)
+     of retrotransposition (NoHallmark), at a primary chromosome
+     (NonPrimary)
      -L, --min-qual             LowQual: Minimum QUAL [default:"20"]
      -Q, --min-mapq             LowMAPQ: Minimum mean mapping quality of the
                                 supporting reads [default:"20"]
@@ -516,10 +517,14 @@ discover the others::
                                 ambiguous [default:"5"]
      -T, --max-tsd              TSDOutlier: Maximum length of the target site
                                 duplication [default:"25"]
+     -P, --primary-chr          NonPrimary: Extended regular expression of the
+                                primary chromosomes. Any other one is an alt,
+                                decoy, unplaced or HLA contig
+                                [default:"^(chr)?([1-9]|1[0-9]|2[0-2]|X|Y)$"]
      -x, --no-filter            Disable a filter. It may be passed multiple
                                 times: LowQual, LowMAPQ, AmbiguousParental,
                                 LowSR, NoBreakpoint, OneBreakpoint,
-                                TSDOutlier and NoHallmark
+                                TSDOutlier, NoHallmark and NonPrimary
 
 
 So, in order to produce the results from a database input file like

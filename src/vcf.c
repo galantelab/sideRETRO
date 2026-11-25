@@ -22,6 +22,7 @@
 #include <string.h>
 #include <time.h>
 #include <assert.h>
+#include <regex.h>
 #include "wrapper.h"
 #include "utils.h"
 #include "list.h"
@@ -68,6 +69,8 @@ static const VCFFilterDef filter_defs[] =
 	{VCF_FILTER_NO_HALLMARK,        "NoHallmark",
 		"No hallmark of retrotransposition (HALLMARKS): No exon-exon junction, no poly-A tail"
 		" and no target site duplication outside a tandem repeat"},
+	{VCF_FILTER_NON_PRIMARY,        "NonPrimary",
+		"Not at a primary chromosome: An alt, decoy, unplaced or HLA contig (make-vcf --primary-chr)"},
 	{0, NULL, NULL}
 };
 
@@ -1381,7 +1384,8 @@ vcf_print_primer (FILE *fp, sqlite3_stmt *stmt, Hash *fidx,
 
 static void
 vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
-		FILE *rnames_fp, FILE *ins_fp, FILE *primer_fp, VCFOption *opt)
+		FILE *rnames_fp, FILE *ins_fp, FILE *primer_fp, const regex_t *primary,
+		VCFOption *opt)
 {
 	log_trace ("Inside %s", __func__);
 
@@ -1517,6 +1521,12 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 			// No evidence that it is a retrocopy
 			if (!tsd && b.polya_sr == 0 && b.eej == 0)
 				failed |= VCF_FILTER_NO_HALLMARK;
+
+			// An alt, decoy, unplaced or HLA contig: It
+			// copies part of a primary chromosome, or it is
+			// a piece of sequence too short for both flanks
+			if (regexec (primary, b.chr, 0, NULL, 0) != 0)
+				failed |= VCF_FILTER_NON_PRIMARY;
 
 			failed &= ~opt->disabled_filters;
 
@@ -1760,6 +1770,15 @@ vcf (sqlite3 *db, const char *output_file, VCFOption *opt)
 	List *hl = NULL;
 	Hash *fidx = NULL;
 	Hash *contig_len = NULL;
+	regex_t primary;
+
+	const char *primary_chr = opt->primary_chr != NULL
+		? opt->primary_chr
+		: VCF_DEFAULT_PRIMARY_CHR;
+
+	if (regcomp (&primary, primary_chr, REG_EXTENDED|REG_NOSUB) != 0)
+		log_fatal ("Invalid regular expression for the primary chromosomes: '%s'",
+				primary_chr);
 
 	log_info ("Write the VCF '%s'", output_file);
 	fp = xfopen (output_file, "w");
@@ -1792,7 +1811,8 @@ vcf (sqlite3 *db, const char *output_file, VCFOption *opt)
 	vcf_print_header (hl, contig_len, fp, opt);
 
 	log_debug ("Write the VCF body");
-	vcf_print_body (db, hl, fidx, fp, rnames_fp, ins_fp, primer_fp, opt);
+	vcf_print_body (db, hl, fidx, fp, rnames_fp, ins_fp, primer_fp,
+			&primary, opt);
 
 	xfclose (fp);
 
@@ -1808,4 +1828,5 @@ vcf (sqlite3 *db, const char *output_file, VCFOption *opt)
 	list_free (hl);
 	hash_free (fidx);
 	hash_free (contig_len);
+	regfree (&primary);
 }

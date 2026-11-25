@@ -45,6 +45,10 @@ struct _VCFOption
 	int         max_tsd;
 	int         disabled_filters;
 
+	// Primary chromosomes (NonPrimary): An extended
+	// regular expression. NULL for the default
+	const char *primary_chr;
+
 	// Annotation: Minimum number of reads of a
 	// sample to report an intron as retained
 	int         min_ir;
@@ -68,7 +72,8 @@ typedef struct _VCFOption VCFOption;
  * from breakpoints of unrelated reads. And it needs a
  * hallmark of retrotransposition: An exon-exon junction,
  * the poly-A tail or a duplication outside a tandem
- * repeat
+ * repeat. At last, it must be at a primary chromosome:
+ * Not at an alt, decoy, unplaced or HLA contig
  */
 enum _VCFFilter
 {
@@ -79,7 +84,8 @@ enum _VCFFilter
 	VCF_FILTER_NO_BREAKPOINT      = 16,
 	VCF_FILTER_ONE_BREAKPOINT     = 32,
 	VCF_FILTER_TSD_OUTLIER        = 64,
-	VCF_FILTER_NO_HALLMARK        = 128
+	VCF_FILTER_NO_HALLMARK        = 128,
+	VCF_FILTER_NON_PRIMARY        = 256
 };
 
 typedef enum _VCFFilter VCFFilter;
@@ -91,6 +97,9 @@ typedef enum _VCFFilter VCFFilter;
 #define VCF_DEFAULT_MAX_TSD       25
 #define VCF_DEFAULT_PRIMER_FLANK  200
 #define VCF_DEFAULT_MIN_IR        2
+
+// Chromosomes 1-22, X and Y, with or without 'chr'
+#define VCF_DEFAULT_PRIMARY_CHR   "^(chr)?([1-9]|1[0-9]|2[0-2]|X|Y)$"
 
 int vcf_filter_lookup (const char *id);
 
