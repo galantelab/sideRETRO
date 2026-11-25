@@ -275,14 +275,14 @@ START_TEST (test_vcf)
 	// at the other strand (POLYASTRAND): It does not filter
 	// (chr10, chr11, chr12, chr13, chr13, chr14, chr14, chrY)
 	const char *present[][2] = {
-		{";ORHO=-1.000000;POLARITY=-;PG=gene1;PGTYPE=1;PGEXONS=gene1:2;HALLMARKS=POLYA,EEJ;EEJ=1;EEJLIST=ee1-ee13;PG5P=ee1:1050:7;PG3P=ee13:3000:2;SVLEN=2000;LEFT_SVINSSEQ=GGTTAACC;RIGHT_SVINSSEQ=TTGGCC;", ";SR=2;LBKP=100;LSR=2;POLYA=25;POLYASR=6;POLYASTRAND=+"},
+		{";ORHO=-1.000000;POLARITY=-;PG=gene1;PGTYPE=1;PGEXONS=gene1:2;HALLMARKS=POLYA,EEJ;EEJ=1;EEJLIST=ee1-ee13;PG5P=ee1:1050:7;PG3P=ee13:3000:2;SVLEN=2000;LEFT_SVINSSEQ=GGTTAACC;RIGHT_SVINSSEQ=TTGGCC;", ";SR=2;LBKP=100;LSR=2;TSITETR=A:101;POLYA=25;POLYASR=6;POLYASTRAND=+"},
 		{";PGEXONS=gene2_1:1,gene2_2:1;",   ";DP="},
 		{";SR=7;LBKP=259;LSR=3;RBKP=250;RSR=4;TSDLEN=10;TSITE=DUP;TSD=CCCCCCCCCC", NULL},
 		{";DP=",                            NULL},
 		{";DP=",                            NULL},
 		{";DP=",                            NULL},
 		{";DP=",                            NULL},
-		{";ORHO=1.000000;POLARITY=+;PG=gene1;PGTYPE=1;PGEXONS=gene1:2;HALLMARKS=POLYA;PG3P=ee1:150:3;DP=", ";SR=2;LBKP=100;LSR=1;RBKP=102;RSR=1;TSDLEN=-1;TSITE=DEL;POLYA=30;POLYAMIN;POLYASR=2;POLYASTRAND=-"}
+		{";ORHO=1.000000;POLARITY=+;PG=gene1;PGTYPE=1;PGEXONS=gene1:2;HALLMARKS=POLYA;PG3P=ee1:150:3;DP=", ";SR=2;LBKP=100;LSR=1;RBKP=102;RSR=1;TSDLEN=-1;TSITE=DEL;TSITETR=A:103;POLYA=30;POLYAMIN;POLYASR=2;POLYASTRAND=-"}
 	};
 
 	// QUAL and FILTER. Samples without reads give no QUAL. The
@@ -960,7 +960,7 @@ START_TEST (test_vcf_target_site)
 		{"breakpoint_right = 70, breakpoint_right_sr = 1",
 			";TSDLEN=31;TSITE=DUP;", "\t329.0\tTSDOutlier\t"},
 		{"breakpoint_right = NULL, breakpoint_right_sr = 0",
-			";LBKP=100;LSR=1;POLYA=", "\t329.0\tOneBreakpoint\t"},
+			";LBKP=100;LSR=1;TSITETR=A:101;POLYA=", "\t329.0\tOneBreakpoint\t"},
 		{"breakpoint_left = NULL, breakpoint_left_sr = 0",
 			";PG3P=ee1:150:3;DP=", "\t329.0\tNoBreakpoint\t"}
 	};
@@ -989,6 +989,140 @@ START_TEST (test_vcf_target_site)
 
 	// Without both breakpoints, there is no target site
 	ck_assert (!grep_vcf (vcf_file, "TSITE=DEL"));
+
+	db_close (db);
+	xunlink (db_file);
+	xunlink (vcf_file);
+	xunlink (fasta_file);
+}
+END_TEST
+
+START_TEST (test_vcf_tsite_repeat)
+{
+	char db_file[] = "/tmp/ponga.db.XXXXXX";
+	char vcf_file[] = "/tmp/ponga.vcf.XXXXXX";
+	char fasta_file[] = "/tmp/ponga.fa.XXXXXX";
+	sqlite3 *db = NULL;
+	FILE *fp = NULL;
+	int fd = 0;
+
+	db = create_db (db_file);
+	create_vcf (vcf_file);
+	populate_db (db);
+
+	/*
+	* chrY (2200 bases) without tandem repeats, but two:
+	* - CA x 10 from 95 to 114;
+	* - ATTC x 5.25 from 1989 to 2009
+	*/
+	fd = xmkstemp (fasta_file);
+	fp = xfdopen (fd, "w");
+	xfprintf (fp, "%s",
+		">chrY\n"
+		"GCTAAAGACAATTACATAACATACACGTCAGCACGAAACTTGTTGGCCCAGTGTGAATCG\n"
+		"CTTAAGGGTTAAGTAAGTGTGATGCATACGCCTTCACACACACACACACACACATCGGAC\n"
+		"TGGCATTTTTATTACACTCAGAAACAGAACTCGGGTAATTTTGACAGGTCACGCAGAGGC\n"
+		"GCGCCCTCCTGAAGTGCGTGGACACTCGCTATGAATCTCTGATTTACCCACTCTGCCAAA\n"
+		"CTCCAGCGCGGTCAGTTCCATCACCCTAAGTAACCGAATAATGCGTTCGCTCTATTGACT\n"
+		"ACGACGCGCTCATTCCCTTGTCGGAGAGTTATGGAACAAGGACGCTGTCTGAGACTAGAA\n"
+		"GACAGATAGTGCACACGACCGGCGTCGGAGAAACTCTATTTGCCGCCTGACAAGTCAATG\n"
+		"CGATCCGTAGGGGCAGCGCAGTATGCCAAGACTATAGGCACTGTCGCATCACAAACGATT\n"
+		"AACTGATAAATGAGCCCTTTATGACACGGGCATATGACTGGTTTACGATAGTATGTCCAA\n"
+		"CGGCGAGCTTTACATTTGCTGTGAGAGGTACAGGGATTAGTGAGAAGCCGTGCGTATCAA\n"
+		"TTCGTACCTTGGGGGTCGTTACCACTCTGTTCCCACGAGCGGCATTTCTGGATGGCCAGC\n"
+		"TTTTGACATTTAATTTCACCCATAAACCAGCGTAAAGCTGCAAGTGGCTCCATGAACTTA\n"
+		"GCTGCTAGTGTCAGACTCGCCTCGGATCCTTACTACACTAACTTGAACGCCTAGTGGTCA\n"
+		"AAGAGTACTGGTAATCGTCGGTATCTATATAAGCAGGGGAGGGGAAACATTTGTTCTCAG\n"
+		"CCGGTGACTCCTAATGCTAAGACATTTCCCTTCAGGGGGGGCTCCCCCGCGATGCCATAA\n"
+		"ATCTGAGCAACCAGCTGAAGCAGGCACGACAGTGCGACATTATATCACTGTGGTAGGTTA\n"
+		"GCTTCATCTAATGTCCAACTAGCCGGCCAATTCGCATGATACCTCTCCATCTGACCCAAG\n"
+		"ATTGTGCTTGTTCAATTCTTCTTAACGTGATAACAGAATCAAACCTGCCAGGCGGTCGTC\n"
+		"GCGGACCTCGGTCGAAGTAGTGGTGCGGATCCAGGGGAACCGTTGACTCAAAAGGAGCTG\n"
+		"CCGTCCACCTAACGTGAAGTTCCAAAATCCCAAACCTCTCGAGATATTTATCCAGCAAGG\n"
+		"AGTGGCAACGCCCGCTGCTTTAATCGCTACCAAAACGCAAACAAAAGCATACCCAAAAGT\n"
+		"ACACGGGTGAGGGAGGTGATATAGTACAGCTACGAAGTATCTGGCGCCTCAATAGGATTA\n"
+		"TAGCGGTCTCTCAGGCTGCTTGCCGTCCGGCCCGGCCGCGACACTCCGGTGCAAGCTTAA\n"
+		"TTCGTACGTACTTCCCATTGGATCTCGTTTATCGATTAAGCCCGATCTAGGTTCCTAGAG\n"
+		"GTTAAATTGGACGTCTTCCCACTCCGTTGCTGCGTGTCTAGGCGGTTTAGCGTAAGCGAA\n"
+		"CAGGACCCTGCCTCAGCTCATAAGTCCTTATTCTCTCACGTTGTGTTACGAAAGATTCAC\n"
+		"TCGAGGTCGTGTGAGGGTTGGGCTAGCGGCAATTATGAAACTATCACATCACATAAGCGG\n"
+		"GCTAGATATAATTTAATCTTAATCCATAAAACACTAGCTCAGCAGTTGAAAAAATGGCTA\n"
+		"GGTTCCAGCTTTTGGGGAGACGTCTTTCTGAGGGTCAGCCGTGATTCCGATTCGATTAGA\n"
+		"CTGGTCCCCACGGGTCCATGAGTACGAGGAAACTCGGTATCGAGCCTAAAAGTTATAAGG\n"
+		"CATCTCGCCCAGGAAAGTAACGACGTATGGGTAGTTCTCCATCACCAGCTATAATGGCTA\n"
+		"GCGCACTCTCGTTCCAGGGCGTAGTTACACTGAGCGTGCCATGTCAGCATGCTAGCGTAT\n"
+		"CGCCCCCCAATGCCCCGCAATAGGGTAATTCGCCGACGAGTAAGCGTAGATTACACACCC\n"
+		"AGGAAACGATTCATTCATTCATTCATTCACTTCATTATAGGTCGTGTAGCGCTAGACAGT\n"
+		"CACCTTTAAAGGAAGAATCAGAGGCAAGATCTACGTGGCAGTCTCGTGTTGACGCCTTAG\n"
+		"CCGGTGGCGAACAGTATTGACCTGGCCGATGCTAATATTCTGATTTGGGGTTGATTTGCG\n"
+		"CTTCAGGCGCTAAAGTGGTTTTGAGTAACATGTCCTTTTG\n");
+	xfclose (fp);
+
+	VCFOption opt = {
+		.min_tsd = VCF_DEFAULT_MIN_TSD,
+		.fasta_file = fasta_file,
+		.min_qual = VCF_DEFAULT_MIN_QUAL,
+		.min_mapq = VCF_DEFAULT_MIN_MAPQ,
+		.min_sr = VCF_DEFAULT_MIN_SR,
+		.max_tsd = VCF_DEFAULT_MAX_TSD
+	};
+
+	/*
+	* The chrY retrocopy with its breakpoints moved. The
+	* repeat must touch the site - from one breakpoint to
+	* the other, or the single one - or VCF_TSITE_MARGIN
+	* bases around it. A NULL 'tr' means no repeat
+	*/
+	struct
+	{
+		int left;
+		int right;
+		const char *tr;
+	} cases[] = {
+		// Duplication over the repeat
+		{100, 91, ";TSITETR=CA:20"},
+		// The margin touches the repeat, or not
+		{92, 83, ";TSITETR=CA:20"},
+		{91, 82, NULL},
+		// A single breakpoint
+		{110, 0, ";TSITETR=CA:20"},
+		{0, 114, ";TSITETR=CA:20"},
+		// Far from the repeats
+		{300, 291, NULL},
+		// A long deletion: A site at each breakpoint
+		{300, 2000, ";TSITETR=ATTC:21"},
+		// The flank goes beyond the end of the contig
+		{2190, 0, NULL},
+		// No breakpoint, no target site
+		{0, 0, NULL}
+	};
+
+	char sql[256] = {};
+	int i = 0;
+
+	for (i = 0; i < (int) (sizeof (cases) / sizeof (cases[0])); i++)
+		{
+			snprintf (sql, sizeof (sql),
+					"UPDATE retrocopy SET\n"
+					"	breakpoint_left = %d, breakpoint_left_sr = %d,\n"
+					"	breakpoint_right = %d, breakpoint_right_sr = %d\n"
+					"WHERE id = 8",
+					cases[i].left, cases[i].left > 0,
+					cases[i].right, cases[i].right > 0);
+			db_exec (db, sql);
+
+			vcf (db, vcf_file, &opt);
+
+			ck_assert_msg (grep_vcf_record (vcf_file, "\tRTC000008\t", "chrY\t"),
+					"case %d: retrocopy not found", i);
+
+			if (cases[i].tr != NULL)
+				ck_assert_msg (grep_vcf_record (vcf_file, "\tRTC000008\t", cases[i].tr),
+						"case %d: '%s' not found", i, cases[i].tr);
+			else
+				ck_assert_msg (!grep_vcf_record (vcf_file, "\tRTC000008\t", ";TSITETR="),
+						"case %d: unexpected TSITETR", i);
+		}
 
 	db_close (db);
 	xunlink (db_file);
@@ -1043,6 +1177,7 @@ make_vcf_suite (void)
 	tcase_add_test (tc_core, test_vcf_primer);
 	tcase_add_test (tc_core, test_vcf_intron_retention);
 	tcase_add_test (tc_core, test_vcf_target_site);
+	tcase_add_test (tc_core, test_vcf_tsite_repeat);
 	suite_add_tcase (s, tc_core);
 
 	/* Abort test case */

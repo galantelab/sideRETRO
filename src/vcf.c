@@ -31,6 +31,7 @@
 #include "str.h"
 #include "retrocopy.h"
 #include "fasta.h"
+#include "tandem.h"
 #include "vcf.h"
 
 #include <math.h>
@@ -87,6 +88,12 @@ vcf_filter_lookup (const char *id)
 // greater than this value - the breakpoints are
 // probably inconsistent
 #define VCF_MAX_TSD_LEN 100
+
+// Tandem repeat at the target site (TSITETR): The bases
+// of the reference read at each side of the site, and
+// the margin around it that a repeat must touch
+#define VCF_TSITE_FLANK  50
+#define VCF_TSITE_MARGIN 3
 
 // Retrocopy ID at the VCF, rnames and FASTA files
 #define VCF_ID_FMT "RTC%06d"
@@ -358,6 +365,10 @@ vcf_print_header (const List *hl, Hash *contig_len,
 		" microhomology at the junctions) or DEL (deletion) (make-vcf --min-tsd)\">\n"
 		"##INFO=<ID=TSITEMERGED,Number=0,Type=Flag,Description=\"Deletion at the target site longer than the cluster window:"
 		" The insertion was merged from the retrocopies at its two flanks (merge-call --max-tsd-del)\">\n"
+		"##INFO=<ID=TSITETR,Number=1,Type=String,Description=\"Tandem repeat at the target site, as UNIT:SPAN:"
+		" A unit of 1 to 6 bases repeated at least 3 times, side by side, along at least 10 bases of the"
+		" reference, touching the breakpoints or the bases between them. The breakpoints may slide along it,"
+		" so TSITE and TSDLEN are unreliable\">\n"
 		"##FILTER=<ID=PASS,Description=\"All filters passed\">\n",
 		opt->min_tsd, opt->min_tsd - 1);
 
@@ -856,6 +867,47 @@ vcf_primer_empty_range (const long left, const int left_sr,
 	return 1;
 }
 
+/*
+ * The target site, where a tandem repeat is searched: The
+ * bases from one breakpoint to the other, both included,
+ * or the single breakpoint. A deletion longer than
+ * VCF_MAX_TSD_LEN gives a site at each breakpoint. Fill
+ * 'site' with the [start, end] of each one and return how
+ * many: 0 without a breakpoint
+ */
+static int
+vcf_tsite_sites (const long left, const int left_sr,
+		const long right, const int right_sr, long site[2][2])
+{
+	if (left_sr > 0 && right_sr > 0)
+		{
+			site[0][0] = left >= right ? right : left;
+			site[0][1] = left >= right ? left : right;
+
+			if (site[0][1] - site[0][0] + 1 <= VCF_MAX_TSD_LEN)
+				return 1;
+
+			site[0][0] = site[0][1] = left;
+			site[1][0] = site[1][1] = right;
+			return 2;
+		}
+
+	if (left_sr > 0 || right_sr > 0)
+		{
+			site[0][0] = site[0][1] = left_sr > 0 ? left : right;
+			return 1;
+		}
+
+	return 0;
+}
+
+static void
+vcf_tsite_range (const long site[2], long *start, long *end)
+{
+	*start = site[0] > VCF_TSITE_FLANK ? site[0] - VCF_TSITE_FLANK : 1;
+	*end = site[1] + VCF_TSITE_FLANK;
+}
+
 static void
 vcf_primer_junction_range (const long start1, const long end1,
 		const long start2, const long end2, const int flank,
@@ -922,9 +974,12 @@ vcf_index_regions (sqlite3 *db, const VCFOption *opt, Hash **contig_len)
 	long junction = 0;
 	int left_sr = 0;
 	int right_sr = 0;
+	long site[2][2] = {};
+	int n_sites = 0;
+	int i = 0;
 
 	// The only regions needed: The base before the
-	// insertion (REF) and the TSD
+	// insertion (REF), the TSD and the target site
 	const char sql[] =
 		"SELECT chr, insertion_point,\n"
 		"	COALESCE(breakpoint_left, 0), breakpoint_left_sr,\n"
@@ -951,6 +1006,15 @@ vcf_index_regions (sqlite3 *db, const VCFOption *opt, Hash **contig_len)
 			if (left_sr > 0 && right_sr > 0
 					&& left >= right && (left - right + 1) <= VCF_MAX_TSD_LEN)
 				list_append (regions, fasta_region_new (chr, right, left));
+
+			// The target site and its flanks, for the
+			// tandem repeats
+			n_sites = vcf_tsite_sites (left, left_sr, right, right_sr, site);
+			for (i = 0; i < n_sites; i++)
+				{
+					vcf_tsite_range (site[i], &start, &end);
+					list_append (regions, fasta_region_new (chr, start, end));
+				}
 
 			if (opt->primer_file == NULL)
 				continue;
@@ -1016,6 +1080,45 @@ vcf_region_lookup (Hash *fidx, const char *chr, long start, long end)
 	xfree (key);
 
 	return seq;
+}
+
+/*
+ * The longest tandem repeat at the target site of 'b',
+ * if any. Return 1 and fill 'tr', or 0
+ */
+static int
+vcf_tsite_repeat (Hash *fidx, const VCFBody *b, TandemRepeat *tr)
+{
+	TandemRepeat cur = {};
+	long site[2][2] = {};
+	const char *seq = NULL;
+	long start = 0;
+	long end = 0;
+	int n = 0;
+	int i = 0;
+
+	memset (tr, 0, sizeof (TandemRepeat));
+
+	n = vcf_tsite_sites (b->breakpoint_left, b->breakpoint_left_sr,
+			b->breakpoint_right, b->breakpoint_right_sr, site);
+
+	for (i = 0; i < n; i++)
+		{
+			vcf_tsite_range (site[i], &start, &end);
+			seq = vcf_region_lookup (fidx, b->chr, start, end);
+
+			// Beyond the end of the contig
+			if (seq == NULL)
+				continue;
+
+			if (tandem_repeat_find (seq, end - start + 1,
+						site[i][0] - VCF_TSITE_MARGIN - start,
+						site[i][1] + VCF_TSITE_MARGIN - start, &cur)
+					&& cur.span > tr->span)
+				*tr = cur;
+		}
+
+	return tr->span > 0;
 }
 
 static sqlite3_stmt *
@@ -1293,6 +1396,8 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 
 	long tsd_len = 0;
 	int tsd = 0;
+	TandemRepeat tr = {};
+	int has_tr = 0;
 	char orho_polarity = 0;
 	double qual = 0.0;
 	int num_breakpoints = 0;
@@ -1338,6 +1443,10 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 						b.chr, b.insertion_point, opt->fasta_file);
 			else
 				base = ref[0];
+
+			// A tandem repeat at the target site: The
+			// breakpoints may slide along it
+			has_tr = vcf_tsite_repeat (fidx, &b, &tr);
 
 			/*
 			* Filters: A PASS retrocopy has its insertion point
@@ -1545,6 +1654,9 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 								xfprintf (fp, ";TSD=%s", ref);
 						}
 				}
+
+			if (has_tr)
+				xfprintf (fp, ";TSITETR=%s:%li", tr.unit, tr.span);
 
 			// Poly-A
 			if (b.polya_sr > 0)

@@ -248,8 +248,15 @@ The fields are grouped by subject. Fields without a value are
 |                | retrocopies at its two flanks (``merge-call -D``). See   |
 |                | :ref:`Long deletions <method_tsite_merged>`              |
 +----------------+----------------------------------------------------------+
+| TSITETR        | **Tandem repeat** at the target site, as ``UNIT:SPAN``:  |
+|                | A unit of 1 to 6 bases repeated at least 3 times along   |
+|                | at least 10 bases of the reference, touching the         |
+|                | breakpoints or the bases between them. ``TSITE`` and     |
+|                | ``TSDLEN`` are unreliable then. See                      |
+|                | :ref:`Tandem repeats <method_tsite_repeat>`              |
++----------------+----------------------------------------------------------+
 | TSD            | The TSD sequence: The reference bases from RBKP to LBKP. |
-|                | Needs ``-r`` and ``0 < TSDLEN <= 100``                   |
+|                | Needs ``0 < TSDLEN <= 100``                              |
 +----------------+----------------------------------------------------------+
 | LEFT_SVINSSEQ  | **Observed** sequence of the insertion at the left       |
 |                | junction: The consensus of the clipped reads at LBKP,    |

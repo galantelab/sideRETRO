@@ -616,6 +616,30 @@ are kept at the VCF
 (``LEFT_SVINSSEQ``, ``RIGHT_SVINSSEQ``) for you to judge: Those of a
 retrocopy hold its ends - exon sequence or the tail - not the flanks.
 
+.. _method_tsite_repeat:
+
+Tandem repeats at the target site
+---------------------------------
+
+Inside a **tandem repeat**, the target site cannot be measured. The
+reads may be clipped at any copy of the unit and still match the
+reference, so the breakpoints slide along the repeat: A ``CA`` repeat
+that slipped by a few copies looks exactly like a duplication of
+those bases. And the reads of a repeat that changed length give
+clipped reads by themselves, with mates wherever the repeat also
+occurs - even in the exons of a gene with the same repeat.
+
+So the reference is searched for a perfect tandem repeat at the
+target site: A unit of 1 to 6 bases repeated at least 3 times, side
+by side, along at least 10 bases, which touches the breakpoints or
+the bases between them (3 bases of margin). The longest one is
+reported at ``TSITETR``, as the unit and its span (``CA:34``). The
+site is the segment between the breakpoints or the single breakpoint;
+a deletion longer than 100 bases gives one site at each breakpoint.
+With no breakpoint there is no site, and nothing is searched.
+``TSITE`` and ``TSDLEN`` are still reported, but they are unreliable
+when ``TSITETR`` is present.
+
 .. _method_polya:
 
 Poly-A tail and polarity
