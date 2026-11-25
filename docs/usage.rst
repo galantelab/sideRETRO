@@ -31,7 +31,7 @@ Called without any argument, ``sider`` shows its usage, and so does each
 command. ``sider -V`` shows the installed version::
 
   $ sider -V
-  sideRETRO 1.12.0
+  sideRETRO 1.13.0
 
 The full help is also at the `readthedocs page <https://sideretro.readthedocs.io>`_
 and at ``sider --help`` or ``sider <command> --help``. See :ref:`A Practical
