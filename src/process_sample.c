@@ -47,14 +47,14 @@
 #define DEFAULT_SORTED          0
 #define DEFAULT_DEDUPLICATE     0
 #define DEFAULT_EXON_FRAC       1e-09
-#define DEFAULT_ALIGNMENT_FRAC  1e-09
+#define DEFAULT_ALIGNMENT_FRAC  0.5
 #define DEFAULT_EITHER          0
 #define DEFAULT_RECIPROCAL      0
 #define DEFAULT_PREFIX          "out"
 #define DEFAULT_OUTPUT_DIR      "."
 #define DEFAULT_LOG_SILENT      0
 #define DEFAULT_LOG_LEVEL       LOG_INFO
-#define DEFAULT_PHRED_QUALITY   8
+#define DEFAULT_PHRED_QUALITY   20
 #define DEFAULT_MAX_BASE_FREQ   ABNORMAL_DEFAULT_MAX_BASE_FREQ
 
 struct _ProcessSample
@@ -93,6 +93,7 @@ struct _ProcessSample
 	int          sorted;
 	int          max_distance;
 	float        exon_frac;
+	int          exon_frac_set;
 	float        alignment_frac;
 	int          alignment_frac_set;
 	int          reciprocal;
@@ -222,6 +223,17 @@ run (ProcessSample *ps)
 	// Assemble database output filename
 	xasprintf_concat (&db_file, "%s/%s.db",
 			ps->output_dir, ps->prefix);
+
+	/*
+	* A fraction of the exon: An exon longer than the
+	* reads divided by it is never covered enough, and
+	* the reads at the long exons - as the last ones,
+	* with the 3' UTR - are lost. Kept for other genomes
+	*/
+	if (ps->exon_frac_set)
+		log_warn ("--exon-frac is a fraction of the exon: An exon longer than "
+				"the read length divided by %g loses all its reads, as the last "
+				"exons with long 3' UTRs. Prefer --alignment-frac", ps->exon_frac);
 
 	log_debug ("Create output dir '%s'", ps->output_dir);
 	mkdir_p (ps->output_dir);
@@ -448,11 +460,13 @@ print_usage (FILE *fp)
 		"   -m, --max-distance      Maximum distance between the reads of a pair.\n"
 		"                           Farther pairs are abnormal [default:\"%d\"]\n"
 		"   -f, --exon-frac         Minimum overlap between an alignment and an\n"
-		"                           exon, as a fraction of the exon\n"
+		"                           exon, as a fraction of the exon. Beware: The\n"
+		"                           reads at exons longer than the read length\n"
+		"                           divided by it are lost. Prefer '-F'\n"
 		"                           [default:\"%g\"; 1 base]\n"
 		"   -F, --alignment-frac    Minimum overlap between an alignment and an\n"
 		"                           exon, as a fraction of the alignment\n"
-		"                           [default:\"%g\"; 1 base]\n"
+		"                           [default:\"%g\"]\n"
 		"   -e, --either            Either '-f' OR '-F' must be satisfied. Without\n"
 		"                           '-e', both must be\n"
 		"   -r, --reciprocal        The overlap must be reciprocal: '-F' is set to\n"
@@ -498,6 +512,7 @@ process_sample_init (ProcessSample *ps)
 		.max_distance       = DEFAULT_MAX_DISTANCE,
 		.exon_frac          = DEFAULT_EXON_FRAC,
 		.alignment_frac     = DEFAULT_ALIGNMENT_FRAC,
+		.exon_frac_set      = 0,
 		.alignment_frac_set = 0,
 		.reciprocal         = DEFAULT_RECIPROCAL,
 		.either             = DEFAULT_EITHER
@@ -878,6 +893,7 @@ parse_process_sample_command_opt (int argc, char **argv)
 				case 'f':
 					{
 						ps.exon_frac = atof (optarg);
+						ps.exon_frac_set = 1;
 						break;
 					}
 				case 'F':

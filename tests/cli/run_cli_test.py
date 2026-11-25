@@ -177,11 +177,13 @@ def cases(t, sim):
     # Another sample (merge-call refuses the same sample twice)
     shutil.copy(P('sim.sam'), P('sim_b.sam'))
     t.run('ps: run with -r', ps + ann + ['-o', P('ps2'), '-f', '0.5', '-r', P('sim_b.sam')],
-          expect=['--exon-frac=5.000000e-01', '--alignment-frac=5.000000e-01'])
+          expect=['--exon-frac=5.000000e-01', '--alignment-frac=5.000000e-01',
+                  '--exon-frac is a fraction of the exon'])
     t.run('ps: run quiet with log', ps + ann + ['-o', P('ps3'), '-q',
           '-l', P('ps3.log')] + sam, absent=['summary'])
     t.run('ps: run BED annotation', ps + ['-a', P('genes.bed'), '-o', P('ps4')] + sam,
-          expect=['Exons indexed            3'], absent=['--gff-feature'])
+          expect=['Exons indexed            3'],
+          absent=['--gff-feature', '--exon-frac is a fraction of the exon'])
 
     # ================= merge-call
     mc = ['merge-call']

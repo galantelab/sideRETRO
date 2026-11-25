@@ -61,7 +61,7 @@
 #define DEFAULT_GFF_GENE_NAME         "gene_name"
 #define DEFAULT_NEAR_GENE_RANK        3
 #define DEFAULT_THREADS               1
-#define DEFAULT_PHRED_QUALITY         8
+#define DEFAULT_PHRED_QUALITY         20
 
 struct _MergeCall
 {

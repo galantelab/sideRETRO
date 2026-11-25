@@ -172,10 +172,15 @@ crossing the poly-A junction is often aligned as a short piece at a
 random place - a run of A bases, with mapping quality 0 - and it
 would take with it the read at the insertion site.
 A fragment is **kept** only if one of its alignments overlaps an
-**exon** of the annotation - by one base, or by the fractions given at
-``--exon-frac`` and ``--alignment-frac``. A stricter fraction of the
-alignment leaves out the reads crossing from an exon into its intron,
-which do not come from a processed transcript.
+**exon** of the annotation by at least half of the alignment
+(``--alignment-frac``, 0.5 by default): The reads crossing from an exon
+into its intron, mostly outside the exon, do not come from a processed
+transcript. The overlap can also be asked as a fraction of the exon
+(``--exon-frac``), but beware: An exon longer than the read length
+divided by that fraction never gets enough overlap, and the last exons
+of the genes, with their long 3' UTRs, lose all their reads - and the
+poly-A side of the retrocopies with them. So it is left at one base by
+default, and ``process-sample`` warns when it is set.
 
 .. _method_clustering:
 
