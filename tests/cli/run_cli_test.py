@@ -303,9 +303,11 @@ def cases(t, sim):
           vcf + ['-o', P('vcf'), '-p', 'sim', '-l', P('vcf.log'), '-d',
                  '-n', '5000', '-e', '0.1', '-L', '10',
                  '-Q', '10', '-S', '2', '-t', '4', '-T', '30', '-x', 'TSDOutlier',
-                 '-x', 'LowQual', '-x', 'OneBreakpoint', '-f', '50', '-i', '3'] + mdb,
+                 '-x', 'LowQual', '-x', 'OneBreakpoint', '-x', 'NoHallmark',
+                 '-f', '50', '-i', '3'] + mdb,
           expect=['make-vcf summary', 'PASS', '--no-filter=TSDOutlier',
-                  '--no-filter=OneBreakpoint', '--min-sr=2', '--min-tsd=4',
+                  '--no-filter=OneBreakpoint', '--no-filter=NoHallmark',
+                  '--min-sr=2', '--min-tsd=4',
                   '--max-tsd=30',
                   '--primer-flank=50', '--min-ir=3', '--reference-file=',
                   'sim.primer.fa'])

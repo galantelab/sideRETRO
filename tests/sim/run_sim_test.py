@@ -66,6 +66,12 @@ SCENARIOS = [
     # split reads at just one side (not LowSR, but OneBreakpoint)
     ('long_tsd',         ['--seed', '8', '--tsd-len', '30']),
     ('left_many',        ['--seed', '7', '--n-split-left', '6', '--n-split-right', '0']),
+    # No hallmark: A blunt insertion without the poly-A and the
+    # exon-exon junctions (NoHallmark), and the same with a TSD
+    ('no_hallmark',      ['--seed', '6', '--tsd-len', '0', '--polya-len', '3',
+                          '--n-junction-reads', '0']),
+    ('tsd_hallmark',     ['--seed', '6', '--polya-len', '3',
+                          '--n-junction-reads', '0']),
     # Intron retention: Mates inside an intron of the parental
     # gene. A single one is not enough to report the intron
     ('intron_retention', ['--seed', '4', '--n-intron-mates', '4']),

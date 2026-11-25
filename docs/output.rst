@@ -108,10 +108,11 @@ no informative sample, ``QUAL`` is ``.``. It is capped at 999.
 FILTER
 ------
 
-The ``FILTER`` column tells whether the insertion point is **well defined**:
-A ``PASS`` retrocopy is a good target for **validation** (e.g. by PCR). It
-lists the checks that failed, separated by ``;``, or ``PASS`` when all of
-them passed.
+The ``FILTER`` column tells whether the insertion point is **well defined**
+and whether there is evidence of a **retrotransposition**: A ``PASS``
+retrocopy is a good target for **validation** (e.g. by PCR). It lists the
+checks that failed, separated by ``;``, or ``PASS`` when all of them
+passed.
 
 The **target site** is the reference here. It needs the **left** and the
 **right** breakpoints, which tell what happened at it (``TSITE``): A
@@ -149,11 +150,19 @@ side: A retrocopy may have many of them at a single breakpoint, passing
 |                   | deletions are not checked: A deletion longer than the |
 |                   | cluster window splits the insertion in two            |
 +-------------------+-------------------------------------------------------+
+| NoHallmark        | No hallmark of retrotransposition (``HALLMARKS``): No |
+|                   | exon-exon junction, no poly-A tail and no target site |
+|                   | duplication - at least ``make-vcf -t`` bases, outside |
+|                   | a tandem repeat (``TSITETR``) other than a run of A   |
+|                   | or T                                                  |
++-------------------+-------------------------------------------------------+
 
-The poly-A tail, the exon-exon junctions and the orientation are **reported**
-(``HALLMARKS``, ``POLYA``, ``POLYASTRAND``, ``EEJ``, ``POLARITY``), but they
-do not filter: In short reads, their absence is weak evidence against a
-retrocopy.
+A retrocopy needs **one** hallmark, whichever (``NoHallmark``): The poly-A
+tail and the exon-exon junctions depend on the coverage and on where the
+retrocopy was cut, so their absence alone is weak evidence against it.
+Without any of them, though, nothing tells a retrocopy from other
+events - an unprocessed copy of the gene, or a tandem repeat that
+changed length. The orientation (``POLARITY``) does not filter.
 
 .. note::
    Alignments without soft clipping (e.g. ``bwa aln``, or an aligner at

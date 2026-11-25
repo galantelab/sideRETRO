@@ -215,7 +215,8 @@ print_usage (FILE *fp)
 		"\n"
 		"Filter Options:\n"
 		"   The FILTER column lists the checks that failed, or PASS: A\n"
-		"   retrocopy with its insertion point well defined\n"
+		"   retrocopy with its insertion point well defined and a hallmark\n"
+		"   of retrotransposition (NoHallmark)\n"
 		"   -L, --min-qual             LowQual: Minimum QUAL [default:\"%g\"]\n"
 		"   -Q, --min-mapq             LowMAPQ: Minimum mean mapping quality of the\n"
 		"                              supporting reads [default:\"%d\"]\n"
@@ -231,8 +232,8 @@ print_usage (FILE *fp)
 		"                              duplication [default:\"%d\"]\n"
 		"   -x, --no-filter            Disable a filter. It may be passed multiple\n"
 		"                              times: LowQual, LowMAPQ, AmbiguousParental,\n"
-		"                              LowSR, NoBreakpoint, OneBreakpoint and\n"
-		"                              TSDOutlier\n"
+		"                              LowSR, NoBreakpoint, OneBreakpoint,\n"
+		"                              TSDOutlier and NoHallmark\n"
 		"\n",
 		PACKAGE_STRING, PACKAGE, pkg_len, ' ', pkg_len, ' ', pkg_len, ' ',
 		DEFAULT_OUTPUT_DIR, DEFAULT_PREFIX, DEFAULT_NEAR_GENE_DIST,

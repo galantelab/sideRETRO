@@ -83,8 +83,9 @@ For full documentation, please visit <https://sideretro.readthedocs.io>.
 
 * **Quality and filters**
 
-   A quality score for each event and filters for the insertion point, so the events that `PASS` are good
-   targets for validation.
+   A quality score for each event and filters for the insertion point and for the evidence of a
+   retrotransposition - an exon-exon junction, the poly-A tail or a target site duplication -, so the events
+   that `PASS` are good targets for validation.
 
 * **Ready for validation**
 

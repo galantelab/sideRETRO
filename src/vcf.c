@@ -65,6 +65,9 @@ static const VCFFilterDef filter_defs[] =
 		"Only one breakpoint found: The target site is not described"},
 	{VCF_FILTER_TSD_OUTLIER,        "TSDOutlier",
 		"Target site duplication longer than the threshold (make-vcf --max-tsd)"},
+	{VCF_FILTER_NO_HALLMARK,        "NoHallmark",
+		"No hallmark of retrotransposition (HALLMARKS): No exon-exon junction, no poly-A tail"
+		" and no target site duplication outside a tandem repeat"},
 	{0, NULL, NULL}
 };
 
@@ -314,8 +317,9 @@ vcf_print_header (const List *hl, Hash *contig_len,
 		" Evidence of a processed transcript\">\n"
 		"##INFO=<ID=EEJLIST,Number=.,Type=String,Description=\"Exon-exon junctions spanned by split reads as 'exon_id1-exon_id2'\">\n"
 		"##INFO=<ID=EXONIC,Number=.,Type=String,Description=\"Host gene IDs for a retrocopy inserted into an exon\">\n"
-		"##INFO=<ID=HALLMARKS,Number=.,Type=String,Description=\"Retrocopy hallmarks observed: TSD (target site duplication),"
-		" POLYA (poly-A tail) and EEJ (exon-exon junctions spanned by split reads)\">\n"
+		"##INFO=<ID=HALLMARKS,Number=.,Type=String,Description=\"Retrocopy hallmarks observed: TSD (target site duplication,"
+		" TSITE=DUP, not at a tandem repeat other than a run of A or T), POLYA (poly-A tail) and EEJ (exon-exon"
+		" junctions spanned by split reads)\">\n"
 		"##INFO=<ID=IMPRECISE,Number=0,Type=Flag,Description=\"Imprecise structural variation\">\n"
 		"##INFO=<ID=INTRONIC,Number=.,Type=String,Description=\"Host gene IDs for a retrocopy inserted into an intron\">\n"
 		"##INFO=<ID=IR,Number=1,Type=Integer,Description=\"Intron retention: Number of reads at the insertion whose mate is"
@@ -1450,15 +1454,25 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 
 			/*
 			* Filters: A PASS retrocopy has its insertion point
-			* well defined - a target for validation. The poly-A
-			* and the exon-exon junctions are reported, but they
-			* do not filter. Duplication, blunt insertion and
-			* deletion are all valid target sites
+			* well defined - a target for validation - and at
+			* least one hallmark of retrotransposition.
+			* Duplication, blunt insertion and deletion are all
+			* valid target sites
 			*/
 			qual = vcf_qual (gi, hl);
 			num_breakpoints = (b.breakpoint_left_sr > 0) + (b.breakpoint_right_sr > 0);
 			both_breakpoints = num_breakpoints == 2;
 			tsd_len = b.breakpoint_left - b.breakpoint_right + 1;
+
+			/*
+			* The TSD is a hallmark when the target site is a
+			* duplication, but not at a tandem repeat: A repeat
+			* that slipped looks like one. A run of A or T is
+			* the exception - LINE-1 cuts at T-rich sites
+			*/
+			tsd = both_breakpoints && tsd_len >= opt->min_tsd
+				&& (!has_tr || (tr.unit_len == 1
+							&& (tr.unit[0] == 'A' || tr.unit[0] == 'T')));
 
 			// A single parental gene, or one chosen
 			// among overlapped parental genes
@@ -1499,6 +1513,10 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 			// A deletion is bounded by the cluster window
 			if (both_breakpoints && tsd_len > opt->max_tsd)
 				failed |= VCF_FILTER_TSD_OUTLIER;
+
+			// No evidence that it is a retrocopy
+			if (!tsd && b.polya_sr == 0 && b.eej == 0)
+				failed |= VCF_FILTER_NO_HALLMARK;
 
 			failed &= ~opt->disabled_filters;
 
@@ -1556,10 +1574,6 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 				xfprintf (fp, ";PGEXONS=%s", b.pg_exons);
 
 			// Hallmarks observed
-			// The TSD is a hallmark when the target site is
-			// a duplication
-			tsd = both_breakpoints && tsd_len >= opt->min_tsd;
-
 			if (tsd || b.polya_sr > 0 || b.eej > 0)
 				xfprintf (fp, ";HALLMARKS=%s%s%s%s%s",
 						tsd ? "TSD" : "",

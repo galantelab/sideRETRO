@@ -65,7 +65,10 @@ typedef struct _VCFOption VCFOption;
  * breakpoints, which describe the target site: A
  * duplication, a blunt insertion or a deletion. Only
  * the duplication length is checked - a long one comes
- * from breakpoints of unrelated reads
+ * from breakpoints of unrelated reads. And it needs a
+ * hallmark of retrotransposition: An exon-exon junction,
+ * the poly-A tail or a duplication outside a tandem
+ * repeat
  */
 enum _VCFFilter
 {
@@ -75,7 +78,8 @@ enum _VCFFilter
 	VCF_FILTER_LOW_SR             = 8,
 	VCF_FILTER_NO_BREAKPOINT      = 16,
 	VCF_FILTER_ONE_BREAKPOINT     = 32,
-	VCF_FILTER_TSD_OUTLIER        = 64
+	VCF_FILTER_TSD_OUTLIER        = 64,
+	VCF_FILTER_NO_HALLMARK        = 128
 };
 
 typedef enum _VCFFilter VCFFilter;

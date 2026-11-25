@@ -289,12 +289,12 @@ START_TEST (test_vcf)
 	// others: -10 * log10 P(0/0) with GL (-33, -0.1, -5) = 329.0
 	const char *qual_filter[] = {
 		"\t.\tLowSR;OneBreakpoint\tSVTYPE=INS;",
-		"\t.\tAmbiguousParental;LowSR;NoBreakpoint\tSVTYPE=INS;",
-		"\t.\tAmbiguousParental\tSVTYPE=INS;",
-		"\t329.0\tAmbiguousParental;LowSR;NoBreakpoint\tSVTYPE=INS;",
-		"\t329.0\tAmbiguousParental;LowSR;NoBreakpoint\tSVTYPE=INS;",
-		"\t329.0\tAmbiguousParental;LowSR;NoBreakpoint\tSVTYPE=INS;",
-		"\t329.0\tAmbiguousParental;LowSR;NoBreakpoint\tSVTYPE=INS;",
+		"\t.\tAmbiguousParental;LowSR;NoBreakpoint;NoHallmark\tSVTYPE=INS;",
+		"\t.\tAmbiguousParental;NoHallmark\tSVTYPE=INS;",
+		"\t329.0\tAmbiguousParental;LowSR;NoBreakpoint;NoHallmark\tSVTYPE=INS;",
+		"\t329.0\tAmbiguousParental;LowSR;NoBreakpoint;NoHallmark\tSVTYPE=INS;",
+		"\t329.0\tAmbiguousParental;LowSR;NoBreakpoint;NoHallmark\tSVTYPE=INS;",
+		"\t329.0\tAmbiguousParental;LowSR;NoBreakpoint;NoHallmark\tSVTYPE=INS;",
 		"\t329.0\tLowSR\tSVTYPE=INS;"
 	};
 
@@ -401,7 +401,7 @@ START_TEST (test_vcf)
 	// (chr12) is longer than the maximum of 5, and the deletion
 	// of 1 base (chrY) is not checked
 	VCFOption opt2 = {
-		.min_tsd = VCF_DEFAULT_MIN_TSD,
+		.min_tsd          = VCF_DEFAULT_MIN_TSD,
 		.fasta_file       = fasta_file,
 		.min_qual         = 400,
 		.min_mapq         = 30,
@@ -415,12 +415,12 @@ START_TEST (test_vcf)
 
 	const char *filters2[] = {
 		"\tLowMAPQ\tSVTYPE=INS;",
-		"\tLowMAPQ;NoBreakpoint\tSVTYPE=INS;",
-		"\tLowMAPQ;TSDOutlier\tSVTYPE=INS;",
-		"\tLowQual;LowMAPQ;NoBreakpoint\tSVTYPE=INS;",
-		"\tLowQual;LowMAPQ;NoBreakpoint\tSVTYPE=INS;",
-		"\tLowQual;LowMAPQ;NoBreakpoint\tSVTYPE=INS;",
-		"\tLowQual;LowMAPQ;NoBreakpoint\tSVTYPE=INS;",
+		"\tLowMAPQ;NoBreakpoint;NoHallmark\tSVTYPE=INS;",
+		"\tLowMAPQ;TSDOutlier;NoHallmark\tSVTYPE=INS;",
+		"\tLowQual;LowMAPQ;NoBreakpoint;NoHallmark\tSVTYPE=INS;",
+		"\tLowQual;LowMAPQ;NoBreakpoint;NoHallmark\tSVTYPE=INS;",
+		"\tLowQual;LowMAPQ;NoBreakpoint;NoHallmark\tSVTYPE=INS;",
+		"\tLowQual;LowMAPQ;NoBreakpoint;NoHallmark\tSVTYPE=INS;",
 		"\tLowQual;LowMAPQ\tSVTYPE=INS;"
 	};
 
@@ -477,6 +477,25 @@ grep_vcf (const char *path, const char *needle)
 
 	while (!found && getline (&line, &len, fp) != EOF)
 		found = line[0] != '#' && strstr (line, needle) != NULL;
+
+	xfree (line);
+	xfclose (fp);
+	return found;
+}
+
+/*
+ * A header line has 'needle'
+ */
+static int
+grep_vcf_header (const char *path, const char *needle)
+{
+	FILE *fp = xfopen (path, "r");
+	char *line = NULL;
+	size_t len = 0;
+	int found = 0;
+
+	while (!found && getline (&line, &len, fp) != EOF)
+		found = line[0] == '#' && strstr (line, needle) != NULL;
 
 	xfree (line);
 	xfclose (fp);
@@ -767,7 +786,7 @@ START_TEST (test_vcf_primer)
 		"TTTTGGGGATTTTACGGA\n"
 		">RTC000001_eej1 chr2:21-30,51-60 PG=geneM FILTER=PASS junction=10 strand=- reads=6\n"
 		"TTCACAAAGCACGAACGGGC\n"
-		">RTC000006_empty chr1:91-112 PG=geneP FILTER=PASS junction=10\n"
+		">RTC000006_empty chr1:91-112 PG=geneP FILTER=NoHallmark junction=10\n"
 		"CTAACCTGAGGTAAACCAGGTC\n"
 		">RTC000005_left chr1:141-150 PG=geneP FILTER=TSDOutlier junction=10\n"
 		"CCTAGCCAAGAA\n";
@@ -1011,8 +1030,10 @@ START_TEST (test_vcf_tsite_repeat)
 	populate_db (db);
 
 	/*
-	* chrY (2200 bases) without tandem repeats, but two:
+	* chrY (2200 bases) without tandem repeats, but four:
 	* - CA x 10 from 95 to 114;
+	* - A x 13 from 599 to 611;
+	* - G x 12 from 800 to 811;
 	* - ATTC x 5.25 from 1989 to 2009
 	*/
 	fd = xmkstemp (fasta_file);
@@ -1029,10 +1050,10 @@ START_TEST (test_vcf_tsite_repeat)
 		"CGATCCGTAGGGGCAGCGCAGTATGCCAAGACTATAGGCACTGTCGCATCACAAACGATT\n"
 		"AACTGATAAATGAGCCCTTTATGACACGGGCATATGACTGGTTTACGATAGTATGTCCAA\n"
 		"CGGCGAGCTTTACATTTGCTGTGAGAGGTACAGGGATTAGTGAGAAGCCGTGCGTATCAA\n"
-		"TTCGTACCTTGGGGGTCGTTACCACTCTGTTCCCACGAGCGGCATTTCTGGATGGCCAGC\n"
+		"AAAAAAAAAAAGGGGTCGTTACCACTCTGTTCCCACGAGCGGCATTTCTGGATGGCCAGC\n"
 		"TTTTGACATTTAATTTCACCCATAAACCAGCGTAAAGCTGCAAGTGGCTCCATGAACTTA\n"
 		"GCTGCTAGTGTCAGACTCGCCTCGGATCCTTACTACACTAACTTGAACGCCTAGTGGTCA\n"
-		"AAGAGTACTGGTAATCGTCGGTATCTATATAAGCAGGGGAGGGGAAACATTTGTTCTCAG\n"
+		"AAGAGTACTGGTAATCGTCGGGGGGGGGGGGAGCAGGGGAGGGGAAACATTTGTTCTCAG\n"
 		"CCGGTGACTCCTAATGCTAAGACATTTCCCTTCAGGGGGGGCTCCCCCGCGATGCCATAA\n"
 		"ATCTGAGCAACCAGCTGAAGCAGGCACGACAGTGCGACATTATATCACTGTGGTAGGTTA\n"
 		"GCTTCATCTAATGTCCAACTAGCCGGCCAATTCGCATGATACCTCTCCATCTGACCCAAG\n"
@@ -1067,34 +1088,44 @@ START_TEST (test_vcf_tsite_repeat)
 		.max_tsd = VCF_DEFAULT_MAX_TSD
 	};
 
+	// Without the poly-A, its only possible hallmark is
+	// the TSD
+	db_exec (db, "UPDATE retrocopy SET polya_sr = 0 WHERE id = 8");
+
 	/*
 	* The chrY retrocopy with its breakpoints moved. The
 	* repeat must touch the site - from one breakpoint to
 	* the other, or the single one - or VCF_TSITE_MARGIN
-	* bases around it. A NULL 'tr' means no repeat
+	* bases around it. A NULL 'tr' means no repeat. The
+	* TSD is a hallmark ('tsd') for a duplication outside
+	* a repeat, or at a run of A or T
 	*/
 	struct
 	{
 		int left;
 		int right;
 		const char *tr;
+		int tsd;
 	} cases[] = {
 		// Duplication over the repeat
-		{100, 91, ";TSITETR=CA:20"},
+		{100, 91, ";TSITETR=CA:20", 0},
 		// The margin touches the repeat, or not
-		{92, 83, ";TSITETR=CA:20"},
-		{91, 82, NULL},
+		{92, 83, ";TSITETR=CA:20", 0},
+		{91, 82, NULL, 1},
 		// A single breakpoint
-		{110, 0, ";TSITETR=CA:20"},
-		{0, 114, ";TSITETR=CA:20"},
+		{110, 0, ";TSITETR=CA:20", 0},
+		{0, 114, ";TSITETR=CA:20", 0},
 		// Far from the repeats
-		{300, 291, NULL},
+		{300, 291, NULL, 1},
+		// At a run of A, or of G
+		{610, 601, ";TSITETR=A:13", 1},
+		{810, 801, ";TSITETR=G:12", 0},
 		// A long deletion: A site at each breakpoint
-		{300, 2000, ";TSITETR=ATTC:21"},
+		{300, 2000, ";TSITETR=ATTC:21", 0},
 		// The flank goes beyond the end of the contig
-		{2190, 0, NULL},
+		{2190, 0, NULL, 0},
 		// No breakpoint, no target site
-		{0, 0, NULL}
+		{0, 0, NULL, 0}
 	};
 
 	char sql[256] = {};
@@ -1122,7 +1153,22 @@ START_TEST (test_vcf_tsite_repeat)
 			else
 				ck_assert_msg (!grep_vcf_record (vcf_file, "\tRTC000008\t", ";TSITETR="),
 						"case %d: unexpected TSITETR", i);
+
+			// No other hallmark: NoHallmark fails without the TSD
+			ck_assert_msg (grep_vcf_record (vcf_file, "\tRTC000008\t", ";HALLMARKS=TSD;")
+					== cases[i].tsd, "case %d: HALLMARKS", i);
+			ck_assert_msg (grep_vcf_record (vcf_file, "\tRTC000008\t", "NoHallmark\t")
+					== !cases[i].tsd, "case %d: NoHallmark", i);
 		}
+
+	ck_assert (grep_vcf_header (vcf_file, "##FILTER=<ID=NoHallmark,"));
+
+	// The filter can be disabled: Neither checked nor declared
+	opt.disabled_filters = VCF_FILTER_NO_HALLMARK;
+	vcf (db, vcf_file, &opt);
+
+	ck_assert (!grep_vcf_record (vcf_file, "\tRTC000008\t", "NoHallmark"));
+	ck_assert (!grep_vcf_header (vcf_file, "NoHallmark"));
 
 	db_close (db);
 	xunlink (db_file);

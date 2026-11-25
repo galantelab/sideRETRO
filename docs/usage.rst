@@ -501,7 +501,8 @@ discover the others::
 
   Filter Options:
      The FILTER column lists the checks that failed, or PASS: A
-     retrocopy with its insertion point well defined
+     retrocopy with its insertion point well defined and a hallmark
+     of retrotransposition (NoHallmark)
      -L, --min-qual             LowQual: Minimum QUAL [default:"20"]
      -Q, --min-mapq             LowMAPQ: Minimum mean mapping quality of the
                                 supporting reads [default:"20"]
@@ -517,8 +518,8 @@ discover the others::
                                 duplication [default:"25"]
      -x, --no-filter            Disable a filter. It may be passed multiple
                                 times: LowQual, LowMAPQ, AmbiguousParental,
-                                LowSR, NoBreakpoint, OneBreakpoint and
-                                TSDOutlier
+                                LowSR, NoBreakpoint, OneBreakpoint,
+                                TSDOutlier and NoHallmark
 
 
 So, in order to produce the results from a database input file like

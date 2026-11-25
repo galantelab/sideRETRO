@@ -918,11 +918,17 @@ too long, a blunt insertion or a deletion at the target site - besides
 the quality, the mapping quality of the reads and a single parental
 gene.
 
-The poly-A tail, the exon-exon junctions and the intron retention are
-**reported**, but they do not filter: They depend on the coverage and
-on the biology of the sample, and their absence does not make an
-insertion less real. See :ref:`QUAL <qual>` and :ref:`FILTER <filter>`
-for the details and the thresholds.
+It also asks for **one hallmark** of retrotransposition, whichever: An
+exon-exon junction, the poly-A tail or a target site duplication
+(``NoHallmark``). Each one depends on the coverage and on where the
+retrocopy was cut, so none of them is required alone. But an event
+without any of them cannot be told from an unprocessed copy of the
+gene, or from a tandem repeat that changed length. A duplication inside
+a tandem repeat does not count (see :ref:`Tandem repeats
+<method_tsite_repeat>`), unless the repeat is a run of A or T: LINE-1
+cuts at T-rich sites. The intron retention is **reported**, but it does
+not filter. See :ref:`QUAL <qual>` and :ref:`FILTER <filter>` for the
+details and the thresholds.
 
 References and Further Reading
 ==============================

@@ -466,7 +466,7 @@ class Sim:
                 if not r.startswith((READ_PREFIX + 'intron',
                                      READ_PREFIX + 'proper')))))),
             ('ROLES', self.roles(left, right, run, all_clips, polya)),
-            ('FILTER', self.filters(left, right, len(clips))),
+            ('FILTER', self.filters(left, right, len(clips), polya)),
             ('HALLMARKS', ','.join(h for h, ok in (
                 ('TSD', both and a.tsd_len >= MIN_TSD),
                 ('POLYA', polya),
@@ -480,14 +480,16 @@ class Sim:
             ('INS', self.ins),
         ]
 
-    def filters(self, left, right, n_right):
+    def filters(self, left, right, n_right, polya):
         """
         Expected FILTER with the make-vcf defaults: The simulated
         retrocopy has a single parental gene and reads with MAPQ
         60. It passes with at least 3 split reads (whatever their
         side), both breakpoints - a duplication, a blunt insertion or
-        a deletion at the target site - and a TSD of at most 25 bases.
-        The poly-A and the exon-exon junctions do not filter
+        a deletion at the target site - a TSD of at most 25 bases and
+        a hallmark: A TSD of at least MIN_TSD bases, the poly-A or an
+        exon-exon junction. The random genome has no tandem repeat
+        at the target site
         """
         a = self.args
         both = left and right
@@ -502,6 +504,9 @@ class Sim:
             f.append('OneBreakpoint')
         if both and a.tsd_len > 25:
             f.append('TSDOutlier')
+        if not ((both and a.tsd_len >= MIN_TSD) or polya
+                or a.n_junction_reads > 0):
+            f.append('NoHallmark')
 
         return ';'.join(f) if f else 'PASS'
 
