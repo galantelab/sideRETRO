@@ -185,7 +185,8 @@ def cases(t, sim):
 
     # ================= merge-call
     mc = ['merge-call']
-    db = [P('ps/sim.db')]
+    ref = ['-r', P('ref.fa')]
+    db = ref + [P('ps/sim.db')]
 
     t.run('mc: usage', mc, expect=['Usage: sider merge-call'])
     t.run('mc: help', mc + ['-h'], expect=['Blacklist Options:'])
@@ -212,7 +213,9 @@ def cases(t, sim):
           expect=['--near-gene-distance must be'])
     t.run('mc: max-tsd-del', mc + ['-D', '-1'] + db, rc=FAIL,
           expect=['--max-tsd-del must be'])
-    t.run('mc: reference not found', mc + ['-r', 'ponga.fa'] + db, rc=FAIL,
+    t.run('mc: no reference', mc + [P('ps/sim.db')], rc=FAIL,
+          expect=['Missing reference genome (--reference-file)'])
+    t.run('mc: reference not found', mc + ['-r', 'ponga.fa', P('ps/sim.db')], rc=FAIL,
           expect=["--reference-file 'ponga.fa': No such file"])
     t.run('mc: phred-quality', mc + ['-Q', '-1'] + db, rc=FAIL,
           expect=['--phred-quality must be'])
@@ -227,33 +230,32 @@ def cases(t, sim):
                 '-b', 'chrY', '-B', P('black.gtf'), '-P', '10', '-T', 'gene',
                 '-A', 'gene_type=processed_pseudogene', '-N', 'gene_name',
                 '-x', '100000', '-g', '1', '--near-gene-distance=3', '-D', '20000',
-                '-r', P('ref.fa'), '-t', '2', '-Q', '1'] + db,
+                '-t', '2', '-Q', '1'] + db,
           expect=['merge-call summary', '--blacklist-region=', '--max-tsd-del=20000',
                   '--near-gene-distance=3',
                   '--gff-attribute=', '--reference-file=', 'Predicted sequence'])
     t.run('mc: run with BED blacklist, two databases',
-          mc + ['-o', P('mc2'), '-B', P('black.bed'), P('ps/sim.db'),
-                P('ps2/out.db')],
+          mc + ['-o', P('mc2'), '-B', P('black.bed')] + db + [P('ps2/out.db')],
           expect=['Databases                2'])
     shutil.copy(P('ps/sim.db'), P('inplace.db'))
     with open(P('dbs.txt'), 'w') as fp:
         fp.write(P('inplace.db') + '\n')
     t.run('mc: run in place from a list, quiet',
-          mc + ['-I', '-q', '-l', P('mc3.log'), '-i', P('dbs.txt')],
+          mc + ['-I', '-q', '-l', P('mc3.log'), '-i', P('dbs.txt')] + ref,
           absent=['summary'])
     shutil.copy(P('ps/sim.db'), P('inplace1.db'))
     t.run('mc: run in place, one database',
-          mc + ['-I', P('inplace1.db')],
+          mc + ['-I', P('inplace1.db')] + ref,
           expect=['Databases                1'])
     shutil.copy(P('ps/sim.db'), P('inplace2.db'))
     t.run('mc: run in place, two databases',
-          mc + ['-I', P('inplace2.db'), P('ps2/out.db')],
+          mc + ['-I', P('inplace2.db'), P('ps2/out.db')] + ref,
           expect=['Databases                2'])
-    t.run('mc: the same sample twice', mc + ['-o', P('mc5'), P('ps/sim.db'),
-          P('ps3/out.db')], rc=-6,
+    t.run('mc: the same sample twice', mc + ['-o', P('mc5')] + db
+          + [P('ps3/out.db')], rc=-6,
           expect=['is in both', 'Merge each sample only once'])
     t.run('mc: the same database by two paths',
-          mc + ['-o', P('mc6'), P('ps/sim.db'), os.path.join(t.d, '.', 'ps', 'sim.db'),
+          mc + ['-o', P('mc6')] + db + [os.path.join(t.d, '.', 'ps', 'sim.db'),
                 P('ps2/out.db')],
           expect=['Merge it only once', 'Databases                2'])
     t.run('mc: no cluster', mc + ['-o', P('mc4'), '-m', '1000'] + db,
@@ -261,15 +263,17 @@ def cases(t, sim):
 
     # ================= make-vcf
     vcf = ['make-vcf']
-    mdb = [P('mc/merged.db')]
+    mdb = ref + [P('mc/merged.db')]
 
     t.run('vcf: usage', vcf, expect=['Usage: sider make-vcf'])
     t.run('vcf: help', vcf + ['-h'], expect=['Filter Options:'])
     t.run('vcf: invalid option', vcf + ['--ponga'], rc=FAIL)
     t.run('vcf: database not found', vcf + ['ponga.db'], rc=FAIL,
           expect=["SQLite3 database file 'ponga.db': No such file"])
-    t.run('vcf: reference not found', vcf + ['-r', 'ponga.fa'] + mdb, rc=FAIL,
-          expect=["--reference-file 'ponga.fa': No such file"])
+    t.run('vcf: no reference', vcf + [P('mc/merged.db')], rc=FAIL,
+          expect=['Missing reference genome (--reference-file)'])
+    t.run('vcf: reference not found', vcf + ['-r', 'ponga.fa', P('mc/merged.db')],
+          rc=FAIL, expect=["--reference-file 'ponga.fa': No such file"])
     t.run('vcf: near-gene-dist', vcf + ['-n', '-1'] + mdb, rc=FAIL,
           expect=['--near-gene-dist must be'])
     t.run('vcf: orientation-error', vcf + ['-e', '-1'] + mdb, rc=FAIL,
@@ -294,19 +298,16 @@ def cases(t, sim):
 
     t.run('vcf: run with options',
           vcf + ['-o', P('vcf'), '-p', 'sim', '-l', P('vcf.log'), '-d',
-                 '-r', P('ref.fa'), '-n', '5000', '-e', '0.1', '-L', '10',
+                 '-n', '5000', '-e', '0.1', '-L', '10',
                  '-Q', '10', '-S', '2', '-T', '30', '-x', 'TSDOutlier',
                  '-x', 'LowQual', '-x', 'OneBreakpoint', '-f', '50', '-i', '3'] + mdb,
           expect=['make-vcf summary', 'PASS', '--no-filter=TSDOutlier',
                   '--no-filter=OneBreakpoint', '--min-sr=2', '--max-tsd=30',
                   '--primer-flank=50', '--min-ir=3', '--reference-file=',
                   'sim.primer.fa'])
-    t.run('vcf: run without reference, quiet',
+    t.run('vcf: run quiet with log',
           vcf + ['-o', P('vcf2'), '-q', '-l', P('vcf2.log')] + mdb,
           absent=['summary'])
-    t.run('vcf: run without reference',
-          vcf + ['-o', P('vcf3')] + mdb,
-          expect=["REF is 'N'", 'the primer file is not written'])
 
     with open(P('normal.sam'), 'w') as fp:
         fp.write('@SQ\tSN:chr1\tLN:20000\n'

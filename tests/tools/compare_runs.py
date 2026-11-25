@@ -199,7 +199,7 @@ def compare_dirs(old_dir, new_dir, out=sys.stdout):
     return same
 
 
-def run_sim(sider, sim_dir, run_dir, ref):
+def run_sim(sider, sim_dir, run_dir):
     # The steps of tests/sim/run_sim_test.py, keeping the logs
     os.makedirs(run_dir)
     steps = [
@@ -208,8 +208,8 @@ def run_sim(sider, sim_dir, run_dir, ref):
          os.path.join(sim_dir, 'sim.sam')],
         # In place, as the user's runs: The same database
         [sider, 'merge-call', '-q', '-I', '-l', os.path.join(run_dir, 'mc.log'),
-         '-p', 'sider'] + (['-r', ref] if ref else [])
-        + [os.path.join(run_dir, 'sider.db')],
+         '-p', 'sider', '-r', os.path.join(sim_dir, 'ref.fa'),
+         os.path.join(run_dir, 'sider.db')],
         [sider, 'make-vcf', '-q', '-l', os.path.join(run_dir, 'vcf.log'),
          '-r', os.path.join(sim_dir, 'ref.fa'), '-o', run_dir, '-p', 'sider',
          os.path.join(run_dir, 'sider.db')],
@@ -268,26 +268,21 @@ def compare_sim(old, new, sim):
 
     with tempfile.TemporaryDirectory(prefix='sider_cmp_') as d:
         for i, (args, noise) in enumerate(scenarios):
-            for ref in (True, False):
-                sim_dir = os.path.join(d, 'sim%d' % i)
-                if not os.path.exists(sim_dir):
-                    subprocess.run([sys.executable, sim, '-o', sim_dir] + args,
-                                   check=True, stdout=subprocess.DEVNULL)
-                    if noise:
-                        add_noise(os.path.join(sim_dir, 'sim.sam'), noise, i)
+            sim_dir = os.path.join(d, 'sim%d' % i)
+            subprocess.run([sys.executable, sim, '-o', sim_dir] + args,
+                           check=True, stdout=subprocess.DEVNULL)
+            if noise:
+                add_noise(os.path.join(sim_dir, 'sim.sam'), noise, i)
 
-                tag = '%d%s' % (i, 'r' if ref else '')
-                old_dir = os.path.join(d, 'old' + tag)
-                new_dir = os.path.join(d, 'new' + tag)
-                r = os.path.join(sim_dir, 'ref.fa') if ref else None
-                run_sim(old, sim_dir, old_dir, r)
-                run_sim(new, sim_dir, new_dir, r)
+            old_dir = os.path.join(d, 'old%d' % i)
+            new_dir = os.path.join(d, 'new%d' % i)
+            run_sim(old, sim_dir, old_dir)
+            run_sim(new, sim_dir, new_dir)
 
-                print('#### %s%s%s' % (' '.join(args),
-                                       ' + %d noise pairs' % noise if noise else '',
-                                       '' if ref else ' (no reference)'))
-                same &= compare_dirs(old_dir, new_dir)
-                print()
+            print('#### %s%s' % (' '.join(args),
+                                 ' + %d noise pairs' % noise if noise else ''))
+            same &= compare_dirs(old_dir, new_dir)
+            print()
 
     print('ALL SAME CALLS' if same else 'SOME CALLS DIFFER')
     return same

@@ -180,13 +180,8 @@ print_summary (const MergeCall *mc, sqlite3 *db, const char *db_file,
 	SUMMARY_RTC ("Exon-exon junctions",
 			"SELECT COUNT(DISTINCT retrocopy_id) FROM junction");
 
-	if (mc->fasta_file != NULL)
-		{
-			SUMMARY_RTC ("Predicted sequence",
-					"SELECT COUNT(*) FROM insertion WHERE seq IS NOT NULL");
-		}
-	else
-		summary_line (s, "Predicted sequence", "- (pass --reference-file)");
+	SUMMARY_RTC ("Predicted sequence",
+			"SELECT COUNT(*) FROM insertion WHERE seq IS NOT NULL");
 
 #undef SUMMARY_RTC
 
@@ -213,10 +208,8 @@ print_summary (const MergeCall *mc, sqlite3 *db, const char *db_file,
 
 	summary_section (s, "Output");
 	summary_line (s, "Database", "%s", db_file);
-	summary_line (s, "Next step", "%s make-vcf%s%s %s", PACKAGE,
-			mc->fasta_file != NULL ? " -r " : "",
-			mc->fasta_file != NULL ? mc->fasta_file : "",
-			db_file);
+	summary_line (s, "Next step", "%s make-vcf -r %s %s", PACKAGE,
+			mc->fasta_file, db_file);
 
 	summary_log (s);
 	summary_free (s);
@@ -427,15 +420,15 @@ print_usage (FILE *fp)
 		"Usage: %s merge-call [-h] [-q] [-d] [-l FILE] [-o DIR] [-p STR] [-I]\n"
 		"       %*c            [-c INT] [-e INT] [-m INT] [-b STR] [-B FILE]\n"
 		"       %*c            [-P INT] [-T STR] [-A KEY=VALUE] [-N STR]\n"
-		"       %*c            [-x INT] [-g INT] [-n INT] [-r FILE]\n"
-		"       %*c            [-t INT] [-Q INT] [-i FILE] <FILE> ...\n"
+		"       %*c            [-x INT] [-g INT] [-n INT] [-t INT]\n"
+		"       %*c            [-Q INT] [-i FILE] -r FILE <FILE> ...\n"
 		"\n"
 		"Discover and annotate retrocopy insertions\n"
 		"\n"
 		"Examples:\n"
 		"   $ sider mc -l mc.log -I -r hg38.fa in.db\n"
-		"   $ sider mc -e 500 -m 20 -p in1_plus_in2 in1.db in2.db\n"
-		"   $ sider mc -b chrY -B gencode.gff3 -t 10 -Q 20 -i list.txt\n"
+		"   $ sider mc -e 500 -m 20 -p in1_plus_in2 -r hg38.fa in1.db in2.db\n"
+		"   $ sider mc -b chrY -B gencode.gff3 -t 10 -Q 20 -r hg38.fa -i list.txt\n"
 		"\n"
 		"Output:\n"
 		"   The annotated retrocopies, at the first input database (with '-I')\n"
@@ -449,6 +442,9 @@ print_usage (FILE *fp)
 		"                              databases. Not mandatory if the databases are\n"
 		"                              passed as arguments. If both are given, their\n"
 		"                              union is used\n"
+		"   -r, --reference-file       FASTA file of the reference genome. The\n"
+		"                              retrocopy ends are searched in the parental\n"
+		"                              exons and its sequence is predicted\n"
 		"\n"
 		"Input/Output Options:\n"
 		"   -h, --help                 Show help options\n"
@@ -506,9 +502,6 @@ print_usage (FILE *fp)
 		"                              to merge the retrocopies at its two flanks, each\n"
 		"                              with a single breakpoint. 0 merges none\n"
 		"                              [default:\"%d\"]\n"
-		"   -r, --reference-file       FASTA file of the reference genome. With it,\n"
-		"                              the retrocopy ends are searched in the parental\n"
-		"                              exons and its sequence is predicted\n"
 		"\n"
 		"Genotyping Options:\n"
 		"   -t, --threads              Number of threads [default:\"%d\"]\n"
@@ -667,7 +660,14 @@ merge_call_validate (MergeCall *mc)
 			rc = EXIT_FAILURE; goto Exit;
 		}
 
-	if (mc->fasta_file != NULL && !exists (mc->fasta_file))
+	if (mc->fasta_file == NULL)
+		{
+			fprintf (stderr, "%s: Missing reference genome (--reference-file)\n", PACKAGE);
+			print_try_help (stderr);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
+	if (!exists (mc->fasta_file))
 		{
 			fprintf (stderr, "%s: --reference-file '%s': No such file\n", PACKAGE,
 					mc->fasta_file);
@@ -823,10 +823,9 @@ merge_call_print (const MergeCall *mc)
 				}
 		}
 
-	if (mc->fasta_file != NULL)
-		string_concat_printf (msg,
-			"  --reference-file=%s \\\n",
-			mc->fasta_file);
+	string_concat_printf (msg,
+		"  --reference-file=%s \\\n",
+		mc->fasta_file);
 
 	string_concat_printf (msg,
 		"  --parental-distance=%d \\\n"

@@ -325,6 +325,9 @@ known by calling it without any argument::
                                 databases. Not mandatory if the databases are
                                 passed as arguments. If both are given, their
                                 union is used
+     -r, --reference-file       FASTA file of the reference genome. The
+                                retrocopy ends are searched in the parental
+                                exons and its sequence is predicted
 
   Input/Output Options:
      -h, --help                 Show help options
@@ -382,9 +385,6 @@ known by calling it without any argument::
                                 to merge the retrocopies at its two flanks, each
                                 with a single breakpoint. 0 merges none
                                 [default:"50000"]
-     -r, --reference-file       FASTA file of the reference genome. With it,
-                                the retrocopy ends are searched in the parental
-                                exons and its sequence is predicted
 
   Genotyping Options:
      -t, --threads              Number of threads [default:"1"]
@@ -395,11 +395,11 @@ known by calling it without any argument::
 And likewise, user can call a set of database files directly, or using a list of
 files::
 
-  $ sider merge-call database1.db database2.db -I
+  $ sider merge-call -r my_reference_genome.fa database1.db database2.db -I
 
 or ::
 
-  $ sider merge-call -i my_databases_list.txt -I
+  $ sider merge-call -r my_reference_genome.fa -i my_databases_list.txt -I
 
 .. note::
    Again, note the ``-I`` option that is not mandatory but would lead the creation
@@ -442,9 +442,9 @@ junctions** from the reads alone. With the reference genome, it goes one step
 further: It searches the clipped sequences at the junctions into the exons of
 the parental gene, in order to find **where** the retrocopy begins and ends
 (the 5' truncation) and to **predict** its sequence. See the
-:ref:`methodology <chap_methodology>` for the details. The option is not
-mandatory, but we recommend it: Only the exons of the parental genes are
-read from the FASTA, so it costs little.
+:ref:`methodology <chap_methodology>` for the details. The option is
+mandatory: Only the exons of the parental genes are read from the FASTA,
+so it costs little.
 
 To see another example of the ``merge-call`` command chained in a real workflow,
 please refer to the :ref:`A Practical Workflow <pract_wf>` section.
@@ -457,16 +457,21 @@ The third and last step to the **sideRETRO**'s *"crusade to retrocopies"* is the
 clustered tables in the database files populated at the ``merge-call`` step and
 writes the results: A **VCF** file with all retrocopy insertions annotated, a
 **TSV** file with the reads supporting each one, a **FASTA** file with the
-predicted sequences and, with the reference genome, another **FASTA** file with
-the sequences for primer design. All of them are described at :ref:`Output <chap_output>`.
+predicted sequences and another **FASTA** file with the sequences for primer
+design. All of them are described at :ref:`Output <chap_output>`.
 
-This command has no mandatory options, but it is worth try to discover the
-others::
+The reference genome is its only mandatory option, but it is worth try to
+discover the others::
 
   $ sider make-vcf
 
   Arguments:
      SQLite3 database processed by 'merge-call'
+
+  Mandatory Options:
+     -r, --reference-file       FASTA file of the reference genome, for the REF
+                                column, the contigs, the target site and the
+                                primer file
 
   Input/Output Options:
      -h, --help                 Show help options
@@ -490,9 +495,6 @@ others::
                                 mate inside an intron of the parental gene,
                                 to report the intron as retained (IR, IRLIST)
                                 [default:"2"]
-     -r, --reference-file       FASTA file of the reference genome, for the REF
-                                column, the contigs, the TSD sequence and
-                                the primer file
      -f, --primer-flank         Number of bases of the reference at each side
                                 of a junction at the primer file
                                 [default:"200"]
@@ -517,10 +519,10 @@ others::
 So, in order to produce the results from a database input file like
 *my_database.db*, just type::
 
-  $ sider make-vcf my_database.db
+  $ sider make-vcf -r my_reference_genome.fa my_database.db
 
-This will produce the *out.vcf*, *out.rnames.tsv* and *out.insertions.fa*
-files - and *out.primer.fa*, when the reference genome is passed (``-r``).
+This will produce the *out.vcf*, *out.rnames.tsv*, *out.insertions.fa* and
+*out.primer.fa* files.
 
 Let's add more options to customize it to our needs (with the short version of
 the command only for symmetry)::
@@ -536,8 +538,7 @@ Command ``make-vcf`` is very simple and doesn't allow the user to use threads.
 The only new options are ``-r``, which must specify the reference genome in
 FASTA format (like **gencode**'s *Hg38.fa*) and ``-n``, where user can establish
 a distance threshold for genes surrounding insertion points for additional
-information in the output VCF file. Without ``-r``, the VCF ``REF`` column is
-``N`` and the TSD sequence is not reported. Only the bases at the insertion
+information in the output VCF file. Only the bases around the insertion
 sites are read from the FASTA, not the whole genome.
 
 .. _sim_test:
@@ -578,7 +579,7 @@ Locks
   The waiting time, in milliseconds, can be changed with the environment variable
   ``SIDER_BUSY_TIMEOUT``::
 
-    $ SIDER_BUSY_TIMEOUT=600000 sider merge-call -I out.db
+    $ SIDER_BUSY_TIMEOUT=600000 sider merge-call -I -r hg38.fa out.db
 
 Storage
   Prefer a **local disk** for the databases. Network filesystems (NFS, Lustre,

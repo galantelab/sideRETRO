@@ -23,8 +23,7 @@ results with the simulated truth. Used by 'meson test':
   $ run_sim_test.py SIDER RETROCOPY_SIM
 
 Each scenario runs retrocopy_sim.py, process-sample, merge-call
-(with and without the reference) and make-vcf into a temporary
-directory, and checks the VCF, the read names and the predicted
+and make-vcf into a temporary directory, and checks the VCF, the read names and the predicted
 insertions files.
 
 A last scenario checks that the calls depend only on the reads: The
@@ -89,15 +88,14 @@ def run(cmd, log):
     return subprocess.run(cmd, stdout=log, stderr=subprocess.STDOUT).returncode
 
 
-def scenario(sider, sim, name, args, with_ref, log):
+def scenario(sider, sim, name, args, log):
     with tempfile.TemporaryDirectory(prefix='sider_sim_') as d:
         steps = [
             [sim, '-o', d] + args,
             [sider, 'process-sample', '-q', '-s', '-a', os.path.join(d, 'genes.gtf'),
              '-o', d, os.path.join(d, 'sim.sam')],
-            [sider, 'merge-call', '-q', '-o', d, '-p', 'merged']
-            + (['-r', os.path.join(d, 'ref.fa')] if with_ref else [])
-            + [os.path.join(d, 'out.db')],
+            [sider, 'merge-call', '-q', '-o', d, '-p', 'merged',
+             '-r', os.path.join(d, 'ref.fa'), os.path.join(d, 'out.db')],
             [sider, 'make-vcf', '-q', '-r', os.path.join(d, 'ref.fa'),
              '-o', d, '-p', 'merged', os.path.join(d, 'merged.db')],
         ]
@@ -108,9 +106,6 @@ def scenario(sider, sim, name, args, with_ref, log):
 
         check = [sim, '--check', os.path.join(d, 'merged.vcf'),
                  os.path.join(d, 'truth.tsv')]
-
-        if not with_ref:
-            check.append('--no-ref')
 
         return run(check, log) == 0
 
@@ -196,13 +191,11 @@ def main():
     with tempfile.NamedTemporaryFile('w', prefix='sider_sim_', suffix='.log',
                                      delete=False) as log:
         for name, args in SCENARIOS:
-            for with_ref in (True, False):
-                full = '%s%s' % (name, '' if with_ref else ' (no reference)')
-                log.write('==== %s\n' % full)
-                ok = scenario(sider, sim, name, args, with_ref, log)
-                print('%-32s %s' % (full, 'ok' if ok else 'FAIL'))
-                if not ok:
-                    failed.append(full)
+            log.write('==== %s\n' % name)
+            ok = scenario(sider, sim, name, args, log)
+            print('%-32s %s' % (name, 'ok' if ok else 'FAIL'))
+            if not ok:
+                failed.append(name)
 
         name = 'alignment ids shuffled'
         log.write('==== %s\n' % name)

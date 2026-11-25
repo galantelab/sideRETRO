@@ -23,8 +23,7 @@ same prefix (option ``-p``, *out* by default):
 
 ``<prefix>.primer.fa``
   The **sequences for primer design**: Around the insertion point and
-  the exon-exon junctions of each retrocopy, in FASTA format. It is
-  written only with the reference genome (``make-vcf -r``).
+  the exon-exon junctions of each retrocopy, in FASTA format.
 
 The files are tied together by the **retrocopy ID**
 (``RTC000001``, ``RTC000002`` ...), which is the ``ID`` column of
@@ -36,7 +35,7 @@ The VCF file
 ============
 
 The header lists the version of **sideRETRO**, the reference genome
-and its contigs (when ``-r`` is passed), the definition of every
+and its contigs, the definition of every
 INFO and FORMAT field, and finally the column names - with **one
 column per sample**, named after the alignment file without its
 extension.
@@ -528,9 +527,7 @@ insertion and tells the alleles apart, and another across an
 **exon-exon junction**, which proves that the copy came from a
 processed transcript - the parental gene has an intron there. The
 primer file gives the template sequences for both, ready for a
-primer design tool. It needs the reference genome (``make-vcf -r``),
-and the observed sequences at the junctions need ``merge-call -r``
-too.
+primer design tool.
 
 There are up to four kinds of record for each retrocopy with **at
 least one breakpoint**, named after the retrocopy ID::

@@ -783,7 +783,7 @@ the sum of their reads at ``IR``.
 Retrocopy ends and predicted sequence
 =====================================
 
-With the reference genome at hand (``merge-call -r``), the clipped
+With the reference genome (``merge-call -r``), the clipped
 sequences at the junctions can tell **where** the retrocopy begins and
 ends into its parental gene:
 

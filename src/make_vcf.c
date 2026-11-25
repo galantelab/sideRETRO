@@ -132,26 +132,16 @@ run (MakeVcf *v)
 	summary_line (s, "VCF records", "%s", summary_count (opt.num_records, b1));
 	summary_line (s, "PASS", "%s (%s)", summary_count (opt.num_pass, b1),
 			summary_percent (opt.num_pass, opt.num_records, b2));
-	summary_line (s, "Predicted sequences", "%s%s",
-			summary_count (opt.num_insertions, b1),
-			opt.num_insertions == 0 && opt.num_records > 0
-				? " (run merge-call with --reference-file)"
-				: "");
-	summary_line (s, "Primer sequences", "%s%s",
-			summary_count (opt.num_primers, b1),
-			v->fasta_file == NULL ? " (needs --reference-file)" : "");
+	summary_line (s, "Predicted sequences", "%s",
+			summary_count (opt.num_insertions, b1));
+	summary_line (s, "Primer sequences", "%s",
+			summary_count (opt.num_primers, b1));
 
 	summary_section (s, "Output");
 	summary_line (s, "VCF", "%s", vcf_file);
 	summary_line (s, "Read names", "%s", rnames_file);
 	summary_line (s, "Predicted insertions", "%s", insertion_file);
-
-	if (v->fasta_file != NULL)
-		summary_line (s, "Primer sequences", "%s", primer_file);
-
-	if (v->fasta_file == NULL)
-		summary_text (s, "Without --reference-file, REF is 'N', TSD is not reported "
-				"and the primer file is not written");
+	summary_line (s, "Primer sequences", "%s", primer_file);
 
 	summary_log (s);
 	summary_free (s);
@@ -170,13 +160,13 @@ print_usage (FILE *fp)
 		"%s\n"
 		"\n"
 		"Usage: %s make-vcf [-h] [-q] [-d] [-l FILE] [-o DIR] [-p STR]\n"
-		"       %*c          [-n INT] [-e FLOAT] [-r FILE] [-L FLOAT]\n"
-		"       %*c          [-Q INT] [-x STR] [-f INT] [-i INT] <FILE>\n"
+		"       %*c          [-n INT] [-e FLOAT] [-L FLOAT] [-Q INT]\n"
+		"       %*c          [-x STR] [-f INT] [-i INT] -r FILE <FILE>\n"
 		"\n"
 		"Write the annotated retrocopies to a VCF and to their companion files\n"
 		"\n"
 		"Examples:\n"
-		"   $ sider vcf in.db\n"
+		"   $ sider vcf -r hg38.fa in.db\n"
 		"   $ sider vcf -r hg38.fa -o result in.db\n"
 		"\n"
 		"Output:\n"
@@ -185,10 +175,14 @@ print_usage (FILE *fp)
 		"   <prefix>.insertions.fa   The predicted retrocopy sequences\n"
 		"   <prefix>.primer.fa       The sequences around the insertion point and\n"
 		"                            the exon-exon junctions, for primer design\n"
-		"                            (with --reference-file)\n"
 		"\n"
 		"Arguments:\n"
 		"   SQLite3 database processed by 'merge-call'\n"
+		"\n"
+		"Mandatory Options:\n"
+		"   -r, --reference-file       FASTA file of the reference genome, for the REF\n"
+		"                              column, the contigs, the target site and the\n"
+		"                              primer file\n"
 		"\n"
 		"Input/Output Options:\n"
 		"   -h, --help                 Show help options\n"
@@ -212,9 +206,6 @@ print_usage (FILE *fp)
 		"                              mate inside an intron of the parental gene,\n"
 		"                              to report the intron as retained (IR, IRLIST)\n"
 		"                              [default:\"%d\"]\n"
-		"   -r, --reference-file       FASTA file of the reference genome, for the REF\n"
-		"                              column, the contigs, the TSD sequence and\n"
-		"                              the primer file\n"
 		"   -f, --primer-flank         Number of bases of the reference at each side\n"
 		"                              of a junction at the primer file\n"
 		"                              [default:\"%d\"]\n"
@@ -308,8 +299,15 @@ make_vcf_validate (MakeVcf *vcf)
 	* Validate options
 	*/
 
-	// If a FASTA file was passed, then it must exist
-	if (vcf->fasta_file != NULL && !exists (vcf->fasta_file))
+	// The reference genome is mandatory
+	if (vcf->fasta_file == NULL)
+		{
+			fprintf (stderr, "%s: Missing reference genome (--reference-file)\n", PACKAGE);
+			print_try_help (stderr);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
+	if (!exists (vcf->fasta_file))
 		{
 			fprintf (stderr, "%s: --reference-file '%s': No such file\n",
 					PACKAGE, vcf->fasta_file);
@@ -419,12 +417,9 @@ make_vcf_print (MakeVcf *vcf)
 	if (vcf->silent)
 		string_concat_printf (msg, "  --silent \\\n");
 
-	if (vcf->fasta_file != NULL)
-		{
-			string_concat_printf (msg,
-				"  --reference-file=%s \\\n",
-				vcf->fasta_file);
-		}
+	string_concat_printf (msg,
+		"  --reference-file=%s \\\n",
+		vcf->fasta_file);
 
 	if (vcf->disabled_ids->len > 0)
 		string_concat_printf (msg, "%s", vcf->disabled_ids->str);

@@ -280,26 +280,23 @@ vcf_print_header (const List *hl, Hash *contig_len,
 		"##source=%sv%s\n",
 		VCF_VERSION, timestamp, PACKAGE_NAME, PACKAGE_VERSION);
 
-	if (contig_len != NULL && opt->fasta_file != NULL)
+	xfprintf (fp,
+		"##reference=file://%s\n",
+		opt->fasta_file);
+
+	contigs = hash_get_keys_as_array (contig_len);
+	array_sort (contigs, cmpstringp);
+
+	for (i = 0; i < contigs->len; i++)
 		{
+			contig = array_get (contigs, i);
+			len = hash_lookup (contig_len, contig);
+
+			assert (len != NULL);
+
 			xfprintf (fp,
-				"##reference=file://%s\n",
-				opt->fasta_file);
-
-			contigs = hash_get_keys_as_array (contig_len);
-			array_sort (contigs, cmpstringp);
-
-			for (i = 0; i < contigs->len; i++)
-				{
-					contig = array_get (contigs, i);
-					len = hash_lookup (contig_len, contig);
-
-					assert (len != NULL);
-
-					xfprintf (fp,
-						"##contig=<ID=%s,length=%li>\n",
-						contig, *len);
-				}
+				"##contig=<ID=%s,length=%li>\n",
+				contig, *len);
 		}
 
 	// IMPRECISE = No one SR at breakpoint
@@ -1011,9 +1008,6 @@ vcf_region_lookup (Hash *fidx, const char *chr, long start, long end)
 	const char *seq = NULL;
 	char *key = NULL;
 
-	if (fidx == NULL)
-		return NULL;
-
 	key = fasta_region_key (chr, start, end);
 	seq = hash_lookup (fidx, key);
 	xfree (key);
@@ -1333,17 +1327,13 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 				: b.insertion_point - 1;
 
 			base = 'N';
+			ref = vcf_region_lookup (fidx, b.chr, pos, pos);
 
-			if (fidx != NULL)
-				{
-					ref = vcf_region_lookup (fidx, b.chr, pos, pos);
-
-					if (ref == NULL)
-						log_warn ("Retrocopy at %s:%li not found at the reference '%s': REF is 'N'",
-								b.chr, b.insertion_point, opt->fasta_file);
-					else
-						base = ref[0];
-				}
+			if (ref == NULL)
+				log_warn ("Retrocopy at %s:%li not found at the reference '%s': REF is 'N'",
+						b.chr, b.insertion_point, opt->fasta_file);
+			else
+				base = ref[0];
 
 			/*
 			* Filters: A PASS retrocopy has its insertion point
@@ -1625,7 +1615,7 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 void
 vcf (sqlite3 *db, const char *output_file, VCFOption *opt)
 {
-	assert (db != NULL && opt != NULL);
+	assert (db != NULL && opt != NULL && opt->fasta_file != NULL);
 	log_trace ("Inside %s", __func__);
 
 	FILE *fp = NULL;
@@ -1652,20 +1642,13 @@ vcf (sqlite3 *db, const char *output_file, VCFOption *opt)
 			ins_fp = xfopen (opt->insertion_file, "w");
 		}
 
-	// The primer file needs the reference genome
-	if (opt->fasta_file == NULL)
-		opt->primer_file = NULL;
-
 	if (opt->primer_file != NULL)
 		{
 			log_debug ("Create the primer file '%s'", opt->primer_file);
 			primer_fp = xfopen (opt->primer_file, "w");
 		}
 
-	if (opt->fasta_file != NULL)
-		fidx = vcf_index_regions (db, opt, &contig_len);
-	else
-		log_warn ("No reference genome (--reference-file): REF is 'N' and TSD is not reported");
+	fidx = vcf_index_regions (db, opt, &contig_len);
 
 	log_debug ("Get the VCF header line");
 	hl = vcf_get_header_line (db);
@@ -1688,10 +1671,6 @@ vcf (sqlite3 *db, const char *output_file, VCFOption *opt)
 		xfclose (primer_fp);
 
 	list_free (hl);
-
-	if (fidx != NULL)
-		hash_free (fidx);
-
-	if (contig_len != NULL)
-		hash_free (contig_len);
+	hash_free (fidx);
+	hash_free (contig_len);
 }

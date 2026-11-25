@@ -563,14 +563,6 @@ START_TEST (test_vcf_edge)
 	ck_assert (grep_vcf (vcf_file, ";NEAR=neargene;"));
 	ck_assert (grep_vcf (vcf_file, "chrZ\t149\tRTC000004\tN\t"));
 
-	// Without the reference: REF is 'N' and no TSD sequence
-	opt.fasta_file = NULL;
-	vcf (db, vcf_file, &opt);
-
-	ck_assert (grep_vcf (vcf_file, "chr10\t499\tRTC000002\tN\t"));
-	ck_assert (!grep_vcf (vcf_file, ";TSD="));
-	ck_assert (grep_vcf (vcf_file, ";TSDLEN=60;"));
-
 	db_close (db);
 	xunlink (db_file);
 	xunlink (vcf_file);
@@ -583,6 +575,7 @@ START_TEST (test_vcf_parental_chosen)
 	char db_file[] = "/tmp/ponga.db.XXXXXX";
 	char vcf_file[] = "/tmp/ponga.vcf.XXXXXX";
 	char insertion_file[] = "/tmp/ponga.ins.XXXXXX";
+	char fasta_file[] = "/tmp/ponga.fa.XXXXXX";
 	sqlite3 *db = NULL;
 	FILE *fp = NULL;
 	char *line = NULL;
@@ -592,6 +585,7 @@ START_TEST (test_vcf_parental_chosen)
 	db = create_db (db_file);
 	create_vcf (vcf_file);
 	create_vcf (insertion_file);
+	create_fasta (fasta_file);
 	populate_db (db);
 
 	// The first retrocopy (chr10, gene1): As if gene1 had
@@ -606,6 +600,7 @@ START_TEST (test_vcf_parental_chosen)
 		.min_mapq = VCF_DEFAULT_MIN_MAPQ,
 		.min_sr = VCF_DEFAULT_MIN_SR,
 		.max_tsd = VCF_DEFAULT_MAX_TSD,
+		.fasta_file = fasta_file,
 		.insertion_file = insertion_file
 	};
 
@@ -642,6 +637,7 @@ START_TEST (test_vcf_parental_chosen)
 	xunlink (db_file);
 	xunlink (vcf_file);
 	xunlink (insertion_file);
+	xunlink (fasta_file);
 }
 END_TEST
 
@@ -794,14 +790,7 @@ START_TEST (test_vcf_primer)
 	ck_assert_str_eq (buf, expected);
 	ck_assert_int_eq (opt.num_primers, 8);
 
-	// Without the reference, the primer file is not written
 	xunlink (primer_file);
-	opt.fasta_file = NULL;
-	opt.num_primers = 0;
-	vcf (db, vcf_file, &opt);
-
-	ck_assert_int_eq (opt.num_primers, 0);
-	ck_assert (!exists (primer_file));
 
 	db_close (db);
 	xunlink (db_file);
@@ -814,6 +803,7 @@ START_TEST (test_vcf_intron_retention)
 {
 	char db_file[] = "/tmp/ponga.db.XXXXXX";
 	char vcf_file[] = "/tmp/ponga.vcf.XXXXXX";
+	char fasta_file[] = "/tmp/ponga.fa.XXXXXX";
 	sqlite3 *db = NULL;
 	int fd = 0;
 
@@ -857,8 +847,10 @@ START_TEST (test_vcf_intron_retention)
 	db_exec (db, sql);
 
 	create_vcf (vcf_file);
+	create_fasta (fasta_file);
 
 	VCFOption opt = {
+		.fasta_file = fasta_file,
 		.min_qual = VCF_DEFAULT_MIN_QUAL,
 		.min_mapq = VCF_DEFAULT_MIN_MAPQ,
 		.min_ir = VCF_DEFAULT_MIN_IR
@@ -889,6 +881,7 @@ START_TEST (test_vcf_intron_retention)
 	db_close (db);
 	xunlink (db_file);
 	xunlink (vcf_file);
+	xunlink (fasta_file);
 }
 END_TEST
 
@@ -896,13 +889,16 @@ START_TEST (test_vcf_target_site)
 {
 	char db_file[] = "/tmp/ponga.db.XXXXXX";
 	char vcf_file[] = "/tmp/ponga.vcf.XXXXXX";
+	char fasta_file[] = "/tmp/ponga.fa.XXXXXX";
 	sqlite3 *db = NULL;
 
 	db = create_db (db_file);
 	create_vcf (vcf_file);
+	create_fasta (fasta_file);
 	populate_db (db);
 
 	VCFOption opt = {
+		.fasta_file = fasta_file,
 		.min_qual = VCF_DEFAULT_MIN_QUAL,
 		.min_mapq = VCF_DEFAULT_MIN_MAPQ,
 		.min_sr = VCF_DEFAULT_MIN_SR,
@@ -960,6 +956,7 @@ START_TEST (test_vcf_target_site)
 	db_close (db);
 	xunlink (db_file);
 	xunlink (vcf_file);
+	xunlink (fasta_file);
 }
 END_TEST
 
@@ -967,16 +964,19 @@ START_TEST (test_vcf_no_genotype_fail)
 {
 	char db_file[] = "/tmp/ponga.db.XXXXXX";
 	char vcf_file[] = "/tmp/ponga.vcf.XXXXXX";
+	char fasta_file[] = "/tmp/ponga.fa.XXXXXX";
 	sqlite3 *db = NULL;
 
 	db = create_db (db_file);
 	create_vcf (vcf_file);
+	create_fasta (fasta_file);
 	populate_db (db);
 
 	// As a merge-call that stopped before the genotypes
 	db_exec (db, "DELETE FROM genotype");
 
 	VCFOption opt = {
+		.fasta_file = fasta_file,
 		.min_qual = VCF_DEFAULT_MIN_QUAL,
 		.min_mapq = VCF_DEFAULT_MIN_MAPQ,
 		.min_sr = VCF_DEFAULT_MIN_SR,
