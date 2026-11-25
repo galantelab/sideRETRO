@@ -7,56 +7,70 @@ Using sideRETRO
 General Syntax
 ==============
 
-**sideRETRO** has a very straightforward syntax. Basically, there are three main
-commands, each one with a plethora of available options:
+**sideRETRO** compiles to an executable called ``sider``, with three commands
+run one after the other:
 
-* ``process-sample``
-* ``merge-call``
-* ``make-vcf``
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
 
-So, in order to test the installation process and run a first example, user can
-call it without any argument from the command line, like this::
+   * - Command
+     - What it does
+   * - ``process-sample`` (``ps``)
+     - Reads the **SAM/BAM/CRAM** files and stores their abnormal alignments
+       at a SQLite3 database
+   * - ``merge-call`` (``mc``)
+     - Merges the databases, clusters the abnormal alignments, annotates the
+       retrocopy insertions and genotypes them at each sample
+   * - ``make-vcf`` (``vcf``)
+     - Writes the retrocopies to a **VCF** and to its companion files: The
+       supporting reads, the predicted sequences and the sequences for primer
+       design
 
-  $ sider
-  Usage: sider [-hV]
-         sider <command> [options]
-
-  A pipeline for detecting
-  Somatic Insertion of DE novo RETROcopies
-
-  Options:
-     -h, --help            Show help options
-     -V, --version         Show current version
-     -c, --cite            Show citation in BibTeX
-
-  Commands:
-     ps,  process-sample   Extract alignments related
-                           an event of retrocopy
-     mc,  merge-call       Discover and annotate
-                           retrocopies
-     vcf, make-vcf         Generate VCF file with all
-                           annotate retrocopies
-
-In the above situation, if **sideRETRO** was correctly installed, it will give
-that default *usage* help.
-
-Another classical example is to print **sideRETRO**'s installed version using
-the ``-V`` option::
+Called without any argument, ``sider`` shows its usage, and so does each
+command. ``sider -V`` shows the installed version::
 
   $ sider -V
   sideRETRO 1.12.0
 
-And, if the user need further help, he can find it both at the **sideRETRO**'s
-`readthedocs page <https://sideretro.readthedocs.io>`_ or in the already
-installed software documentation, from command line::
+The full help is also at the `readthedocs page <https://sideretro.readthedocs.io>`_
+and at ``sider --help`` or ``sider <command> --help``. See :ref:`A Practical
+Workflow <pract_wf>` and :ref:`Running with Docker <run_dck>` for complete
+examples.
 
-  $ sider --help
+.. _common_options:
 
-Please, see :ref:`A Practical Workflow <pract_wf>` and :ref:`Running with Docker
-<run_dck>` sections for more examples and tips for using with **Docker**.
+Common options
+--------------
 
-Now, to get more familiar with **sideRETRO** main commands and results, let's
-try some basic examples for each command.
+The three commands share these options:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 60 15
+
+   * - Option
+     - Description
+     - Default
+   * - ``-h``, ``--help``
+     - Show the help options
+     -
+   * - ``-q``, ``--quiet``, ``--silent``
+     - Print only the errors - or nothing at the terminal, when a log file
+       is given
+     -
+   * - ``-d``, ``--debug``
+     - Increase the verbosity to the debug level
+     -
+   * - ``-l``, ``--log-file``
+     - Print the log messages to a file as well
+     -
+   * - ``-o``, ``--output-dir``
+     - Output directory, created if it does not exist
+     - ``.``
+   * - ``-p``, ``--prefix``
+     - Prefix of the output files
+     - ``out``
 
 Each command ends with a **summary** of what it did - at the terminal and at the
 log file (``-l``), unless ``-q`` is passed - and the command to run next. For
@@ -100,118 +114,126 @@ output files.
 Command ``process-sample``
 ==========================
 
-The first one is ``process-sample`` or ``ps`` for short, and was intended to act
-as the *"evidence's grounding faith"* for **sideRETRO**. Here, we're saying
-"first" because of an order in which the user must run the commands. The file
-resultant from this command will become the input to the next one,
-``merge-call``.
+``process-sample`` (``ps``) is the first step: It reads one or more alignment
+files and keeps, at a SQLite3 database, the **abnormal** fragments with an
+alignment at an **exon** of the annotation - the evidence that the next steps
+work on. See the :ref:`methodology <chap_methodology>` for what makes a fragment
+abnormal.
 
-As explained in the `Introduction <intro.rst>`_ section, the command
-``process-sample`` creates a database of abnormal reads from a SAM/BAM file set.
-To do this, there are some mandatory options the user must supply to do a
-correct search. Calling the command ``process-sample`` without any argument
-will give a specific help where user can know all the mandatory options for
-this command::
+Its arguments are the alignment files, in SAM/BAM/CRAM format. Besides the
+:ref:`common options <common_options>`:
 
-  $ sider process-sample
+.. list-table:: Mandatory options
+   :header-rows: 1
+   :widths: 25 60 15
 
-  Arguments:
-     One or more alignment files in SAM/BAM/CRAM format
+   * - Option
+     - Description
+     - Default
+   * - ``-a``, ``--annotation-file``
+     - Exons of the protein coding genes, in GTF/GFF3 or BED6 format. See
+       :ref:`Annotation formats <annotation>`
+     -
+   * - ``-i``, ``--input-file``
+     - File with a newline separated list of alignment files. Not needed if
+       the files are passed as arguments; if both are given, their union is
+       used
+     -
 
-  Mandatory Options:
-     -a, --annotation-file   Exons of the protein coding genes, in GTF/GFF3
-                             or BED6 format. See 'Annotation Options'
-     -i, --input-file        File with a newline separated list of alignment
-                             files in SAM/BAM/CRAM format. Not mandatory if
-                             the files are passed as arguments. If both are
-                             given, their union is used
+.. list-table:: Annotation options (GTF/GFF3 only)
+   :header-rows: 1
+   :widths: 25 60 15
 
-  Input/Output Options:
-     -h, --help              Show help options
-     -q, --quiet             Decrease verbosity to error messages only,
-                             or suppress terminal output at all if
-                             'log-file' is passed
-         --silent            Same as '--quiet'
-     -d, --debug             Increase verbosity to debug level
-     -l, --log-file          Print log messages to a file
-     -o, --output-dir        Output directory. It is created if it does not
-                             exist [default:"."]
-     -p, --prefix            Prefix of the output files [default:"out"]
+   * - Option
+     - Description
+     - Default
+   * - ``-T``, ``--gff-feature``
+     - The feature (3rd column) of the exons
+     - ``exon``
+   * - ``-A``, ``--gff-attribute``
+     - An attribute (9th column) to filter in, as ``key=value``.
+       Alternatives separated by ``|`` must match any (OR); when passed
+       multiple times, all of them must match (AND). Values match exactly
+     - ``transcript_type=protein_coding``
+   * - ``-N``, ``--gff-gene-name``
+     - The attribute with the gene name. If missing, ``gene_id`` is used
+     - ``gene_name``
+   * - ``-E``, ``--gff-exon-id``
+     - The attribute with the exon id. If missing, the exon is named
+       ``chr:start_end``
+     - ``exon_id``
 
-  Annotation Options:
-     A BED6 file (name ending in '.bed' or '.bed.gz') has one exon per
-     line, the gene name at the 4th column and the strand at the 6th one.
-     A GTF/GFF3 file is filtered by the options below
-     -T, --gff-feature       The 'feature' (3rd column) of the exons
-                             [default:"exon"]
-     -A, --gff-attribute     An 'attribute' (9th column) to filter in, as
-                             key=value. Alternatives separated by '|' must
-                             match any (OR): 'k=v1|v2' or 'k1=v1|k2=v2'. If
-                             passed multiple times, all of them must match
-                             (AND). Values match exactly
-                             [default:"transcript_type=protein_coding"]
-     -N, --gff-gene-name     The attribute with the gene name. If missing,
-                             'gene_id' is used [default:"gene_name"]
-     -E, --gff-exon-id       The attribute with the exon id. If missing, the
-                             exon is named 'chr:start_end' [default:"exon_id"]
+.. list-table:: Read quality options
+   :header-rows: 1
+   :widths: 25 60 15
 
-  SQLite3 Options:
-     -c, --cache-size        SQLite3 cache size in KiB [default:"200000"]
+   * - Option
+     - Description
+     - Default
+   * - ``-Q``, ``--phred-quality``
+     - Minimum mapping quality (MAPQ) of the reads. A failing alignment drops
+       its fragment, but a supplementary alignment below it is only left out
+     - 20
+   * - ``-M``, ``--max-base-freq``
+     - Maximum frequency of a single base in a read: Above it, a read is of
+       low complexity, such as poly-A
+     - 0.75
+   * - ``-D``, ``--deduplicate``
+     - Remove the duplicated fragments: Reads and mates sharing the same 5'
+       positions
+     -
 
-  Read Quality Options:
-     -Q, --phred-quality     Minimum mapping quality (MAPQ) of the reads.
-                             A supplementary alignment below it is left
-                             out, keeping its fragment [default:"8"]
-     -M, --max-base-freq     Maximum frequency of a single base in a read.
-                             Reads above it are discarded as low complexity
-                             sequences, such as poly-A [default:"0.75"]
-     -D, --deduplicate       Remove duplicated reads: Fragments whose reads
-                             and mates share the same 5' positions
+.. list-table:: Processing options
+   :header-rows: 1
+   :widths: 25 60 15
 
-  Processing Options:
-     -s, --sorted            Assume the reads are grouped by read name, even
-                             without the header tag 'SO:queryname'. Grouped
-                             files are read once, the others twice
-     -t, --threads           Number of threads. Each file uses one thread and
-                             the spare ones decompress BAM/CRAM [default:"1"]
-     -m, --max-distance      Maximum distance between the reads of a pair.
-                             Farther pairs are abnormal [default:"10000"]
-     -f, --exon-frac         Minimum overlap between an alignment and an
-                             exon, as a fraction of the exon
-                             [default:"1e-09"; 1 base]
-     -F, --alignment-frac    Minimum overlap between an alignment and an
-                             exon, as a fraction of the alignment
-                             [default:"1e-09"; 1 base]
-     -e, --either            Either '-f' OR '-F' must be satisfied. Without
-                             '-e', both must be
-     -r, --reciprocal        The overlap must be reciprocal: '-F' is set to
-                             the value of '-f'
+   * - Option
+     - Description
+     - Default
+   * - ``-s``, ``--sorted``
+     - Assume the reads are grouped by read name, even without the header tag
+       ``SO:queryname``. Grouped files are read once, the others twice
+     -
+   * - ``-t``, ``--threads``
+     - Number of threads. Each file uses one, and the spare ones decompress
+       BAM/CRAM
+     - 1
+   * - ``-m``, ``--max-distance``
+     - Maximum distance between the reads of a pair. Farther pairs are
+       abnormal
+     - 10000
+   * - ``-F``, ``--alignment-frac``
+     - Minimum overlap between an alignment and an exon, as a fraction of the
+       **alignment**
+     - 0.5
+   * - ``-f``, ``--exon-frac``
+     - Minimum overlap between an alignment and an exon, as a fraction of the
+       **exon**. Beware: An exon longer than the read length divided by it
+       loses all its reads, as the last exons with long 3' UTRs. A warning is
+       given when it is set; prefer ``-F``
+     - 1 base
+   * - ``-e``, ``--either``
+     - Either ``-f`` or ``-F`` must be satisfied. Without it, both must be
+     -
+   * - ``-r``, ``--reciprocal``
+     - The overlap must be reciprocal: ``-F`` takes the value of ``-f``
+     -
+   * - ``-c``, ``--cache-size``
+     - SQLite3 cache size in KiB
+     - 200000
 
+So, with three files - *f1.bam*, *f2.bam* and *f3.sam* - type::
 
-So, supposing that the user has three files: *f1.bam*, *f2.bam*, *f3.sam*, he
-can type::
+  $ sider process-sample -a annotation_file.gtf f1.bam f2.bam f3.sam
 
-  $ sider process-sample f2.bam f2.bam f3.sam \
-      -a annotation_file.gtf
+or give them at a list (e.g. *my_files_list.txt*) with ``-i``::
 
-Note the mandatory ``-a`` option specifying the annotation file. And, in this
-unique exception, we suppressed the ``-i`` mandatory option cause all the files
-were explicitly called.
+  $ sider process-sample -a annotation_file.gtf -i my_files_list.txt
 
-Let's see another example that shows the convenient use of the ``-i`` option to
-call a list of input files (e.g. *my_files_list.txt*) instead of them directly::
-
-  $ sider process-sample \
-      -i my_files_list.txt \
-      -a annotation_file.gtf
-
-Both commands above will produce only one output database file *out.db*
-containing all relevant reads for non-fixed retrocopies search, whose prefix
-*out* can be easily changed with the ``-p`` option. The abnormal reads from
-all input files will be merged in just one table, **with their sequences**,
-which are needed to annotate the junctions later. To produce one database
-for each input file separately, user must run one distinct instance of
-**sideRETRO** per file.
+Both write a single database, *out.db* (the prefix changes with ``-p``): The
+abnormal reads of all the files go to one table, **with their sequences**, which
+are needed to annotate the junctions later. For one database per file, run one
+``process-sample`` per file - ``merge-call`` merges them afterwards.
 
 .. note::
    The alignment files do not need to be sorted. When they are **not**
@@ -220,8 +242,7 @@ for each input file separately, user must run one distinct instance of
    there are more threads (``-t``) than files, the spare ones are used to
    decompress the BAM/CRAM.
 
-Some options' values can affect drastically the output. Let's play a little bit
-with some of them while using the short version of the command ``ps``::
+A fuller example, with the short name of the command::
 
   $ sider ps \
       -i my_files_list.txt \
@@ -230,21 +251,15 @@ with some of them while using the short version of the command ``ps``::
       -p my_reads_database \
       -l my_log_file.log \
       -c 2000000 \
-      -Q 20 \
       -F 0.9 \
       -t 3
 
-Wow! The number of options can be overwhelming.
+It writes *output_dir/my_reads_database.db* and the log to *my_log_file.log*,
+with a cache of 2 GB, 3 threads to process the files in parallel and a stricter
+overlap with the exons: 90% of each alignment (``-F``) instead of half.
 
-Here used ``-o`` option to specify the directory *output_dir* to write our
-database as *my_reads_database.db* (``-p`` option). Also, we chose to save the
-log messages in *my_log_file.log* file (``-l`` option), a cache size of 2Gb
-(``-c`` option), a minimum phred score cutoff of 20 for alignments (``-Q``
-option), a minimum overlap ratio of 0.9 for read alignments over exonic regions
-(``-F`` option) and 3 threads to process those files in parallel (``-t`` option).
-
-To see another example of the ``process-sample`` command chained in a real
-workflow, please refer to the :ref:`A Practical Workflow <pract_wf>` section.
+To see ``process-sample`` chained in a real workflow, see :ref:`A Practical
+Workflow <pract_wf>`.
 
 .. _annotation:
 
@@ -306,251 +321,273 @@ If no exon passes the filter, ``process-sample`` stops at once and says so.
 Command ``merge-call``
 ======================
 
-The second step in the **sideRETRO**'s *"journey for the truth of retrocopies"*
-is the command ``merge-call`` or ``mc`` for short. The aim of this command is to
-take the database created by ``process-sample`` step as input and populate more
-tables in it, with information risen from a clustering process over the abnormal
-reads regions.
+``merge-call`` (``mc``) is the second step: It merges the databases of
+``process-sample``, clusters the abnormal alignments into retrocopy insertions
+and annotates them - parental gene, breakpoints, target site, poly-A tail,
+exon-exon junctions, retrocopy ends and predicted sequence - and genotypes each
+one at every sample, reading the alignment files again at the insertion site.
 
-Like ``process-sample``, ``merge-call`` has some mandatory options, which can be
-known by calling it without any argument::
+Its arguments are the SQLite3 databases from ``process-sample``. Besides the
+:ref:`common options <common_options>`:
 
-  $ sider merge-call
+.. list-table:: Mandatory options
+   :header-rows: 1
+   :widths: 25 60 15
 
-  Arguments:
-     One or more SQLite3 databases generated by 'process-sample'
+   * - Option
+     - Description
+     - Default
+   * - ``-r``, ``--reference-file``
+     - FASTA file of the reference genome. The clipped reads at the junctions
+       are searched into the parental exons, for the retrocopy ends and its
+       predicted sequence. Only the exons are read, so it costs little
+     -
+   * - ``-i``, ``--input-file``
+     - File with a newline separated list of databases. Not needed if the
+       databases are passed as arguments; if both are given, their union is
+       used
+     -
 
-  Mandatory Options:
-     -i, --input-file           File with a newline separated list of SQLite3
-                                databases. Not mandatory if the databases are
-                                passed as arguments. If both are given, their
-                                union is used
-     -r, --reference-file       FASTA file of the reference genome. The
-                                retrocopy ends are searched in the parental
-                                exons and its sequence is predicted
+.. list-table:: Output options
+   :header-rows: 1
+   :widths: 25 60 15
 
-  Input/Output Options:
-     -h, --help                 Show help options
-     -q, --quiet                Decrease verbosity to error messages only,
-                                or suppress terminal output at all if
-                                'log-file' is passed
-         --silent               Same as '--quiet'
-     -d, --debug                Increase verbosity to debug level
-     -l, --log-file             Print log messages to a file
-     -o, --output-dir           Output directory. It is created if it does not
-                                exist [default:"."]
-     -p, --prefix               Prefix of the output files [default:"out"]
-     -I, --in-place             Merge all databases into the first one, instead
-                                of creating a new database
+   * - Option
+     - Description
+     - Default
+   * - ``-I``, ``--in-place``
+     - Merge all the databases into the first one, instead of creating a new
+       database
+     -
+   * - ``-c``, ``--cache-size``
+     - SQLite3 cache size in KiB
+     - 200000
 
-  SQLite3 Options:
-     -c, --cache-size           SQLite3 cache size in KiB [default:"200000"]
+.. list-table:: Clustering options
+   :header-rows: 1
+   :widths: 25 60 15
 
-  Clustering Options:
-     -e, --epsilon              DBSCAN: Maximum distance between two alignments
-                                inside a cluster [default:"300"]
-     -m, --min-pts              DBSCAN: Minimum number of alignments required to
-                                form a dense region [default:"10"]
+   * - Option
+     - Description
+     - Default
+   * - ``-e``, ``--epsilon``
+     - DBSCAN: Maximum distance between two alignments inside a cluster
+     - 300
+   * - ``-m``, ``--min-pts``
+     - DBSCAN: Minimum number of alignments to form a dense region
+     - 10
 
-  Blacklist Options:
-     -b, --blacklist-chr        Do not cluster from or to this chromosome. It may
-                                be passed multiple times [default:"chrM"]
-     -B, --blacklist-region     Regions where clusters are discarded, in GTF/GFF3
-                                or BED format. A GTF/GFF3 file is filtered by
-                                '-T' and '-A'
-     -P, --blacklist-padding    Extend the blacklisted regions by N bases at both
-                                sides [default:"0"]
-     -T, --gff-feature          The 'feature' (3rd column) of the blacklisted
-                                regions [default:"gene"]
-     -A, --gff-attribute        An 'attribute' (9th column) to filter in, as
-                                key=value. Alternatives separated by '|' must
-                                match any (OR): 'k=v1|v2' or 'k1=v1|k2=v2'. If
-                                passed multiple times, all of them must match
-                                (AND). Values match exactly
-                                [default:"gene_type=processed_pseudogene|tag=retrogene"]
-     -N, --gff-gene-name        The attribute naming the blacklisted regions
-                                [default:"gene_name"]
+.. list-table:: Blacklist options
+   :header-rows: 1
+   :widths: 25 60 15
 
-  Annotation Options:
-     -x, --parental-distance    Minimum distance between a cluster and its
-                                parental gene. Closer clusters are discarded
-                                [default:"1000000"]
-     -g, --genotype-support     Minimum number of reads from a single sample
-                                (SAM/BAM/CRAM) to keep a cluster [default:"1"]
-     -n, --near-gene-distance   Maximum distance, in number of genes, between
-                                the parental genes of overlapping clusters to
-                                merge them as near parental genes
-                                [default:"3"]
-     -D, --max-tsd-del          Maximum length of a deletion at the target site
-                                to merge the retrocopies at its two flanks, each
-                                with a single breakpoint. 0 merges none
-                                [default:"50000"]
+   * - Option
+     - Description
+     - Default
+   * - ``-b``, ``--blacklist-chr``
+     - Do not cluster from or to this chromosome. It may be passed multiple
+       times
+     - ``chrM``
+   * - ``-B``, ``--blacklist-region``
+     - Regions where the clusters are discarded, in GTF/GFF3 or BED format. A
+       GTF/GFF3 file is filtered by ``-T`` and ``-A``
+     -
+   * - ``-P``, ``--blacklist-padding``
+     - Extend the blacklisted regions by N bases at both sides
+     - 0
+   * - ``-T``, ``--gff-feature``
+     - The feature (3rd column) of the blacklisted regions
+     - ``gene``
+   * - ``-A``, ``--gff-attribute``
+     - An attribute (9th column) to filter in, as ``key=value``, with the
+       same rules of ``process-sample``
+     - ``gene_type=processed_pseudogene|tag=retrogene``
+   * - ``-N``, ``--gff-gene-name``
+     - The attribute naming the blacklisted regions
+     - ``gene_name``
 
-  Genotyping Options:
-     -t, --threads              Number of threads [default:"1"]
-     -Q, --phred-quality        Minimum mapping quality (MAPQ) of the reads
-                                supporting the reference allele [default:"8"]
+.. list-table:: Annotation options
+   :header-rows: 1
+   :widths: 25 60 15
 
+   * - Option
+     - Description
+     - Default
+   * - ``-x``, ``--parental-distance``
+     - Minimum distance between a cluster and its parental gene. Closer
+       clusters are discarded
+     - 1000000
+   * - ``-g``, ``--genotype-support``
+     - Minimum number of reads from a single sample to keep a cluster
+     - 1
+   * - ``-n``, ``--near-gene-distance``
+     - Maximum distance, in number of genes, between the parental genes of
+       overlapping clusters to merge them as near parental genes
+     - 3
+   * - ``-D``, ``--max-tsd-del``
+     - Maximum length of a deletion at the target site to merge the
+       retrocopies at its two flanks, each with a single breakpoint. 0 merges
+       none
+     - 50000
 
-And likewise, user can call a set of database files directly, or using a list of
-files::
+.. list-table:: Genotyping options
+   :header-rows: 1
+   :widths: 25 60 15
 
-  $ sider merge-call -r my_reference_genome.fa database1.db database2.db -I
+   * - Option
+     - Description
+     - Default
+   * - ``-t``, ``--threads``
+     - Number of threads
+     - 1
+   * - ``-Q``, ``--phred-quality``
+     - Minimum mapping quality (MAPQ) of the reads supporting the reference
+       allele
+     - 20
 
-or ::
+The databases can be given directly or at a list::
 
-  $ sider merge-call -r my_reference_genome.fa -i my_databases_list.txt -I
+  $ sider merge-call -r my_reference_genome.fa -I database1.db database2.db
+  $ sider merge-call -r my_reference_genome.fa -I -i my_databases_list.txt
 
 .. note::
-   Again, note the ``-I`` option that is not mandatory but would lead the creation
-   of duplicated output databases if absent. This option do the clustering
-   "in place" over the input files, overwriting them (so be careful). If user do
-   not use the ``-p`` or ``-I`` options, the output files will be named *out.db*.
+   Without ``-I``, ``merge-call`` copies all the databases into a new one,
+   *out.db* (the prefix changes with ``-p``). With ``-I``, it merges them into
+   the **first** database, which is overwritten - faster and with no copy, but
+   keep a backup if you need the original. Do not give the new database the
+   name of an input one.
 
-In a more sophisticated example, we will use the short version of the command
-``mc``, with many other options::
+A fuller example, with the short name of the command::
 
   $ sider mc \
       -i my_databases_list.txt \
+      -r my_reference_genome.fa \
       -o output_dir \
       -p my_database \
       -l my_log_file.log \
-      -I \
       -c 2000000 \
       -B my_black_list.bed \
-      -x 1000000 \
       -g 5 \
-      -Q 20 \
-      -r my_reference_genome.fa \
       -t 3
 
-Here, options ``-i``, ``-o``, ``-p``, ``-l``, ``-I``, ``-c``, ``-Q`` and ``-t``
-keep the same meaning as they have in the ``process-sample`` command.
-The others need some explanation. All we've done here was to ask for a minimum
-number of 5 reads of contribution from each input SAM/BAM file to consider a
-clustering region as a retrocopy candidate (with ``-g`` option); a minimum
-distance of 1000000 bp from the parental gene to resolve some doubtful overlaps
-(``-x`` option) and, importantly, a BED file with a list of regions to be
-ignored at the clustering process called *my_black_list.bed* (``-B`` option).
-This last option's file can describe entire chromosomes (like chrM) and many
-chromosomal regions with poor insertion evidences taken from literature, like
-centromeres. All specified regions won't be targets for clustering.
+Here a cluster needs at least 5 reads from a single sample (``-g``), and the
+regions at *my_black_list.bed* are not clustered (``-B``) - for example, the
+centromeres, or regions known for false insertions. The genotypes are computed
+with 3 threads.
 
-The option ``-r`` deserves a special note. ``merge-call`` finds the
-**breakpoints**, the **TSD** length, the **poly-A** tail and the **exon-exon
-junctions** from the reads alone. With the reference genome, it goes one step
-further: It searches the clipped sequences at the junctions into the exons of
-the parental gene, in order to find **where** the retrocopy begins and ends
-(the 5' truncation) and to **predict** its sequence. See the
-:ref:`methodology <chap_methodology>` for the details. The option is
-mandatory: Only the exons of the parental genes are read from the FASTA,
-so it costs little.
-
-To see another example of the ``merge-call`` command chained in a real workflow,
-please refer to the :ref:`A Practical Workflow <pract_wf>` section.
+To see ``merge-call`` chained in a real workflow, see :ref:`A Practical
+Workflow <pract_wf>`.
 
 Command ``make-vcf``
 ====================
 
-The third and last step to the **sideRETRO**'s *"crusade to retrocopies"* is the
-``make-vcf`` command or ``vcf`` for short. This command takes the already
-clustered tables in the database files populated at the ``merge-call`` step and
-writes the results: A **VCF** file with all retrocopy insertions annotated, a
-**TSV** file with the reads supporting each one, a **FASTA** file with the
-predicted sequences and another **FASTA** file with the sequences for primer
-design. All of them are described at :ref:`Output <chap_output>`.
+``make-vcf`` (``vcf``) is the last step: It writes the retrocopies annotated by
+``merge-call`` to a **VCF**, with their genotypes and filters, and to the
+companion files - a **TSV** with the reads supporting each retrocopy, a
+**FASTA** with the predicted sequences and another **FASTA** with the sequences
+for primer design. All of them are described at :ref:`Output <chap_output>`.
 
-The reference genome is its only mandatory option, but it is worth try to
-discover the others::
+Its argument is the database processed by ``merge-call``. It reads only the
+bases around the insertion sites from the reference genome. Besides the
+:ref:`common options <common_options>`:
 
-  $ sider make-vcf
+.. list-table:: Mandatory options
+   :header-rows: 1
+   :widths: 25 60 15
 
-  Arguments:
-     SQLite3 database processed by 'merge-call'
+   * - Option
+     - Description
+     - Default
+   * - ``-r``, ``--reference-file``
+     - FASTA file of the reference genome, for the REF column, the contigs,
+       the target site and the primer file
+     -
 
-  Mandatory Options:
-     -r, --reference-file       FASTA file of the reference genome, for the REF
-                                column, the contigs, the target site and the
-                                primer file
+.. list-table:: Annotation options
+   :header-rows: 1
+   :widths: 25 60 15
 
-  Input/Output Options:
-     -h, --help                 Show help options
-     -q, --quiet                Decrease verbosity to error messages only,
-                                or suppress terminal output at all if
-                                'log-file' is passed
-         --silent               Same as '--quiet'
-     -d, --debug                Increase verbosity to debug level
-     -l, --log-file             Print log messages to a file
-     -o, --output-dir           Output directory. It is created if it does not
-                                exist [default:"."]
-     -p, --prefix               Prefix of the output files [default:"out"]
+   * - Option
+     - Description
+     - Default
+   * - ``-n``, ``--near-gene-dist``
+     - Maximum distance between an intergenic insertion and a gene to report
+       it as near (``NEAR``)
+     - 10000
+   * - ``-e``, ``--orientation-error``
+     - Maximum p-value of the Spearman's rho to report the orientation
+       (``ORHO``)
+     - 0.05
+   * - ``-i``, ``--min-ir``
+     - Minimum number of reads of a sample, with the mate inside an intron of
+       the parental gene, to report the intron as retained (``IR``,
+       ``IRLIST``)
+     - 2
+   * - ``-t``, ``--min-tsd``
+     - Minimum length of a target site duplication (``TSITE=DUP``). A shorter
+       overlap of the breakpoints is a blunt insertion (``BLUNT``): The
+       microhomology at the junctions makes it ambiguous
+     - 5
+   * - ``-f``, ``--primer-flank``
+     - Number of bases of the reference at each side of a junction at the
+       primer file
+     - 200
 
-  Annotation Options:
-     -n, --near-gene-dist       Maximum distance between an intergenic insertion
-                                and a gene to report it as near (NEAR)
-                                [default:"10000"]
-     -e, --orientation-error    Maximum p-value of the Spearman's rho to report
-                                the orientation (ORHO) [default:"0.05"]
-     -i, --min-ir               Minimum number of reads of a sample, with the
-                                mate inside an intron of the parental gene,
-                                to report the intron as retained (IR, IRLIST)
-                                [default:"2"]
-     -f, --primer-flank         Number of bases of the reference at each side
-                                of a junction at the primer file
-                                [default:"200"]
+The ``FILTER`` column lists the checks that failed, or ``PASS``: A retrocopy
+with its insertion point well defined, a hallmark of retrotransposition and at
+a primary chromosome. The filters are described at :ref:`FILTER <filter>`;
+these options set their thresholds:
 
-  Filter Options:
-     The FILTER column lists the checks that failed, or PASS: A
-     retrocopy with its insertion point well defined and a hallmark
-     of retrotransposition (NoHallmark), at a primary chromosome
-     (NonPrimary)
-     -L, --min-qual             LowQual: Minimum QUAL [default:"20"]
-     -Q, --min-mapq             LowMAPQ: Minimum mean mapping quality of the
-                                supporting reads [default:"20"]
-     -S, --min-sr               LowSR: Minimum number of split reads at the
-                                breakpoints, whatever their side
-                                [default:"3"]
-     -t, --min-tsd              Minimum length of a target site duplication
-                                (TSITE=DUP). A shorter overlap of the
-                                breakpoints is a blunt insertion (BLUNT):
-                                The microhomology at the junctions makes it
-                                ambiguous [default:"5"]
-     -T, --max-tsd              TSDOutlier: Maximum length of the target site
-                                duplication [default:"25"]
-     -P, --primary-chr          NonPrimary: Extended regular expression of the
-                                primary chromosomes. Any other one is an alt,
-                                decoy, unplaced or HLA contig
-                                [default:"^(chr)?([1-9]|1[0-9]|2[0-2]|X|Y)$"]
-     -x, --no-filter            Disable a filter. It may be passed multiple
-                                times: LowQual, LowMAPQ, AmbiguousParental,
-                                LowSR, NoBreakpoint, OneBreakpoint,
-                                TSDOutlier, NoHallmark and NonPrimary
+.. list-table:: Filter options
+   :header-rows: 1
+   :widths: 25 60 15
 
+   * - Option
+     - Description
+     - Default
+   * - ``-L``, ``--min-qual``
+     - ``LowQual``: Minimum ``QUAL``
+     - 20
+   * - ``-Q``, ``--min-mapq``
+     - ``LowMAPQ``: Minimum mean mapping quality of the supporting reads
+     - 20
+   * - ``-S``, ``--min-sr``
+     - ``LowSR``: Minimum number of split reads at the breakpoints, whatever
+       their side
+     - 3
+   * - ``-T``, ``--max-tsd``
+     - ``TSDOutlier``: Maximum length of the target site duplication. It must
+       not be shorter than ``--min-tsd``
+     - 25
+   * - ``-P``, ``--primary-chr``
+     - ``NonPrimary``: Extended regular expression of the primary chromosomes.
+       Any other one is an alt, decoy, unplaced or HLA contig
+     - ``^(chr)?([1-9]|1[0-9]|2[0-2]|X|Y)$``
+   * - ``-x``, ``--no-filter``
+     - Disable a filter: ``LowQual``, ``LowMAPQ``, ``AmbiguousParental``,
+       ``LowSR``, ``NoBreakpoint``, ``OneBreakpoint``, ``TSDOutlier``,
+       ``NoHallmark`` or ``NonPrimary``. It may be passed multiple times
+     -
 
-So, in order to produce the results from a database input file like
-*my_database.db*, just type::
+So, for a database like *my_database.db*, type::
 
   $ sider make-vcf -r my_reference_genome.fa my_database.db
 
-This will produce the *out.vcf*, *out.rnames.tsv*, *out.insertions.fa* and
-*out.primer.fa* files.
-
-Let's add more options to customize it to our needs (with the short version of
-the command only for symmetry)::
+It writes *out.vcf*, *out.rnames.tsv*, *out.insertions.fa* and *out.primer.fa*.
+With more options, and the short name of the command::
 
   $ sider vcf my_database.db \
+      -r my_reference_genome.fa \
       -o output_dir \
       -p my_retrocopies \
       -l my_log_file.log \
-      -r my_reference_genome.fa \
-      -n 50000
+      -n 50000 \
+      -x NonPrimary
 
-Command ``make-vcf`` is very simple and doesn't allow the user to use threads.
-The only new options are ``-r``, which must specify the reference genome in
-FASTA format (like **gencode**'s *Hg38.fa*) and ``-n``, where user can establish
-a distance threshold for genes surrounding insertion points for additional
-information in the output VCF file. Only the bases around the insertion
-sites are read from the FASTA, not the whole genome.
+Here an intergenic insertion is reported near the genes up to 50 kb away
+(``-n``), and the retrocopies at alt, decoy or HLA contigs may ``PASS``
+(``-x NonPrimary``). The filters can be changed without running ``merge-call``
+again.
 
 .. _sim_test:
 
@@ -776,7 +813,6 @@ Tip 2: If you are running line by line in your terminal don't paste the "$" char
       -a gencode.v32.annotation.gtf.gz \
       -p 1000_genomes \
       -c 2000000 \
-      -Q 20 \
       -F 0.9 \
       -t 2
 
@@ -818,9 +854,8 @@ Running with Docker
 
 Notwithstanding **sideRETRO**'s native run, user can happily run it from a
 **Docker** image just prepending **Docker**'s directives to any example shown.
-That is, supposing the user has *Docker* installed and has pulled the image
-*galantelab/sider:latest* from `DockerHub
-<https://hub.docker.com/r/galantelab/sider>`_, he can just replace the
+That is, with *Docker* installed and the image *galantelab/sider:latest* pulled
+from `DockerHub <https://hub.docker.com/r/galantelab/sider>`_, replace the
 ordinary ``sider`` command by
 ``docker run --rm -ti -v $(pwd):/home/sider -w /home/sider galantelab/sider``
 - the image runs ``sider`` itself - like::
@@ -833,6 +868,5 @@ ordinary ``sider`` command by
         -p my_reads_database \
         -l my_log_file.log \
         -c 2000000 \
-        -Q 20 \
         -F 0.9 \
         -t 3
