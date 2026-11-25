@@ -1,3 +1,45 @@
+Version 1.13.0
+
+* New filter NoHallmark: A retrocopy needs a hallmark of
+  retrotransposition - an exon-exon junction, the poly-A
+  tail or a target site duplication. A duplication inside
+  a tandem repeat does not count, unless a run of A or T.
+
+* New INFO TSITETR: The tandem repeat at the target site,
+  as unit and span. The breakpoints may slide along it,
+  so TSITE and TSDLEN are unreliable there.
+
+* New filter NonPrimary: Retrocopies at alt, decoy,
+  unplaced or HLA contigs. 'make-vcf' --primary-chr (-P)
+  gives the primary chromosomes as a regular expression.
+
+* 'make-vcf' --min-tsd (-t, 5 by default): A shorter
+  overlap of the breakpoints is a blunt insertion - the
+  microhomology at the junctions makes it ambiguous.
+
+* The reference genome (--reference-file) is mandatory
+  for 'merge-call' and 'make-vcf'.
+
+* New defaults: --phred-quality 20 at 'process-sample'
+  and 'merge-call', and --alignment-frac 0.5. A warning
+  when --exon-frac is set: The long exons, as the last
+  ones with the 3' UTR, lose their reads.
+
+* Genotype: The alternate reads aligned along the TSD
+  were counted as reference, and homozygous insertions
+  were called heterozygous.
+
+* 'process-sample' leaves out a supplementary alignment
+  of low complexity - the poly-A clip - keeping its
+  fragment. Databases must be regenerated to benefit.
+
+* Benchmark with SANDY (tests/bench) and new simulated
+  scenarios: Hallmarks, a tandem repeat at the target
+  site and proper pairs clipped at the junctions.
+
+* Documentation: The options of each command in tables,
+  the hallmarks, the tandem repeats and new figures.
+
 Version 1.12.0
 
 * Target site: Both breakpoints describe it at the new INFO
