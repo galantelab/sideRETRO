@@ -41,6 +41,7 @@ struct _VCFOption
 	double      min_qual;
 	int         min_mapq;
 	int         min_sr;
+	int         min_tsd;
 	int         max_tsd;
 	int         disabled_filters;
 
@@ -82,6 +83,7 @@ typedef enum _VCFFilter VCFFilter;
 #define VCF_DEFAULT_MIN_QUAL      20.0
 #define VCF_DEFAULT_MIN_MAPQ      20
 #define VCF_DEFAULT_MIN_SR        3
+#define VCF_DEFAULT_MIN_TSD       5
 #define VCF_DEFAULT_MAX_TSD       25
 #define VCF_DEFAULT_PRIMER_FLANK  200
 #define VCF_DEFAULT_MIN_IR        2

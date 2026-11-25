@@ -508,6 +508,11 @@ discover the others::
      -S, --min-sr               LowSR: Minimum number of split reads at the
                                 breakpoints, whatever their side
                                 [default:"3"]
+     -t, --min-tsd              Minimum length of a target site duplication
+                                (TSITE=DUP). A shorter overlap of the
+                                breakpoints is a blunt insertion (BLUNT):
+                                The microhomology at the junctions makes it
+                                ambiguous [default:"5"]
      -T, --max-tsd              TSDOutlier: Maximum length of the target site
                                 duplication [default:"25"]
      -x, --no-filter            Disable a filter. It may be passed multiple

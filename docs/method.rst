@@ -499,12 +499,13 @@ site:
 +---------------------+-----------------------------+--------------------+
 | Breakpoints         | Target site (``TSITE``)     | ``TSDLEN``         |
 +=====================+=============================+====================+
-| LBKP >= RBKP        | **Duplication** (``DUP``):  | Positive           |
-|                     | The aligned parts overlap   |                    |
+| LBKP >= RBKP, by at | **Duplication** (``DUP``):  | At least           |
+| least ``--min-tsd`` | The aligned parts overlap   | ``--min-tsd``      |
 +---------------------+-----------------------------+--------------------+
-| LBKP = RBKP - 1     | **Blunt** insertion         | Zero               |
-|                     | (``BLUNT``): The aligned    |                    |
-|                     | parts meet                  |                    |
+| LBKP = RBKP - 1, or | **Blunt** insertion         | Zero, or positive  |
+| a shorter overlap   | (``BLUNT``): The aligned    | below              |
+|                     | parts meet, or overlap by a | ``--min-tsd``      |
+|                     | few bases                   |                    |
 +---------------------+-----------------------------+--------------------+
 | LBKP < RBKP - 1     | **Deletion** (``DEL``): The | Negative: The      |
 |                     | reference bases between the | deleted bases are  |
@@ -516,6 +517,14 @@ TSD at all. The segment between the cuts is lost instead of being
 copied, and the retrocopy takes its place. LINE-1 insertions with
 deletions at the target site are known, from a few bases to many
 kilobases, and blunt insertions happen as well.
+
+A **short overlap** is not taken as a duplication. When the flank and
+the retrocopy share a few bases at the junction - a microhomology -
+the aligner may clip the reads at either side of them, and the
+breakpoints overlap by those bases with no duplication at all. So an
+overlap shorter than ``make-vcf --min-tsd`` (5 by default) is a blunt
+insertion, with its measured ``TSDLEN`` kept at the VCF. The TSDs of
+LINE-1 insertions are usually longer, from 7 to 20 bases.
 
 So the three target sites are **valid**, and all of them pass the
 filter: What fails is a retrocopy with a single breakpoint

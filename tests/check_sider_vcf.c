@@ -251,6 +251,7 @@ START_TEST (test_vcf)
 	populate_db (db);
 
 	VCFOption opt = {
+		.min_tsd = VCF_DEFAULT_MIN_TSD,
 		.min_qual = VCF_DEFAULT_MIN_QUAL,
 		.min_mapq = VCF_DEFAULT_MIN_MAPQ,
 		.min_sr = VCF_DEFAULT_MIN_SR,
@@ -400,6 +401,7 @@ START_TEST (test_vcf)
 	// (chr12) is longer than the maximum of 5, and the deletion
 	// of 1 base (chrY) is not checked
 	VCFOption opt2 = {
+		.min_tsd = VCF_DEFAULT_MIN_TSD,
 		.fasta_file       = fasta_file,
 		.min_qual         = 400,
 		.min_mapq         = 30,
@@ -481,6 +483,26 @@ grep_vcf (const char *path, const char *needle)
 	return found;
 }
 
+/*
+ * The record of the retrocopy 'id' has 'needle'
+ */
+static int
+grep_vcf_record (const char *path, const char *id, const char *needle)
+{
+	FILE *fp = xfopen (path, "r");
+	char *line = NULL;
+	size_t len = 0;
+	int found = 0;
+
+	while (!found && getline (&line, &len, fp) != EOF)
+		found = line[0] != '#' && strstr (line, id) != NULL
+			&& strstr (line, needle) != NULL;
+
+	xfree (line);
+	xfclose (fp);
+	return found;
+}
+
 START_TEST (test_vcf_edge)
 {
 	char db_file[] = "/tmp/ponga.db.XXXXXX";
@@ -545,6 +567,7 @@ START_TEST (test_vcf_edge)
 	close (fd);
 
 	VCFOption opt = {
+		.min_tsd = VCF_DEFAULT_MIN_TSD,
 		.fasta_file = fasta_file,
 		.near_gene_dist = 2000,
 		.orientation_error = 0.05,
@@ -596,6 +619,7 @@ START_TEST (test_vcf_parental_chosen)
 			"WHERE id = 1");
 
 	VCFOption opt = {
+		.min_tsd = VCF_DEFAULT_MIN_TSD,
 		.min_qual = VCF_DEFAULT_MIN_QUAL,
 		.min_mapq = VCF_DEFAULT_MIN_MAPQ,
 		.min_sr = VCF_DEFAULT_MIN_SR,
@@ -770,6 +794,7 @@ START_TEST (test_vcf_primer)
 	create_vcf (primer_file);
 
 	VCFOption opt = {
+		.min_tsd = VCF_DEFAULT_MIN_TSD,
 		.fasta_file = fasta_file,
 		.orientation_error = 0.05,
 		.min_qual = VCF_DEFAULT_MIN_QUAL,
@@ -850,6 +875,7 @@ START_TEST (test_vcf_intron_retention)
 	create_fasta (fasta_file);
 
 	VCFOption opt = {
+		.min_tsd = VCF_DEFAULT_MIN_TSD,
 		.fasta_file = fasta_file,
 		.min_qual = VCF_DEFAULT_MIN_QUAL,
 		.min_mapq = VCF_DEFAULT_MIN_MAPQ,
@@ -898,6 +924,7 @@ START_TEST (test_vcf_target_site)
 	populate_db (db);
 
 	VCFOption opt = {
+		.min_tsd = VCF_DEFAULT_MIN_TSD,
 		.fasta_file = fasta_file,
 		.min_qual = VCF_DEFAULT_MIN_QUAL,
 		.min_mapq = VCF_DEFAULT_MIN_MAPQ,
@@ -918,9 +945,14 @@ START_TEST (test_vcf_target_site)
 		const char *update;
 		const char *info;
 		const char *filter;
+		const char *hallmarks;
 	} cases[] = {
 		{"breakpoint_right = 91, breakpoint_right_sr = 1",
-			";TSDLEN=10;TSITE=DUP;", "\t329.0\tPASS\t"},
+			";TSDLEN=10;TSITE=DUP;", "\t329.0\tPASS\t", ";HALLMARKS=TSD,"},
+		{"breakpoint_right = 96, breakpoint_right_sr = 1",
+			";TSDLEN=5;TSITE=DUP;", "\t329.0\tPASS\t", ";HALLMARKS=TSD,"},
+		{"breakpoint_right = 98, breakpoint_right_sr = 1",
+			";TSDLEN=3;TSITE=BLUNT;", "\t329.0\tPASS\t", ";HALLMARKS=POLYA"},
 		{"breakpoint_right = 101, breakpoint_right_sr = 1",
 			";TSDLEN=0;TSITE=BLUNT;", "\t329.0\tPASS\t"},
 		{"breakpoint_right = 106, breakpoint_right_sr = 1",
@@ -948,6 +980,11 @@ START_TEST (test_vcf_target_site)
 					"'%s' not found", cases[i].info);
 			ck_assert_msg (grep_vcf (vcf_file, cases[i].filter),
 					"'%s' not found", cases[i].filter);
+
+			// The TSD is a hallmark only for a duplication
+			if (cases[i].hallmarks != NULL)
+				ck_assert_msg (grep_vcf_record (vcf_file, "\tRTC000008\t",
+							cases[i].hallmarks), "'%s' not found", cases[i].hallmarks);
 		}
 
 	// Without both breakpoints, there is no target site
@@ -976,6 +1013,7 @@ START_TEST (test_vcf_no_genotype_fail)
 	db_exec (db, "DELETE FROM genotype");
 
 	VCFOption opt = {
+		.min_tsd = VCF_DEFAULT_MIN_TSD,
 		.fasta_file = fasta_file,
 		.min_qual = VCF_DEFAULT_MIN_QUAL,
 		.min_mapq = VCF_DEFAULT_MIN_MAPQ,

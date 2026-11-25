@@ -231,15 +231,17 @@ The fields are grouped by subject. Fields without a value are
 | RSR            | Number of reads supporting RBKP                          |
 +----------------+----------------------------------------------------------+
 | TSDLEN         | Length of the **target site duplication**:               |
-|                | ``LBKP - RBKP + 1``. Positive for a duplication, zero    |
-|                | for a blunt insertion and negative for a deletion at the |
-|                | target site, of ``-TSDLEN`` bases. Needs both            |
-|                | breakpoints. See :ref:`Breakpoints <method_breakpoints>` |
+|                | ``LBKP - RBKP + 1``. Positive when the breakpoints       |
+|                | overlap, zero when they meet and negative for a deletion |
+|                | at the target site, of ``-TSDLEN`` bases. ``TSITE``      |
+|                | tells the target site. Needs both breakpoints. See       |
+|                | :ref:`Breakpoints <method_breakpoints>`                  |
 +----------------+----------------------------------------------------------+
 | TSITE          | **Target site** of the insertion, given by both          |
-|                | breakpoints: ``DUP`` (duplication, ``TSDLEN > 0``),      |
-|                | ``BLUNT`` (blunt insertion, ``TSDLEN = 0``) or ``DEL``   |
-|                | (deletion, ``TSDLEN < 0``)                               |
+|                | breakpoints: ``DUP`` (duplication, ``TSDLEN`` of at      |
+|                | least ``make-vcf --min-tsd``), ``BLUNT`` (blunt          |
+|                | insertion, ``TSDLEN`` from zero up to the minimum) or    |
+|                | ``DEL`` (deletion, ``TSDLEN < 0``)                       |
 +----------------+----------------------------------------------------------+
 | TSITEMERGED    | A **deletion** at the target site longer than the        |
 |                | cluster window: The insertion was merged from the        |

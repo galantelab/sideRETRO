@@ -351,12 +351,15 @@ vcf_print_header (const List *hl, Hash *contig_len,
 		"##INFO=<ID=SVTYPE,Number=1,Type=String,Description=\"Type of structural variant\">\n"
 		"##INFO=<ID=TSD,Number=1,Type=String,Description=\"Target site duplication sequence: Reference bases from RBKP to LBKP\">\n"
 		"##INFO=<ID=TSDLEN,Number=1,Type=Integer,Description=\"Target site duplication length (LBKP - RBKP + 1):"
-		" Positive for duplication, zero for a blunt insertion and negative for target site deletion of -TSDLEN bases\">\n"
+		" Positive when the breakpoints overlap, zero when they meet and negative for target site deletion of -TSDLEN bases."
+		" TSITE tells the target site\">\n"
 		"##INFO=<ID=TSITE,Number=1,Type=String,Description=\"Target site of the insertion, given by both breakpoints:"
-		" DUP (duplication), BLUNT (blunt insertion) or DEL (deletion)\">\n"
+		" DUP (duplication of at least %d bases), BLUNT (blunt insertion: TSDLEN from 0 to %d, within the"
+		" microhomology at the junctions) or DEL (deletion) (make-vcf --min-tsd)\">\n"
 		"##INFO=<ID=TSITEMERGED,Number=0,Type=Flag,Description=\"Deletion at the target site longer than the cluster window:"
 		" The insertion was merged from the retrocopies at its two flanks (merge-call --max-tsd-del)\">\n"
-		"##FILTER=<ID=PASS,Description=\"All filters passed\">\n");
+		"##FILTER=<ID=PASS,Description=\"All filters passed\">\n",
+		opt->min_tsd, opt->min_tsd - 1);
 
 	for (i = 0; filter_defs[i].id != NULL; i++)
 		if (!(opt->disabled_filters & filter_defs[i].flag))
@@ -1289,6 +1292,7 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 	char base = 0;
 
 	long tsd_len = 0;
+	int tsd = 0;
 	char orho_polarity = 0;
 	double qual = 0.0;
 	int num_breakpoints = 0;
@@ -1443,10 +1447,14 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 				xfprintf (fp, ";PGEXONS=%s", b.pg_exons);
 
 			// Hallmarks observed
-			if ((both_breakpoints && tsd_len > 0) || b.polya_sr > 0 || b.eej > 0)
+			// The TSD is a hallmark when the target site is
+			// a duplication
+			tsd = both_breakpoints && tsd_len >= opt->min_tsd;
+
+			if (tsd || b.polya_sr > 0 || b.eej > 0)
 				xfprintf (fp, ";HALLMARKS=%s%s%s%s%s",
-						both_breakpoints && tsd_len > 0 ? "TSD" : "",
-						both_breakpoints && tsd_len > 0 && (b.polya_sr > 0 || b.eej > 0) ? "," : "",
+						tsd ? "TSD" : "",
+						tsd && (b.polya_sr > 0 || b.eej > 0) ? "," : "",
 						b.polya_sr > 0 ? "POLYA" : "",
 						b.polya_sr > 0 && b.eej > 0 ? "," : "",
 						b.eej > 0 ? "EEJ" : "");
@@ -1523,7 +1531,7 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 				{
 					tsd_len = b.breakpoint_left - b.breakpoint_right + 1;
 					xfprintf (fp, ";TSDLEN=%li;TSITE=%s", tsd_len,
-							tsd_len > 0 ? "DUP" : tsd_len == 0 ? "BLUNT" : "DEL");
+							tsd_len >= opt->min_tsd ? "DUP" : tsd_len >= 0 ? "BLUNT" : "DEL");
 
 					if (b.level & RETROCOPY_TSITE_MERGED)
 						xfprintf (fp, ";TSITEMERGED");
@@ -1615,7 +1623,8 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 void
 vcf (sqlite3 *db, const char *output_file, VCFOption *opt)
 {
-	assert (db != NULL && opt != NULL && opt->fasta_file != NULL);
+	assert (db != NULL && opt != NULL && opt->fasta_file != NULL
+			&& opt->min_tsd >= 1);
 	log_trace ("Inside %s", __func__);
 
 	FILE *fp = NULL;

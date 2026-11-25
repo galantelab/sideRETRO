@@ -285,8 +285,11 @@ def cases(t, sim):
     t.run('vcf: min-sr', vcf + ['-S', '-1'] + mdb, rc=FAIL,
           expect=['--min-sr must be'])
     t.run('vcf: max-tsd', vcf + ['-T', '0'] + mdb, rc=FAIL,
-          expect=['--max-tsd must be greater or equal to 1'])
-    t.run('vcf: removed min-tsd', vcf + ['-t', '4'] + mdb, rc=FAIL)
+          expect=['--max-tsd must be greater or equal to --min-tsd'])
+    t.run('vcf: min-tsd', vcf + ['-t', '0'] + mdb, rc=FAIL,
+          expect=['--min-tsd must be greater or equal to 1'])
+    t.run('vcf: min-tsd above max-tsd', vcf + ['-t', '30'] + mdb, rc=FAIL,
+          expect=['--max-tsd must be greater or equal to --min-tsd'])
     t.run('vcf: removed min-breakpoints', vcf + ['--min-breakpoints=1'] + mdb,
           rc=FAIL)
     t.run('vcf: primer-flank', vcf + ['-f', '0'] + mdb, rc=FAIL,
@@ -299,10 +302,11 @@ def cases(t, sim):
     t.run('vcf: run with options',
           vcf + ['-o', P('vcf'), '-p', 'sim', '-l', P('vcf.log'), '-d',
                  '-n', '5000', '-e', '0.1', '-L', '10',
-                 '-Q', '10', '-S', '2', '-T', '30', '-x', 'TSDOutlier',
+                 '-Q', '10', '-S', '2', '-t', '4', '-T', '30', '-x', 'TSDOutlier',
                  '-x', 'LowQual', '-x', 'OneBreakpoint', '-f', '50', '-i', '3'] + mdb,
           expect=['make-vcf summary', 'PASS', '--no-filter=TSDOutlier',
-                  '--no-filter=OneBreakpoint', '--min-sr=2', '--max-tsd=30',
+                  '--no-filter=OneBreakpoint', '--min-sr=2', '--min-tsd=4',
+                  '--max-tsd=30',
                   '--primer-flank=50', '--min-ir=3', '--reference-file=',
                   'sim.primer.fa'])
     t.run('vcf: run quiet with log',

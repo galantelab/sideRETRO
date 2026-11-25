@@ -99,6 +99,10 @@ MIN_SEED = 12
 # report it as retained (make-vcf --min-ir)
 MIN_IR = 2
 
+# Minimum length of a target site duplication: A shorter one
+# is a blunt insertion (make-vcf --min-tsd)
+MIN_TSD = 5
+
 # Each right junction read has this many more exon
 # bases at its clip than the previous one
 RIGHT_CLIP_STEP = 3
@@ -436,7 +440,7 @@ class Sim:
             ('RBKP', self.tsd_start if right else 'NA'),
             ('RSR', len(clips) if right else 'NA'),
             ('TSDLEN', a.tsd_len if both else 'NA'),
-            ('TSITE', ('DUP' if a.tsd_len > 0 else 'BLUNT' if a.tsd_len == 0
+            ('TSITE', ('DUP' if a.tsd_len >= MIN_TSD else 'BLUNT' if a.tsd_len >= 0
                        else 'DEL') if both else 'NA'),
             ('TSD', self.tsd if both and a.tsd_len > 0 else 'NA'),
             # A deletion longer than the cluster window splits the
@@ -464,7 +468,7 @@ class Sim:
             ('ROLES', self.roles(left, right, run, all_clips, polya)),
             ('FILTER', self.filters(left, right, len(clips))),
             ('HALLMARKS', ','.join(h for h, ok in (
-                ('TSD', both and a.tsd_len > 0),
+                ('TSD', both and a.tsd_len >= MIN_TSD),
                 ('POLYA', polya),
                 ('EEJ', a.n_junction_reads > 0)) if ok) or 'NA'),
             ('EEJ', 1 if a.n_junction_reads else 'NA'),

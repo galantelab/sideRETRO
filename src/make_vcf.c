@@ -59,6 +59,7 @@ struct _MakeVcf
 	double       min_qual;
 	int          min_mapq;
 	int          min_sr;
+	int          min_tsd;
 	int          max_tsd;
 	int          disabled_filters;
 	String      *disabled_ids;
@@ -114,6 +115,7 @@ run (MakeVcf *v)
 		.min_qual          = v->min_qual,
 		.min_mapq          = v->min_mapq,
 		.min_sr            = v->min_sr,
+		.min_tsd           = v->min_tsd,
 		.max_tsd           = v->max_tsd,
 		.disabled_filters  = v->disabled_filters,
 		.fasta_file        = v->fasta_file,
@@ -161,7 +163,8 @@ print_usage (FILE *fp)
 		"\n"
 		"Usage: %s make-vcf [-h] [-q] [-d] [-l FILE] [-o DIR] [-p STR]\n"
 		"       %*c          [-n INT] [-e FLOAT] [-L FLOAT] [-Q INT]\n"
-		"       %*c          [-x STR] [-f INT] [-i INT] -r FILE <FILE>\n"
+		"       %*c          [-S INT] [-t INT] [-T INT] [-x STR] [-f INT]\n"
+		"       %*c          [-i INT] -r FILE <FILE>\n"
 		"\n"
 		"Write the annotated retrocopies to a VCF and to their companion files\n"
 		"\n"
@@ -219,6 +222,11 @@ print_usage (FILE *fp)
 		"   -S, --min-sr               LowSR: Minimum number of split reads at the\n"
 		"                              breakpoints, whatever their side\n"
 		"                              [default:\"%d\"]\n"
+		"   -t, --min-tsd              Minimum length of a target site duplication\n"
+		"                              (TSITE=DUP). A shorter overlap of the\n"
+		"                              breakpoints is a blunt insertion (BLUNT):\n"
+		"                              The microhomology at the junctions makes it\n"
+		"                              ambiguous [default:\"%d\"]\n"
 		"   -T, --max-tsd              TSDOutlier: Maximum length of the target site\n"
 		"                              duplication [default:\"%d\"]\n"
 		"   -x, --no-filter            Disable a filter. It may be passed multiple\n"
@@ -226,12 +234,12 @@ print_usage (FILE *fp)
 		"                              LowSR, NoBreakpoint, OneBreakpoint and\n"
 		"                              TSDOutlier\n"
 		"\n",
-		PACKAGE_STRING, PACKAGE, pkg_len, ' ', pkg_len, ' ',
+		PACKAGE_STRING, PACKAGE, pkg_len, ' ', pkg_len, ' ', pkg_len, ' ',
 		DEFAULT_OUTPUT_DIR, DEFAULT_PREFIX, DEFAULT_NEAR_GENE_DIST,
 		DEFAULT_ORIENTATION_ERROR, VCF_DEFAULT_MIN_IR,
 		VCF_DEFAULT_PRIMER_FLANK,
 		VCF_DEFAULT_MIN_QUAL, VCF_DEFAULT_MIN_MAPQ,
-		VCF_DEFAULT_MIN_SR, VCF_DEFAULT_MAX_TSD);
+		VCF_DEFAULT_MIN_SR, VCF_DEFAULT_MIN_TSD, VCF_DEFAULT_MAX_TSD);
 }
 
 static void
@@ -257,6 +265,7 @@ make_vcf_init (MakeVcf *vcf)
 		.min_qual           = VCF_DEFAULT_MIN_QUAL,
 		.min_mapq           = VCF_DEFAULT_MIN_MAPQ,
 		.min_sr             = VCF_DEFAULT_MIN_SR,
+		.min_tsd            = VCF_DEFAULT_MIN_TSD,
 		.max_tsd            = VCF_DEFAULT_MAX_TSD,
 		.disabled_filters   = 0,
 		.disabled_ids       = string_new (""),
@@ -358,9 +367,15 @@ make_vcf_validate (MakeVcf *vcf)
 			rc = EXIT_FAILURE; goto Exit;
 		}
 
-	if (vcf->max_tsd < 1)
+	if (vcf->min_tsd < 1)
 		{
-			fprintf (stderr, "%s: --max-tsd must be greater or equal to 1\n", PACKAGE);
+			fprintf (stderr, "%s: --min-tsd must be greater or equal to 1\n", PACKAGE);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
+	if (vcf->max_tsd < vcf->min_tsd)
+		{
+			fprintf (stderr, "%s: --max-tsd must be greater or equal to --min-tsd\n", PACKAGE);
 			rc = EXIT_FAILURE; goto Exit;
 		}
 
@@ -430,12 +445,13 @@ make_vcf_print (MakeVcf *vcf)
 		"  --min-qual=%g \\\n"
 		"  --min-mapq=%d \\\n"
 		"  --min-sr=%d \\\n"
+		"  --min-tsd=%d \\\n"
 		"  --max-tsd=%d \\\n"
 		"  --primer-flank=%d \\\n"
 		"  --min-ir=%d\n",
 		vcf->near_gene_dist, vcf->orientation_error,
 		vcf->min_qual, vcf->min_mapq, vcf->min_sr,
-		vcf->max_tsd,
+		vcf->min_tsd, vcf->max_tsd,
 		vcf->primer_flank, vcf->min_ir);
 
 	log_info ("%s", msg->str);
@@ -470,6 +486,7 @@ parse_make_vcf_command_opt (int argc, char **argv)
 		{"min-qual",          required_argument, 0, 'L'},
 		{"min-mapq",          required_argument, 0, 'Q'},
 		{"min-sr",            required_argument, 0, 'S'},
+		{"min-tsd",           required_argument, 0, 't'},
 		{"max-tsd",           required_argument, 0, 'T'},
 		{"no-filter",         required_argument, 0, 'x'},
 		{"primer-flank",      required_argument, 0, 'f'},
@@ -485,7 +502,7 @@ parse_make_vcf_command_opt (int argc, char **argv)
 	int option_index = 0;
 	int c = 0;
 
-	while ((c = getopt_long (argc, argv, "hqdl:o:p:n:e:r:L:Q:S:T:x:f:i:", opt, &option_index)) >= 0)
+	while ((c = getopt_long (argc, argv, "hqdl:o:p:n:e:r:L:Q:S:t:T:x:f:i:", opt, &option_index)) >= 0)
 		{
 			switch (c)
 				{
@@ -548,6 +565,11 @@ parse_make_vcf_command_opt (int argc, char **argv)
 				case 'S':
 					{
 						vcf.min_sr = atoi (optarg);
+						break;
+					}
+				case 't':
+					{
+						vcf.min_tsd = atoi (optarg);
 						break;
 					}
 				case 'T':
