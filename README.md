@@ -39,10 +39,11 @@ For full documentation, please visit <https://sideretro.readthedocs.io>.
 
    The genome coordinate of the retrocopy integration event, with its insertion point.
 
-* **Breakpoints and target site duplication**
+* **Breakpoints and target site**
 
-   The exact junctions between the genome and the retrocopy, at base resolution, and the TSD - the bases
-   duplicated at both sides of the insertion - with its sequence.
+   The exact junctions between the genome and the retrocopy, at base resolution, and what happened at the
+   target site: A duplication (TSD) - with its sequence -, a blunt insertion or a deletion. A tandem repeat
+   at the site, where the breakpoints cannot be told apart, is flagged.
 
 * **Poly-A tail**
 
@@ -162,7 +163,7 @@ that must be related to an event of retrocopy. All those data is saved to a **SQ
 to the second step `merge-call`, which processes the database and annotates all the retrocopies found. Finally we
 can run the subcommand `make-vcf` and generate a file (in **VCF** format) with retrocopies and further information
 about them, alongside the list of supporting reads (TSV), the predicted retrocopy sequences and the
-sequences for primer design (FASTA).
+sequences for primer design (FASTA). Both `merge-call` and `make-vcf` need the reference genome (FASTA).
 
 ```sh
 # List of BAM files
