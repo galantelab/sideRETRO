@@ -531,8 +531,8 @@ parse_sorted_sam (AbnormalFilter *argf)
 	// Catch if it ocurred an error
 	// in reading from input
 	if (rc < -1)
-		log_errno_fatal ("Failed to read sam alignment from '%s'",
-				argf->sam_file);
+		log_fatal ("Failed to read an alignment from '%s': The file is "
+				"corrupt or truncated", argf->sam_file);
 
 	// The stack is filled after the parsing,
 	// so it is late in relation to the file loop.
@@ -682,8 +682,8 @@ parse_unsorted_sam (AbnormalFilter *argf)
 	// Catch if it ocurred an error
 	// in reading from input
 	if (rc < -1)
-		log_errno_fatal ("Failed to read sam alignment from '%s'",
-				argf->sam_file);
+		log_fatal ("Failed to read an alignment from '%s': The file is "
+				"corrupt or truncated", argf->sam_file);
 
 	// Read file again to filter and dump
 	sam_rewind (argf);
@@ -756,8 +756,8 @@ parse_unsorted_sam (AbnormalFilter *argf)
 	// Catch if it ocurred an error
 	// in reading from input
 	if (rc < -1)
-		log_errno_fatal ("Failed to read sam alignment from '%s'",
-				argf->sam_file);
+		log_fatal ("Failed to read an alignment from '%s': The file is "
+				"corrupt or truncated", argf->sam_file);
 
 	// Clean
 	hash_free (abnormal_frags);

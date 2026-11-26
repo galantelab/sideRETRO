@@ -140,7 +140,8 @@ bed_read (BedFile *bed, BedEntry *entry)
 
 	token = strtok_r (bed->buf, "\t ", &saveptr1);
 	if (token == NULL)
-		log_fatal ("Missing 'chrom' (field 1) at line %zu", entry->num_line);
+		log_fatal ("Missing 'chrom' (field 1) at line %zu of '%s'", entry->num_line,
+				gz_get_filename (bed->gz));
 
 	entry->chrom_size = entry_set (&entry->chrom,
 			entry->chrom_size, token);
@@ -149,7 +150,8 @@ bed_read (BedFile *bed, BedEntry *entry)
 
 	token = strtok_r (NULL, "\t ", &saveptr1);
 	if (token == NULL)
-		log_fatal ("Missing 'chromStart' (field 2) at line %zu", entry->num_line);
+		log_fatal ("Missing 'chromStart' (field 2) at line %zu of '%s'", entry->num_line,
+				gz_get_filename (bed->gz));
 
 	entry->chrom_start = atol (token);
 
@@ -157,7 +159,8 @@ bed_read (BedFile *bed, BedEntry *entry)
 
 	token = strtok_r (NULL, "\t ", &saveptr1);
 	if (token == NULL)
-		log_fatal ("Missing 'chromEnd' (field 3) at line %zu", entry->num_line);
+		log_fatal ("Missing 'chromEnd' (field 3) at line %zu of '%s'", entry->num_line,
+				gz_get_filename (bed->gz));
 
 	entry->chrom_end = atol (token);
 
