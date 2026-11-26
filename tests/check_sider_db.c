@@ -410,6 +410,43 @@ START_TEST (test_db_schema_missing_abort)
 }
 END_TEST
 
+START_TEST (test_db_is_sider)
+{
+	char sider_path[] = "/tmp/ponga.db.XXXXXX";
+	char other_path[] = "/tmp/ponga.db.XXXXXX";
+	char text_path[] = "/tmp/ponga.db.XXXXXX";
+	char empty_path[] = "/tmp/ponga.db.XXXXXX";
+	sqlite3 *db = NULL;
+	FILE *fp = NULL;
+
+	// A sideRETRO database
+	close (xmkstemp (sider_path));
+	db = db_create (sider_path);
+	db_close (db);
+	ck_assert_int_eq (db_is_sider (sider_path), 1);
+
+	// Another SQLite3 database
+	db = create_db (other_path);
+	db_exec (db, "CREATE TABLE ponga (id INTEGER)");
+	db_close (db);
+	ck_assert_int_eq (db_is_sider (other_path), 0);
+
+	// Not a database, and an empty file
+	fp = xfdopen (xmkstemp (text_path), "w");
+	xfprintf (fp, "PONGA\n");
+	xfclose (fp);
+	ck_assert_int_eq (db_is_sider (text_path), 0);
+
+	close (xmkstemp (empty_path));
+	ck_assert_int_eq (db_is_sider (empty_path), 0);
+
+	xunlink (sider_path);
+	xunlink (other_path);
+	xunlink (text_path);
+	xunlink (empty_path);
+}
+END_TEST
+
 Suite *
 make_db_suite (void)
 {
@@ -426,6 +463,7 @@ make_db_suite (void)
 	tc_abort = tcase_create ("Abort");
 	/*tcase_set_tags (tc_abort, "no-valgrind");*/
 
+	tcase_add_test (tc_core, test_db_is_sider);
 	tcase_add_test (tc_core, test_db_open);
 	tcase_add_test (tc_core, test_db_exec);
 	tcase_add_test (tc_core, test_db_prepare);

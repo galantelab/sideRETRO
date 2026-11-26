@@ -26,6 +26,50 @@
 #include "utils.h"
 #include "bed.h"
 
+/*
+ * The first line of a BED file - after comments and blank
+ * lines - has at least 3 fields, and 'chromStart' and
+ * 'chromEnd' are numbers. Or it is a 'track' or 'browser'
+ * line
+ */
+int
+bed_check_format (const char *path)
+{
+	assert (path != NULL);
+
+	char *line = NULL;
+	char *token = NULL;
+	char *saveptr = NULL;
+	int num_field = 0;
+	int rc = 0;
+
+	line = gz_first_line (path, "#");
+
+	if (line == NULL)
+		return 0;
+
+	if (!strncmp (line, "track", 5) || !strncmp (line, "browser", 7))
+		{
+			xfree (line);
+			return 1;
+		}
+
+	rc = 1;
+
+	for (token = strtok_r (line, "\t ", &saveptr);
+			token != NULL && num_field < 3;
+			token = strtok_r (NULL, "\t ", &saveptr))
+		{
+			num_field++;
+
+			if (num_field > 1 && strspn (token, "0123456789") != strlen (token))
+				rc = 0;
+		}
+
+	xfree (line);
+	return rc && num_field == 3;
+}
+
 BedEntry *
 bed_entry_new (void)
 {

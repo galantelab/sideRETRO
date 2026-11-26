@@ -314,6 +314,44 @@ START_TEST (test_chrom_end_fatal)
 }
 END_TEST
 
+static int
+check_format_of (int (*check) (const char *), const char *content)
+{
+	char path[] = "/tmp/ponga_check-XXXXXX";
+	FILE *fp = NULL;
+	int rc = 0;
+
+	fp = xfdopen (xmkstemp (path), "w");
+	xfprintf (fp, "%s", content);
+	xfclose (fp);
+
+	rc = check (path);
+	xunlink (path);
+
+	return rc;
+}
+
+START_TEST (test_bed_check_format)
+{
+	// After comments, 3 fields or more - by tabs or spaces
+	ck_assert_int_eq (check_format_of (bed_check_format,
+				"#chrom\tstart\tend\nchr1\t0\t100\n"), 1);
+	ck_assert_int_eq (check_format_of (bed_check_format,
+				"chr1 0 100 gene1 0 +\n"), 1);
+	ck_assert_int_eq (check_format_of (bed_check_format,
+				"track name=ponga\nchr1\t0\t100\n"), 1);
+
+	// Too few fields, 'chromStart' is not a number, FASTA, nothing
+	ck_assert_int_eq (check_format_of (bed_check_format,
+				"chr1\t0\n"), 0);
+	ck_assert_int_eq (check_format_of (bed_check_format,
+				"chr1\tstart\t100\n"), 0);
+	ck_assert_int_eq (check_format_of (bed_check_format,
+				">chr1\nACGT\n"), 0);
+	ck_assert_int_eq (check_format_of (bed_check_format, ""), 0);
+}
+END_TEST
+
 Suite *
 make_bed_suite (void)
 {
@@ -329,6 +367,7 @@ make_bed_suite (void)
 	/* Abort test case */
 	tc_abort = tcase_create ("Abort");
 
+	tcase_add_test (tc_core, test_bed_check_format);
 	tcase_add_test (tc_core, test_bed_header);
 	tcase_add_loop_test (tc_core, test_beds, 0, 10);
 

@@ -103,6 +103,35 @@ db_busy_timeout (void)
 	return (int) ms;
 }
 
+/*
+ * A sideRETRO database has the table 'schema'. Open it
+ * read-only: Not a database, or not a sideRETRO one,
+ * return 0 - with no fatal error
+ */
+int
+db_is_sider (const char *path)
+{
+	assert (path != NULL);
+
+	sqlite3 *db = NULL;
+	sqlite3_stmt *stmt = NULL;
+	int rc = 0;
+
+	rc = sqlite3_open_v2 (path, &db, SQLITE_OPEN_READONLY, NULL);
+
+	if (rc == SQLITE_OK)
+		{
+			sqlite3_busy_timeout (db, db_busy_timeout ());
+			rc = sqlite3_prepare_v2 (db,
+					"SELECT major_version FROM schema LIMIT 1", -1, &stmt, NULL);
+		}
+
+	sqlite3_finalize (stmt);
+	sqlite3_close (db);
+
+	return rc == SQLITE_OK;
+}
+
 sqlite3 *
 db_open (const char *path, int flags)
 {

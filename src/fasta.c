@@ -29,6 +29,25 @@
 #define FASTA_SEQ_BUFSIZ    100 << 20   // 100MiB
 #define FASTA_CONTIG_BUFSIZ 128
 
+/*
+ * The first line of a FASTA file - after comments and
+ * blank lines - is the header of a contig: '>contig'
+ */
+int
+fasta_check_format (const char *path)
+{
+	assert (path != NULL);
+
+	char *line = NULL;
+	int rc = 0;
+
+	line = gz_first_line (path, ";");
+	rc = line != NULL && line[0] == '>' && line[1] != '\0';
+
+	xfree (line);
+	return rc;
+}
+
 FastaEntry *
 fasta_entry_new (void)
 {

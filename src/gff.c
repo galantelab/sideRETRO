@@ -48,6 +48,42 @@ gff_looks_like_gff_file (const char *filename)
 	return rc == 0;
 }
 
+/*
+ * The first line of a GTF/GFF3 file - after comments and
+ * blank lines - has at least 8 fields separated by tabs,
+ * and 'start' and 'end' are numbers
+ */
+int
+gff_check_format (const char *path)
+{
+	assert (path != NULL);
+
+	char *line = NULL;
+	char *token = NULL;
+	char *saveptr = NULL;
+	int num_field = 0;
+	int rc = 0;
+
+	line = gz_first_line (path, "#");
+	rc = line != NULL;
+
+	if (line != NULL)
+		token = strtok_r (line, "\t", &saveptr);
+
+	for (; token != NULL && num_field < 8;
+			token = strtok_r (NULL, "\t", &saveptr))
+		{
+			num_field++;
+
+			if ((num_field == 4 || num_field == 5)
+					&& strspn (token, "0123456789") != strlen (token))
+				rc = 0;
+		}
+
+	xfree (line);
+	return rc && num_field == 8;
+}
+
 GffEntry *
 gff_entry_new (void)
 {

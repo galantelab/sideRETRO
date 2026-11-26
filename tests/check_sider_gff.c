@@ -546,6 +546,43 @@ START_TEST (test_gff_entry_copy_again)
 }
 END_TEST
 
+static int
+check_format_of (int (*check) (const char *), const char *content)
+{
+	char path[] = "/tmp/ponga_check-XXXXXX";
+	FILE *fp = NULL;
+	int rc = 0;
+
+	fp = xfdopen (xmkstemp (path), "w");
+	xfprintf (fp, "%s", content);
+	xfclose (fp);
+
+	rc = check (path);
+	xunlink (path);
+
+	return rc;
+}
+
+START_TEST (test_gff_check_format)
+{
+	// After comments, 8 or 9 fields
+	ck_assert_int_eq (check_format_of (gff_check_format,
+				"##gff-version 3\n"
+				"chr1\tHAVANA\texon\t11869\t12227\t.\t+\t.\tgene_name \"DDX11L1\";\n"), 1);
+	ck_assert_int_eq (check_format_of (gff_check_format,
+				"chr1\tHAVANA\texon\t11869\t12227\t.\t+\t.\n"), 1);
+
+	// Too few fields, 'start' is not a number, FASTA, nothing
+	ck_assert_int_eq (check_format_of (gff_check_format,
+				"chr1\tHAVANA\texon\t11869\t12227\t.\t+\n"), 0);
+	ck_assert_int_eq (check_format_of (gff_check_format,
+				"chr1\tHAVANA\texon\tstart\t12227\t.\t+\t.\n"), 0);
+	ck_assert_int_eq (check_format_of (gff_check_format,
+				">chr1\nACGT\n"), 0);
+	ck_assert_int_eq (check_format_of (gff_check_format, "#only\n"), 0);
+}
+END_TEST
+
 Suite *
 make_gff_suite (void)
 {
@@ -561,6 +598,7 @@ make_gff_suite (void)
 	/* Abort test case */
 	tc_abort = tcase_create ("Abort");
 
+	tcase_add_test (tc_core, test_gff_check_format);
 	tcase_add_test (tc_core, test_gff_header);
 	tcase_add_test (tc_core, test_gff_read);
 	tcase_add_test (tc_core, test_gff_filter);

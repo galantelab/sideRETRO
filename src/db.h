@@ -40,6 +40,7 @@
 /* Low-level functions */
 
 sqlite3 *      db_open (const char *path, int flags);
+int            db_is_sider (const char *path);
 int            db_busy_timeout (void);
 void           db_close (sqlite3 *db);
 

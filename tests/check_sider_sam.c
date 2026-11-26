@@ -242,6 +242,51 @@ START_TEST (test_sam_to_bam_write_fail)
 }
 END_TEST
 
+static int
+check_format_of (int (*check) (const char *), const char *content)
+{
+	char path[] = "/tmp/ponga_check-XXXXXX";
+	FILE *fp = NULL;
+	int rc = 0;
+
+	fp = xfdopen (xmkstemp (path), "w");
+	xfprintf (fp, "%s", content);
+	xfclose (fp);
+
+	rc = check (path);
+	xunlink (path);
+
+	return rc;
+}
+
+START_TEST (test_sam_check_format)
+{
+	char sam_file[] = "/tmp/ponga_sam-XXXXXX";
+	char bam_file[] = "/tmp/ponga_bam-XXXXXX";
+
+	// SAM with header, and without it: An alignment
+	ck_assert_int_eq (check_format_of (sam_check_format, sam_str), 1);
+	ck_assert_int_eq (check_format_of (sam_check_format,
+				"ponga1\t0\tPONGA\t35361\t0\t10M\t*\t0\t0\tATCGATCGAT\t!!!!!!!!!!\n"), 1);
+
+	// BAM
+	create_sam_fd (xmkstemp (sam_file));
+	xmkstemp (bam_file);
+	ck_assert_int_eq (sam_to_bam (sam_file, bam_file), 1);
+	ck_assert_int_eq (sam_check_format (bam_file), 1);
+
+	// htslib takes any text for SAM: Not FASTA, GTF, nothing
+	ck_assert_int_eq (check_format_of (sam_check_format,
+				">chr1\nACGT\n"), 0);
+	ck_assert_int_eq (check_format_of (sam_check_format,
+				"chr1\tHAVANA\texon\t11869\t12227\t.\t+\t.\tgene_name \"DDX11L1\";\n"), 0);
+	ck_assert_int_eq (check_format_of (sam_check_format, ""), 0);
+
+	xunlink (sam_file);
+	xunlink (bam_file);
+}
+END_TEST
+
 Suite *
 make_sam_suite (void)
 {
@@ -255,6 +300,7 @@ make_sam_suite (void)
 	/* Core test case */
 	tc_core = tcase_create ("Core");
 
+	tcase_add_test (tc_core, test_sam_check_format);
 	tcase_add_test (tc_core, test_sam_to_bam);
 	tcase_add_test (tc_core, test_sam_to_bam_fp);
 	tcase_add_test (tc_core, test_sam_test_sorted_order);

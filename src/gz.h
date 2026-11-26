@@ -36,6 +36,7 @@ typedef struct _GzFile GzFile;
 GzFile     * gz_open_for_reading (const char *path);
 void         gz_close            (GzFile *gz);
 int          gz_getline          (GzFile *gz, char **lineptr, size_t *n);
+char       * gz_first_line       (const char *path, const char *comments);
 
 #define      gz_get_fp(gz)       ((gz)->fp)
 #define      gz_get_filename(gz) ((gz)->filename)

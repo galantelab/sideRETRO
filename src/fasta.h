@@ -46,6 +46,7 @@ typedef struct _FastaEntry FastaEntry;
 
 FastaFile *  fasta_open_for_reading (const char *path);
 void         fasta_close            (FastaFile *fasta);
+int          fasta_check_format     (const char *path);
 FastaEntry * fasta_entry_new        (void);
 void         fasta_entry_free       (FastaEntry *entry);
 int          fasta_read             (FastaFile *fasta, FastaEntry *entry);

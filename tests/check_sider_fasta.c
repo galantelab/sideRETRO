@@ -331,6 +331,40 @@ START_TEST (test_fasta_region_free_null)
 }
 END_TEST
 
+static int
+check_format_of (int (*check) (const char *), const char *content)
+{
+	char path[] = "/tmp/ponga_check-XXXXXX";
+	FILE *fp = NULL;
+	int rc = 0;
+
+	fp = xfdopen (xmkstemp (path), "w");
+	xfprintf (fp, "%s", content);
+	xfclose (fp);
+
+	rc = check (path);
+	xunlink (path);
+
+	return rc;
+}
+
+START_TEST (test_fasta_check_format)
+{
+	// After comments and blank lines, a contig
+	ck_assert_int_eq (check_format_of (fasta_check_format,
+				">chr1\nACGT\n"), 1);
+	ck_assert_int_eq (check_format_of (fasta_check_format,
+				";PONGA\n\n>chr1 example\nACGT\n"), 1);
+
+	// Not a FASTA: Text, a contig without name, nothing
+	ck_assert_int_eq (check_format_of (fasta_check_format,
+				"chr1\t1\t100\n"), 0);
+	ck_assert_int_eq (check_format_of (fasta_check_format,
+				">\nACGT\n"), 0);
+	ck_assert_int_eq (check_format_of (fasta_check_format, ""), 0);
+}
+END_TEST
+
 Suite *
 make_fasta_suite (void)
 {
@@ -346,6 +380,7 @@ make_fasta_suite (void)
 	/* Abort test case */
 	tc_abort = tcase_create ("Abort");
 
+	tcase_add_test (tc_core, test_fasta_check_format);
 	tcase_add_test (tc_core, test_fasta_read);
 	tcase_add_test (tc_core, test_empty_file);
 	tcase_add_test (tc_core, test_fasta_region_free_null);

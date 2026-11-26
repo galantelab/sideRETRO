@@ -25,7 +25,65 @@
 #include "wrapper.h"
 #include "utils.h"
 #include "log.h"
+#include "gz.h"
 #include "sam.h"
+
+/*
+ * A SAM file starts with a header line ('@') or with an
+ * alignment: At least 11 fields separated by tabs
+ */
+static int
+sam_check_text_format (const char *path)
+{
+	char *line = NULL;
+	char *cur = NULL;
+	int num_field = 0;
+	int rc = 0;
+
+	line = gz_first_line (path, "");
+
+	if (line == NULL)
+		return 0;
+
+	for (cur = line, num_field = 1; *cur != '\0'; cur++)
+		if (*cur == '\t')
+			num_field++;
+
+	rc = line[0] == '@' || num_field >= 11;
+
+	xfree (line);
+	return rc;
+}
+
+/*
+ * htslib recognizes 'path' as a SAM, BAM or CRAM file.
+ * Not by hts_open: It opens any text file as SAM - and
+ * so does hts_detect_format, so check the text itself
+ */
+int
+sam_check_format (const char *path)
+{
+	assert (path != NULL);
+
+	hFILE *fp = NULL;
+	htsFormat fmt = {};
+	int rc = 0;
+
+	fp = hopen (path, "r");
+
+	if (fp == NULL)
+		return 0;
+
+	if (hts_detect_format (fp, &fmt) == 0)
+		rc = fmt.format == sam || fmt.format == bam || fmt.format == cram;
+
+	hclose_abruptly (fp);
+
+	if (rc && fmt.format == sam)
+		rc = sam_check_text_format (path);
+
+	return rc;
+}
 
 int
 sam_to_bam_fp (FILE *fp, const char *output_file)

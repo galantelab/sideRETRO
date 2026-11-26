@@ -127,3 +127,37 @@ gz_getline (GzFile *gz, char **lineptr, size_t *n)
 
 	return 1;
 }
+
+/*
+ * The first line of 'path' that is not blank and does not
+ * start with one of the 'comments' characters: Return it
+ * without the newline (free it), or NULL if there is none
+ */
+char *
+gz_first_line (const char *path, const char *comments)
+{
+	assert (path != NULL && comments != NULL);
+
+	GzFile *gz = NULL;
+	char *line = NULL;
+	size_t size = 0;
+
+	gz = gz_open_for_reading (path);
+
+	while (gz_getline (gz, &line, &size))
+		{
+			line = chomp (line);
+
+			// Skip blank lines and comments
+			if (line[0] != '\0' && strchr (comments, line[0]) == NULL)
+				break;
+
+			xfree (line);
+			line = NULL;
+			size = 0;
+		}
+
+	gz_close (gz);
+
+	return line;
+}
