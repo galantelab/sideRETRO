@@ -359,8 +359,9 @@ is a duplication.
 +------------+--------------------------------------------------------------+
 | PGMATES    | Number of fragments with a read at the insertion site and    |
 |            | its **mate inside the copy**: Aligned end to end, unclipped, |
-|            | at the exons of the parental gene. Evidence of a copy longer |
-|            | than a read (``NoParentalMate``)                             |
+|            | at the exons of the parental gene - both of them primary     |
+|            | alignments. Evidence of a copy longer than a read            |
+|            | (``NoParentalMate``)                                         |
 +------------+--------------------------------------------------------------+
 | EEJ        | Number of **exon-exon junctions** of the parental gene       |
 |            | spanned by split reads: Direct evidence of a processed       |

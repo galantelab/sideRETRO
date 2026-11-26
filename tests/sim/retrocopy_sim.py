@@ -552,9 +552,9 @@ class Sim:
     def pgmates(self):
         """
         Fragments with a read at chr1 - the insertion site - and its
-        mate aligned end to end, not supplementary, at an exon of
-        the parental gene (chr2): Evidence of a copy longer than a
-        read
+        mate aligned end to end at an exon of the parental gene
+        (chr2), both primary alignments: Evidence of a copy longer
+        than a read
         """
         reads = {}
         for r in self.recs:
@@ -563,7 +563,7 @@ class Sim:
 
         n = 0
         for alns in reads.values():
-            site = [a for a in alns if a[1] == 'chr1']
+            site = [a for a in alns if a[1] == 'chr1' and not a[0] & 0x900]
             mates = [m for m in alns if m[1] == 'chr2' and not m[0] & 0x900
                      and re.fullmatch(r'\d+M', m[3])
                      and any(m[2] <= e and m[2] + int(m[3][:-1]) - 1 >= s

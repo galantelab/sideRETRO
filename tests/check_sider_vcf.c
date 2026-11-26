@@ -1295,7 +1295,10 @@ START_TEST (test_vcf_pgmates)
 	* - q3: a supplementary alignment of the mate;
 	* - q4: the mate is outside the exons;
 	* - q5: the mate is at an exon of another gene;
-	* - q6: the other piece of the same read, a split read
+	* - q6: the other piece of the same read, a split read;
+	* - q8: the read at the site is a supplementary piece of
+	*   a pair of 'gene1' (its primary and its mate there), as
+	*   with a stretch shared by the site and an exon
 	*/
 	const char sql[] =
 		"BEGIN TRANSACTION;\n"
@@ -1318,12 +1321,17 @@ START_TEST (test_vcf_pgmates)
 		"INSERT INTO alignment VALUES (12,'q6',2145,'chr5',150,60,'76H24M',24,24,'chr1',400,2,1,'*','*');\n"
 		"INSERT INTO alignment VALUES (13,'q7',97,'chr1',80,60,'100M',100,100,'chr5',550,1,2,'*','*');\n"
 		"INSERT INTO alignment VALUES (14,'q7',145,'chr5',550,60,'100M',100,100,'chr1',80,2,2,'*','*');\n"
+		"INSERT INTO alignment VALUES (15,'q8',2147,'chr1',85,60,'76H24M',24,24,'chr5',600,1,1,'*','*');\n"
+		"INSERT INTO alignment VALUES (16,'q8',99,'chr5',520,60,'76M24S',100,76,'chr5',600,2,1,'*','*');\n"
+		"INSERT INTO alignment VALUES (17,'q8',147,'chr5',600,60,'100M',100,100,'chr5',520,2,1,'*','*');\n"
 		"INSERT INTO overlapping VALUES (1,2,150,100);\n"
 		"INSERT INTO overlapping VALUES (1,4,150,90);\n"
 		"INSERT INTO overlapping VALUES (1,6,150,100);\n"
 		"INSERT INTO overlapping VALUES (3,10,2100,100);\n"
 		"INSERT INTO overlapping VALUES (1,12,150,24);\n"
 		"INSERT INTO overlapping VALUES (2,14,550,100);\n"
+		"INSERT INTO overlapping VALUES (2,16,520,76);\n"
+		"INSERT INTO overlapping VALUES (2,17,600,100);\n"
 		"INSERT INTO cluster VALUES (1,1,'chr1',50,180,'gene1',31);\n"
 		"INSERT INTO clustering VALUES (1,1,1,3,100);\n"
 		"INSERT INTO clustering VALUES (1,1,3,3,100);\n"
@@ -1332,6 +1340,7 @@ START_TEST (test_vcf_pgmates)
 		"INSERT INTO clustering VALUES (1,1,9,3,100);\n"
 		"INSERT INTO clustering VALUES (1,1,11,3,100);\n"
 		"INSERT INTO clustering VALUES (1,1,13,3,100);\n"
+		"INSERT INTO clustering VALUES (1,1,15,3,100);\n"
 		"INSERT INTO cluster_merging VALUES (1,1,1);\n"
 		"INSERT INTO retrocopy VALUES (1,'chr1',50,180,'gene1',1,150,1,0,1,NULL,0,NULL,0,NULL,0,NULL,0);\n"
 		"INSERT INTO genotype VALUES (1,1,0,5,-30.0,-1.5,-0.1);\n"

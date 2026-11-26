@@ -974,6 +974,11 @@ single read crosses the whole insert, the mates fall at the flanks, and
 only the short pieces of the split reads reach the parental gene. Such
 an event is real sequence, but not the retrocopy of a transcript, and
 it fails ``NoParentalMate`` (``make-vcf --min-pgmates``, 1 by default).
+Both reads of the fragment must be **primary** alignments, the one at
+the site and its mate: A short stretch that the site shares with an
+exon gives split reads as well - pairs of the parental gene itself,
+with the end of a read aligned at the site as a supplementary piece -
+and their mates are at the exons, but they bridge nothing.
 
 **Is it at a primary chromosome?** Alt, decoy, unplaced and HLA contigs
 copy regions of the primary chromosomes or are too short for both

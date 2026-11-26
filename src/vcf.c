@@ -346,7 +346,8 @@ vcf_print_header (const List *hl, Hash *contig_len,
 		"##INFO=<ID=PGEXONS,Number=.,Type=String,Description=\"Number of exons of each parental gene as 'gene:n'."
 		" A single exon gene has no exon-exon junction\">\n"
 		"##INFO=<ID=PGMATES,Number=1,Type=Integer,Description=\"Fragments with a read at the insertion site and its mate"
-		" aligned end to end, unclipped, inside the exons of the parental gene: Evidence of a copy longer than a read\">\n"
+		" aligned end to end, unclipped, inside the exons of the parental gene - both primary alignments: Evidence of a copy"
+		" longer than a read\">\n"
 		"##INFO=<ID=PG5P,Number=1,Type=String,Description=\"5' end of the retrocopy into the parental gene as 'exon_id:position:reads',"
 		" where position is at the reference genome\">\n"
 		"##INFO=<ID=PG3P,Number=1,Type=String,Description=\"3' end of the retrocopy into the parental gene, before the poly-A,"
@@ -541,6 +542,7 @@ prepare_retrocopy_query_stmt (sqlite3 *db, const long near_gene_dist,
 		"				ON e.id = o.exon_id\n"
 		"					AND e.gene_name = cl.gene_name\n"
 		"			WHERE m.id != a.id\n"
+		"				AND (a.flag & 0x900) = 0\n"
 		"				AND (m.flag & 0xC0) != (a.flag & 0xC0)\n"
 		"				AND (m.flag & 0x900) = 0\n"
 		"				AND m.cigar NOT GLOB '*[SH]*'\n"
@@ -1564,7 +1566,10 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 			* the insertion site have mates inside the parental
 			* exons. A short piece of an exon copied to the site
 			* - shorter than a read - has none: Only the pieces
-			* of the split reads reach the parental gene
+			* of the split reads reach the parental gene. Nor a
+			* stretch shared by the site and an exon: Its reads
+			* are pairs of the parental gene, with a supplementary
+			* piece at the site - not primary there
 			*/
 			if (b.pgmates < opt->min_pgmates)
 				failed |= VCF_FILTER_NO_PARENTAL_MATE;
