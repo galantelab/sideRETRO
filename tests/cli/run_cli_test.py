@@ -182,7 +182,7 @@ def cases(t, sim):
     t.run('ps: run quiet with log', ps + ann + ['-o', P('ps3'), '-q',
           '-l', P('ps3.log')] + sam, absent=['summary'])
     t.run('ps: run BED annotation', ps + ['-a', P('genes.bed'), '-o', P('ps4')] + sam,
-          expect=['Exons indexed            3'],
+          expect=['Exons indexed            3', 'merge-call -r <genome.fa> '],
           absent=['--gff-feature', '--exon-frac is a fraction of the exon'])
 
     # ================= merge-call

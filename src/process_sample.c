@@ -172,7 +172,7 @@ print_summary (const ProcessSample *ps, const char *db_file, size_t num_exons,
 
 	summary_section (s, "Output");
 	summary_line (s, "Database", "%s", db_file);
-	summary_line (s, "Next step", "%s merge-call %s", PACKAGE, db_file);
+	summary_line (s, "Next step", "%s merge-call -r <genome.fa> %s", PACKAGE, db_file);
 
 	summary_log (s);
 	summary_free (s);
