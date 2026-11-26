@@ -551,7 +551,7 @@ db_create_tables (sqlite3 *db)
 		"	alternate_depth INTEGER NOT NULL,\n"
 		"	ho_ref_likelihood REAL NOT NULL,\n"
 		"	he_likelihood REAL NOT NULL,\n"
-		"	ho_alt_likelihood NOT NULL,\n"
+		"	ho_alt_likelihood REAL NOT NULL,\n"
 		"	FOREIGN KEY (source_id) REFERENCES source(id),\n"
 		"	FOREIGN KEY (retrocopy_id) REFERENCES retrocopy(id),\n"
 		"	PRIMARY KEY (source_id, retrocopy_id));\n"
