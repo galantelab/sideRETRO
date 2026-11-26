@@ -80,6 +80,7 @@ Example:
 import argparse
 import os
 import random
+import re
 import sys
 
 READ_LEN = 100
@@ -102,6 +103,10 @@ MIN_IR = 2
 # Minimum length of a target site duplication: A shorter one
 # is a blunt insertion (make-vcf --min-tsd)
 MIN_TSD = 5
+
+# Minimum number of fragments with the mate inside the parental
+# exons (make-vcf --min-pgmates)
+MIN_PGMATES = 1
 
 # Tandem repeat at the target site (--site-repeat): Its length
 # and its start before the insertion point
@@ -305,14 +310,24 @@ class Sim:
 
             start = self.left_junction - m
             seq = self.alt[start:start + READ_LEN]
-            mpos, mseq = self.exon_read(0)
+
+            # The mate inside the retrocopy, at exon1 - or, as
+            # with an insert shorter than a read, at the right
+            # flank: A proper pair
+            if a.split_mates_flank:
+                flag, mflag, mchr = 99, 147, 'chr1'
+                mpos = self.right_anchor + 100
+                mseq = self.chr1[mpos - 1:mpos - 1 + READ_LEN]
+            else:
+                flag, mflag, mchr = 97, 145, 'chr2'
+                mpos, mseq = self.exon_read(0)
 
             # Primary clipped at the right and the
             # supplementary at the beginning of exon1
-            self.rec(qname, 97, 'chr1', start + 1, '%dM%dS' % (m, c), 'chr2', mpos, seq)
-            self.rec(qname, 2145, 'chr2', self.exons[0][0], '%dH%dM' % (m, c),
-                     'chr2', mpos, seq[m:])
-            self.rec(qname, 145, 'chr2', mpos, '%dM' % READ_LEN, 'chr1', start + 1,
+            self.rec(qname, flag, 'chr1', start + 1, '%dM%dS' % (m, c), mchr, mpos, seq)
+            self.rec(qname, 2048 | (flag & 0xF3), 'chr2', self.exons[0][0],
+                     '%dH%dM' % (m, c), mchr, mpos, seq[m:])
+            self.rec(qname, mflag, mchr, mpos, '%dM' % READ_LEN, 'chr1', start + 1,
                      mseq)
 
     def split_right(self):
@@ -484,7 +499,9 @@ class Sim:
             # The insertion is at the '+' strand: Both the orientation
             # (POLARITY) and the poly-A junction (POLYASTRAND) say so
             ('POLYASTRAND', 'NA' if polya_sr == 'NA' else '+'),
-            ('POLARITY', '+'),
+            # The orientation pairs the reads at the site with their
+            # mates at the parental gene: Not judged without them
+            ('POLARITY', '+' if self.pgmates() else 'SKIP'),
             ('PG', 'PARENT'),
             ('PGEXONS', 'PARENT:%d' % len(self.exons)),
             ('PG5P', pg5p),
@@ -506,6 +523,7 @@ class Sim:
             ('EEJ', 1 if a.n_junction_reads else 'NA'),
             ('EEJLIST', 'ENSEP0-ENSEP1' if a.n_junction_reads else 'NA'),
             # An intron needs MIN_IR mates at the sample
+            ('PGMATES', self.pgmates() or 'NA'),
             ('IR', a.n_intron_mates if a.n_intron_mates >= MIN_IR else 'NA'),
             ('IRLIST', 'ENSEP0-ENSEP1:%d' % a.n_intron_mates
              if a.n_intron_mates >= MIN_IR else 'NA'),
@@ -520,6 +538,29 @@ class Sim:
         """
         a = self.args
         return both and a.tsd_len >= MIN_TSD and not a.site_repeat
+
+    def pgmates(self):
+        """
+        Fragments with a read at chr1 - the insertion site - and its
+        mate aligned end to end, not supplementary, at an exon of
+        the parental gene (chr2): Evidence of a copy longer than a
+        read
+        """
+        reads = {}
+        for r in self.recs:
+            f = r.split('\t')
+            reads.setdefault(f[0], []).append((int(f[1]), f[2], int(f[3]), f[5]))
+
+        n = 0
+        for alns in reads.values():
+            site = [a for a in alns if a[1] == 'chr1']
+            mates = [m for m in alns if m[1] == 'chr2' and not m[0] & 0x900
+                     and re.fullmatch(r'\d+M', m[3])
+                     and any(m[2] <= e and m[2] + int(m[3][:-1]) - 1 >= s
+                             for s, e in self.exons)]
+            if any((a[0] & 0xC0) != (m[0] & 0xC0) for a in site for m in mates):
+                n += 1
+        return n
 
     def filters(self, left, right, n_right, polya):
         """
@@ -547,6 +588,8 @@ class Sim:
             f.append('TSDOutlier')
         if not (self.tsd_hallmark(both) or polya or a.n_junction_reads > 0):
             f.append('NoHallmark')
+        if self.pgmates() < MIN_PGMATES:
+            f.append('NoParentalMate')
 
         return ';'.join(f) if f else 'PASS'
 
@@ -658,7 +701,7 @@ def check(vcf_file, truth_file):
     if truth['POS'] != 'NA':
         expect('POS', fields[1], truth['POS'])
 
-    for key in ('IMPRECISE', 'LBKP', 'LSR', 'RBKP', 'RSR', 'TSDLEN', 'TSITE',
+    for key in ('PGMATES', 'IMPRECISE', 'LBKP', 'LSR', 'RBKP', 'RSR', 'TSDLEN', 'TSITE',
                 'TSITEMERGED', 'TSITETR', 'TSD',
                 'POLYA', 'POLYAMIN', 'POLYASR', 'POLYASTRAND', 'POLARITY', 'PG',
                 'PGEXONS', 'EEJ', 'EEJLIST', 'IR', 'IRLIST', 'PG5P', 'PG3P', 'SVLEN',
@@ -757,6 +800,9 @@ def main():
     p.add_argument('--site-repeat', metavar='UNIT', type=str.upper,
                    help='write a tandem repeat of UNIT (2 to 6 bases) over '
                         'the target site')
+    p.add_argument('--split-mates-flank', action='store_true',
+                   help='put the mates of the left split reads at the right '
+                        'flank, as with an insert shorter than a read')
     p.add_argument('--polya-supplementary', action='store_true',
                    help='align the poly-A of the right junction reads as '
                         'a supplementary piece with MAPQ 0')

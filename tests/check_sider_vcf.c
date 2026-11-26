@@ -1278,6 +1278,118 @@ START_TEST (test_vcf_primary_regex_fail)
 }
 END_TEST
 
+START_TEST (test_vcf_pgmates)
+{
+	char db_file[] = "/tmp/ponga.db.XXXXXX";
+	char vcf_file[] = "/tmp/ponga.vcf.XXXXXX";
+	char fasta_file[] = "/tmp/ponga.fa.XXXXXX";
+	sqlite3 *db = NULL;
+	int fd = 0;
+
+	/*
+	* Reads at the insertion site (chr1) and their mates at
+	* the parental gene 'gene1' (chr5). Only q1 and q7 - at
+	* another sample - have a mate aligned end to end inside
+	* an exon of 'gene1'. The others do not count:
+	* - q2: the mate is clipped;
+	* - q3: a supplementary alignment of the mate;
+	* - q4: the mate is outside the exons;
+	* - q5: the mate is at an exon of another gene;
+	* - q6: the other piece of the same read, a split read
+	*/
+	const char sql[] =
+		"BEGIN TRANSACTION;\n"
+		"INSERT INTO source VALUES (1,1,'PONGA1');\n"
+		"INSERT INTO source VALUES (2,1,'PONGA2');\n"
+		"INSERT INTO exon VALUES (1,'gene1','chr5',100,300,'+','eg1','ee1');\n"
+		"INSERT INTO exon VALUES (2,'gene1','chr5',500,700,'+','eg1','ee2');\n"
+		"INSERT INTO exon VALUES (3,'gene2','chr5',2000,2300,'+','eg2','ee3');\n"
+		"INSERT INTO alignment VALUES (1,'q1',97,'chr1',50,60,'100M',100,100,'chr5',150,1,1,'*','*');\n"
+		"INSERT INTO alignment VALUES (2,'q1',145,'chr5',150,60,'100M',100,100,'chr1',50,2,1,'*','*');\n"
+		"INSERT INTO alignment VALUES (3,'q2',97,'chr1',55,60,'100M',100,100,'chr5',150,1,1,'*','*');\n"
+		"INSERT INTO alignment VALUES (4,'q2',145,'chr5',150,60,'90M10S',100,90,'chr1',55,2,1,'*','*');\n"
+		"INSERT INTO alignment VALUES (5,'q3',97,'chr1',60,60,'100M',100,100,'chr5',150,1,1,'*','*');\n"
+		"INSERT INTO alignment VALUES (6,'q3',2193,'chr5',150,60,'100M',100,100,'chr1',60,2,1,'*','*');\n"
+		"INSERT INTO alignment VALUES (7,'q4',97,'chr1',65,60,'100M',100,100,'chr5',350,1,1,'*','*');\n"
+		"INSERT INTO alignment VALUES (8,'q4',145,'chr5',350,60,'100M',100,100,'chr1',65,2,1,'*','*');\n"
+		"INSERT INTO alignment VALUES (9,'q5',97,'chr1',70,60,'100M',100,100,'chr5',2100,1,1,'*','*');\n"
+		"INSERT INTO alignment VALUES (10,'q5',145,'chr5',2100,60,'100M',100,100,'chr1',70,2,1,'*','*');\n"
+		"INSERT INTO alignment VALUES (11,'q6',97,'chr1',75,60,'76M24S',100,76,'chr1',400,1,1,'*','*');\n"
+		"INSERT INTO alignment VALUES (12,'q6',2145,'chr5',150,60,'76H24M',24,24,'chr1',400,2,1,'*','*');\n"
+		"INSERT INTO alignment VALUES (13,'q7',97,'chr1',80,60,'100M',100,100,'chr5',550,1,2,'*','*');\n"
+		"INSERT INTO alignment VALUES (14,'q7',145,'chr5',550,60,'100M',100,100,'chr1',80,2,2,'*','*');\n"
+		"INSERT INTO overlapping VALUES (1,2,150,100);\n"
+		"INSERT INTO overlapping VALUES (1,4,150,90);\n"
+		"INSERT INTO overlapping VALUES (1,6,150,100);\n"
+		"INSERT INTO overlapping VALUES (3,10,2100,100);\n"
+		"INSERT INTO overlapping VALUES (1,12,150,24);\n"
+		"INSERT INTO overlapping VALUES (2,14,550,100);\n"
+		"INSERT INTO cluster VALUES (1,1,'chr1',50,180,'gene1',31);\n"
+		"INSERT INTO clustering VALUES (1,1,1,3,100);\n"
+		"INSERT INTO clustering VALUES (1,1,3,3,100);\n"
+		"INSERT INTO clustering VALUES (1,1,5,3,100);\n"
+		"INSERT INTO clustering VALUES (1,1,7,3,100);\n"
+		"INSERT INTO clustering VALUES (1,1,9,3,100);\n"
+		"INSERT INTO clustering VALUES (1,1,11,3,100);\n"
+		"INSERT INTO clustering VALUES (1,1,13,3,100);\n"
+		"INSERT INTO cluster_merging VALUES (1,1,1);\n"
+		"INSERT INTO retrocopy VALUES (1,'chr1',50,180,'gene1',1,150,1,0,1,NULL,0,NULL,0,NULL,0,NULL,0);\n"
+		"INSERT INTO genotype VALUES (1,1,0,5,-30.0,-1.5,-0.1);\n"
+		"INSERT INTO genotype VALUES (2,1,0,5,-30.0,-1.5,-0.1);\n"
+		"COMMIT;";
+
+	fd = xmkstemp (db_file);
+	close (fd);
+	db = db_create (db_file);
+	db_exec (db, sql);
+
+	create_vcf (vcf_file);
+	create_fasta (fasta_file);
+
+	VCFOption opt = {
+		.min_tsd = VCF_DEFAULT_MIN_TSD,
+		.fasta_file = fasta_file,
+		.min_qual = VCF_DEFAULT_MIN_QUAL,
+		.min_mapq = VCF_DEFAULT_MIN_MAPQ,
+		.max_tsd = VCF_DEFAULT_MAX_TSD,
+		.min_pgmates = 2
+	};
+
+	// Two fragments: Enough for the threshold of 2
+	vcf (db, vcf_file, &opt);
+
+	ck_assert (grep_vcf_record (vcf_file, "\tRTC000001\t", ";PGMATES=2;"));
+	ck_assert (!grep_vcf_record (vcf_file, "\tRTC000001\t", "NoParentalMate"));
+	ck_assert (grep_vcf_header (vcf_file, "##FILTER=<ID=NoParentalMate,"));
+
+	// But not for 3
+	opt.min_pgmates = 3;
+	vcf (db, vcf_file, &opt);
+
+	ck_assert (grep_vcf_record (vcf_file, "\tRTC000001\t", "NoParentalMate"));
+
+	// No fragment at all: PGMATES is not reported
+	db_exec (db, "DELETE FROM alignment WHERE id IN (2, 14)");
+	opt.min_pgmates = 1;
+	vcf (db, vcf_file, &opt);
+
+	ck_assert (!grep_vcf_record (vcf_file, "\tRTC000001\t", "PGMATES="));
+	ck_assert (grep_vcf_record (vcf_file, "\tRTC000001\t", "NoParentalMate"));
+
+	// Disabled: Neither checked nor declared
+	opt.disabled_filters = VCF_FILTER_NO_PARENTAL_MATE;
+	vcf (db, vcf_file, &opt);
+
+	ck_assert (!grep_vcf_record (vcf_file, "\tRTC000001\t", "NoParentalMate"));
+	ck_assert (!grep_vcf_header (vcf_file, "NoParentalMate"));
+
+	db_close (db);
+	xunlink (db_file);
+	xunlink (vcf_file);
+	xunlink (fasta_file);
+}
+END_TEST
+
 START_TEST (test_vcf_no_genotype_fail)
 {
 	char db_file[] = "/tmp/ponga.db.XXXXXX";
@@ -1326,6 +1438,7 @@ make_vcf_suite (void)
 	tcase_add_test (tc_core, test_vcf_target_site);
 	tcase_add_test (tc_core, test_vcf_tsite_repeat);
 	tcase_add_test (tc_core, test_vcf_non_primary);
+	tcase_add_test (tc_core, test_vcf_pgmates);
 	suite_add_tcase (s, tc_core);
 
 	/* Abort test case */

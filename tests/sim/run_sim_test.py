@@ -77,6 +77,10 @@ SCENARIOS = [
     ('repeat_site',      ['--seed', '6', '--site-repeat', 'CA']),
     ('repeat_site_only', ['--seed', '6', '--site-repeat', 'CA', '--polya-len', '3',
                           '--n-junction-reads', '0']),
+    # A short piece of an exon at the site: No mate inside the
+    # parental exons, only the pieces of the split reads
+    ('short_insert',     ['--seed', '5', '--n-discordant', '0', '--n-split-right', '0',
+                          '--split-mates-flank']),
     # Intron retention: Mates inside an intron of the parental
     # gene. A single one is not enough to report the intron
     ('intron_retention', ['--seed', '4', '--n-intron-mates', '4']),

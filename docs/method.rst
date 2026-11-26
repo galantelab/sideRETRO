@@ -918,27 +918,59 @@ and ``QUAL`` is 299.2. Some details:
   their mapping quality: A score to **rank** the insertions, not a
   calibrated probability.
 
-The filter (``FILTER``) asks whether the **insertion point**
-is well defined, so that a ``PASS`` retrocopy is a good target for
-validation: Enough split reads and both breakpoints - a duplication not
-too long, a blunt insertion or a deletion at the target site - besides
-the quality, the mapping quality of the reads and a single parental
-gene.
+The filter (``FILTER``) answers a few plain questions, so that a ``PASS``
+retrocopy is a good target for validation:
 
-It also asks for **one hallmark** of retrotransposition, whichever: An
-exon-exon junction, the poly-A tail or a target site duplication
-(``NoHallmark``). Each one depends on the coverage and on where the
-retrocopy was cut, so none of them is required alone. But an event
-without any of them cannot be told from an unprocessed copy of the
-gene, or from a tandem repeat that changed length. A duplication inside
-a tandem repeat does not count (see :ref:`Tandem repeats
-<method_tsite_repeat>`), unless the repeat is a run of A or T: LINE-1
-cuts at T-rich sites. And it must be at a **primary chromosome**
-(``NonPrimary``): Alt, decoy, unplaced and HLA contigs copy regions of
-the primary chromosomes or are too short for both flanks, and their
-names vary among the references - so the primary ones are given as a
-regular expression (``make-vcf -P``). The intron retention is
-**reported**, but it does not filter. See :ref:`QUAL <qual>` and :ref:`FILTER <filter>` for the
++-------------------------------------------+-------------------------------+
+| Question                                  | Filters                       |
++===========================================+===============================+
+| Is the call reliable?                     | ``LowQual``, ``LowMAPQ``,     |
+|                                           | ``AmbiguousParental``         |
++-------------------------------------------+-------------------------------+
+| Is the insertion point well defined?      | ``LowSR``, ``NoBreakpoint``,  |
+|                                           | ``OneBreakpoint``,            |
+|                                           | ``TSDOutlier``                |
++-------------------------------------------+-------------------------------+
+| Is there evidence of a                    | ``NoHallmark``                |
+| retrotransposition?                       |                               |
++-------------------------------------------+-------------------------------+
+| Is there a copy longer than a read?       | ``NoParentalMate``            |
++-------------------------------------------+-------------------------------+
+| Is it at a primary chromosome?            | ``NonPrimary``                |
++-------------------------------------------+-------------------------------+
+
+**Is the call reliable?** The quality, the mapping quality of the reads
+and a single parental gene. **Is the insertion point well defined?**
+Enough split reads and both breakpoints - a duplication not too long, a
+blunt insertion or a deletion at the target site.
+
+**Is there evidence of a retrotransposition?** It asks for **one
+hallmark**, whichever: An exon-exon junction, the poly-A tail or a
+target site duplication (``NoHallmark``). Each one depends on the
+coverage and on where the retrocopy was cut, so none of them is required
+alone. But an event without any of them cannot be told from an
+unprocessed copy of the gene, or from a tandem repeat that changed
+length. A duplication inside a tandem repeat does not count (see
+:ref:`Tandem repeats <method_tsite_repeat>`), unless the repeat is a run
+of A or T: LINE-1 cuts at T-rich sites.
+
+**Is there a copy longer than a read?** A retrocopy, even a 5'
+truncated one, is longer than a read. So some fragments have a read at
+the insertion site and the **mate inside the copy**, aligned end to end
+at the exons of the parental gene (``PGMATES``). A short piece of an
+exon copied to the site - a few dozen bases - gives split reads too,
+with breakpoints and a target site duplication, but nothing else: A
+single read crosses the whole insert, the mates fall at the flanks, and
+only the short pieces of the split reads reach the parental gene. Such
+an event is real sequence, but not the retrocopy of a transcript, and
+it fails ``NoParentalMate`` (``make-vcf --min-pgmates``, 1 by default).
+
+**Is it at a primary chromosome?** Alt, decoy, unplaced and HLA contigs
+copy regions of the primary chromosomes or are too short for both
+flanks, and their names vary among the references - so the primary ones
+are given as a regular expression (``make-vcf -P``, ``NonPrimary``).
+
+The intron retention is **reported**, but it does not filter. See :ref:`QUAL <qual>` and :ref:`FILTER <filter>` for the
 details and the thresholds.
 
 References and Further Reading

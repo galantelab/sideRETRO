@@ -43,6 +43,7 @@ struct _VCFOption
 	int         min_sr;
 	int         min_tsd;
 	int         max_tsd;
+	int         min_pgmates;
 	int         disabled_filters;
 
 	// Primary chromosomes (NonPrimary): An extended
@@ -72,8 +73,10 @@ typedef struct _VCFOption VCFOption;
  * from breakpoints of unrelated reads. And it needs a
  * hallmark of retrotransposition: An exon-exon junction,
  * the poly-A tail or a duplication outside a tandem
- * repeat. At last, it must be at a primary chromosome:
- * Not at an alt, decoy, unplaced or HLA contig
+ * repeat. It must be at a primary chromosome - not at
+ * an alt, decoy, unplaced or HLA contig - and a copy
+ * longer than a read: Some mates inside the parental
+ * exons
  */
 enum _VCFFilter
 {
@@ -85,7 +88,8 @@ enum _VCFFilter
 	VCF_FILTER_ONE_BREAKPOINT     = 32,
 	VCF_FILTER_TSD_OUTLIER        = 64,
 	VCF_FILTER_NO_HALLMARK        = 128,
-	VCF_FILTER_NON_PRIMARY        = 256
+	VCF_FILTER_NON_PRIMARY        = 256,
+	VCF_FILTER_NO_PARENTAL_MATE   = 512
 };
 
 typedef enum _VCFFilter VCFFilter;
@@ -95,6 +99,7 @@ typedef enum _VCFFilter VCFFilter;
 #define VCF_DEFAULT_MIN_SR        3
 #define VCF_DEFAULT_MIN_TSD       5
 #define VCF_DEFAULT_MAX_TSD       25
+#define VCF_DEFAULT_MIN_PGMATES   1
 #define VCF_DEFAULT_PRIMER_FLANK  200
 #define VCF_DEFAULT_MIN_IR        2
 

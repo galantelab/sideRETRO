@@ -71,6 +71,9 @@ static const VCFFilterDef filter_defs[] =
 		" and no target site duplication outside a tandem repeat"},
 	{VCF_FILTER_NON_PRIMARY,        "NonPrimary",
 		"Not at a primary chromosome: An alt, decoy, unplaced or HLA contig (make-vcf --primary-chr)"},
+	{VCF_FILTER_NO_PARENTAL_MATE,   "NoParentalMate",
+		"Fewer mates aligned end to end inside the parental exons (PGMATES) than the threshold"
+		" (make-vcf --min-pgmates): No copy longer than a read"},
 	{0, NULL, NULL}
 };
 
@@ -167,6 +170,7 @@ struct _VCFBody
 	// Intron retention
 	int         ir;
 	const char *ir_list;
+	int         pgmates;
 
 	// Retrocopy ends into the parental gene,
 	// predicted sequence and observed junctions
@@ -341,6 +345,8 @@ vcf_print_header (const List *hl, Hash *contig_len,
 		" PG was chosen among them by the fragments explained by it alone and by the strand given by the poly-A\">\n"
 		"##INFO=<ID=PGEXONS,Number=.,Type=String,Description=\"Number of exons of each parental gene as 'gene:n'."
 		" A single exon gene has no exon-exon junction\">\n"
+		"##INFO=<ID=PGMATES,Number=1,Type=Integer,Description=\"Fragments with a read at the insertion site and its mate"
+		" aligned end to end, unclipped, inside the exons of the parental gene: Evidence of a copy longer than a read\">\n"
 		"##INFO=<ID=PG5P,Number=1,Type=String,Description=\"5' end of the retrocopy into the parental gene as 'exon_id:position:reads',"
 		" where position is at the reference genome\">\n"
 		"##INFO=<ID=PG3P,Number=1,Type=String,Description=\"3' end of the retrocopy into the parental gene, before the poly-A,"
@@ -514,6 +520,33 @@ prepare_retrocopy_query_stmt (sqlite3 *db, const long near_gene_dist,
 		"			ON a.id = c.alignment_id\n"
 		"		GROUP BY cm.retrocopy_id\n"
 		"	),\n"
+		"	pgmates (rid, n) AS (\n"
+		"		SELECT rid, COUNT(*)\n"
+		"		FROM (\n"
+		"			SELECT DISTINCT cm.retrocopy_id AS rid, a.source_id, a.qname\n"
+		"			FROM cluster_merging AS cm\n"
+		"			INNER JOIN cluster AS cl\n"
+		"				ON cl.id = cm.cluster_id AND cl.sid = cm.cluster_sid\n"
+		"			INNER JOIN clustering AS c\n"
+		"				ON c.cluster_id = cm.cluster_id\n"
+		"					AND c.cluster_sid = cm.cluster_sid\n"
+		"			INNER JOIN alignment AS a\n"
+		"				ON a.id = c.alignment_id\n"
+		"			INNER JOIN alignment AS m\n"
+		"				ON m.qname = a.qname\n"
+		"					AND m.source_id = a.source_id\n"
+		"			INNER JOIN overlapping AS o\n"
+		"				ON o.alignment_id = m.id\n"
+		"			INNER JOIN exon AS e\n"
+		"				ON e.id = o.exon_id\n"
+		"					AND e.gene_name = cl.gene_name\n"
+		"			WHERE m.id != a.id\n"
+		"				AND (m.flag & 0xC0) != (a.flag & 0xC0)\n"
+		"				AND (m.flag & 0x900) = 0\n"
+		"				AND m.cigar NOT GLOB '*[SH]*'\n"
+		"		)\n"
+		"		GROUP BY rid\n"
+		"	),\n"
 		"	genotype (retrocopy_id, acm) AS (\n"
 		"		SELECT retrocopy_id, COUNT(*)\n"
 		"		FROM (\n"
@@ -572,7 +605,8 @@ prepare_retrocopy_query_stmt (sqlite3 *db, const long near_gene_dist,
 		"	COALESCE(ins.seq, '?'), COALESCE(ins.left_seq, '?'),\n"
 		"	COALESCE(ins.right_seq, '?'),\n"
 		"	COALESCE(m.mean, 0), REPLACE(r.pgalt, '/', ','),\n"
-		"	COALESCE(ir.ir, 0), COALESCE(ir.txt, '?')\n"
+		"	COALESCE(ir.ir, 0), COALESCE(ir.txt, '?'),\n"
+		"	COALESCE(pm.n, 0)\n"
 		"FROM (\n"
 		"	SELECT *,\n"
 		"		CASE\n"
@@ -596,6 +630,8 @@ prepare_retrocopy_query_stmt (sqlite3 *db, const long near_gene_dist,
 		"	ON r.id = j.rid\n"
 		"LEFT JOIN intron_g AS ir\n"
 		"	ON r.id = ir.rid\n"
+		"LEFT JOIN pgmates AS pm\n"
+		"	ON r.id = pm.rid\n"
 		"LEFT JOIN insertion AS ins\n"
 		"	ON r.id = ins.retrocopy_id\n"
 		"LEFT JOIN exon AS e5\n"
@@ -747,6 +783,7 @@ vcf_get_body_line (sqlite3_stmt *stmt, VCFBody *b)
 	b->parental_others      = db_column_text   (stmt, 38);
 	b->ir                   = db_column_int    (stmt, 39);
 	b->ir_list              = db_column_text   (stmt, 40);
+	b->pgmates              = db_column_int    (stmt, 41);
 }
 
 static double
@@ -1522,6 +1559,16 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 			if (!tsd && b.polya_sr == 0 && b.eej == 0)
 				failed |= VCF_FILTER_NO_HALLMARK;
 
+			/*
+			* Is there a copy longer than a read? Its reads at
+			* the insertion site have mates inside the parental
+			* exons. A short piece of an exon copied to the site
+			* - shorter than a read - has none: Only the pieces
+			* of the split reads reach the parental gene
+			*/
+			if (b.pgmates < opt->min_pgmates)
+				failed |= VCF_FILTER_NO_PARENTAL_MATE;
+
 			// An alt, decoy, unplaced or HLA contig: It
 			// copies part of a primary chromosome, or it is
 			// a piece of sequence too short for both flanks
@@ -1582,6 +1629,9 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 
 			if (strcmp (b.pg_exons, "?"))
 				xfprintf (fp, ";PGEXONS=%s", b.pg_exons);
+
+			if (b.pgmates > 0)
+				xfprintf (fp, ";PGMATES=%d", b.pgmates);
 
 			// Hallmarks observed
 			if (tsd || b.polya_sr > 0 || b.eej > 0)

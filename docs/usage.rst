@@ -534,8 +534,8 @@ bases around the insertion sites from the reference genome. Besides the
      - 200
 
 The ``FILTER`` column lists the checks that failed, or ``PASS``: A retrocopy
-with its insertion point well defined, a hallmark of retrotransposition and at
-a primary chromosome. The filters are described at :ref:`FILTER <filter>`;
+with its insertion point well defined, a hallmark of retrotransposition, a copy
+longer than a read and at a primary chromosome. The filters are described at :ref:`FILTER <filter>`;
 these options set their thresholds:
 
 .. list-table:: Filter options
@@ -563,10 +563,16 @@ these options set their thresholds:
      - ``NonPrimary``: Extended regular expression of the primary chromosomes.
        Any other one is an alt, decoy, unplaced or HLA contig
      - ``^(chr)?([1-9]|1[0-9]|2[0-2]|X|Y)$``
+   * - ``-m``, ``--min-pgmates``
+     - ``NoParentalMate``: Minimum number of fragments with the mate aligned
+       end to end inside the parental exons (``PGMATES``). Is there a copy
+       longer than a read?
+     - 1
    * - ``-x``, ``--no-filter``
      - Disable a filter: ``LowQual``, ``LowMAPQ``, ``AmbiguousParental``,
        ``LowSR``, ``NoBreakpoint``, ``OneBreakpoint``, ``TSDOutlier``,
-       ``NoHallmark`` or ``NonPrimary``. It may be passed multiple times
+       ``NoHallmark``, ``NonPrimary`` or ``NoParentalMate``. It may be passed
+       multiple times
      -
 
 So, for a database like *my_database.db*, type::

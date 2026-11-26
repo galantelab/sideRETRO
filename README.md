@@ -84,8 +84,9 @@ For full documentation, please visit <https://sideretro.readthedocs.io>.
 * **Quality and filters**
 
    A quality score for each event and filters for the insertion point and for the evidence of a
-   retrotransposition - an exon-exon junction, the poly-A tail or a target site duplication -, at the primary
-   chromosomes, so the events that `PASS` are good targets for validation.
+   retrotransposition - an exon-exon junction, the poly-A tail or a target site duplication -, for a copy
+   longer than a read and at the primary chromosomes, so the events that `PASS` are good targets for
+   validation.
 
 * **Ready for validation**
 

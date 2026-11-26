@@ -298,6 +298,8 @@ def cases(t, sim):
           expect=['--primer-flank must be'])
     t.run('vcf: min-ir', vcf + ['-i', '0'] + mdb, rc=FAIL,
           expect=['--min-ir must be'])
+    t.run('vcf: min-pgmates', vcf + ['-m', '-1'] + mdb, rc=FAIL,
+          expect=['--min-pgmates must be greater or equal to 0'])
     t.run('vcf: primary-chr', vcf + ['-P', '(chr'] + mdb, rc=FAIL,
           expect=["--primary-chr '(chr': Invalid regular expression"])
     t.run('vcf: unknown filter', vcf + ['-x', 'Ponga'] + mdb, rc=FAIL,
@@ -308,10 +310,11 @@ def cases(t, sim):
                  '-n', '5000', '-e', '0.1', '-L', '10',
                  '-Q', '10', '-S', '2', '-t', '4', '-T', '30', '-x', 'TSDOutlier',
                  '-x', 'LowQual', '-x', 'OneBreakpoint', '-x', 'NoHallmark',
-                 '-P', '^chr', '-f', '50', '-i', '3'] + mdb,
+                 '-P', '^chr', '-m', '2', '-f', '50', '-i', '3'] + mdb,
           expect=['make-vcf summary', 'PASS', '--no-filter=TSDOutlier',
                   '--no-filter=OneBreakpoint', '--no-filter=NoHallmark',
                   '--min-sr=2', '--min-tsd=4', "--primary-chr='^chr'",
+                  '--min-pgmates=2',
                   '--max-tsd=30',
                   '--primer-flank=50', '--min-ir=3', '--reference-file=',
                   'sim.primer.fa'])

@@ -162,6 +162,12 @@ side: A retrocopy may have many of them at a single breakpoint, passing
 |                   | region of a primary chromosome, and the others are    |
 |                   | pieces of sequence often too short for both flanks    |
 +-------------------+-------------------------------------------------------+
+| NoParentalMate    | Is there a copy longer than a read? Fewer fragments   |
+|                   | with the mate inside the copy (``PGMATES``) than the  |
+|                   | threshold (``make-vcf -m``, default 1). A short piece |
+|                   | of an exon copied to the site has split reads, but no |
+|                   | mate at the parental exons                            |
++-------------------+-------------------------------------------------------+
 
 A retrocopy needs **one** hallmark, whichever (``NoHallmark``): The poly-A
 tail and the exon-exon junctions depend on the coverage and on where the
@@ -351,6 +357,11 @@ is a duplication.
 |            | **single exon** gene has no exon-exon junction, so a missing |
 |            | EEJ is expected for it                                       |
 +------------+--------------------------------------------------------------+
+| PGMATES    | Number of fragments with a read at the insertion site and    |
+|            | its **mate inside the copy**: Aligned end to end, unclipped, |
+|            | at the exons of the parental gene. Evidence of a copy longer |
+|            | than a read (``NoParentalMate``)                             |
++------------+--------------------------------------------------------------+
 | EEJ        | Number of **exon-exon junctions** of the parental gene       |
 |            | spanned by split reads: Direct evidence of a processed       |
 |            | transcript. The reads are at the read names file and at the  |
@@ -433,7 +444,7 @@ inserted at *chr1* with a 12 bases TSD and a 25 bases poly-A tail.
 The INFO column was wrapped for reading::
 
    chr1  9999  RTC000001  A  <INS:ME:RTC>  999.0  PASS
-     SVTYPE=INS;ORHO=0.683714;POLARITY=+;PG=PARENT;PGTYPE=1;PGEXONS=PARENT:3;
+     SVTYPE=INS;ORHO=0.683714;POLARITY=+;PG=PARENT;PGTYPE=1;PGEXONS=PARENT:3;PGMATES=36;
      HALLMARKS=TSD,POLYA,EEJ;EEJ=1;EEJLIST=ENSEP0-ENSEP1;PG5P=ENSEP0:1001:8;PG3P=ENSEP2:3398:3;SVLEN=1225;
      LEFT_SVINSSEQ=CACTGATACAGCAGACTCATTCCCCTATAAGCGAATCGTA;
      RIGHT_SVINSSEQ=ACTCAGCAGGACTCGGTTTAAAAAAAAAAAAAAAAAAAAAAAAAAA;
@@ -448,7 +459,8 @@ two A at the end of the last exon - and puts the retrocopy at the
 ``+`` strand. Reads span one junction, between the first two exons
 (``EEJ``, ``EEJLIST``), the retrocopy is **full length** (``PG5P`` at
 the first base of exon *ENSEP0*) and its predicted length is 1225
-bases: Three exons of 400 bases plus the poly-A. The single sample is
+bases: Three exons of 400 bases plus the poly-A. In 36 fragments, the
+mate of a read at the site lies inside the copy (``PGMATES``). The single sample is
 homozygous for the insertion, hence the maximum ``QUAL``, and the insertion
 has all the hallmarks of a retrocopy (``HALLMARKS``), so it passes all the
 filters (``PASS``).
