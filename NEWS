@@ -1,3 +1,24 @@
+Version 1.14.0
+
+* New filter NoParentalMate: Is there a copy longer than
+  a read? A retrocopy needs fragments with a read at the
+  insertion site and its mate inside the copy, aligned
+  end to end at the parental exons - both of them primary
+  alignments (new INFO PGMATES; 'make-vcf' --min-pgmates,
+  -m, 1 by default). A short piece of an exon copied to
+  the site, or a stretch shared by the site and an exon,
+  has split reads, but no such mate.
+
+* 'merge-call': A hard clipped supplementary alignment at
+  the insertion site - as some aligners write it - takes
+  the sequence of the primary alignment of its read. More
+  junction sequences, retrocopy ends, predicted sequences
+  and poly-A tails with these aligners. Databases need
+  'merge-call' again, not 'process-sample'.
+
+* 'process-sample' suggests the next step with the
+  mandatory --reference-file.
+
 Version 1.13.0
 
 * New filter NoHallmark: A retrocopy needs a hallmark of
