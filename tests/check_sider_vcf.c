@@ -137,6 +137,34 @@ create_fasta (char *fasta_file)
 	xfclose (fp);
 }
 
+/*
+ * Append chr1 and chr2 to the reference 'fasta_file':
+ * Bases without repeats
+ */
+static void
+append_fasta_chr1_chr2 (const char *fasta_file)
+{
+	FILE *fp = NULL;
+
+	fp = xfopen (fasta_file, "a");
+
+	xfprintf (fp, "%s",
+		">chr1\n"
+		"GCTAAAGACAATTACATAACATACACGTCAGCACGAAACTTGTTGGCCCAGTGTGAATCG\n"
+		"CTTAAGGGTTAAGTAAGTGTGATGCATACGCCTTTACTTGCTGTGTCCACCCCATCGGAC\n"
+		"TGGCATTTTTATTACACTCAGAAACAGAACTCGGGTAATTTTGACAGGTCACGCAGAGGC\n"
+		"GCGCCCTCCTGAAGTGCGTGGACACTCGCTATGAATCTCTGATTTACCCACTCTGCCAAA\n"
+		"CTCCAGCGCGGTCAGTTCCATCACCCTAAGTAACCGAATAATGCGTTCGCTCTATTGACT\n"
+		">chr2\n"
+		"ACGACGCGCTCATTCCCTTGTCGGAGAGTTATGGAACAAGGACGCTGTCTGAGACTAGAA\n"
+		"GACAGATAGTGCACACGACCGGCGTCGGAGAAACTCTATTTGCCGCCTGACAAGTCAATG\n"
+		"CGATCCGTAGGGGCAGCGCAGTATGCCAAGACTATAGGCACTGTCGCATCACAAACGATT\n"
+		"AACTGATAAATGAGCCCTTTATGACACGGGCATATGACTGGTTTACGATAGTATGTCCAA\n"
+		"CGGCGAGCTTTACATTTGCTGTGAGAGGTACAGGGATTAGTGAGAAGCCGTGCGTATCAA\n");
+
+	xfclose (fp);
+}
+
 static void
 populate_db (sqlite3 *db)
 {
@@ -892,6 +920,7 @@ START_TEST (test_vcf_intron_retention)
 
 	create_vcf (vcf_file);
 	create_fasta (fasta_file);
+	append_fasta_chr1_chr2 (fasta_file);
 
 	VCFOption opt = {
 		.min_tsd = VCF_DEFAULT_MIN_TSD,
@@ -1354,6 +1383,7 @@ START_TEST (test_vcf_pgmates)
 
 	create_vcf (vcf_file);
 	create_fasta (fasta_file);
+	append_fasta_chr1_chr2 (fasta_file);
 
 	VCFOption opt = {
 		.min_tsd = VCF_DEFAULT_MIN_TSD,
@@ -1427,6 +1457,38 @@ START_TEST (test_vcf_no_genotype_fail)
 }
 END_TEST
 
+START_TEST (test_vcf_reference_fail)
+{
+	char db_file[] = "/tmp/ponga.db.XXXXXX";
+	char vcf_file[] = "/tmp/ponga.vcf.XXXXXX";
+	char fasta_file[] = "/tmp/ponga.fa.XXXXXX";
+	sqlite3 *db = NULL;
+	FILE *fp = NULL;
+	int fd = 0;
+
+	db = create_db (db_file);
+	create_vcf (vcf_file);
+	populate_db (db);
+
+	// None of the chromosomes of the retrocopies: Another genome
+	fd = xmkstemp (fasta_file);
+	fp = xfdopen (fd, "w");
+	xfprintf (fp, ">ponga\nACGTACGTACGT\n");
+	xfclose (fp);
+
+	VCFOption opt = {
+		.min_tsd = VCF_DEFAULT_MIN_TSD,
+		.fasta_file = fasta_file,
+		.min_qual = VCF_DEFAULT_MIN_QUAL,
+		.min_mapq = VCF_DEFAULT_MIN_MAPQ,
+		.min_sr = VCF_DEFAULT_MIN_SR,
+		.max_tsd = VCF_DEFAULT_MAX_TSD
+	};
+
+	vcf (db, vcf_file, &opt);
+}
+END_TEST
+
 Suite *
 make_vcf_suite (void)
 {
@@ -1455,6 +1517,7 @@ make_vcf_suite (void)
 
 	tcase_add_exit_test (tc_abort, test_vcf_no_genotype_fail, EXIT_FAILURE);
 	tcase_add_exit_test (tc_abort, test_vcf_primary_regex_fail, EXIT_FAILURE);
+	tcase_add_exit_test (tc_abort, test_vcf_reference_fail,     EXIT_FAILURE);
 	suite_add_tcase (s, tc_abort);
 
 	return s;

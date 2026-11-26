@@ -1115,6 +1115,63 @@ vcf_index_regions (sqlite3 *db, const VCFOption *opt, Hash **contig_len)
 	return fidx;
 }
 
+/*
+ * The chromosomes of the retrocopies must be at the
+ * reference. None of them: It is not the reference of
+ * the alignments. Some of them: Their REF is 'N'
+ */
+static void
+vcf_check_reference (sqlite3 *db, Hash *contig_len, const char *fasta_file)
+{
+	log_trace ("Inside %s", __func__);
+
+	sqlite3_stmt *stmt = NULL;
+	char *missing = NULL;
+	const char *chr = NULL;
+	int num_chr = 0;
+	int num_missing = 0;
+	int num_records = 0;
+
+	const char sql[] =
+		"SELECT chr, COUNT(*)\n"
+		"FROM retrocopy\n"
+		"GROUP BY chr\n"
+		"ORDER BY chr";
+
+	log_debug ("Query schema:\n%s", sql);
+	stmt = db_prepare (db, sql);
+
+	while (db_step (stmt) == SQLITE_ROW)
+		{
+			chr = db_column_text (stmt, 0);
+			num_chr++;
+
+			if (hash_contains (contig_len, chr))
+				continue;
+
+			if (missing == NULL)
+				missing = xstrdup (chr);
+
+			num_missing++;
+			num_records += db_column_int (stmt, 1);
+		}
+
+	db_finalize (stmt);
+
+	if (num_missing > 0 && num_missing == num_chr)
+		log_fatal ("None of the %d chromosomes of the retrocopies (as '%s') "
+				"is at the reference '%s': Is it the reference genome of the "
+				"alignments?", num_chr, missing, fasta_file);
+
+	if (num_missing > 0)
+		log_warn ("%d of the %d chromosomes of the retrocopies (as '%s') "
+				"are not at the reference '%s': REF is 'N' for their %d "
+				"retrocopies", num_missing, num_chr, missing, fasta_file,
+				num_records);
+
+	xfree (missing);
+}
+
 static const char *
 vcf_region_lookup (Hash *fidx, const char *chr, long start, long end)
 {
@@ -1486,7 +1543,7 @@ vcf_print_body (sqlite3 *db, const List *hl, Hash *fidx, FILE *fp,
 			ref = vcf_region_lookup (fidx, b.chr, pos, pos);
 
 			if (ref == NULL)
-				log_warn ("Retrocopy at %s:%li not found at the reference '%s': REF is 'N'",
+				log_debug ("Retrocopy at %s:%li not found at the reference '%s': REF is 'N'",
 						b.chr, b.insertion_point, opt->fasta_file);
 			else
 				base = ref[0];
@@ -1858,6 +1915,7 @@ vcf (sqlite3 *db, const char *output_file, VCFOption *opt)
 		}
 
 	fidx = vcf_index_regions (db, opt, &contig_len);
+	vcf_check_reference (db, contig_len, opt->fasta_file);
 
 	log_debug ("Get the VCF header line");
 	hl = vcf_get_header_line (db);
