@@ -871,6 +871,46 @@ run_edge_with (const char *sql, long *five_pos, int *five_sr,
 	xunlink (fasta_file);
 }
 
+START_TEST (test_retrocopy_hard_clip)
+{
+	long five_pos = 0;
+	int five_sr = 0;
+	int three_sr = 0;
+	int len = 0;
+
+	/*
+	* L1, a read at the 5' end, aligned as some aligners do:
+	* The piece at the insertion site is a supplementary
+	* alignment, hard clipped and without sequence, and the
+	* primary one - with the sequence - is elsewhere, at the
+	* other strand. Its sequence is taken from the primary,
+	* reverse complemented: Nothing changes
+	*/
+	run_edge_with (
+		"UPDATE alignment SET flag = 2145, cigar = '70M30H', seq = '*' WHERE id = 1;\n"
+		"INSERT INTO alignment VALUES (30,'L1',81,'chrH',6000,60,'30S70M',100,70,'chrG',100,2,1,'CGTTTGAACAGGACTGGACAACGCTCCGATAAGGTCAAAACATAACAAAGAAGAACTAATCTGACAAGTGACTCTAGTACTCTGAAGGTTAAGTACCCAA','*');\n",
+		&five_pos, &five_sr, &three_sr, &len);
+
+	ck_assert_int_eq (five_pos, 500);
+	ck_assert_int_eq (five_sr, 3);
+	ck_assert_int_eq (three_sr, 0);
+	ck_assert_int_eq (len, 290);
+
+	// L2 as well, but its primary has a base less than the
+	// cigar asks for: It is skipped, and the 5' end has one
+	// read less
+	run_edge_with (
+		"UPDATE alignment SET flag = 2145, cigar = '70M30H', seq = '*' WHERE id IN (1, 2);\n"
+		"INSERT INTO alignment VALUES (30,'L1',81,'chrH',6000,60,'30S70M',100,70,'chrG',100,2,1,'CGTTTGAACAGGACTGGACAACGCTCCGATAAGGTCAAAACATAACAAAGAAGAACTAATCTGACAAGTGACTCTAGTACTCTGAAGGTTAAGTACCCAA','*');\n"
+		"INSERT INTO alignment VALUES (31,'L2',97,'chrH',7000,60,'30S69M',99,69,'chrG',100,2,1,'TCACAGGTGCCGGTTTGCCCACAGGGACTAGACAACAACTTTCGCTTCCCCTGACATCCCGTGGAATGTTATCGGAGCGTTGTCCAGTCCTGTTCAAAC','*');\n",
+		&five_pos, &five_sr, &three_sr, &len);
+
+	ck_assert_int_eq (five_pos, 500);
+	ck_assert_int_eq (five_sr, 2);
+	ck_assert_int_eq (len, 290);
+}
+END_TEST
+
 START_TEST (test_retrocopy_inverted_end)
 {
 	long five_pos = 0;
@@ -1305,6 +1345,7 @@ make_retrocopy_suite (void)
 	tcase_add_test (tc_core, test_retrocopy);
 	tcase_add_test (tc_core, test_retrocopy_edge);
 	tcase_add_test (tc_core, test_retrocopy_inverted_end);
+	tcase_add_test (tc_core, test_retrocopy_hard_clip);
 	tcase_add_test (tc_core, test_retrocopy_choose_parental);
 	tcase_add_test (tc_core, test_retrocopy_tsite_deletion);
 	suite_add_tcase (s, tc_core);

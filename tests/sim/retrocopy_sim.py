@@ -192,7 +192,7 @@ class Sim:
     def rec(self, qname, flag, chr_, pos, cigar, rnext, pnext, seq, mapq=60):
         self.recs.append('\t'.join(map(str, [
             READ_PREFIX + qname, flag, chr_, pos, mapq, cigar, rnext, pnext, 0,
-            seq, QUAL * len(seq)
+            seq, '*' if seq == '*' else QUAL * len(seq)
         ])))
 
     def exon_pos(self, exon):
@@ -323,10 +323,20 @@ class Sim:
                 mpos, mseq = self.exon_read(0)
 
             # Primary clipped at the right and the
-            # supplementary at the beginning of exon1
-            self.rec(qname, flag, 'chr1', start + 1, '%dM%dS' % (m, c), mchr, mpos, seq)
-            self.rec(qname, 2048 | (flag & 0xF3), 'chr2', self.exons[0][0],
-                     '%dH%dM' % (m, c), mchr, mpos, seq[m:])
+            # supplementary at the beginning of exon1 - or,
+            # as some aligners write it, the primary at exon1
+            # and the supplementary at the insertion site,
+            # hard clipped and without sequence
+            if a.site_supplementary:
+                self.rec(qname, flag, 'chr2', self.exons[0][0], '%dS%dM' % (m, c),
+                         mchr, mpos, seq)
+                self.rec(qname, 2048 | (flag & 0xF3), 'chr1', start + 1,
+                         '%dM%dH' % (m, c), mchr, mpos, '*')
+            else:
+                self.rec(qname, flag, 'chr1', start + 1, '%dM%dS' % (m, c), mchr, mpos,
+                         seq)
+                self.rec(qname, 2048 | (flag & 0xF3), 'chr2', self.exons[0][0],
+                         '%dH%dM' % (m, c), mchr, mpos, seq[m:])
             self.rec(qname, mflag, mchr, mpos, '%dM' % READ_LEN, 'chr1', start + 1,
                      mseq)
 
@@ -800,6 +810,9 @@ def main():
     p.add_argument('--site-repeat', metavar='UNIT', type=str.upper,
                    help='write a tandem repeat of UNIT (2 to 6 bases) over '
                         'the target site')
+    p.add_argument('--site-supplementary', action='store_true',
+                   help='write the left split reads with the primary alignment '
+                        'at exon1 and a hard clipped supplementary at the site')
     p.add_argument('--split-mates-flank', action='store_true',
                    help='put the mates of the left split reads at the right '
                         'flank, as with an insert shorter than a read')

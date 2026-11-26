@@ -885,28 +885,111 @@ prepare_polya_stmt (sqlite3 *db)
 	sqlite3_stmt *stmt = NULL;
 
 	/*
-	* Get all soft clipped alignments with sequence
-	* clustered into the retrocopies. Hard clipped
-	* bases are not present at the sequence. The order
-	* is given by the reads - not by their ids, which
-	* change with the databases merged: The consensus
-	* of the clips keeps the first read in case of tie
+	* Get all clipped alignments clustered into the
+	* retrocopies, with the sequence of the read. A soft
+	* clipped one has it. A hard clipped one - a
+	* supplementary alignment, as some aligners write it
+	* - has no sequence: It comes from the primary
+	* alignment of the same read, reverse complemented if
+	* they are at different strands (see clip_read_get).
+	* The order is given by the reads - not by their ids,
+	* which change with the databases merged: The
+	* consensus of the clips keeps the first read in
+	* case of tie
 	*/
 	const char sql[] =
-		"SELECT DISTINCT retrocopy_id, a.id, a.pos, a.rlen, a.cigar, a.seq\n"
+		"SELECT DISTINCT retrocopy_id, a.id, a.pos, a.rlen, a.cigar,\n"
+		"	CASE\n"
+		"		WHEN a.cigar LIKE '%S%' THEN a.seq\n"
+		"		ELSE p.seq\n"
+		"	END AS read_seq,\n"
+		"	CASE\n"
+		"		WHEN a.cigar LIKE '%S%' THEN 0\n"
+		"		ELSE (a.flag & 0x10) != (p.flag & 0x10)\n"
+		"	END\n"
 		"FROM cluster_merging AS cm\n"
 		"INNER JOIN clustering AS c\n"
 		"	USING (cluster_id, cluster_sid)\n"
 		"INNER JOIN alignment AS a\n"
 		"	ON a.id = c.alignment_id\n"
-		"WHERE a.cigar LIKE '%S%'\n"
-		"	AND a.seq != '*'\n"
-		"ORDER BY retrocopy_id ASC, a.pos ASC, a.cigar ASC, a.seq ASC";
+		"LEFT JOIN alignment AS p\n"
+		"	ON a.cigar NOT LIKE '%S%'\n"
+		"		AND p.qname = a.qname\n"
+		"		AND p.source_id = a.source_id\n"
+		"		AND (p.flag & 0xC0) = (a.flag & 0xC0)\n"
+		"		AND (p.flag & 0x900) = 0\n"
+		"		AND p.cigar NOT LIKE '%H%'\n"
+		"		AND p.seq != '*'\n"
+		"WHERE (a.cigar LIKE '%S%' AND a.seq != '*')\n"
+		"	OR (a.cigar LIKE '%H%' AND p.id IS NOT NULL)\n"
+		"ORDER BY retrocopy_id ASC, a.pos ASC, a.cigar ASC, read_seq ASC";
 
 	log_debug ("Query schema:\n%s", sql);
 	stmt = db_prepare (db, sql);
 
 	return stmt;
+}
+
+/*
+ * The cigar and the sequence of a clipped alignment from
+ * prepare_polya_stmt. A hard clipped one is given as soft
+ * clipped: Its 'H' turn into 'S', with the sequence of the
+ * primary alignment of the read - reverse complemented if
+ * at the other strand. The buffers are reused between the
+ * calls. Return 0 if the sequence does not fit the cigar
+ */
+static int
+clip_read_get (sqlite3_stmt *stmt, const char **cigar_str, const char **seq,
+		char **cigar_buf, char **seq_buf)
+{
+	const char *c = NULL;
+	long qlen = 0;
+	long n = 0;
+	int rev = 0;
+	int i = 0;
+
+	*cigar_str = db_column_text (stmt, 4);
+	*seq = db_column_text (stmt, 5);
+	rev = db_column_int (stmt, 6);
+
+	// Soft clipped: As stored
+	if (strchr (*cigar_str, 'S') != NULL)
+		return 1;
+
+	xfree (*cigar_buf);
+	xfree (*seq_buf);
+
+	*cigar_buf = xstrdup (*cigar_str);
+	*seq_buf = xstrdup (*seq);
+
+	// The bases of the read along the cigar
+	for (c = *cigar_buf, i = 0; c[i] != '\0'; i++)
+		{
+			if (c[i] >= '0' && c[i] <= '9')
+				{
+					n = n * 10 + (c[i] - '0');
+					continue;
+				}
+
+			if (c[i] == 'H')
+				(*cigar_buf)[i] = 'S';
+
+			if (strchr ("MIHS=X", c[i]) != NULL)
+				qlen += n;
+
+			n = 0;
+		}
+
+	if (qlen != (long) strlen (*seq_buf))
+		return 0;
+
+	if (rev)
+		revcomp (*seq_buf, qlen);
+
+	*cigar_str = *cigar_buf;
+	*seq = *seq_buf;
+
+	return 1;
 }
 
 /*
@@ -1127,6 +1210,8 @@ calculate_polya (sqlite3 *db, sqlite3_stmt *evidence_stmt, Hash *rtc_h)
 	long rlen = 0;
 	const char *cigar_str = NULL;
 	const char *seq = NULL;
+	char *cigar_buf = NULL;
+	char *seq_buf = NULL;
 
 	int rid_prev = 0;
 
@@ -1141,8 +1226,13 @@ calculate_polya (sqlite3 *db, sqlite3_stmt *evidence_stmt, Hash *rtc_h)
 			aid       = db_column_int   (polya_stmt, 1);
 			pos       = db_column_int64 (polya_stmt, 2);
 			rlen      = db_column_int64 (polya_stmt, 3);
-			cigar_str = db_column_text  (polya_stmt, 4);
-			seq       = db_column_text  (polya_stmt, 5);
+
+			if (!clip_read_get (polya_stmt, &cigar_str, &seq,
+						&cigar_buf, &seq_buf))
+				{
+					log_warn ("Skip alignment %d: Its read does not fit the cigar", aid);
+					continue;
+				}
 
 			// First loop
 			if (!rid_prev)
@@ -1220,6 +1310,8 @@ calculate_polya (sqlite3 *db, sqlite3_stmt *evidence_stmt, Hash *rtc_h)
 
 	xfree (plus.aids);
 	xfree (minus.aids);
+	xfree (cigar_buf);
+	xfree (seq_buf);
 
 	db_finalize (polya_stmt);
 }
@@ -2046,6 +2138,8 @@ calculate_insertion (sqlite3 *db, sqlite3_stmt *insertion_stmt,
 	long rlen = 0;
 	const char *cigar_str = NULL;
 	const char *seq = NULL;
+	char *cigar_buf = NULL;
+	char *seq_buf = NULL;
 
 	int rid_prev = 0;
 
@@ -2085,8 +2179,10 @@ calculate_insertion (sqlite3 *db, sqlite3_stmt *insertion_stmt,
 			aid       = db_column_int   (clip_stmt, 1);
 			pos       = db_column_int64 (clip_stmt, 2);
 			rlen      = db_column_int64 (clip_stmt, 3);
-			cigar_str = db_column_text  (clip_stmt, 4);
-			seq       = db_column_text  (clip_stmt, 5);
+
+			if (!clip_read_get (clip_stmt, &cigar_str, &seq,
+						&cigar_buf, &seq_buf))
+				continue;
 
 			// New retrocopy: Set the previous one and
 			// load the exons of the parental gene
@@ -2234,6 +2330,8 @@ calculate_insertion (sqlite3 *db, sqlite3_stmt *insertion_stmt,
 		db_finalize (exon_stmt);
 
 	db_finalize (clip_stmt);
+	xfree (cigar_buf);
+	xfree (seq_buf);
 
 	if (gene_h != NULL)
 		hash_free (gene_h);

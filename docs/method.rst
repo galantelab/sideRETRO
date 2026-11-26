@@ -831,6 +831,16 @@ ends into its parental gene:
    :width: 100%
    :align: center
 
+The clipped bases must be in the reads. A split read has two
+alignments, and some aligners keep the sequence only at the primary
+one: The **supplementary** alignment is **hard clipped** and has no
+sequence. When the piece at the insertion site is such a supplementary
+alignment, its sequence is taken from the primary alignment of the same
+read - reverse complemented if they are at different strands - and it
+is read as if soft clipped. So the junction sequences, the retrocopy
+ends and the :ref:`poly-A tail <method_polya>` do not depend on the
+aligner's choice.
+
 A **seed** of up to 20 bases is taken from each clip - from the
 beginning of the clips at ``LBKP``, and from the end of the clips at
 ``RBKP``, before the poly-A - and searched, in both orientations, into

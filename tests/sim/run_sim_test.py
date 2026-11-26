@@ -90,6 +90,12 @@ SCENARIOS = [
     ('proper_clips',     ['--seed', '6', '--n-proper-clips', '6']),
     ('proper_clips_left', ['--seed', '5', '--n-split-left', '1',
                            '--n-split-right', '0', '--n-proper-clips', '6']),
+    # The left split reads with the primary alignment at exon1 and a
+    # hard clipped supplementary at the site: Its sequence comes from
+    # the primary, and nothing changes
+    ('site_supplementary', ['--site-supplementary']),
+    ('site_supplementary_truncated', ['--seed', '2', '--truncation', '150',
+                                      '--site-supplementary']),
     # The poly-A of the right junction reads aligned as a
     # supplementary piece of low complexity: It is left out
     ('polya_supplementary', ['--seed', '3', '--polya-len', '40',
