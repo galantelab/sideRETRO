@@ -33,6 +33,8 @@
 #include "list.h"
 #include "set.h"
 #include "gff.h"
+#include "bed.h"
+#include "fasta.h"
 #include "str.h"
 #include "chr.h"
 #include "array.h"
@@ -598,6 +600,13 @@ merge_call_validate (MergeCall *mc)
 					fprintf (stderr, "%s: SQLite3 database '%s': No such file\n", PACKAGE, db_file);
 					rc = EXIT_FAILURE; goto Exit;
 				}
+
+			if (!db_is_sider (db_file))
+				{
+					fprintf (stderr, "%s: SQLite3 database '%s': Not a sideRETRO database\n",
+							PACKAGE, db_file);
+					rc = EXIT_FAILURE; goto Exit;
+				}
 		}
 
 	/*Validate options*/
@@ -608,6 +617,26 @@ merge_call_validate (MergeCall *mc)
 			fprintf (stderr, "%s: --blacklist-region '%s': No such file\n", PACKAGE,
 					mc->blacklist_region);
 			rc = EXIT_FAILURE; goto Exit;
+		}
+
+	// The blacklist is GTF/GFF3 by its extension, or BED
+	if (mc->blacklist_region != NULL)
+		{
+			if (gff_looks_like_gff_file (mc->blacklist_region))
+				{
+					if (!gff_check_format (mc->blacklist_region))
+						{
+							fprintf (stderr, "%s: --blacklist-region '%s': Not a GTF/GFF3 file\n",
+									PACKAGE, mc->blacklist_region);
+							rc = EXIT_FAILURE; goto Exit;
+						}
+				}
+			else if (!bed_check_format (mc->blacklist_region))
+				{
+					fprintf (stderr, "%s: --blacklist-region '%s': Not a BED file\n",
+							PACKAGE, mc->blacklist_region);
+					rc = EXIT_FAILURE; goto Exit;
+				}
 		}
 
 	// Validate cache_size >= DEFAULT_CACHE_SIZE
@@ -670,6 +699,13 @@ merge_call_validate (MergeCall *mc)
 	if (!exists (mc->fasta_file))
 		{
 			fprintf (stderr, "%s: --reference-file '%s': No such file\n", PACKAGE,
+					mc->fasta_file);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
+	if (!fasta_check_format (mc->fasta_file))
+		{
+			fprintf (stderr, "%s: --reference-file '%s': Not a FASTA file\n", PACKAGE,
 					mc->fasta_file);
 			rc = EXIT_FAILURE; goto Exit;
 		}

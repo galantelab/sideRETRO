@@ -37,6 +37,7 @@
 #include "list.h"
 #include "bed.h"
 #include "gff.h"
+#include "sam.h"
 #include "abnormal.h"
 #include "dedup.h"
 #include "process_sample.h"
@@ -560,6 +561,13 @@ process_sample_validate (ProcessSample *ps)
 					fprintf (stderr, "%s: alignment file '%s': No such file\n", PACKAGE, sam_file);
 					rc = EXIT_FAILURE; goto Exit;
 				}
+
+			if (!sam_check_format (sam_file))
+				{
+					fprintf (stderr, "%s: alignment file '%s': Not a SAM/BAM/CRAM file\n",
+							PACKAGE, sam_file);
+					rc = EXIT_FAILURE; goto Exit;
+				}
 		}
 
 	// If no annotation-file was passed, throw an error
@@ -574,6 +582,23 @@ process_sample_validate (ProcessSample *ps)
 	if (!exists (ps->gff_file))
 		{
 			fprintf (stderr, "%s: annotation file '%s': No such file\n", PACKAGE, ps->gff_file);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
+	// The annotation is BED by its extension, or GTF/GFF3
+	if (bed_looks_like_bed_file (ps->gff_file))
+		{
+			if (!bed_check_format (ps->gff_file))
+				{
+					fprintf (stderr, "%s: annotation file '%s': Not a BED file\n",
+							PACKAGE, ps->gff_file);
+					rc = EXIT_FAILURE; goto Exit;
+				}
+		}
+	else if (!gff_check_format (ps->gff_file))
+		{
+			fprintf (stderr, "%s: annotation file '%s': Not a GTF/GFF3 file\n",
+					PACKAGE, ps->gff_file);
 			rc = EXIT_FAILURE; goto Exit;
 		}
 

@@ -28,6 +28,7 @@
 #include "utils.h"
 #include "str.h"
 #include "db.h"
+#include "fasta.h"
 #include "log.h"
 #include "logger.h"
 #include "vcf.h"
@@ -132,6 +133,12 @@ run (MakeVcf *v)
 	};
 
 	vcf (db, vcf_file, &opt);
+
+	// A database from 'process-sample' has no retrocopy
+	// yet - nor one from 'merge-call' with no cluster
+	if (opt.num_records == 0)
+		log_warn ("No retrocopy at the database '%s': If it comes from "
+				"'process-sample', run 'merge-call' on it first", v->db_file);
 
 	s = summary_new ("make-vcf summary", start);
 
@@ -324,6 +331,13 @@ make_vcf_validate (MakeVcf *vcf)
 			rc = EXIT_FAILURE; goto Exit;
 		}
 
+	if (!db_is_sider (vcf->db_file))
+		{
+			fprintf (stderr, "%s: SQLite3 database file '%s': Not a sideRETRO database\n",
+					PACKAGE, vcf->db_file);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
 	/*
 	* Validate options
 	*/
@@ -339,6 +353,13 @@ make_vcf_validate (MakeVcf *vcf)
 	if (!exists (vcf->fasta_file))
 		{
 			fprintf (stderr, "%s: --reference-file '%s': No such file\n",
+					PACKAGE, vcf->fasta_file);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
+	if (!fasta_check_format (vcf->fasta_file))
+		{
+			fprintf (stderr, "%s: --reference-file '%s': Not a FASTA file\n",
 					PACKAGE, vcf->fasta_file);
 			rc = EXIT_FAILURE; goto Exit;
 		}
@@ -667,7 +688,22 @@ parse_make_vcf_command_opt (int argc, char **argv)
 				}
 		}
 
-	// Catch argument SQLite3 DB
+	// Catch argument SQLite3 DB: Only one
+	if (argc - optind - 1 < 1)
+		{
+			fprintf (stderr, "%s: Missing SQLite3 database\n", PACKAGE);
+			print_try_help (stderr);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
+	if (argc - optind - 1 > 1)
+		{
+			fprintf (stderr, "%s: Too many arguments: Pass only one SQLite3 database\n",
+					PACKAGE);
+			print_try_help (stderr);
+			rc = EXIT_FAILURE; goto Exit;
+		}
+
 	vcf.db_file = argv[optind + 1];
 
 	// Validate and init logger

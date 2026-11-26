@@ -28,12 +28,14 @@ and that some texts are present at its output (stdout and stderr).
 
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
 
 OK = 0
 FAIL = 1
+ABORT = -signal.SIGABRT
 
 
 class Runner:
@@ -116,6 +118,12 @@ def cases(t, sim):
     with open(P('black.gtf'), 'w') as fp:
         fp.write('chr1\t.\tgene\t1\t100\t.\t+\t.\tgene_name "black"; '
                  'gene_type "processed_pseudogene";\n')
+    with open(P('notbed.bed'), 'w') as fp:
+        fp.write('chr1\t0\n')
+    with open(P('notgtf.gtf'), 'w') as fp:
+        fp.write('>chr1\nACGT\n')
+    with open(P('other.fa'), 'w') as fp:
+        fp.write('>ponga\nACGTACGTACGT\n')
 
     # ================= sider
     t.run('sider: usage', [], expect=['Usage: sider [-hV]', 'Commands:'])
@@ -145,6 +153,12 @@ def cases(t, sim):
           expect=['Missing annotation file'])
     t.run('ps: annotation not found', ps + ['-a', 'ponga.gtf'] + sam, rc=FAIL,
           expect=["annotation file 'ponga.gtf': No such file"])
+    t.run('ps: alignment file not SAM', ps + ann + [P('ref.fa')], rc=FAIL,
+          expect=["alignment file '%s': Not a SAM/BAM/CRAM file" % P('ref.fa')])
+    t.run('ps: annotation not GTF', ps + ['-a', P('ref.fa')] + sam, rc=FAIL,
+          expect=["annotation file '%s': Not a GTF/GFF3 file" % P('ref.fa')])
+    t.run('ps: annotation not BED', ps + ['-a', P('notbed.bed')] + sam, rc=FAIL,
+          expect=["annotation file '%s': Not a BED file" % P('notbed.bed')])
     t.run('ps: reciprocal with -F', ps + ann + ['-r', '-F', '0.5'] + sam,
           rc=FAIL, expect=['--reciprocal must be set solely with'])
     t.run('ps: exon-frac', ps + ann + ['-f', '0'] + sam, rc=FAIL,
@@ -199,6 +213,14 @@ def cases(t, sim):
           expect=["SQLite3 database 'ponga.db': No such file"])
     t.run('mc: blacklist not found', mc + ['-B', 'ponga.bed'] + db, rc=FAIL,
           expect=["--blacklist-region 'ponga.bed': No such file"])
+    t.run('mc: not a sideRETRO database', mc + ref + [P('genes.gtf')], rc=FAIL,
+          expect=["SQLite3 database '%s': Not a sideRETRO database" % P('genes.gtf')])
+    t.run('mc: blacklist not BED', mc + ['-B', P('notbed.bed')] + db, rc=FAIL,
+          expect=["--blacklist-region '%s': Not a BED file" % P('notbed.bed')])
+    t.run('mc: blacklist not GTF', mc + ['-B', P('notgtf.gtf')] + db, rc=FAIL,
+          expect=["--blacklist-region '%s': Not a GTF/GFF3 file" % P('notgtf.gtf')])
+    t.run('mc: reference not FASTA', mc + ['-r', P('genes.gtf'), P('ps/sim.db')],
+          rc=FAIL, expect=["--reference-file '%s': Not a FASTA file" % P('genes.gtf')])
     t.run('mc: cache-size', mc + ['-c', '1'] + db, rc=FAIL,
           expect=['--cache-size must be'])
     t.run('mc: epsilon', mc + ['-e', '-1'] + db, rc=FAIL,
@@ -276,6 +298,22 @@ def cases(t, sim):
           expect=['Missing reference genome (--reference-file)'])
     t.run('vcf: reference not found', vcf + ['-r', 'ponga.fa', P('mc/merged.db')],
           rc=FAIL, expect=["--reference-file 'ponga.fa': No such file"])
+    t.run('vcf: no database', vcf + ref, rc=FAIL,
+          expect=['Missing SQLite3 database', 'make-vcf --help'])
+    t.run('vcf: two databases', vcf + mdb + [P('ps/sim.db')], rc=FAIL,
+          expect=['Too many arguments: Pass only one SQLite3 database'])
+    t.run('vcf: not a sideRETRO database', vcf + ref + [P('genes.gtf')], rc=FAIL,
+          expect=["SQLite3 database file '%s': Not a sideRETRO database" % P('genes.gtf')])
+    t.run('vcf: reference not FASTA', vcf + ['-r', P('genes.gtf'), P('mc/merged.db')],
+          rc=FAIL, expect=["--reference-file '%s': Not a FASTA file" % P('genes.gtf')])
+    t.run('vcf: reference of another genome',
+          vcf + ['-o', P('vcf3'), '-r', P('other.fa'), P('mc/merged.db')], rc=ABORT,
+          expect=['None of the 1 chromosomes of the retrocopies',
+                  'Is it the reference genome of the alignments?'])
+    t.run('vcf: database from process-sample',
+          vcf + ref + ['-o', P('vcf4'), P('ps/sim.db')],
+          expect=["No retrocopy at the database '%s'" % P('ps/sim.db'),
+                  "run 'merge-call' on it first"])
     t.run('vcf: near-gene-dist', vcf + ['-n', '-1'] + mdb, rc=FAIL,
           expect=['--near-gene-dist must be'])
     t.run('vcf: orientation-error', vcf + ['-e', '-1'] + mdb, rc=FAIL,
