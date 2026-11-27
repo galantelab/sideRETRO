@@ -26,6 +26,7 @@
 #include <stdarg.h>
 #include <libgen.h>
 #include <string.h>
+#include <ctype.h>
 #include <signal.h>
 #include <float.h>
 #include <math.h>
@@ -297,6 +298,27 @@ exists (const char *file)
 {
 	struct stat sb;
 	return stat (file, &sb) == 0 && sb.st_mode & S_IFREG;
+}
+
+/*
+ * 'path' starts with a scheme as 'scheme://' - as
+ * 's3://', 'https://' or 'ftp://'. The scheme has
+ * at least two characters, as for htslib: 'C:/' is
+ * a Windows drive
+ */
+int
+is_url (const char *path)
+{
+	int i = 0;
+
+	if (path == NULL)
+		return 0;
+
+	for (; isalnum ((unsigned char) path[i]) || path[i] == '+' || path[i] == '-'
+			|| path[i] == '.'; i++)
+		;
+
+	return i >= 2 && strncmp (path + i, "://", 3) == 0;
 }
 
 void

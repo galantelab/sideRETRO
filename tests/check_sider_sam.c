@@ -20,6 +20,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
 #include <check.h>
 #include "check_sider.h"
 #include <sys/resource.h>
@@ -281,6 +282,15 @@ START_TEST (test_sam_check_format)
 	ck_assert_int_eq (check_format_of (sam_check_format,
 				"chr1\tHAVANA\texon\t11869\t12227\t.\t+\t.\tgene_name \"DDX11L1\";\n"), 0);
 	ck_assert_int_eq (check_format_of (sam_check_format, ""), 0);
+
+	// It cannot open them: errno tells why
+	errno = 0;
+	ck_assert_int_eq (sam_check_format ("/tmp/pongatrongaflofa.bam"), -1);
+	ck_assert_int_eq (errno, ENOENT);
+
+	errno = 0;
+	ck_assert_int_eq (sam_check_format ("ponga://x/ponga.bam"), -1);
+	ck_assert_int_eq (errno, EPROTONOSUPPORT);
 
 	xunlink (sam_file);
 	xunlink (bam_file);

@@ -56,9 +56,13 @@ sam_check_text_format (const char *path)
 }
 
 /*
- * htslib recognizes 'path' as a SAM, BAM or CRAM file.
- * Not by hts_open: It opens any text file as SAM - and
- * so does hts_detect_format, so check the text itself
+ * htslib recognizes 'path' as a SAM, BAM or CRAM file:
+ * 1 if so, 0 if not and -1 if it cannot open 'path',
+ * with errno set - EPROTONOSUPPORT for a URL whose
+ * scheme htslib does not support. Not by hts_open: It
+ * opens any text file as SAM - and so does
+ * hts_detect_format, so check the text itself. Not
+ * for a URL, as the text is read by zlib
  */
 int
 sam_check_format (const char *path)
@@ -72,14 +76,14 @@ sam_check_format (const char *path)
 	fp = hopen (path, "r");
 
 	if (fp == NULL)
-		return 0;
+		return -1;
 
 	if (hts_detect_format (fp, &fmt) == 0)
 		rc = fmt.format == sam || fmt.format == bam || fmt.format == cram;
 
 	hclose_abruptly (fp);
 
-	if (rc && fmt.format == sam)
+	if (rc && fmt.format == sam && !is_url (path))
 		rc = sam_check_text_format (path);
 
 	return rc;

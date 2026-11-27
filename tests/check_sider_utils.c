@@ -242,6 +242,25 @@ START_TEST (test_exists)
 }
 END_TEST
 
+START_TEST (test_is_url)
+{
+	ck_assert_int_eq (is_url ("s3://1000genomes/data/NA12878.final.cram"), 1);
+	ck_assert_int_eq (is_url ("https://ponga.org/ponga.bam"), 1);
+	ck_assert_int_eq (is_url ("s3+https://ponga/ponga.bam"), 1);
+	ck_assert_int_eq (is_url ("ftp://ftp.ponga.org/ponga.bam"), 1);
+
+	// Local paths, as a Windows drive
+	ck_assert_int_eq (is_url ("/tmp/ponga.bam"), 0);
+	ck_assert_int_eq (is_url ("ponga.bam"), 0);
+	ck_assert_int_eq (is_url ("C://ponga.bam"), 0);
+	ck_assert_int_eq (is_url ("ponga:/x.bam"), 0);
+	ck_assert_int_eq (is_url ("://ponga.bam"), 0);
+	ck_assert_int_eq (is_url ("dir/s3://ponga.bam"), 0);
+	ck_assert_int_eq (is_url (""), 0);
+	ck_assert_int_eq (is_url (NULL), 0);
+}
+END_TEST
+
 START_TEST (test_xstrdup_concat)
 {
 	char *surname = "ponguita";
@@ -429,6 +448,7 @@ make_utils_suite (void)
 	tcase_add_test (tc_core, test_path_file);
 	tcase_add_test (tc_core, test_which);
 	tcase_add_test (tc_core, test_exists);
+	tcase_add_test (tc_core, test_is_url);
 	tcase_add_test (tc_core, test_xstrdup_concat);
 	tcase_add_test (tc_core, test_xasprintf_concat);
 	tcase_add_test (tc_core, test_mkdir_p);
