@@ -1,0 +1,10 @@
+[wrap-file]
+directory = curl-8.23.0
+
+source_url = https://github.com/curl/curl/releases/download/curl-8_23_0/curl-8.23.0.tar.xz
+source_filename = curl-8.23.0.tar.gz
+source_hash = 8dadd7d2536a314f982ad05a651b713f426bf7d02cc2c76cffb9796f2218e6c5
+
+patch_url = https://github.com/galantelab/curl/archive/8.23.0.tar.gz
+patch_filename = curl-8.23.0-wrap.tar.gz
+patch_hash = 5311f53b1c41402d15bba52260bc609c7b49a8836ecb6c606dc618fbcf9e15a4

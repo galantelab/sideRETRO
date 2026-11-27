@@ -89,7 +89,7 @@ zlib_dep = dependency('zlib', fallback : ['zlib', 'zlib_dep'])
 sqlite_dep = dependency('sqlite3', version : '>= 3.28.0', fallback : ['sqlite', 'sqlite_dep'])
 
 # HTSLib
-htslib_dep = dependency('htslib', version : '>= 1.9', fallback : ['htslib', 'htslib_dep'])
+htslib_dep = dependency('htslib', version : '>= 1.25', fallback : ['htslib', 'htslib_dep'])
 
 # Libcheck framework is used for testing, so it is not
 # required for building and installing

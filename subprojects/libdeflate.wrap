@@ -1,0 +1,10 @@
+[wrap-file]
+directory = libdeflate-1.26
+
+source_url = https://github.com/ebiggers/libdeflate/archive/refs/tags/v1.26.tar.gz
+source_filename = libdeflate-1.26.tar.gz
+source_hash = bba03fffc5538576213675ce6968fcff6ce2e67d82e4d5febea2d05f9f13cf85
+
+patch_url = https://github.com/galantelab/libdeflate/archive/refs/tags/1.26.tar.gz
+patch_filename = libdeflate-1.26-wrap.tar.gz
+patch_hash = 3d8ed135bec4b26b3e05d0fa7c431e2ceacad3503158f4a0c8126a1681f15eb4
