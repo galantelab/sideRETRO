@@ -22,6 +22,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <errno.h>
 #include <assert.h>
 #include <getopt.h>
 #include "db.h"
@@ -34,6 +35,7 @@
 #include "set.h"
 #include "gff.h"
 #include "bed.h"
+#include "sam.h"
 #include "fasta.h"
 #include "str.h"
 #include "chr.h"
@@ -575,6 +577,56 @@ merge_call_destroy (MergeCall *mc)
 	memset (mc, 0, sizeof (MergeCall));
 }
 
+/*
+ * The genotyping step reads the alignment files
+ * of the samples again - with their paths, or URLs,
+ * as passed to process-sample
+ */
+static int
+check_alignment_files (const char *db_file)
+{
+	sqlite3 *db = NULL;
+	sqlite3_stmt *stmt = NULL;
+	const char *path = NULL;
+	int format = 0;
+	int rc = 1;
+
+	db = db_open (db_file, SQLITE_OPEN_READONLY);
+	stmt = db_prepare (db, "SELECT path FROM source ORDER BY id");
+
+	while (rc && db_step (stmt) == SQLITE_ROW)
+		{
+			path = db_column_text (stmt, 0);
+
+			if (!is_url (path) && !exists (path))
+				{
+					fprintf (stderr, "%s: alignment file '%s' of the database '%s': No such file\n",
+							PACKAGE, path, db_file);
+					rc = 0; break;
+				}
+
+			format = sam_check_format (path);
+
+			if (format < 0)
+				{
+					fprintf (stderr, "%s: alignment file '%s' of the database '%s': %s\n",
+							PACKAGE, path, db_file, strerror (errno));
+					rc = 0;
+				}
+			else if (format == 0)
+				{
+					fprintf (stderr, "%s: alignment file '%s' of the database '%s': Not a SAM/BAM/CRAM file\n",
+							PACKAGE, path, db_file);
+					rc = 0;
+				}
+		}
+
+	db_finalize (stmt);
+	db_close (db);
+
+	return rc;
+}
+
 static int
 merge_call_validate (MergeCall *mc)
 {
@@ -605,6 +657,11 @@ merge_call_validate (MergeCall *mc)
 				{
 					fprintf (stderr, "%s: SQLite3 database '%s': Not a sideRETRO database\n",
 							PACKAGE, db_file);
+					rc = EXIT_FAILURE; goto Exit;
+				}
+
+			if (!check_alignment_files (db_file))
+				{
 					rc = EXIT_FAILURE; goto Exit;
 				}
 		}

@@ -19,6 +19,8 @@
 #include "config.h"
 
 #include <stdio.h>
+#include <string.h>
+#include <errno.h>
 #include <time.h>
 #include <getopt.h>
 #include <assert.h>
@@ -538,6 +540,7 @@ static int
 process_sample_validate (ProcessSample *ps)
 {
 	int rc = EXIT_SUCCESS;
+	int format = 0;
 	int i = 0;
 
 	/*
@@ -556,13 +559,24 @@ process_sample_validate (ProcessSample *ps)
 	for (i = 0; i < array_len (ps->sam_files); i++)
 		{
 			const char *sam_file = array_get (ps->sam_files, i);
-			if (!exists (sam_file))
+
+			// A URL is checked by htslib only
+			if (!is_url (sam_file) && !exists (sam_file))
 				{
 					fprintf (stderr, "%s: alignment file '%s': No such file\n", PACKAGE, sam_file);
 					rc = EXIT_FAILURE; goto Exit;
 				}
 
-			if (!sam_check_format (sam_file))
+			format = sam_check_format (sam_file);
+
+			if (format < 0)
+				{
+					fprintf (stderr, "%s: alignment file '%s': %s\n",
+							PACKAGE, sam_file, strerror (errno));
+					rc = EXIT_FAILURE; goto Exit;
+				}
+
+			if (format == 0)
 				{
 					fprintf (stderr, "%s: alignment file '%s': Not a SAM/BAM/CRAM file\n",
 							PACKAGE, sam_file);

@@ -155,6 +155,8 @@ def cases(t, sim):
           expect=["annotation file 'ponga.gtf': No such file"])
     t.run('ps: alignment file not SAM', ps + ann + [P('ref.fa')], rc=FAIL,
           expect=["alignment file '%s': Not a SAM/BAM/CRAM file" % P('ref.fa')])
+    t.run('ps: alignment URL scheme not supported', ps + ann + ['ponga://x/sim.bam'],
+          rc=FAIL, expect=["alignment file 'ponga://x/sim.bam': Protocol not supported"])
     t.run('ps: annotation not GTF', ps + ['-a', P('ref.fa')] + sam, rc=FAIL,
           expect=["annotation file '%s': Not a GTF/GFF3 file" % P('ref.fa')])
     t.run('ps: annotation not BED', ps + ['-a', P('notbed.bed')] + sam, rc=FAIL,
@@ -199,6 +201,12 @@ def cases(t, sim):
           expect=['Exons indexed            3', 'merge-call -r <genome.fa> '],
           absent=['--gff-feature', '--exon-frac is a fraction of the exon'])
 
+    # A sample whose alignment file is gone
+    shutil.copy(P('sim.sam'), P('sim_gone.sam'))
+    t.run('ps: run sample to remove', ps + ann + ['-o', P('ps5'), '-q',
+          P('sim_gone.sam')])
+    os.remove(P('sim_gone.sam'))
+
     # ================= merge-call
     mc = ['merge-call']
     ref = ['-r', P('ref.fa')]
@@ -215,6 +223,9 @@ def cases(t, sim):
           expect=["--blacklist-region 'ponga.bed': No such file"])
     t.run('mc: not a sideRETRO database', mc + ref + [P('genes.gtf')], rc=FAIL,
           expect=["SQLite3 database '%s': Not a sideRETRO database" % P('genes.gtf')])
+    t.run('mc: alignment file not found', mc + ref + [P('ps/sim.db'), P('ps5/out.db')],
+          rc=FAIL, expect=["alignment file '%s' of the database '%s': No such file"
+                           % (P('sim_gone.sam'), P('ps5/out.db'))])
     t.run('mc: blacklist not BED', mc + ['-B', P('notbed.bed')] + db, rc=FAIL,
           expect=["--blacklist-region '%s': Not a BED file" % P('notbed.bed')])
     t.run('mc: blacklist not GTF', mc + ['-B', P('notgtf.gtf')] + db, rc=FAIL,
