@@ -21,6 +21,7 @@
 #include <htslib/hts.h>
 #include <htslib/hfile.h>
 #include <fcntl.h>
+#include <errno.h>
 #include <assert.h>
 #include "wrapper.h"
 #include "utils.h"
@@ -59,7 +60,9 @@ sam_check_text_format (const char *path)
  * htslib recognizes 'path' as a SAM, BAM or CRAM file:
  * 1 if so, 0 if not and -1 if it cannot open 'path',
  * with errno set - EPROTONOSUPPORT for a URL whose
- * scheme htslib does not support. Not by hts_open: It
+ * scheme htslib does not support. errno may be 0:
+ * htslib 1.9 (knetfile) gives no reason for a file
+ * missing at a FTP server. Not by hts_open: It
  * opens any text file as SAM - and so does
  * hts_detect_format, so check the text itself. Not
  * for a URL, as the text is read by zlib
@@ -73,6 +76,8 @@ sam_check_format (const char *path)
 	htsFormat fmt = {};
 	int rc = 0;
 
+	// Not a stale errno from before
+	errno = 0;
 	fp = hopen (path, "r");
 
 	if (fp == NULL)
