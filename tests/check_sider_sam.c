@@ -21,6 +21,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <string.h>
 #include <check.h>
 #include "check_sider.h"
 #include <sys/resource.h>
@@ -109,26 +110,37 @@ END_TEST
 
 START_TEST (test_sam_test_sorted_order)
 {
-	char *queryname = "@HD\tVN:1.0\tSO:queryname\n";
-	char *coordinate = "@HD\tVN:1.0\tSO:coordinate\n";
+	const char *queryname = "@HD\tVN:1.0\tSO:queryname\n";
+	const char *coordinate = "@HD\tVN:1.6\tSO:coordinate\n";
+	const char *swapped = "@HD\tSO:queryname\tGO:query\tVN:1.6\n";
+	const char *unsorted = "@HD\tVN:1.6\n@SQ\tSN:chr1\tLN:100\n";
+	const char *no_hd = "@SQ\tSN:chr1\tLN:100\n";
 
-	bam_hdr_t hdr;
+	bam_hdr_t *hdr = NULL;
 
-	hdr.text = queryname;
-	hdr.l_text = strlen (queryname);
+	hdr = sam_hdr_parse (strlen (queryname), queryname);
+	ck_assert_int_eq (sam_test_sorted_order (hdr, "queryname"), 1);
+	ck_assert_int_eq (sam_test_sorted_order (hdr, "coordinate"), 0);
+	bam_hdr_destroy (hdr);
 
-	ck_assert_int_eq (sam_test_sorted_order (&hdr,
-				"queryname"), 1);
-	ck_assert_int_eq (sam_test_sorted_order (&hdr,
-				"coordinate"), 0);
+	hdr = sam_hdr_parse (strlen (coordinate), coordinate);
+	ck_assert_int_eq (sam_test_sorted_order (hdr, "coordinate"), 1);
+	ck_assert_int_eq (sam_test_sorted_order (hdr, "queryname"), 0);
+	bam_hdr_destroy (hdr);
 
-	hdr.text = coordinate;
-	hdr.l_text = strlen (coordinate);
+	// The tag SO at any place of @HD
+	hdr = sam_hdr_parse (strlen (swapped), swapped);
+	ck_assert_int_eq (sam_test_sorted_order (hdr, "queryname"), 1);
+	bam_hdr_destroy (hdr);
 
-	ck_assert_int_eq (sam_test_sorted_order (&hdr,
-				"coordinate"), 1);
-	ck_assert_int_eq (sam_test_sorted_order (&hdr,
-				"queryname"), 0);
+	// Without SO, or without @HD at all
+	hdr = sam_hdr_parse (strlen (unsorted), unsorted);
+	ck_assert_int_eq (sam_test_sorted_order (hdr, "queryname"), 0);
+	bam_hdr_destroy (hdr);
+
+	hdr = sam_hdr_parse (strlen (no_hd), no_hd);
+	ck_assert_int_eq (sam_test_sorted_order (hdr, "queryname"), 0);
+	bam_hdr_destroy (hdr);
 }
 END_TEST
 
@@ -318,7 +330,7 @@ make_sam_suite (void)
 	suite_add_tcase (s, tc_core);
 
 	/*
-	* Write failures: htslib 1.9 (bgzf_close) does not release
+	* Write failures: htslib (bgzf_close, 1.9 to 1.25) does not release
 	* the output stream when its last flush fails - a leak that
 	* is not ours. Skip them under valgrind or AddressSanitizer
 	* (CK_EXCLUDE_TAGS=htslib-leak)

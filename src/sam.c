@@ -20,52 +20,24 @@
 
 #include <htslib/hts.h>
 #include <htslib/hfile.h>
+#include <htslib/kstring.h>
 #include <fcntl.h>
+#include <string.h>
 #include <errno.h>
 #include <assert.h>
 #include "wrapper.h"
 #include "utils.h"
 #include "log.h"
-#include "gz.h"
 #include "sam.h"
-
-/*
- * A SAM file starts with a header line ('@') or with an
- * alignment: At least 11 fields separated by tabs
- */
-static int
-sam_check_text_format (const char *path)
-{
-	char *line = NULL;
-	char *cur = NULL;
-	int num_field = 0;
-	int rc = 0;
-
-	line = gz_first_line (path, "");
-
-	if (line == NULL)
-		return 0;
-
-	for (cur = line, num_field = 1; *cur != '\0'; cur++)
-		if (*cur == '\t')
-			num_field++;
-
-	rc = line[0] == '@' || num_field >= 11;
-
-	xfree (line);
-	return rc;
-}
 
 /*
  * htslib recognizes 'path' as a SAM, BAM or CRAM file:
  * 1 if so, 0 if not and -1 if it cannot open 'path',
  * with errno set - EPROTONOSUPPORT for a URL whose
  * scheme htslib does not support. errno may be 0:
- * htslib 1.9 (knetfile) gives no reason for a file
- * missing at a FTP server. Not by hts_open: It
- * opens any text file as SAM - and so does
- * hts_detect_format, so check the text itself. Not
- * for a URL, as the text is read by zlib
+ * htslib gives no reason for some remote failures.
+ * Not by hts_open: It opens other formats too, as
+ * FASTA or FASTQ
  */
 int
 sam_check_format (const char *path)
@@ -87,9 +59,6 @@ sam_check_format (const char *path)
 		rc = fmt.format == sam || fmt.format == bam || fmt.format == cram;
 
 	hclose_abruptly (fp);
-
-	if (rc && fmt.format == sam && !is_url (path))
-		rc = sam_check_text_format (path);
 
 	return rc;
 }
@@ -222,23 +191,17 @@ sam_to_bam (const char *input_file, const char *output_file)
 }
 
 int
-sam_test_sorted_order (const bam_hdr_t *hdr, const char *value)
+sam_test_sorted_order (bam_hdr_t *hdr, const char *value)
 {
 	assert (hdr != NULL && value != NULL);
 
-	char *sorted_by = NULL;
-	float version = 0;
+	kstring_t sorted_by = KS_INITIALIZE;
 	int success = 0;
 
-	sorted_by = xcalloc (hdr->l_text, sizeof (char));
+	// The tag SO of the line @HD, at any place
+	if (sam_hdr_find_tag_hd (hdr, "SO", &sorted_by) == 0)
+		success = !strcmp (sorted_by.s, value);
 
-	if (sscanf (hdr->text, "@HD\tVN:%f\tSO:%s",
-				&version, sorted_by) == 2)
-		{
-			chomp (sorted_by);
-			success = !strcmp (sorted_by, value);
-		}
-
-	xfree (sorted_by);
+	ks_free (&sorted_by);
 	return success;
 }

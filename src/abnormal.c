@@ -205,7 +205,7 @@ abnormal_classifier (const bam1_t *align, int max_distance,
 		{
 			*type |= ABNORMAL_CHROMOSOME;
 		}
-	else if (abs (align->core.pos - align->core.mpos)
+	else if (labs (align->core.pos - align->core.mpos)
 			> max_distance)
 		{
 			*type |= ABNORMAL_DISTANCE;
