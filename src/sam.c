@@ -63,6 +63,25 @@ sam_check_format (const char *path)
 	return rc;
 }
 
+/*
+ * The reason why sam_check_format could not open
+ * 'path', from errno: htslib maps the failure of
+ * libcurl to resolve a host to EDESTADDRREQ
+ */
+const char *
+sam_strerror (const char *path, int errnum)
+{
+	assert (path != NULL);
+
+	if (errnum == 0)
+		return "Failed to open";
+
+	if (errnum == EDESTADDRREQ && is_url (path))
+		return "Could not resolve the host";
+
+	return strerror (errnum);
+}
+
 int
 sam_to_bam_fp (FILE *fp, const char *output_file)
 {

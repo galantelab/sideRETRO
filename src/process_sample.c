@@ -572,7 +572,7 @@ process_sample_validate (ProcessSample *ps)
 			if (format < 0)
 				{
 					fprintf (stderr, "%s: alignment file '%s': %s\n",
-							PACKAGE, sam_file, errno ? strerror (errno) : "Failed to open");
+							PACKAGE, sam_file, sam_strerror (sam_file, errno));
 					rc = EXIT_FAILURE; goto Exit;
 				}
 

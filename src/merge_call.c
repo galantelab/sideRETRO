@@ -610,7 +610,7 @@ check_alignment_files (const char *db_file)
 			if (format < 0)
 				{
 					fprintf (stderr, "%s: alignment file '%s' of the database '%s': %s\n",
-							PACKAGE, path, db_file, errno ? strerror (errno) : "Failed to open");
+							PACKAGE, path, db_file, sam_strerror (path, errno));
 					rc = 0;
 				}
 			else if (format == 0)

@@ -144,6 +144,19 @@ START_TEST (test_sam_test_sorted_order)
 }
 END_TEST
 
+START_TEST (test_sam_strerror)
+{
+	ck_assert_str_eq (sam_strerror ("ponga.bam", 0), "Failed to open");
+	ck_assert_str_eq (sam_strerror ("ponga.bam", ENOENT), strerror (ENOENT));
+	ck_assert_str_eq (sam_strerror ("https://ponga.invalid/ponga.bam", EDESTADDRREQ),
+			"Could not resolve the host");
+
+	// Only a URL has a host
+	ck_assert_str_eq (sam_strerror ("ponga.bam", EDESTADDRREQ),
+			strerror (EDESTADDRREQ));
+}
+END_TEST
+
 static void
 write_file (char *path, const char *body)
 {
@@ -323,6 +336,7 @@ make_sam_suite (void)
 	tc_core = tcase_create ("Core");
 
 	tcase_add_test (tc_core, test_sam_check_format);
+	tcase_add_test (tc_core, test_sam_strerror);
 	tcase_add_test (tc_core, test_sam_to_bam);
 	tcase_add_test (tc_core, test_sam_to_bam_fp);
 	tcase_add_test (tc_core, test_sam_test_sorted_order);
