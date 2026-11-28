@@ -7,4 +7,4 @@ source_hash = ab5a03176ee106d3f0fa90e381da478ddae405918153cca248e682cd0c4a2269
 
 patch_url = https://github.com/galantelab/bzip2/archive/1.0.8.tar.gz
 patch_filename = bzip2-1.0.8-wrap.tar.gz
-patch_hash = 71bbb64ae1e6ec1240018d0b3ea0747bce9f7bfb021dc716929d2560bcc6c5cb
+patch_hash = e86d5bcf8532f835abc1e8726b86c82359883f93a2e64cb3dde45dc1440dfbe9
